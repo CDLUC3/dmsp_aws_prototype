@@ -1,0 +1,12 @@
+template_bucket_name: uc3-dmp-hub-cf-bucket
+
+sceptre_user_data:
+  domain: 'dmphub.uc3dev.cdlib.org'
+  env: 'dev'
+
+stack_tags:
+  Service: 'dmp'
+  Subservice: 'hub'
+  Environment: 'dev'
+  CodeRepo: 'https://github.com/CDLUC3/cloud9-briley'
+  Contact: 'briley'

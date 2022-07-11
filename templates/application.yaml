@@ -1,0 +1,796 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Description: Template to build a lambda that fetchs summary info for a list of DMPs
+
+Parameters:
+  S3RepoBucket:
+    Type: String
+
+  DynamoTableName:
+    Type: String
+  DynamoTableArn:
+    Type: String
+
+  S3BucketId:
+    Type: String
+  S3BucketArn:
+    Type: String
+
+  SqsQueueId:
+    Type: String
+  SqsQueueArn:
+    Type: String
+  SnsTopicDownloadName:
+    Type: String
+  SnsTopicNotificationName:
+    Type: String
+  SnsTopicPublicationName:
+    Type: String
+
+  ApplicationLogGroupArn:
+    Type: String
+
+Resources:
+  # Delete DMP
+  # -----------------------------------------------------------
+  DeleteDmp:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: lambda_function.lambda_handler
+      Code:
+        S3Bucket: !Ref S3RepoBucket
+        S3Key: lambdas/lambda-delete-dmp.zip
+      Environment:
+        Variables:
+          # AWS_REGION: !Ref AWS::Region
+          AWS_DYNAMO_TABLE_NAME: !Ref DynamoTableName
+          AWS_SNS_S3_BUCKET_NAME: !Ref S3BucketId
+          AWS_SQS_QUEUE_NAME: !Ref SqsQueueId
+          AWS_SNS_DOWNLOAD_TOPIC: !Ref SnsTopicDownloadName
+          AWS_SNS_PUBLICATION_TOPIC: !Ref SnsTopicPublicationName
+      Role: !GetAtt DeleteDmpRole.Arn
+      Runtime: ruby2.7
+      Timeout: 30
+
+  DeleteDmpRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+
+  DeleteDmpPolicy:
+    Type: AWS::IAM::Policy
+    DependsOn:
+      - DeleteDmp
+      - DeleteDmpRole
+    Properties:
+      PolicyName: DmpHubDeleteDmpPolicy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          Effect: Allow
+          Action:
+            - logs:CreateLogStream
+            - Logs:PutLogEvents
+          Resource: !Ref ApplicationLogGroupArn
+      Roles:
+        - !Ref DeleteDmpRole
+
+  # Download DMP Narrative Document
+  # -----------------------------------------------------------
+  DocumentDownloader:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: lambda_function.lambda_handler
+      Code:
+        S3Bucket: !Ref S3RepoBucket
+        S3Key: lambdas/lambda-document-downloader.zip
+      Environment:
+        Variables:
+          # AWS_REGION: !Ref AWS::Region
+          AWS_DYNAMO_TABLE_NAME: !Ref DynamoTableName
+          AWS_SNS_S3_BUCKET_NAME: !Ref S3BucketId
+          AWS_SQS_QUEUE_NAME: !Ref SqsQueueId
+          AWS_SNS_DOWNLOAD_TOPIC: !Ref SnsTopicDownloadName
+      Role: !GetAtt DocumentDownloaderRole.Arn
+      Runtime: ruby2.7
+      Timeout: 30
+
+  DocumentDownloaderRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+
+  DocumentDownloaderPolicy:
+    Type: AWS::IAM::Policy
+    DependsOn:
+      - DocumentDownloader
+      - DocumentDownloaderRole
+    Properties:
+      PolicyName: DmpHubDocumentDownloaderPolicy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          Effect: Allow
+          Action:
+            - logs:CreateLogStream
+            - Logs:PutLogEvents
+          Resource: !Ref ApplicationLogGroupArn
+      Roles:
+        - !Ref DocumentDownloaderRole
+
+  # EZID Publication
+  # -----------------------------------------------------------
+  EzidPublisher:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: lambda_function.lambda_handler
+      Code:
+        S3Bucket: !Ref S3RepoBucket
+        S3Key: lambdas/lambda-ezid-publisher.zip
+      Environment:
+        Variables:
+          # AWS_REGION: !Ref AWS::Region
+          AWS_DYNAMO_TABLE_NAME: !Ref DynamoTableName
+          AWS_SQS_QUEUE_NAME: !Ref SqsQueueId
+          AWS_SNS_PUBLICATION_TOPIC: !Ref SnsTopicPublicationName
+      Role: !GetAtt EzidPublisherRole.Arn
+      Runtime: ruby2.7
+      Timeout: 30
+
+  EzidPublisherRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+
+  EzidPublisherPolicy:
+    Type: AWS::IAM::Policy
+    DependsOn:
+      - EzidPublisher
+      - EzidPublisherRole
+    Properties:
+      PolicyName: DmpHubEzidPublisherPolicy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          Effect: Allow
+          Action:
+            - logs:CreateLogStream
+            - Logs:PutLogEvents
+          Resource: !Ref ApplicationLogGroupArn
+      Roles:
+        - !Ref EzidPublisherRole
+
+  # Get DMP
+  # -----------------------------------------------------------
+  GetDmp:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: lambda_function.lambda_handler
+      Code:
+        S3Bucket: !Ref S3RepoBucket
+        S3Key: lambdas/lambda-get-dmp.zip
+      Environment:
+        Variables:
+          # AWS_REGION: !Ref AWS::Region
+          AWS_DYNAMO_TABLE_NAME: !Ref DynamoTableName
+          AWS_SNS_S3_BUCKET_NAME: !Ref S3BucketId
+      Role: !GetAtt GetDmpRole.Arn
+      Runtime: ruby2.7
+      Timeout: 30
+
+  GetDmpRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+
+  GetDmpPolicy:
+    Type: AWS::IAM::Policy
+    DependsOn:
+      - GetDmp
+      - GetDmpRole
+    Properties:
+      PolicyName: DmpHubGetDmpPolicy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          Effect: Allow
+          Action:
+            - logs:CreateLogStream
+            - Logs:PutLogEvents
+          Resource: !Ref ApplicationLogGroupArn
+      Roles:
+        - !Ref GetDmpRole
+
+  # Search DMPs
+  # -----------------------------------------------------------
+  GetDmps:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: lambda_function.lambda_handler
+      Code:
+        S3Bucket: !Ref S3RepoBucket
+        S3Key: lambdas/lambda-get-dmps.zip
+      Environment:
+        Variables:
+          # AWS_REGION: !Ref AWS::Region
+          AWS_DYNAMO_TABLE_NAME: !Ref DynamoTableName
+      Role: !GetAtt GetDmpsRole.Arn
+      Runtime: ruby2.7
+      Timeout: 30
+
+  GetDmpsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+
+  GetDmpsPolicy:
+    Type: AWS::IAM::Policy
+    DependsOn:
+      - GetDmps
+      - GetDmpsRole
+    Properties:
+      PolicyName: DmpHubGetDmpsPolicy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          Effect: Allow
+          Action:
+            - logs:CreateLogStream
+            - Logs:PutLogEvents
+          Resource: !Ref ApplicationLogGroupArn
+      Roles:
+        - !Ref GetDmpsRole
+
+  # Create DMP
+  # -----------------------------------------------------------
+  PostDmp:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: lambda_function.lambda_handler
+      Code:
+        S3Bucket: !Ref S3RepoBucket
+        S3Key: lambdas/lambda-post-dmp.zip
+      Environment:
+        Variables:
+          # AWS_REGION: !Ref AWS::Region
+          AWS_DYNAMO_TABLE_NAME: !Ref DynamoTableName
+          AWS_SNS_S3_BUCKET_NAME: !Ref S3BucketId
+          AWS_SQS_QUEUE_NAME: !Ref SqsQueueId
+          AWS_SNS_DOWNLOAD_TOPIC: !Ref SnsTopicDownloadName
+          AWS_SNS_NOTIFICATION_TOPIC: !Ref SnsTopicNotificationName
+          AWS_SNS_PUBLICATION_TOPIC: !Ref SnsTopicPublicationName
+      Role: !GetAtt PostDmpRole.Arn
+      Runtime: ruby2.7
+      Timeout: 30
+
+  PostDmpRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+
+  PostDmpPolicy:
+    Type: AWS::IAM::Policy
+    DependsOn:
+      - PostDmp
+      - PostDmpRole
+    Properties:
+      PolicyName: DmpHubPostDmpPolicy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          Effect: Allow
+          Action:
+            - logs:CreateLogStream
+            - Logs:PutLogEvents
+          Resource: !Ref ApplicationLogGroupArn
+      Roles:
+        - !Ref PostDmpRole
+
+  # Provenance Notification
+  # -----------------------------------------------------------
+  ProvenanceNotifier:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: lambda_function.lambda_handler
+      Code:
+        S3Bucket: !Ref S3RepoBucket
+        S3Key: lambdas/lambda-provenance-notifier.zip
+      Environment:
+        Variables:
+          # AWS_REGION: !Ref AWS::Region
+          AWS_DYNAMO_TABLE_NAME: !Ref DynamoTableName
+          AWS_SQS_QUEUE_NAME: !Ref SqsQueueId
+          AWS_SNS_NOTIFICATION_TOPIC: !Ref SnsTopicNotificationName
+      Role: !GetAtt ProvenanceNotifierRole.Arn
+      Runtime: ruby2.7
+      Timeout: 30
+
+  ProvenanceNotifierRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+
+  ProvenanceNotifierPolicy:
+    Type: AWS::IAM::Policy
+    DependsOn:
+      - ProvenanceNotifier
+      - ProvenanceNotifierRole
+    Properties:
+      PolicyName: DmpHubProvenanceNotifierPolicy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          Effect: Allow
+          Action:
+            - logs:CreateLogStream
+            - Logs:PutLogEvents
+          Resource: !Ref ApplicationLogGroupArn
+      Roles:
+        - !Ref ProvenanceNotifierRole
+
+  # Update DMP Funding Information
+  # -----------------------------------------------------------
+  PutDmpFundings:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: lambda_function.lambda_handler
+      Code:
+        S3Bucket: !Ref S3RepoBucket
+        S3Key: lambdas/lambda-put-dmp-fundings.zip
+      Environment:
+        Variables:
+          # AWS_REGION: !Ref AWS::Region
+          AWS_DYNAMO_TABLE_NAME: !Ref DynamoTableName
+          AWS_SQS_QUEUE_NAME: !Ref SqsQueueId
+          AWS_SNS_NOTIFICATION_TOPIC: !Ref SnsTopicNotificationName
+      Role: !GetAtt PutDmpFundingsRole.Arn
+      Runtime: ruby2.7
+      Timeout: 30
+
+  PutDmpFundingsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+
+  PutDmpFundingsPolicy:
+    Type: AWS::IAM::Policy
+    DependsOn:
+      - PutDmpFundings
+      - PutDmpFundingsRole
+    Properties:
+      PolicyName: DmpHubPutDmpFundingsPolicy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          Effect: Allow
+          Action:
+            - logs:CreateLogStream
+            - Logs:PutLogEvents
+          Resource: !Ref ApplicationLogGroupArn
+      Roles:
+        - !Ref PutDmpFundingsRole
+
+  # Update DMP Related Identifiers
+  # -----------------------------------------------------------
+  PutDmpRelatedIdentifiers:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: lambda_function.lambda_handler
+      Code:
+        S3Bucket: !Ref S3RepoBucket
+        S3Key: lambdas/lambda-put-dmp-related-identifiers.zip
+      Environment:
+        Variables:
+          # AWS_REGION: !Ref AWS::Region
+          AWS_DYNAMO_TABLE_NAME: !Ref DynamoTableName
+          AWS_SQS_QUEUE_NAME: !Ref SqsQueueId
+          AWS_SNS_NOTIFICATION_TOPIC: !Ref SnsTopicNotificationName
+      Role: !GetAtt PutDmpRelatedIdentifiersRole.Arn
+      Runtime: ruby2.7
+      Timeout: 30
+
+  PutDmpRelatedIdentifiersRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+
+  PutDmpRelatedIdentifiersPolicy:
+    Type: AWS::IAM::Policy
+    DependsOn:
+      - PutDmpRelatedIdentifiers
+      - PutDmpRelatedIdentifiersRole
+    Properties:
+      PolicyName: DmpHubPutDmpRelatedIdentifiersPolicy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          Effect: Allow
+          Action:
+            - logs:CreateLogStream
+            - Logs:PutLogEvents
+          Resource: !Ref ApplicationLogGroupArn
+      Roles:
+        - !Ref PutDmpRelatedIdentifiersRole
+
+  # Update DMP
+  # -----------------------------------------------------------
+  PutDmp:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: lambda_function.lambda_handler
+      Code:
+        S3Bucket: !Ref S3RepoBucket
+        S3Key: "lambdas/lambda-put-dmp.zip"
+      Environment:
+        Variables:
+          # AWS_REGION: !Ref AWS::Region
+          AWS_DYNAMO_TABLE_NAME: !Ref DynamoTableName
+          AWS_SNS_S3_BUCKET_NAME: !Ref S3BucketId
+          AWS_SQS_QUEUE_NAME: !Ref SqsQueueId
+          AWS_SNS_DOWNLOAD_TOPIC: !Ref SnsTopicDownloadName
+          AWS_SNS_PUBLICATION_TOPIC: !Ref SnsTopicPublicationName
+      Role: !GetAtt PutDmpRole.Arn
+      Runtime: ruby2.7
+      Timeout: 30
+
+  PutDmpRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+
+  PutDmpPolicy:
+    Type: AWS::IAM::Policy
+    DependsOn:
+      - PutDmp
+      - PutDmpRole
+    Properties:
+      PolicyName: DmpHubPutDmpPolicy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          Effect: Allow
+          Action:
+            - logs:CreateLogStream
+            - Logs:PutLogEvents
+          Resource: !Ref ApplicationLogGroupArn
+      Roles:
+        - !Ref PutDmpRole
+
+  PutDmpInvokePutDmpFundingsLambdaPolicy:
+    Type: AWS::IAM::Policy
+    DependsOn:
+      - PutDmp
+      - PutDmpRole
+    Properties:
+      PolicyName: DmpHubInvokePutDmpFundingsPolicy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          Effect: Allow
+          Action:
+            - lambda:InvokeFunction
+            - lambda:InvokeAsync
+          Resource: !GetAtt PutDmpFundings.Arn
+      Roles:
+        - !Ref PutDmpRole
+
+  PutDmpInvokePutDmpRelatedIdentifiersLambdaPolicy:
+    Type: AWS::IAM::Policy
+    DependsOn:
+      - PutDmp
+      - PutDmpRole
+    Properties:
+      PolicyName: DmpHubInvokeDmpRelatedIdentifiersPolicy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          Effect: Allow
+          Action:
+            - lambda:InvokeFunction
+            - lambda:InvokeAsync
+          Resource: !GetAtt PutDmpRelatedIdentifiers.Arn
+      Roles:
+        - !Ref PutDmpRole
+
+  # Lambda Event Sources
+  # -------------------------------------------------------------------------
+  PendingDownloadEventSource:
+    Type: AWS::Lambda::EventSourceMapping
+    DependsOn:
+      - SqsQueuePolicy
+    Properties:
+      Enabled: true # Setting this to false will pause the events!
+      EventSourceArn: !Ref SqsQueueArn
+      FunctionName: !Ref DocumentDownloader
+      FilterCriteria:
+        Filters:
+          - Pattern: '{"state": ["pending-download"]}'
+
+  PendingPublicationEventSource:
+    Type: AWS::Lambda::EventSourceMapping
+    DependsOn:
+      - SqsQueuePolicy
+    Properties:
+      Enabled: true # Setting this to false will pause the events!
+      EventSourceArn: !Ref SqsQueueArn
+      FunctionName: !Ref EzidPublisher
+      FilterCriteria:
+        Filters:
+          - Pattern: '{"state": ["pending-publication", "pending-unpublication"]}'
+
+  PendingNotificationEventSource:
+    Type: AWS::Lambda::EventSourceMapping
+    DependsOn:
+      - SqsQueuePolicy
+    Properties:
+      Enabled: true # Setting this to false will pause the events!
+      EventSourceArn: !Ref SqsQueueArn
+      FunctionName: !Ref ProvenanceNotifier
+      FilterCriteria:
+        Filters:
+          - Pattern: '{"state": ["pending-notification"]}'
+
+  # Lambda Policies
+  # -------------------------------------------------------------------
+  DynamoTableFullReadPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: DmphubDynamoTableReadPolicy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          Effect: Allow
+          Action:
+            - dynamodb:GetItem
+          Resource: !Ref DynamoTableArn
+      Roles:
+        - !Ref DeleteDmpRole
+        - !Ref DocumentDownloaderRole
+        - !Ref EzidPublisherRole
+        - !Ref GetDmpRole
+        - !Ref GetDmpsRole
+        - !Ref PostDmpRole
+        - !Ref PutDmpFundingsRole
+        - !Ref PutDmpRelatedIdentifiersRole
+        - !Ref PutDmpRole
+
+  DynamoTableFullReadPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: DmphubDynamoTableFullReadPolicy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          Effect: Allow
+          Action:
+            - dynamodb:BatchGetItem
+            - dynamodb:Describe*
+            - dynamodb:List*
+            - dynamodb:GetItem
+            - dynamodb:Query
+            - dynamodb:PartiQLSelect
+          Resource: !Ref DynamoTableArn
+      Roles:
+        - !Ref GetDmpsRole
+
+  DynamoTableWritePolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: DmphubDynamoTableWritePolicy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          Effect: Allow
+          Action:
+            - dynamodb:DeleteItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            - dynamodb:BatchWriteItem
+            - dynamodb:PartiQLDelete
+            - dynamodb:PartiQLInsert
+            - dynamodb:PartiQLUpdate
+          Resource: !Ref DynamoTableArn
+      Roles:
+        - !Ref DeleteDmpRole
+        - !Ref DocumentDownloaderRole
+        - !Ref EzidPublisherRole
+        - !Ref PostDmpRole
+        - !Ref PutDmpFundingsRole
+        - !Ref PutDmpRelatedIdentifiersRole
+        - !Ref PutDmpRole
+
+  S3BucketReadPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: DmphubS3BucketReadPolicy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          Effect: Allow
+          Action:
+            - s3:Get*
+            - s3:List*
+            - s3-object-lambda:Get*
+            - s3-object-lambda:List*
+          Resource: !Ref S3BucketArn
+      Roles:
+        - !Ref DocumentDownloaderRole
+        - !Ref GetDmpRole
+
+  S3BucketWritePolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: DmphubS3BucketWritePolicy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          Effect: Allow
+          Action:
+            - s3:PutObject
+            - s3:DeleteObject
+            - s3-object-lambda:PutObject
+            - s3-object-lambda:DeleteObject
+          Resource: !Ref S3BucketArn
+      Roles:
+        - !Ref DocumentDownloaderRole
+
+  SqsQueuePolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: DmphubSqsQueuePolicy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          Effect: Allow
+          Action:
+            - sqs:DeleteMessage
+            - sqs:ReceiveMessage
+            - sqs:SendMessage
+            - sqs:GetQueueAttributes
+            - sqs:GetQueueUrl
+            - sqs:ListDeadLetterSourceQueues
+            - sqs:ListQueues
+          Resource: !Ref SqsQueueArn
+      Roles:
+        - !Ref DeleteDmpRole
+        - !Ref DocumentDownloaderRole
+        - !Ref EzidPublisherRole
+        - !Ref PostDmpRole
+        - !Ref ProvenanceNotifierRole
+        - !Ref PutDmpFundingsRole
+        - !Ref PutDmpRelatedIdentifiersRole
+        - !Ref PutDmpRole
+
+Outputs:
+  LambdaDeleteDmpId:
+    Value: !Ref DeleteDmp
+  LambdaDeleteDmpArn:
+    Value: !GetAtt DeleteDmp.Arn
+  LambdaDocuemntDownloaderId:
+    Value: !Ref DocumentDownloader
+  LambdaDocuemntDownloaderArn:
+    Value: !GetAtt DocumentDownloader.Arn
+  LambdaEzidPublisherId:
+    Value: !Ref EzidPublisher
+  LambdaEzidPublisherArn:
+    Value: !GetAtt EzidPublisher.Arn
+  LambdaGetDmpId:
+    Value: !Ref GetDmp
+  LambdaGetDmpArn:
+    Value: !GetAtt GetDmp.Arn
+  LambdaGetDmpsId:
+    Value: !Ref GetDmps
+  LambdaGetDmpsArn:
+    Value: !GetAtt GetDmps.Arn
+  LambdaPostDmpId:
+    Value: !Ref PostDmp
+  LambdaPostDmpArn:
+    Value: !GetAtt PostDmp.Arn
+  LambdaProvenanceNotifierId:
+    Value: !Ref ProvenanceNotifier
+  LambdaProvenanceNotifierArn:
+    Value: !GetAtt ProvenanceNotifier.Arn
+  LambdaPutDmpFundingsId:
+    Value: !Ref PutDmpFundings
+  LambdaPutDmpFundingsArn:
+    Value: !GetAtt PutDmpFundings.Arn
+  LambdaPutDmpRelatedIdentifiersId:
+    Value: !Ref PutDmpRelatedIdentifiers
+  LambdaPutDmpRelatedIdentifiersArn:
+    Value: !GetAtt PutDmpRelatedIdentifiers.Arn
+  LambdaPutDmpId:
+    Value: !Ref PutDmp
+  LambdaPutDmpArn:
+    Value: !GetAtt PutDmp.Arn
+
+  LambdaDeleteDmpRoleId:
+    Value: !Ref DeleteDmpRole
+  LambdaDocumentDownloaderRoleId:
+    Value: !Ref DocumentDownloaderRole
+  LambdaEzidPublisherRoleId:
+    Value: !Ref EzidPublisherRole
+  LambdaGetDmpRoleId:
+    Value: !Ref GetDmpRole
+  LambdaGetDmpsRoleId:
+    Value: !Ref GetDmpsRole
+  LambdaPostDmpRoleId:
+    Value: !Ref PostDmpRole
+  LambdaProvenanceNotifierRoleId:
+    Value: !Ref ProvenanceNotifierRole
+  LambdaPutDmpFundingsRoleId:
+    Value: !Ref PutDmpFundingsRole
+  LambdaPutDmpRelatedIdentifiersRoleId:
+    Value: !Ref PutDmpRelatedIdentifiersRole
+  LambdaPutDmpRoleId:
+    Value: !Ref PutDmpRole

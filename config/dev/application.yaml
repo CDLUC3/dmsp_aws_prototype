@@ -1,0 +1,20 @@
+template:
+  path: application.yaml
+  type: file
+  
+parameters:
+  S3RepoBucket: !stack_attr template_bucket_name
+  
+  DynamoTableArn: !stack_output dev/data.yaml::DynamoTableArn
+  DynamoTableName: !stack_output dev/data.yaml::DynamoTableName
+  
+  S3BucketId: !stack_output dev/data.yaml::S3BucketId
+  S3BucketArn: !stack_output dev/data.yaml::S3BucketArn
+  
+  SqsQueueId: !stack_output dev/data.yaml::SqsQueueId
+  SqsQueueArn: !stack_output dev/data.yaml::SqsQueueArn
+  SnsTopicDownloadName: !stack_output dev/data.yaml::SnsTopicDownloadName
+  SnsTopicNotificationName: !stack_output dev/data.yaml::SnsTopicNotificationName
+  SnsTopicPublicationName: !stack_output dev/data.yaml::SnsTopicPublicationName
+  
+  ApplicationLogGroupArn: !stack_output dev/management.yaml::ApplicationLogGroupArn

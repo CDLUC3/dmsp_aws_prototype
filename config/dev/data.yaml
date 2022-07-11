@@ -1,0 +1,6 @@
+template:
+  path: data.yaml
+  type: file
+
+parameters:
+  ApplicationLogGroupArn: !stack_output dev/management.yaml::ApplicationLogGroupArn

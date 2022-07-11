@@ -1,0 +1,246 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Description: Template to build the DMPHub's DynamoDB Table, S3 Bucket and SQS Queue
+
+Parameters:
+  ApplicationLogGroupArn:
+    Type: String
+
+Resources:
+  DynamoTable:
+    Type: AWS::DynamoDB::Table
+    # DeletionPolicy: Retain
+    Properties:
+      # The base table's Partition key and Sort Key define both the DMP ID and version
+      # There are 3 potential variants of these keys:
+      # PK - PROVENANCE#dmptool,      SK - PROFILE                       <--- Provenance info
+      # PK - PROVENANCE#dmptool,      SK - DMPS                          <--- Array of DMP PKs for the Provenance
+      # PK - DMP#doi:10.48321/D1M30K, SK - VERSION#latest                <--- Latest version
+      # PK - DMP#doi:10.48321/D1M30K, SK - VERSION#2022-02-18T12:30:25Z  <--- Historical version
+      # PK - PERSON#[orcid],          SK - DMPS                          <--- Array of DMP PKs for the Person
+      # PK - AFFILIATION#[id],        SK - DMPS                          <--- Array of DMP PKs for the Affiliation / Funder
+      # PK - RELATED#[:id],           SK - DMPS                          <--- Array of DMP PKs for the Related Identifier / Grant
+
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+
+      AttributeDefinitions:
+        # DMPHub attribute that stores the provenance/DMP id (see above)
+        - AttributeName: PK
+          AttributeType: S
+        # DMPHub attribute that stores the provenance profile or the DMP version (see above)
+        - AttributeName: SK
+          AttributeType: S
+        # DMPHub attribute that stores the mod date as YYYY-MM-DD for fast date range retrievals
+        - AttributeName: dmphub_modification_day
+          AttributeType: S
+        # The originating provenance system's ID for the DMP
+        - AttributeName: dmphub_provenance_identifier
+          AttributeType: S
+        # DMPHub attribute that stores the id of the provenance user/system
+        - AttributeName: dmphub_provenance_id
+          AttributeType: S
+        # DMPHub attribute that stores all affiliation/funder/sponsor RORs and Fundrefs
+        - AttributeName: dmphub_affiliation_ids
+          AttributeType: S
+        # DMPHub attribute that stores all related identifiers and grant ids
+        - AttributeName: dmphub_related_identifier_ids
+          AttributeType: S
+        # DMPHub attribute that stores all contributor/contact emails and ORCIDs
+        - AttributeName: dmphub_contributor_ids
+          AttributeType: S
+
+      GlobalSecondaryIndexes:
+        # An index to help us quickly fetch all of the DMPs for a specific date range
+        - IndexName: modification_day_gsi
+          KeySchema:
+            - AttributeName: dmphub_modification_day
+              KeyType: HASH
+            - AttributeName: PK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: INCLUDE
+            NonKeyAttributes: [SK, title, contact, dmphub_affiliation_ids]
+          ContributorInsightsSpecification:
+            Enabled: true
+          ProvisionedThroughput:
+            ReadCapacityUnits: 5
+            WriteCapacityUnits: 5
+
+        # An index to help us quickly fetch a DMP by its identifier for the provenance system
+        - IndexName: dmphub_provenance_identifier_gsi
+          KeySchema:
+            - AttributeName: dmphub_provenance_identifier
+              KeyType: HASH
+            - AttributeName: PK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: INCLUDE
+            NonKeyAttributes: [PK, SK]
+          ContributorInsightsSpecification:
+            Enabled: true
+          ProvisionedThroughput:
+            ReadCapacityUnits: 5
+            WriteCapacityUnits: 5
+
+        # An index to help us quickly fetch all of the DMPs for a specific provenance
+        - IndexName: provenance_dmps_gsi
+          KeySchema:
+            - AttributeName: dmphub_provenance_id
+              KeyType: HASH
+            - AttributeName: PK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: KEYS_ONLY
+          ContributorInsightsSpecification:
+            Enabled: true
+          ProvisionedThroughput:
+            ReadCapacityUnits: 5
+            WriteCapacityUnits: 5
+
+        # An index to help us quickly fetch all of the DMPs for a specific ROR/Fundref
+        - IndexName: affiliation_ids_gsi
+          KeySchema:
+            - AttributeName: dmphub_affiliation_ids
+              KeyType: HASH
+            - AttributeName: PK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: INCLUDE
+            NonKeyAttributes: [title, contact, project, dmphub_contributor_ids]
+          ContributorInsightsSpecification:
+            Enabled: true
+          ProvisionedThroughput:
+            ReadCapacityUnits: 5
+            WriteCapacityUnits: 5
+
+        # An index to help us quickly fetch all of the DMPs for a specific contributor email/ORCID
+        - IndexName: contributor_ids_gsi
+          KeySchema:
+            - AttributeName: dmphub_contributor_ids
+              KeyType: HASH
+            - AttributeName: PK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: INCLUDE
+            NonKeyAttributes: [title, contact]
+          ContributorInsightsSpecification:
+            Enabled: true
+          ProvisionedThroughput:
+            ReadCapacityUnits: 5
+            WriteCapacityUnits: 5
+
+        # An index to help us quickly fetch all of the DMPs for a specific related identifier
+        - IndexName: related_identifier_ids_gsi
+          KeySchema:
+            - AttributeName: dmphub_related_identifier_ids
+              KeyType: HASH
+            - AttributeName: PK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: INCLUDE
+            NonKeyAttributes: [title, contact]
+          ContributorInsightsSpecification:
+            Enabled: true
+          ProvisionedThroughput:
+            ReadCapacityUnits: 5
+            WriteCapacityUnits: 5
+
+      BillingMode: PROVISIONED
+      TableClass: STANDARD
+      ProvisionedThroughput:
+        ReadCapacityUnits: 10
+        WriteCapacityUnits: 10
+      ContributorInsightsSpecification:
+        Enabled: true
+      # Determine cost before enabling
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: false
+
+  # S3 Bucket that stores DMP documents and UI resources (publicy accessible via CloudFront CDN)
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        RestrictPublicBuckets: true
+
+  # S3 Bucket to store logs from services like CloudFront (not publicly accessible)
+  S3LogBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        IgnorePublicAcls: true
+
+  SqsQueue:
+    Type: AWS::SQS::Queue
+    # DeletionPolicy: Retain
+    Properties:
+      MaximumMessageSize: 128000 # bytes == 128 KB
+      MessageRetentionPeriod: 604800 # seconds == 7 days
+
+  SnsTopicDownload:
+    Type: AWS::SNS::Topic
+    Properties:
+      # For some reason AWS doesn't recognize this attribute even though its in the docs
+      # ContentBasedDeduplication: true
+      DisplayName: DmpHubDownload
+      Subscription:
+        - Protocol: sqs
+          Endpoint: !GetAtt SqsQueue.Arn
+
+  SnsTopicNotification:
+    Type: AWS::SNS::Topic
+    Properties:
+      # ContentBasedDeduplication: true
+      DisplayName: DmpHubPublish
+      Subscription:
+        - Protocol: sqs
+          Endpoint: !GetAtt SqsQueue.Arn
+
+  SnsTopicPublication:
+    Type: AWS::SNS::Topic
+    Properties:
+      # ContentBasedDeduplication: true
+      DisplayName: DmpHubNotify
+      Subscription:
+        - Protocol: sqs
+          Endpoint: !GetAtt SqsQueue.Arn
+
+Outputs:
+  DynamoTableName:
+    Value: !Select [1, !Split ['/', !GetAtt DynamoTable.Arn]]
+  DynamoTableId:
+    Value: !Ref DynamoTable
+  DynamoTableArn:
+    Value: !GetAtt DynamoTable.Arn
+
+  S3BucketId:
+    Value: !Ref S3Bucket
+  S3BucketUri:
+    Value: !Sub "s3://${S3Bucket}"
+  S3BucketArn:
+    Value: !GetAtt S3Bucket.Arn
+
+  S3LogBucketId:
+    Value: !Ref S3LogBucket
+
+  SqsQueueId:
+    Value: !Ref SqsQueue
+  SqsQueueArn:
+    Value: !GetAtt SqsQueue.Arn
+  SnsTopicDownloadId:
+    Value: !Ref SnsTopicDownload
+  SnsTopicDownloadName:
+    Value: !GetAtt SnsTopicDownload.TopicName
+  SnsTopicNotificationId:
+    Value: !Ref SnsTopicNotification
+  SnsTopicNotificationName:
+    Value: !GetAtt SnsTopicNotification.TopicName
+  SnsTopicPublicationId:
+    Value: !Ref SnsTopicPublication
+  SnsTopicPublicationName:
+    Value: !GetAtt SnsTopicPublication.TopicName

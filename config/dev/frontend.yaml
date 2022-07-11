@@ -1,0 +1,32 @@
+template:
+  path: 'frontend.yaml'
+  type: 'file'
+
+parameters:
+  ApiStageName: 'v0'
+  EndpointType: 'REGIONAL' # For non-dev environments use: EDGE
+  # ApiClientDomainCallbackURL: 'https://dmptool-dev.cdlib.org/callback'
+
+  VpcId: !stack_output_external cdl-uc3-dev-vpc-stack::vpc
+  HostedZoneID: !stack_output_external sceptre-uc3-ops-common-dev-route53::HostedZoneID
+
+  Env: !stack_attr sceptre_user_data.env
+  DomainName: !stack_attr sceptre_user_data.domain
+
+  S3BucketId: !stack_output dev/data.yaml::S3BucketId
+  S3BucketArn: !stack_output dev/data.yaml::S3BucketArn
+  S3LogBucketId: !stack_output dev/data.yaml::S3LogBucketId
+
+  LambdaDeleteDmpId: !stack_output dev/application.yaml::LambdaDeleteDmpId
+  LambdaDeleteDmpArn: !stack_output dev/application.yaml::LambdaDeleteDmpArn
+  LambdaGetDmpId: !stack_output dev/application.yaml::LambdaGetDmpId
+  LambdaGetDmpArn: !stack_output dev/application.yaml::LambdaGetDmpArn
+  LambdaGetDmpsId: !stack_output dev/application.yaml::LambdaGetDmpsId
+  LambdaGetDmpsArn: !stack_output dev/application.yaml::LambdaGetDmpsArn
+  LambdaPostDmpId: !stack_output dev/application.yaml::LambdaPostDmpId
+  LambdaPostDmpArn: !stack_output dev/application.yaml::LambdaPostDmpArn
+  LambdaPutDmpId: !stack_output dev/application.yaml::LambdaPutDmpId
+  LambdaPutDmpArn: !stack_output dev/application.yaml::LambdaPutDmpArn
+
+  ApplicationLogGroupId: !stack_output dev/management.yaml::ApplicationLogGroupId
+  ApplicationLogGroupArn: !stack_output dev/management.yaml::ApplicationLogGroupArn
