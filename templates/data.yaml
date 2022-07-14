@@ -1,15 +1,36 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Transform: AWS::Serverless-2016-10-31
+Transform: 'AWS::Serverless-2016-10-31'
 
-Description: Template to build the DMPHub's DynamoDB Table, S3 Bucket and SQS Queue
+Description: 'Template to build the DMPHub LogGroup, Dynamo, ECR, S3, SQS and SNS resources'
 
 Parameters:
-  ApplicationLogGroupArn:
-    Type: String
+  AppName:
+    Type: 'String'
+  DomainName:
+    Type: 'String'
+  Environment:
+    Type: 'String'
+  HostedZoneId:
+    Type: 'String'
+  ECRLifecyclePolicyTagPrefix:
+    Type: 'String'
 
 Resources:
+  # ----------------------------------------------
+  # Catchall CloudWatch LogGroup
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_Logs.html
+  # ----------------------------------------------
+  LogGroup:
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      RetentionInDays: 14
+
+  # ----------------------------------------------
+  # DynamoDB polymorphic table
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html
+  # ----------------------------------------------
   DynamoTable:
-    Type: AWS::DynamoDB::Table
+    Type: 'AWS::DynamoDB::Table'
     # DeletionPolicy: Retain
     Properties:
       # The base table's Partition key and Sort Key define both the DMP ID and version
@@ -23,48 +44,48 @@ Resources:
       # PK - RELATED#[:id],           SK - DMPS                          <--- Array of DMP PKs for the Related Identifier / Grant
 
       KeySchema:
-        - AttributeName: PK
-          KeyType: HASH
-        - AttributeName: SK
-          KeyType: RANGE
+        - AttributeName: 'PK'
+          KeyType: 'HASH'
+        - AttributeName: 'SK'
+          KeyType: 'RANGE'
 
       AttributeDefinitions:
         # DMPHub attribute that stores the provenance/DMP id (see above)
-        - AttributeName: PK
-          AttributeType: S
+        - AttributeName: 'PK'
+          AttributeType: 'S'
         # DMPHub attribute that stores the provenance profile or the DMP version (see above)
-        - AttributeName: SK
-          AttributeType: S
+        - AttributeName: 'SK'
+          AttributeType: 'S'
         # DMPHub attribute that stores the mod date as YYYY-MM-DD for fast date range retrievals
-        - AttributeName: dmphub_modification_day
-          AttributeType: S
+        - AttributeName: 'dmphub_modification_day'
+          AttributeType: 'S'
         # The originating provenance system's ID for the DMP
-        - AttributeName: dmphub_provenance_identifier
-          AttributeType: S
+        - AttributeName: 'dmphub_provenance_identifier'
+          AttributeType: 'S'
         # DMPHub attribute that stores the id of the provenance user/system
-        - AttributeName: dmphub_provenance_id
-          AttributeType: S
+        - AttributeName: 'dmphub_provenance_id'
+          AttributeType: 'S'
         # DMPHub attribute that stores all affiliation/funder/sponsor RORs and Fundrefs
-        - AttributeName: dmphub_affiliation_ids
-          AttributeType: S
+        - AttributeName: 'dmphub_affiliation_ids'
+          AttributeType: 'S'
         # DMPHub attribute that stores all related identifiers and grant ids
-        - AttributeName: dmphub_related_identifier_ids
-          AttributeType: S
+        - AttributeName: 'dmphub_related_identifier_ids'
+          AttributeType: 'S'
         # DMPHub attribute that stores all contributor/contact emails and ORCIDs
-        - AttributeName: dmphub_contributor_ids
-          AttributeType: S
+        - AttributeName: 'dmphub_contributor_ids'
+          AttributeType: 'S'
 
       GlobalSecondaryIndexes:
         # An index to help us quickly fetch all of the DMPs for a specific date range
-        - IndexName: modification_day_gsi
+        - IndexName: 'modification_day_gsi'
           KeySchema:
-            - AttributeName: dmphub_modification_day
-              KeyType: HASH
-            - AttributeName: PK
-              KeyType: RANGE
+            - AttributeName: 'dmphub_modification_day'
+              KeyType: 'HASH'
+            - AttributeName: 'PK'
+              KeyType: 'RANGE'
           Projection:
-            ProjectionType: INCLUDE
-            NonKeyAttributes: [SK, title, contact, dmphub_affiliation_ids]
+            ProjectionType: 'INCLUDE'
+            NonKeyAttributes: ['SK', 'title', 'contact', 'dmphub_affiliation_ids']
           ContributorInsightsSpecification:
             Enabled: true
           ProvisionedThroughput:
@@ -72,15 +93,15 @@ Resources:
             WriteCapacityUnits: 5
 
         # An index to help us quickly fetch a DMP by its identifier for the provenance system
-        - IndexName: dmphub_provenance_identifier_gsi
+        - IndexName: 'dmphub_provenance_identifier_gsi'
           KeySchema:
-            - AttributeName: dmphub_provenance_identifier
-              KeyType: HASH
-            - AttributeName: PK
-              KeyType: RANGE
+            - AttributeName: 'dmphub_provenance_identifier'
+              KeyType: 'HASH'
+            - AttributeName: 'PK'
+              KeyType: 'RANGE'
           Projection:
-            ProjectionType: INCLUDE
-            NonKeyAttributes: [PK, SK]
+            ProjectionType: 'INCLUDE'
+            NonKeyAttributes: ['PK', 'SK']
           ContributorInsightsSpecification:
             Enabled: true
           ProvisionedThroughput:
@@ -88,14 +109,14 @@ Resources:
             WriteCapacityUnits: 5
 
         # An index to help us quickly fetch all of the DMPs for a specific provenance
-        - IndexName: provenance_dmps_gsi
+        - IndexName: 'provenance_dmps_gsi'
           KeySchema:
-            - AttributeName: dmphub_provenance_id
-              KeyType: HASH
-            - AttributeName: PK
-              KeyType: RANGE
+            - AttributeName: 'dmphub_provenance_id'
+              KeyType: 'HASH'
+            - AttributeName: 'PK'
+              KeyType: 'RANGE'
           Projection:
-            ProjectionType: KEYS_ONLY
+            ProjectionType: 'KEYS_ONLY'
           ContributorInsightsSpecification:
             Enabled: true
           ProvisionedThroughput:
@@ -103,15 +124,15 @@ Resources:
             WriteCapacityUnits: 5
 
         # An index to help us quickly fetch all of the DMPs for a specific ROR/Fundref
-        - IndexName: affiliation_ids_gsi
+        - IndexName: 'affiliation_ids_gsi'
           KeySchema:
-            - AttributeName: dmphub_affiliation_ids
-              KeyType: HASH
-            - AttributeName: PK
-              KeyType: RANGE
+            - AttributeName: 'dmphub_affiliation_ids'
+              KeyType: 'HASH'
+            - AttributeName: 'PK'
+              KeyType: 'RANGE'
           Projection:
-            ProjectionType: INCLUDE
-            NonKeyAttributes: [title, contact, project, dmphub_contributor_ids]
+            ProjectionType: 'INCLUDE'
+            NonKeyAttributes: ['title', 'contact', 'project', 'dmphub_contributor_ids']
           ContributorInsightsSpecification:
             Enabled: true
           ProvisionedThroughput:
@@ -119,15 +140,15 @@ Resources:
             WriteCapacityUnits: 5
 
         # An index to help us quickly fetch all of the DMPs for a specific contributor email/ORCID
-        - IndexName: contributor_ids_gsi
+        - IndexName: 'contributor_ids_gsi'
           KeySchema:
-            - AttributeName: dmphub_contributor_ids
-              KeyType: HASH
-            - AttributeName: PK
-              KeyType: RANGE
+            - AttributeName: 'dmphub_contributor_ids'
+              KeyType: 'HASH'
+            - AttributeName: 'PK'
+              KeyType: 'RANGE'
           Projection:
-            ProjectionType: INCLUDE
-            NonKeyAttributes: [title, contact]
+            ProjectionType: 'INCLUDE'
+            NonKeyAttributes: ['title', 'contact']
           ContributorInsightsSpecification:
             Enabled: true
           ProvisionedThroughput:
@@ -135,23 +156,23 @@ Resources:
             WriteCapacityUnits: 5
 
         # An index to help us quickly fetch all of the DMPs for a specific related identifier
-        - IndexName: related_identifier_ids_gsi
+        - IndexName: 'related_identifier_ids_gsi'
           KeySchema:
-            - AttributeName: dmphub_related_identifier_ids
-              KeyType: HASH
-            - AttributeName: PK
-              KeyType: RANGE
+            - AttributeName: 'dmphub_related_identifier_ids'
+              KeyType: 'HASH'
+            - AttributeName: 'PK'
+              KeyType: 'RANGE'
           Projection:
-            ProjectionType: INCLUDE
-            NonKeyAttributes: [title, contact]
+            ProjectionType: 'INCLUDE'
+            NonKeyAttributes: ['title', 'contact']
           ContributorInsightsSpecification:
             Enabled: true
           ProvisionedThroughput:
             ReadCapacityUnits: 5
             WriteCapacityUnits: 5
 
-      BillingMode: PROVISIONED
-      TableClass: STANDARD
+      BillingMode: 'PROVISIONED'
+      TableClass: 'STANDARD'
       ProvisionedThroughput:
         ReadCapacityUnits: 10
         WriteCapacityUnits: 10
@@ -161,62 +182,145 @@ Resources:
       PointInTimeRecoverySpecification:
         PointInTimeRecoveryEnabled: false
 
+  # -----------------------------------------------------------
+  # Elastic Container Repository (ECR) - Hosts the application's Lambda code
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_ECR.html
+  # -----------------------------------------------------------
+  ECRRepository:
+    Type: 'AWS::ECR::Repository'
+    Properties:
+      # RepositoryName: !Sub '${AppName}-${Environment}-ecr'
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      LifecyclePolicy:
+        # TODO: Update this to only keep the last 3 snapshots of 'untagged' since we
+        #       are using 'latest' as the only tag.
+        LifecyclePolicyText: !Sub >
+          {
+            "rules": [
+              {
+                "action": {
+                  "type": "expire"
+                },
+                "selection": {
+                  "countType": "imageCountMoreThan",
+                  "countNumber": 1,
+                  "tagStatus": "tagged",
+                  "tagPrefixList": [
+                    "${ECRLifecyclePolicyTagPrefix}"
+                  ]
+                },
+                "description": "Ensure that we do not have more than 1 tagged version",
+                "rulePriority": 1
+              },
+              {
+                "action": {
+                  "type": "expire"
+                },
+                "selection": {
+                  "countType": "imageCountMoreThan",
+                  "countNumber": 3,
+                  "tagStatus": "untagged"
+                },
+                "description": "Only retain the last 3 versions",
+                "rulePriority": 2
+              }
+            ]
+          }
+
+  # ----------------------------------------------
+  # Simple Storage Service (S3) buckets
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket.html
+  # ----------------------------------------------
   # S3 Bucket that stores DMP documents and UI resources (publicy accessible via CloudFront CDN)
   S3Bucket:
-    Type: AWS::S3::Bucket
+    Type: 'AWS::S3::Bucket'
     Properties:
       PublicAccessBlockConfiguration:
-        RestrictPublicBuckets: true
+        RestrictPublicBuckets: false
 
   # S3 Bucket to store logs from services like CloudFront (not publicly accessible)
   S3LogBucket:
-    Type: AWS::S3::Bucket
+    Type: 'AWS::S3::Bucket'
     Properties:
       PublicAccessBlockConfiguration:
         IgnorePublicAcls: true
 
+  # ----------------------------------------------
+  # Simple Queue Service (SQS). Some Lambdas write to the queue and others watch for messages
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-sqs-queue.html
+  # ----------------------------------------------
   SqsQueue:
-    Type: AWS::SQS::Queue
+    Type: 'AWS::SQS::Queue'
     # DeletionPolicy: Retain
     Properties:
       MaximumMessageSize: 128000 # bytes == 128 KB
       MessageRetentionPeriod: 604800 # seconds == 7 days
 
+  # ----------------------------------------------
+  # Simple Notification Service (SNS) topics
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-sqs-queue.html
+  # ----------------------------------------------
   SnsTopicDownload:
-    Type: AWS::SNS::Topic
+    Type: 'AWS::SNS::Topic'
     Properties:
       # For some reason AWS doesn't recognize this attribute even though its in the docs
       # ContentBasedDeduplication: true
-      DisplayName: DmpHubDownload
+      DisplayName: 'DmpHubDownload'
       Subscription:
-        - Protocol: sqs
+        - Protocol: 'sqs'
           Endpoint: !GetAtt SqsQueue.Arn
 
   SnsTopicNotification:
-    Type: AWS::SNS::Topic
+    Type: 'AWS::SNS::Topic'
     Properties:
       # ContentBasedDeduplication: true
-      DisplayName: DmpHubPublish
+      DisplayName: 'DmpHubPublish'
       Subscription:
-        - Protocol: sqs
+        - Protocol: 'sqs'
           Endpoint: !GetAtt SqsQueue.Arn
 
   SnsTopicPublication:
-    Type: AWS::SNS::Topic
+    Type: 'AWS::SNS::Topic'
     Properties:
       # ContentBasedDeduplication: true
-      DisplayName: DmpHubNotify
+      DisplayName: 'DmpHubNotify'
       Subscription:
-        - Protocol: sqs
+        - Protocol: 'sqs'
           Endpoint: !GetAtt SqsQueue.Arn
 
+  # --------------------------------------------------------------------------
+  # SSL Cert for the application
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-certificatemanager-certificate.html
+  # --------------------------------------------------------------------------
+  Certificate:
+    Type: AWS::CertificateManager::Certificate
+    Properties:
+      DomainName: !Ref DomainName
+      DomainValidationOptions:
+        - DomainName: !Ref DomainName
+          HostedZoneId: !Ref HostedZoneId
+      ValidationMethod: 'DNS'
+
 Outputs:
+  LogGroupId:
+    Value: !Ref LogGroup
+  LogGroupArn:
+    Value: !GetAtt LogGroup.Arn
+
   DynamoTableName:
     Value: !Select [1, !Split ['/', !GetAtt DynamoTable.Arn]]
   DynamoTableId:
     Value: !Ref DynamoTable
   DynamoTableArn:
     Value: !GetAtt DynamoTable.Arn
+
+  ECRRepositoryName:
+    Value: !Ref ECRRepository
+  ECRRepositoryARN:
+    Value: !GetAtt ECRRepository.Arn
+  ECRRepositoryURI:
+    Value: !GetAtt ECRRepository.RepositoryUri
 
   S3BucketId:
     Value: !Ref S3Bucket
@@ -244,3 +348,6 @@ Outputs:
     Value: !Ref SnsTopicPublication
   SnsTopicPublicationName:
     Value: !GetAtt SnsTopicPublication.TopicName
+
+  CertificateArn:
+    Value: !Ref Certificate

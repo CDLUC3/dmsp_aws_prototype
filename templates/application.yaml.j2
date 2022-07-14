@@ -1,0 +1,254 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+
+Description: Template to build a lambda that fetchs summary info for a list of DMPs
+
+Parameters:
+  AppName:
+    Type: 'String'
+  Env:
+    Type: 'String'
+
+  ECRRepositoryUri:
+    Type: 'String'
+
+  DynamoTableName:
+    Type: 'String'
+  DynamoTableArn:
+    Type: 'String'
+
+  S3BucketId:
+    Type: 'String'
+  S3BucketArn:
+    Type: 'String'
+
+  SqsQueueId:
+    Type: 'String'
+  SqsQueueArn:
+    Type: 'String'
+  SnsTopicDownloadName:
+    Type: 'String'
+  SnsTopicNotificationName:
+    Type: 'String'
+  SnsTopicPublicationName:
+    Type: 'String'
+
+  LogGroupArn:
+    Type: 'String'
+
+# The LAMBDAS array expects the following entries:
+#   name: The resource name for the Lambda Function/Role/Policy
+#   s3key: The key for the zip file containing the lambda code. Format is 'lambda-${s3key}.json'
+#   dynamo: an array of actions. An empty array means no access.
+#           Valid options: ['read', 'search', 'write']
+#   s3: an array of actions. An empty array means no access. Valid options: ['read', 'write']
+#   sqs: an array of topics. An empty array means that the lambda does not need to read/write
+#        from the SQS queue. The valid array options/topics are ['download', 'notify', 'publish']
+{%
+set LAMBDAS = [
+  { 'name': 'DeleteDmp', 'ecr_tag': 'delete-dmp',
+    'dynamo': ['read', 'write'], 's3': ['read', 'write'], 'sqs': ['download', 'publish'] },
+
+  { 'name': 'DocumentDownloader', 'ecr_tag': 'document-downloader',
+    'dynamo': ['read'], 's3': ['read', 'write'], 'sqs': ['download'] },
+
+  { 'name': 'EzidPublisher', 'ecr_tag': 'ezid-publisher',
+    'dynamo': ['read'], 's3': [], 'sqs': ['publish'] },
+
+  { 'name': 'GetDmp', 'ecr_tag': 'get-dmp',
+    'dynamo': ['read'], 's3': ['read'], 'sqs': [] },
+
+  { 'name': 'GetDmps', 'ecr_tag': 'get-dmps',
+    'dynamo': ['read', 'search'], 's3': [], 'sqs': [] },
+
+  { 'name': 'PostDmps', 'ecr_tag': 'post-dmps',
+    'dynamo': ['read', 'write'], 's3': [], 'sqs': ['download', 'notify', 'publish'] },
+
+  { 'name': 'ProvenanceNotifier', 'ecr_tag': 'provenance-notifier',
+    'dynamo': ['read'], 's3': [], 'sqs': ['notify'] },
+
+  { 'name': 'PutDmp', 'ecr_tag': 'put-dmp',
+    'dynamo': ['read', 'write'], 's3': [], 'sqs': ['download', 'notify', 'publish'] }
+]
+%}
+
+Resources:
+  {% for lambda_dict in LAMBDAS %}
+  # Build out custom roles for each Lambda so that they only have access to the things
+  # that they need
+  {{lambda_dict['name']}}Role:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service: 'lambda.amazonaws.com'
+            Action:
+              - 'sts:AssumeRole'
+      Policies:
+        - PolicyName: !Sub '${AppName}{{lambda_dict['name']}}LogPolicy'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              Effect: 'Allow'
+              Action:
+                - 'logs:CreateLogStream'
+                - 'logs:PutLogEvents'
+              Resource: !Ref LogGroupArn
+
+        {% if lambda_dict['dynamo']|length > 0 %}
+        - PolicyName: !Sub '${AppName}{{lambda_dict['name']}}DynamoPolicy'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              Effect: 'Allow'
+              Action:
+                - 'dynamodb:GetItem'
+                {% if 'write' in lambda_dict['dynamo'] %}
+                - 'dynamodb:DeleteItem'
+                - 'dynamodb:PutItem'
+                - 'dynamodb:UpdateItem'
+                - 'dynamodb:BatchWriteItem'
+                - 'dynamodb:PartiQLDelete'
+                - 'dynamodb:PartiQLInsert'
+                - 'dynamodb:PartiQLUpdate'
+                {% elif 'search' in lambda_dict['dynamo'] %}
+                - 'dynamodb:BatchGetItem'
+                - 'dynamodb:Describe*'
+                - 'dynamodb:List*'
+                - 'dynamodb:GetItem'
+                - 'dynamodb:Query'
+                - 'dynamodb:PartiQLSelect'
+                {% endif %}
+              Resource: !Ref DynamoTableArn
+        {% endif %}
+
+        {% if lambda_dict['s3']|length > 0 %}
+        - PolicyName: !Sub '${AppName}{{lambda_dict['name']}}S3Policy'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              Effect: 'Allow'
+              Action:
+                - 's3:Get*'
+                - 's3:List*'
+                - 's3-object-lambda:Get*'
+                - 's3-object-lambda:List*'
+                {% if 'write' in lambda_dict['dynamo'] %}
+                - 's3:PutObject'
+                - 's3:DeleteObject'
+                - 's3-object-lambda:PutObject'
+                - 's3-object-lambda:DeleteObject'
+                {% endif %}
+              Resource: !Ref S3BucketArn
+        {% endif %}
+
+        {% if lambda_dict['sqs']|length > 0 %}
+        - PolicyName: !Sub '${AppName}SqsQueuePolicy'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              Effect: 'Allow'
+              Action:
+                - 'sqs:DeleteMessage'
+                - 'sqs:ReceiveMessage'
+                - 'sqs:SendMessage'
+                - 'sqs:GetQueueAttributes'
+                - 'sqs:GetQueueUrl'
+                - 'sqs:ListDeadLetterSourceQueues'
+                - 'sqs:ListQueues'
+              Resource: !Ref SqsQueueArn
+        {% endif %}
+
+  # Build the Lambda function
+  {{lambda_dict['name']}}Function:
+    Type: 'AWS::Lambda::Function'
+    DependsOn:
+      - {{lambda_dict['name']}}Role
+    Properties:
+      Handler: 'lambda_function.lambda_handler'
+      Code:
+        ImageUri: !Sub '${ECRRepositoryUri}/:latest-{{lambda_dict['ecr_tag']}}'
+      Role: !GetAtt {{lambda_dict['name']}}Role.Arn
+      Runtime: ruby2.7
+      Timeout: 30
+
+      # TODO: This isn't working, so maybe stuff them in SSM and have the Lambda fetch them there
+      Environment:
+        Variables:
+          {% if lambda_dict['dynamo']|length > 0 %}
+          AWS_DYNAMO_TABLE_NAME: !Ref DynamoTableName
+          {% endif %}
+          {% if lambda_dict['s3']|length > 0 %}
+          AWS_SNS_S3_BUCKET_NAME: !Ref S3BucketId
+          {% endif %}
+          {% if lambda_dict['sqs']|length > 0 %}
+          AWS_SQS_QUEUE_NAME: !Ref SqsQueueId
+          {% endif %}
+          {% if 'download' in lambda_dict['sqs'] %}
+          AWS_SNS_DOWNLOAD_TOPIC: !Ref SnsTopicDownloadName
+          {% endif %}
+          {% if 'notify' in lambda_dict['sqs'] %}
+          AWS_SNS_PUBLICATION_TOPIC: !Ref SnsTopicNotificationName
+          {% endif %}
+          {% if 'publish' in lambda_dict['sqs'] %}
+          AWS_SNS_PUBLICATION_TOPIC: !Ref SnsTopicPublicationName
+          {% endif %}
+          ENVIRONMENT: !Ref Env
+  {% endfor %}
+
+  # Lambda Event Sources
+  # The following 3 Lambdas are triggered when certain message topics appear in the SQS queue
+  # all other Lambdas are triggered by calls from the API Gateway
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-lambda-eventsourcemapping.html
+  # -------------------------------------------------------------------------
+  PendingDownloadEventSource:
+    Type: AWS::Lambda::EventSourceMapping
+    DependsOn:
+      - DocumentDownloaderFunction
+    Properties:
+      Enabled: true # Setting this to false will pause the events!
+      EventSourceArn: !Ref SqsQueueArn
+      FunctionName: !Ref DocumentDownloaderFunction
+      FilterCriteria:
+        Filters:
+          - Pattern: '{"state": ["pending-download"]}'
+
+  PendingPublicationEventSource:
+    Type: AWS::Lambda::EventSourceMapping
+    DependsOn:
+      - EzidPublisherFunction
+    Properties:
+      Enabled: true # Setting this to false will pause the events!
+      EventSourceArn: !Ref SqsQueueArn
+      FunctionName: !Ref EzidPublisherFunction
+      FilterCriteria:
+        Filters:
+          - Pattern: '{"state": ["pending-publication", "pending-unpublication"]}'
+
+  PendingNotificationEventSource:
+    Type: AWS::Lambda::EventSourceMapping
+    DependsOn:
+      - ProvenanceNotifierFunction
+    Properties:
+      Enabled: true # Setting this to false will pause the events!
+      EventSourceArn: !Ref SqsQueueArn
+      FunctionName: !Ref ProvenanceNotifierFunction
+      FilterCriteria:
+        Filters:
+          - Pattern: '{"state": ["pending-notification"]}'
+
+Outputs:
+  {% for lambda_dict in LAMBDAS %}
+  {{lambda_dict['name']}}FunctionId:
+    Value: !Ref {{lambda_dict['name']}}Function
+
+  {{lambda_dict['name']}}FunctionArn:
+    Value: !GetAtt {{lambda_dict['name']}}Function.Arn
+
+  {{lambda_dict['name']}}RoleId:
+    Value: !Ref {{lambda_dict['name']}}Role
+  {% endfor %}

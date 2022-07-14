@@ -1,0 +1,89 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Description: 'Cognito resources for accessing the API'
+
+Parameters:
+  NamePrefix:
+    Type: 'String'
+  DomainName:
+    Type: 'String'
+  CertificateArn:
+    Type: 'String'
+  Env:
+    Type: 'String'
+    Default: 'dev'
+
+  DmptoolCallbackUri:
+    Type: 'String'
+
+Resources:
+  # -----------------------------------------------------------
+  # Cognito resources
+  # -----------------------------------------------------------
+  SystemsUserPool:
+    Type: 'AWS::Cognito::UserPool'
+    # DeletionPolicy: Retain
+    Properties:
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: true
+      # There's an open issue on this for AWS, but because this one is not named 'Tags' it doesn't inherit the stack tags
+      UserPoolName: !Sub '${NamePrefix}-${Env}-UserPool'
+      UserPoolTags:
+        Program: 'uc3'
+        Service: 'dmp'
+        Subservice: 'hub'
+        Environment: !Ref Env
+
+  SystemsUserPoolResourceServer:
+    Type: 'AWS::Cognito::UserPoolResourceServer'
+    Properties:
+      Name: !Sub '${NamePrefix}-${Env}-UserPoolResourceServer'
+      Identifier: !Sub 'https://auth.${DomainName}'
+      UserPoolId: !Ref SystemsUserPool
+      Scopes:
+        - ScopeName: !Sub '${Env}.read'
+          ScopeDescription: 'Allows access to the GET api endpoints (default) (e.g. getDmp, getDmps)'
+        - ScopeName: !Sub '${Env}.write'
+          ScopeDescription: 'Allows access to POST, PUT and DELETE for DMPs (e.g. postDmp, putDmp, deleteDmp)'
+
+  # Add the DMPTool as an initial client (not sure if we want to do this long term, probably better to retain the pool)
+  DmptoolClient:
+    Type: 'AWS::Cognito::UserPoolClient'
+    DependsOn:
+      - SystemsUserPoolResourceServer
+    # DeletionPolicy: Retain
+    Properties:
+      ClientName: 'dmptool'
+      UserPoolId: !Ref SystemsUserPool
+      ExplicitAuthFlows:
+        - 'ALLOW_ADMIN_USER_PASSWORD_AUTH'
+        - 'ALLOW_CUSTOM_AUTH'
+        - 'ALLOW_USER_SRP_AUTH'
+        - 'ALLOW_REFRESH_TOKEN_AUTH'
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthFlows:
+        - 'client_credentials'
+      AllowedOAuthScopes:
+        - !Sub 'https://auth.${DomainName}/${Env}.read'
+        - !Sub 'https://auth.${DomainName}/${Env}.write'
+      EnableTokenRevocation: true
+      PreventUserExistenceErrors: 'ENABLED'
+      GenerateSecret: true
+      SupportedIdentityProviders:
+        - 'COGNITO'
+      # The CF docs indicate that this is not required but I am unable to get a token from Cognito without it
+      CallbackURLs:
+        - 'http://localhost:3000/callback'
+        - !Ref DmptoolCallbackUri
+
+Outputs:
+  AuthDomainName:
+    Value: !Sub "auth.${DomainName}"
+
+  SystemsUserPoolId:
+    Value: !Ref SystemsUserPool
+  SystemsUserPoolArn:
+    Value: !GetAtt SystemsUserPool.Arn
+  SystemsUserPoolResourceServerId:
+    Value: !Ref SystemsUserPoolResourceServer

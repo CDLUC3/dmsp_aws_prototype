@@ -1,28 +1,25 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Transform: AWS::Serverless-2016-10-31
+Transform: 'AWS::Serverless-2016-10-31'
 
-Description: Template to build the core cloudwatch log group
-
-# Parameters:
-  # VpcId:
-    # Type: String
+# Cloudfront requires that it's WAF resource be built in the us-east-1 region
+# See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-wafv2-webacl.html#cfn-wafv2-webacl-scope
+Description: 'Default WAF and SSL Cert'
 
 Resources:
-  ApplicationLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      RetentionInDays: 7
-
-  Uc3DevRegionalWaf:
-    Type: AWS::WAFv2::WebACL
+  # --------------------------------------------------------------------------
+  # WAF for CloudFront distributions must be defined in us-east-1 (per AWS)
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-wafv2-webacl.html#cfn-wafv2-webacl-scope
+  # --------------------------------------------------------------------------
+  Waf:
+    Type: 'AWS::WAFv2::WebACL'
     Properties:
       DefaultAction:
         Allow: {}
-      Scope: REGIONAL
+      Scope: 'CLOUDFRONT'
       VisibilityConfig:
         SampledRequestsEnabled: true
         CloudWatchMetricsEnabled: true
-        MetricName: Uc3DmpHubRegionalWafMetric
+        MetricName: 'Uc3DmpHubCloudfrontWafMetric'
       Rules:
         - Name: 'AWS-AWSManagedRulesAmazonIpReputationList'
           Priority: 0
@@ -34,8 +31,8 @@ Resources:
             MetricName: 'AWS-AWSManagedRulesAmazonIpReputationList'
           Statement:
             ManagedRuleGroupStatement:
-              VendorName: AWS
-              Name: AWSManagedRulesAmazonIpReputationList
+              VendorName: 'AWS'
+              Name: 'AWSManagedRulesAmazonIpReputationList'
               ExcludedRules: []
         - Name: 'AWS-AWSManagedRulesCommonRuleSet'
           Priority: 1
@@ -47,8 +44,8 @@ Resources:
             MetricName: 'AWS-AWSManagedRulesCommonRuleSet'
           Statement:
             ManagedRuleGroupStatement:
-              VendorName: AWS
-              Name: AWSManagedRulesCommonRuleSet
+              VendorName: 'AWS'
+              Name: 'AWSManagedRulesCommonRuleSet'
               ExcludedRules: []
         - Name: 'AWS-AWSManagedRulesKnownBadInputsRuleSet'
           Priority: 2
@@ -60,15 +57,16 @@ Resources:
             MetricName: 'AWS-AWSManagedRulesKnownBadInputsRuleSet'
           Statement:
             ManagedRuleGroupStatement:
-              VendorName: AWS
-              Name: AWSManagedRulesKnownBadInputsRuleSet
+              VendorName: 'AWS'
+              Name: 'AWSManagedRulesKnownBadInputsRuleSet'
               ExcludedRules: []
 
 Outputs:
-  ApplicationLogGroupId:
-    Value: !Ref ApplicationLogGroup
-  ApplicationLogGroupArn:
-    Value: !GetAtt ApplicationLogGroup.Arn
-
-  # CdlibRoute53ZoneId:
-  #   Value: !Ref Route53Zone
+  WafNameIdScope:
+    Value: !Ref Waf
+  WafId:
+    Value: !GetAtt Waf.Id
+  WafArn:
+    Value: !GetAtt Waf.Arn
+  WafLabelNamespace:
+    Value: !GetAtt Waf.LabelNamespace

@@ -1,0 +1,7 @@
+template:
+  path: globals.yaml
+  type: file
+
+# Cloudfront requires that some resources be built in the us-east-1 region
+# See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-wafv2-webacl.html#cfn-wafv2-webacl-scope
+region: us-east-1

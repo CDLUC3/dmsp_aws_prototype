@@ -4,11 +4,16 @@ template:
 
 parameters:
   ApiStageName: 'v0'
-  EndpointType: 'REGIONAL' # For non-dev environments use: EDGE
-  # ApiClientDomainCallbackURL: 'https://dmptool-dev.cdlib.org/callback'
+  AppName: !stack_attr sceptre_user_data.app_name
 
   VpcId: !stack_output_external cdl-uc3-dev-vpc-stack::vpc
-  HostedZoneID: !stack_output_external sceptre-uc3-ops-common-dev-route53::HostedZoneID
+  HostedZoneId: !stack_output_external sceptre-uc3-ops-common-dev-route53::HostedZoneID
+
+  CloudFrontWafArn: !stack_output dev/globals.yaml::WafArn
+  CertificateArn: !stack_output dev/data.yaml::CertificateArn
+
+  SystemsUserPoolId: !stack_output dev/cognito.yaml::SystemsUserPoolId
+  SystemsUserPoolArn: !stack_output dev/cognito.yaml::SystemsUserPoolArn
 
   Env: !stack_attr sceptre_user_data.env
   DomainName: !stack_attr sceptre_user_data.domain
@@ -28,5 +33,5 @@ parameters:
   LambdaPutDmpId: !stack_output dev/application.yaml::LambdaPutDmpId
   LambdaPutDmpArn: !stack_output dev/application.yaml::LambdaPutDmpArn
 
-  ApplicationLogGroupId: !stack_output dev/management.yaml::ApplicationLogGroupId
-  ApplicationLogGroupArn: !stack_output dev/management.yaml::ApplicationLogGroupArn
+  ApplicationLogGroupId: !stack_output dev/data.yaml::LogGroupId
+  ApplicationLogGroupArn: !stack_output dev/data.yaml::LogGroupArn

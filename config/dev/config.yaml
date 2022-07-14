@@ -2,6 +2,9 @@ template_bucket_name: uc3-dmp-hub-cf-bucket
 
 sceptre_user_data:
   domain: 'dmphub.uc3dev.cdlib.org'
+  app_name: 'dmphub'
+  # Some resources like the Cognito UserPool don't get the normal Sceptre stack name
+  resource_name_prefix: 'uc3-dmp-hub'
   env: 'dev'
 
 stack_tags:

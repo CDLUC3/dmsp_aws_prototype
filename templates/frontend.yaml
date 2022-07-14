@@ -1,182 +1,131 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Transform: AWS::Serverless-2016-10-31
+Transform: 'AWS::Serverless-2016-10-31'
 
-Description: Cognito, API Gateway, CloudFront, Route53, ACM and WAF config
+Description: 'API Gateway, CloudFront, Route53, ACM and WAF config'
 
 Parameters:
   DomainName:
-    Type: String
+    Type: 'String'
   VpcId:
-    Type: String
-  HostedZoneID:
-    Type: String
+    Type: 'String'
+  HostedZoneId:
+    Type: 'String'
+  CloudFrontWafArn:
+    Type: 'String'
+  CertificateArn:
+    Type: 'String'
+
+  SystemsUserPoolId:
+    Type: 'String'
+  SystemsUserPoolArn:
+    Type: 'String'
+
+  AppName:
+    Type: 'String'
   Env:
-    Type: String
+    Type: 'String'
   ApiStageName:
-    Type: String
-  EndpointType:
-    Type: String
-  # ApiClientDomainCallbackURL:
-  #   Type: String
+    Type: 'String'
 
   S3BucketId:
-    Type: String
+    Type: 'String'
   S3BucketArn:
-    Type: String
+    Type: 'String'
   S3LogBucketId:
-    Type: String
+    Type: 'String'
 
   LambdaDeleteDmpId:
-    Type: String
+    Type: 'String'
   LambdaDeleteDmpArn:
-    Type: String
+    Type: 'String'
   LambdaGetDmpId:
-    Type: String
+    Type: 'String'
   LambdaGetDmpArn:
-    Type: String
+    Type: 'String'
   LambdaGetDmpsId:
-    Type: String
+    Type: 'String'
   LambdaGetDmpsArn:
-    Type: String
+    Type: 'String'
   LambdaPostDmpId:
-    Type: String
+    Type: 'String'
   LambdaPostDmpArn:
-    Type: String
+    Type: 'String'
   LambdaPutDmpId:
-    Type: String
+    Type: 'String'
   LambdaPutDmpArn:
-    Type: String
+    Type: 'String'
 
   ApplicationLogGroupId:
-    Type: String
+    Type: 'String'
   ApplicationLogGroupArn:
-    Type: String
+    Type: 'String'
 
 Resources:
   # -----------------------------------------------------------
-  # Cognito resources
-  # -----------------------------------------------------------
-  DmpHubSystemsUserPool:
-    Type: AWS::Cognito::UserPool
-    # DeletionPolicy: Retain
-    Properties:
-      AdminCreateUserConfig:
-        AllowAdminCreateUserOnly: true
-      # There's an open issue on this for AWS, but because this one is not named 'Tags' it doesn't inherit the stack tags
-      UserPoolTags:
-        Service: dmp
-        Subservice: hub
-        Env: !Ref Env
-
-  SystemsUserPoolResourceServer:
-    Type: AWS::Cognito::UserPoolResourceServer
-    # DeletionPolicy: Retain
-    Properties:
-      Name: DmphubSystemsUserPoolServer
-      Identifier: !Sub "https://${DomainName}"
-      UserPoolId: !Ref DmpHubSystemsUserPool
-      Scopes:
-        - ScopeName: !Sub "api.${Env}.read"
-          ScopeDescription: 'Allows access to the GET api endpoints (default) (e.g. getDmp, getDmps)'
-        - ScopeName: !Sub "api.${Env}.write"
-          ScopeDescription: 'Allows access to POST, PUT and DELETE for DMPs (e.g. postDmp, putDmp, deleteDmp)'
-
-  SystemsUserPoolDomain:
-    Type: AWS::Cognito::UserPoolDomain
-    # DeletionPolicy: Retain
-    Properties:
-      UserPoolId: !Ref DmpHubSystemsUserPool
-      Domain: 'uc3-dmp-hub-systems-user-pool'
-      # CustomDomainConfigType:
-      #   CertificateArn: foo
-
-  # Add the DMPTool as an initial client (not sure if we want to do this long term, probably better to retain the pool)
-  DmptoolClient:
-    Type: AWS::Cognito::UserPoolClient
-    DependsOn:
-      - SystemsUserPoolResourceServer
-    # DeletionPolicy: Retain
-    Properties:
-      ClientName: dmptool
-      UserPoolId: !Ref DmpHubSystemsUserPool
-      ExplicitAuthFlows:
-        - ALLOW_ADMIN_USER_PASSWORD_AUTH
-        - ALLOW_CUSTOM_AUTH
-        - ALLOW_USER_SRP_AUTH
-        - ALLOW_REFRESH_TOKEN_AUTH
-      AllowedOAuthFlowsUserPoolClient: true
-      AllowedOAuthFlows:
-        - client_credentials
-      AllowedOAuthScopes:
-        - !Sub "https://${DomainName}/api.${Env}.read"
-        - !Sub "https://${DomainName}/api.${Env}.write"
-      EnableTokenRevocation: true
-      PreventUserExistenceErrors: ENABLED
-      GenerateSecret: true
-      SupportedIdentityProviders:
-        - COGNITO
-      # The CF docs indicate that this is not required but I am unable to get a token from Cognito without it
-      CallbackURLs:
-        - 'http://localhost:3000/callback'
-        - !Sub 'https://${DomainName}/callback'
-
-  # -----------------------------------------------------------
-  # Global API Role and Account (not sure if this will cause issues if one already exists)
+  # Identitity and Access Management (IAM)
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_IAM.html
   # -----------------------------------------------------------
   ApiRole:
-    Type: AWS::IAM::Role
+    Type: 'AWS::IAM::Role'
     Properties:
       AssumeRolePolicyDocument:
-        Version: 2012-10-17
+        Version: '2012-10-17'
         Statement:
-          - Effect: Allow
+          - Effect: 'Allow'
             Principal:
-              Service: apigateway.amazonaws.com
+              Service: 'apigateway.amazonaws.com'
             Action:
-              - sts:AssumeRole
+              - 'sts:AssumeRole'
       Path: /
       # Preference here would be to send to our LogGroup instead of allowing it to create it's own
       ManagedPolicyArns:
         - 'arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs'
 
+  # ------------------------------------------------------------
+  # ApiGateway REST API resources
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-apigateway-restapi-endpointconfiguration.html
+  # -----------------------------------------------------------
   ApiAccount:
-    Type: AWS::ApiGateway::Account
+    Type: 'AWS::ApiGateway::Account'
     Properties:
       CloudWatchRoleArn: !GetAtt ApiRole.Arn
 
-  # ------------------------------------------------------------
-  # ApiGateway REST API resources
-  # -----------------------------------------------------------
   RestApi:
-    Type: AWS::ApiGateway::RestApi
+    Type: 'AWS::ApiGateway::RestApi'
     DependsOn:
       - ApiAccount
     # DeletionPolicy: Retain
     Properties:
-      Name: DmphubRestApi
-      # ApiKeySourceType: HEADER
+      Name: !Sub '${AppName}${Env}RestApi'
+      BinaryMediaTypes:
+        - 'application~pdf'
+      ApiKeySourceType: 'HEADER'
+      Decription: !Sub '${AppName}-${Env} REST API'
       DisableExecuteApiEndpoint: false
-      MinimumCompressionSize: 25000 # Anything over 25kb will be compressed if the Accept header allows it
+      FailOnWarnings: true
+      # Anything over 25kb will be compressed if the Accept header allows it
+      MinimumCompressionSize: 25000
       EndpointConfiguration:
         Types:
-          - !Ref EndpointType
+          - 'EDGE'
 
+  # Authorizer to allow Cognito to authorize access to the REST API
   SystemsAuthorizer:
-    Type: AWS::ApiGateway::Authorizer
+    Type: 'AWS::ApiGateway::Authorizer'
     Properties:
-      Name: DmpHubSystemsAuthorizer
-      Type: COGNITO_USER_POOLS
-      IdentitySource: method.request.header.Authorization
+      Name: '${AppName}${Env}SystemsAuthorizer'
+      Type: 'COGNITO_USER_POOLS'
+      IdentitySource: 'method.request.header.Authorization'
       ProviderARNs:
-        - !GetAtt DmpHubSystemsUserPool.Arn
+        - !Ref SystemsUserPoolArn
       RestApiId: !Ref RestApi
 
   # ApiGateway REST API Endpoint resources
   # ----------------------------------------------------------------------
   DmpsResource:
-    Type: AWS::ApiGateway::Resource
+    Type: 'AWS::ApiGateway::Resource'
     Properties:
-      PathPart: dmps
+      PathPart: 'dmps'
       # There is no parent resource so point to the RestAPI itself
       ParentId: !GetAtt RestApi.RootResourceId
       RestApiId: !Ref RestApi
@@ -506,10 +455,6 @@ Resources:
             DomainName: !Sub "${S3BucketId}.s3.${AWS::Region}.amazonaws.com"
             S3OriginConfig:
               OriginAccessIdentity: !Sub "origin-access-identity/cloudfront/${CloudFrontOriginAccessIdentity}"
-#           - Id: !Sub "cdn-${SystemsUserPoolDomain}"
-#             DomainName: !Sub "${SystemsUserPoolDomain}.auth.${AWS::Region}.amazoncognito.com"
-#             CustomOriginConfig:
-#             OriginProtocolPolicy: https-only
         # Default Origin is the S3 Bucket
         DefaultCacheBehavior:
           AllowedMethods:
@@ -521,22 +466,11 @@ Resources:
           # See https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-managed-cache-policies.html
           CachePolicyId: '658327ea-f89d-4fab-a63d-7e88639e58f6'
           ViewerProtocolPolicy: redirect-to-https
-#         CacheBehaviors:
-#           - TargetOriginId: "cdn-${SystemsUserPoolDomain}"
-#             PathPattern: '*'
-#             AllowedMethods:
-#               - GET
-#               - HEAD
-#               - POST
-#             # Using the AWS Managed cache policy named 'CachingOptimized'
-#             # See https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-managed-cache-policies.html
-#             CachePolicyId: '658327ea-f89d-4fab-a63d-7e88639e58f6'
-#             ViewerProtocolPolicy: redirect-to-https
         Logging:
           Bucket: !Sub "${S3LogBucketId}.s3.${AWS::Region}.amazonaws.com"
           Prefix: cloudfront-logs
           IncludeCookies: false
-        # WebACLId: !Ref WafGlobalArn
+        WebACLId: !Ref CloudFrontWafArn
         ViewerCertificate:
           CloudFrontDefaultCertificate: true
 
@@ -547,49 +481,36 @@ Resources:
     Type: AWS::Route53::RecordSetGroup
     DependsOn:
       - CloudFrontDistro
-      - RestApiDomainName
-      - SystemsUserPoolDomain
+      # - RestApiDomainName
+      # - SystemsUserPoolDomain
     Properties:
-      HostedZoneId: !Ref HostedZoneID
+      HostedZoneId: !Ref HostedZoneId
       RecordSets:
         - Name: !Ref DomainName
           Type: A
           AliasTarget:
             HostedZoneId: 'Z2FDTNDATAQYW2'
             DNSName: !GetAtt CloudFrontDistro.DomainName
-        - Name: !Sub "api.${DomainName}."
-          Type: CNAME
-          AliasTarget:
-            HostedZoneId: !GetAtt RestApiDomainName.RegionalHostedZoneId
-            DNSName: !GetAtt RestApiDomainName.RegionalDomainName
-        - Name: !Sub "auth.${DomainName}."
-          Type: CNAME
-          TTL: 900
-          ResourceRecords:
-            - !Join
-              - ''
-              - - !Ref SystemsUserPoolDomain
-                - '.auth.'
-                - !Ref AWS::Region
-                - '.amazoncognito.com'
-
-  # -----------------------------------------------------------
-  # SSL cert
-  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-certificatemanager-certificate.html
-  # -----------------------------------------------------------
-  Certificate:
-    Type: AWS::CertificateManager::Certificate
-    DependsOn:
-      - Route53RecordSet
-    Properties:
-      DomainName: !Sub '${Domain}'
-      DomainValidationOptions:
-        - DomainName: !Sub '${Domain}'
-          HostedZoneId: !Ref HostedZoneID
-      ValidationMethod: 'DNS'
+        # - Name: !Sub "api.${DomainName}."
+        #   Type: A
+        #   AliasTarget:
+        #     HostedZoneId: 'Z2FDTNDATAQYW2'
+        #     DNSName: !GetAtt RestApiDomainName.RegionalDomainName
+        # - Name: !Sub "auth.${DomainName}."
+        #   Type: A
+        #   AliasTarget:
+        #     HostedZoneId: 'Z2FDTNDATAQYW2'
+        #     DNSName: !Join
+        #       - ''
+        #       - - !Ref SystemsUserPoolDomain
+        #         - '.auth.'
+        #         - !Ref AWS::Region
+        #        - '.amazoncognito.com'
 
   RestApiDomainName:
     Type: AWS::ApiGateway::DomainName
+    DependsOn:
+      - Certificate
     Properties:
       CertificateArn: !Ref Certificate
       DomainName: !Sub "api.${DomainName}"
@@ -604,19 +525,20 @@ Resources:
       RestApiId: !Ref RestApi
       Stage: !Ref ApiStageName
 
-  # -----------------------------------------------------------
-  # WAF for the API Gateway
-  # -----------------------------------------------------------
-  Uc3DmpHubRegionalWaf:
-    Type: AWS::WAFv2::WebACL
+  # --------------------------------------------------------------------------
+  # WAF for the RestAPI must be Regional
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-wafv2-webacl.html#cfn-wafv2-webacl-scope
+  # --------------------------------------------------------------------------
+  Waf:
+    Type: 'AWS::WAFv2::WebACL'
     Properties:
       DefaultAction:
         Allow: {}
-      Scope: REGIONAL
+      Scope: 'REGIONAL'
       VisibilityConfig:
         SampledRequestsEnabled: true
         CloudWatchMetricsEnabled: true
-        MetricName: Uc3DmpHubRegionalWafMetric
+        MetricName: 'Uc3DmpHubCloudfrontWafMetric'
       Rules:
         - Name: 'AWS-AWSManagedRulesAmazonIpReputationList'
           Priority: 0
@@ -628,8 +550,8 @@ Resources:
             MetricName: 'AWS-AWSManagedRulesAmazonIpReputationList'
           Statement:
             ManagedRuleGroupStatement:
-              VendorName: AWS
-              Name: AWSManagedRulesAmazonIpReputationList
+              VendorName: 'AWS'
+              Name: 'AWSManagedRulesAmazonIpReputationList'
               ExcludedRules: []
         - Name: 'AWS-AWSManagedRulesCommonRuleSet'
           Priority: 1
@@ -641,8 +563,8 @@ Resources:
             MetricName: 'AWS-AWSManagedRulesCommonRuleSet'
           Statement:
             ManagedRuleGroupStatement:
-              VendorName: AWS
-              Name: AWSManagedRulesCommonRuleSet
+              VendorName: 'AWS'
+              Name: 'AWSManagedRulesCommonRuleSet'
               ExcludedRules: []
         - Name: 'AWS-AWSManagedRulesKnownBadInputsRuleSet'
           Priority: 2
@@ -654,36 +576,20 @@ Resources:
             MetricName: 'AWS-AWSManagedRulesKnownBadInputsRuleSet'
           Statement:
             ManagedRuleGroupStatement:
-              VendorName: AWS
-              Name: AWSManagedRulesKnownBadInputsRuleSet
+              VendorName: 'AWS'
+              Name: 'AWSManagedRulesKnownBadInputsRuleSet'
               ExcludedRules: []
 
-  RestApiRegionalWafAssociation:
+  # Attach WAF to API Gateway
+  WafForApi:
     Type: AWS::WAFv2::WebACLAssociation
     DependsOn:
-      - Uc3DmpHubRegionalWaf
       - RestApiStage
     Properties:
-      WebACLArn: !GetAtt Uc3DmpHubRegionalWaf.Arn
-      ResourceArn: !Join
-        - ''
-        - - 'arn:aws:apigateway:'
-          - !Ref AWS::Region
-          - '::/restapis/'
-          - !Ref RestApi
-          - '/stages/'
-          - !Ref ApiStageName
+      WebACLArn: !Ref CloudFrontWafArn
+      # ResourceArn: !Sub 'arn:aws:apigateway:${AWS::Region}::/restapis/${RestApi}/stages/${ApiStageName}'
 
 Outputs:
-  SystemsUserPoolId:
-    Value: !Ref DmpHubSystemsUserPool
-  SystemsUserPoolArn:
-    Value: !GetAtt DmpHubSystemsUserPool.Arn
-  SystemsUserPoolDomainId:
-    Value: !Ref SystemsUserPoolDomain
-  SystemsUserPoolResourceServerId:
-    Value: !Ref SystemsUserPoolResourceServer
-
   RestApiId:
     Value: !Ref RestApi
   RestApiSystemsAuthorizerId:
@@ -694,22 +600,15 @@ Outputs:
     Value: !Ref DmpResource
   RestApiStageId:
     Value: !Ref RestApiStage
-  # RestApiDistributionDomainName:
-  #  Value: !GetAtt RestApiDomainName.DistributionDomainName
+  RestApiDistributionDomainName:
+   Value: !GetAtt RestApiDomainName.DistributionDomainName
 
-  CertificateArn:
-    Value: !Ref Certificate
   DomainName:
     Value: !Ref DomainName
   ApiDomainName:
     Value: !Sub "api.${DomainName}"
-  AuthDomainName:
-    Value: !Sub "auth.${DomainName}"
-
-  WafRegionalAclId:
-    Value: !Ref Uc3DmpHubRegionalWaf
-  WafRegionalAclArn:
-    Value: !GetAtt Uc3DmpHubRegionalWaf.Arn
+  ApiArn:
+    Value: !Sub 'arn:aws:apigateway:${AWS::Region}::/restapis/${RestApi}/stages/${ApiStageName}'
 
   CloudFrontOriginAccessIdentityId:
     Value: !Ref CloudFrontOriginAccessIdentity
