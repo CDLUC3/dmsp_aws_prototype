@@ -1,0 +1,20 @@
+template:
+  path: 'deploy-pipeline.yaml.j2'
+  type: 'file'
+
+parameters:
+  Environment: !stack_attr sceptre_user_data.env
+  AppName: !stack_attr sceptre_user_data.app_name
+
+  ECRRepositoryName: !stack_output dev/data.yaml::ECRRepositoryName
+
+  # Share the LogGroup and S3 bucket used by the Build Pipeline
+  # LogGroupId: !stack_output dev/build-pipeline.yaml::LogGroupId
+  # LogGroupArn: !stack_output dev/build-pipeline.yaml::LogGroupArn
+
+  S3BucketId: !stack_output dev/build-pipeline.yaml::S3BucketId
+
+  # Lambda Function IDs and ARNs are pulled into the template directly using CF's ImportValue
+  # function because jinja2 does not natively support the inclusion of j2 templates using a
+  # relative path. (e.g. '../../templates/includes.js')
+  LambdaFunctionStackName: !stack_output dev/application.yaml::StackName

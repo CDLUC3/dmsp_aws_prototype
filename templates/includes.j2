@@ -1,0 +1,41 @@
+# The LAMBDAS array expects the following entries:
+#   name: The resource name for the Lambda Function/Role/Policy
+#   s3key: The key for the zip file containing the lambda code. Format is 'lambda-${s3key}.json'
+#   dynamo: an array of actions. An empty array means no access.
+#           Valid options: ['read', 'search', 'write']
+#   s3: an array of actions. An empty array means no access. Valid options: ['read', 'write']
+#   sqs: an array of topics. An empty array means that the lambda does not need to read/write
+#        from the SQS queue. The valid array options/topics are ['download', 'notify', 'publish']
+
+{%
+set LAMBDAS = [
+  { "name": "DeleteDmp", "tag": "delete-dmp",
+    "api_method": "DELETE", "api_source_arn_suffix": "/dmps/{dmp_id+}", "cognito": "true",
+    "dynamo": ["read", "write"], "s3": ["read", "write"], "sqs": ["download", "publish"] },
+
+  { "name": "DocumentDownloader", "tag": "document-downloader",
+    "dynamo": ["read"], "s3": ["read", "write"], "sqs": ["download"] },
+
+  { "name": "EzidPublisher", "tag": "ezid-publisher",
+    "dynamo": ["read"], "s3": [], "sqs": ["publish"] },
+
+  { "name": "GetDmp", "tag": "get-dmp",
+    "api_method": "GET", "api_source_arn_suffix": "/dmps/{dmp_id+}", "cognito": "true",
+    "dynamo": ["read"], "s3": ["read"], "sqs": [] },
+
+  { "name": "GetDmps", "tag": "get-dmps",
+    "api_method": "GET", "api_source_arn_suffix": "/dmps", "cognito": "false",
+    "dynamo": ["read", "search"], "s3": [], "sqs": [] },
+
+  { "name": "PostDmps", "tag": "post-dmps",
+    "api_method": "POST", "api_source_arn_suffix": "/dmps", "cognito": "true",
+    "dynamo": ["read", "write"], "s3": [], "sqs": ["download", "notify", "publish"] },
+
+  { "name": "ProvenanceNotifier", "tag": "provenance-notifier",
+    "dynamo": ["read"], "s3": [], "sqs": ["notify"] },
+
+  { "name": "PutDmp", "tag": "put-dmp",
+    "api_method": "PUT", "api_source_arn_suffix": "/dmps/{dmp_id+}", "cognito": "true",
+    "dynamo": ["read", "write"], "s3": [], "sqs": ["download", "notify", "publish"] }
+]
+%}

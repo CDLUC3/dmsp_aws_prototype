@@ -1,5 +1,12 @@
 template_bucket_name: uc3-dmp-hub-cf-bucket
 
+stack_tags:
+  Service: 'dmp'
+  Subservice: 'hub'
+  Environment: 'dev'
+  CodeRepo: 'https://github.com/CDLUC3/cloud9-briley'
+  Contact: 'briley'
+
 sceptre_user_data:
   domain: 'dmphub.uc3dev.cdlib.org'
   app_name: 'dmphub'
@@ -7,9 +14,38 @@ sceptre_user_data:
   resource_name_prefix: 'uc3-dmp-hub'
   env: 'dev'
 
-stack_tags:
-  Service: 'dmp'
-  Subservice: 'hub'
-  Environment: 'dev'
-  CodeRepo: 'https://github.com/CDLUC3/cloud9-briley'
-  Contact: 'briley'
+# The LAMBDAS array expects the following entries:
+#   name: The resource name for the Lambda Function/Role/Policy
+#   s3key: The key for the zip file containing the lambda code. Format is 'lambda-${s3key}.json'
+#   dynamo: an array of actions. An empty array means no access.
+#           Valid options: ['read', 'search', 'write']
+#   s3: an array of actions. An empty array means no access. Valid options: ['read', 'write']
+#   sqs: an array of topics. An empty array means that the lambda does not need to read/write
+#        from the SQS queue. The valid array options/topics are ['download', 'notify', 'publish']
+{%
+set LAMBDAS = [
+  { 'name': 'DeleteDmp', 'ecr_tag': 'delete-dmp',
+    'dynamo': ['read', 'write'], 's3': ['read', 'write'], 'sqs': ['download', 'publish'] },
+
+  { 'name': 'DocumentDownloader', 'ecr_tag': 'document-downloader',
+    'dynamo': ['read'], 's3': ['read', 'write'], 'sqs': ['download'] },
+
+  { 'name': 'EzidPublisher', 'ecr_tag': 'ezid-publisher',
+    'dynamo': ['read'], 's3': [], 'sqs': ['publish'] },
+
+  { 'name': 'GetDmp', 'ecr_tag': 'get-dmp',
+    'dynamo': ['read'], 's3': ['read'], 'sqs': [] },
+
+  { 'name': 'GetDmps', 'ecr_tag': 'get-dmps',
+    'dynamo': ['read', 'search'], 's3': [], 'sqs': [] },
+
+  { 'name': 'PostDmps', 'ecr_tag': 'post-dmps',
+    'dynamo': ['read', 'write'], 's3': [], 'sqs': ['download', 'notify', 'publish'] },
+
+  { 'name': 'ProvenanceNotifier', 'ecr_tag': 'provenance-notifier',
+    'dynamo': ['read'], 's3': [], 'sqs': ['notify'] },
+
+  { 'name': 'PutDmp', 'ecr_tag': 'put-dmp',
+    'dynamo': ['read', 'write'], 's3': [], 'sqs': ['download', 'notify', 'publish'] }
+]
+%}

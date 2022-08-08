@@ -1,0 +1,174 @@
+---
+{% import 'includes.j2' as imported %}
+
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+
+Description: 'Template to build a Lambda deployment pipeline that watches ECR'
+
+Parameters:
+  AppName:
+    Type: 'String'
+  Environment:
+    Type: 'String'
+
+  S3BucketId:
+    Type: 'String'
+
+  ECRRepositoryName:
+    Type: 'String'
+
+  LambdaFunctionStackName:
+    Type: 'String'
+
+Resources:
+  # -----------------------------------------------------------
+  # Identitity and Access Management (IAM)
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_IAM.html
+  # -----------------------------------------------------------
+  IAMPipelineRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service:
+                - 'codepipeline.amazonaws.com'
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AWSCodeDeployDeployerAccess'
+        - 'arn:aws:iam::aws:policy/AWSCodePipelineFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonS3FullAccess'
+        - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
+        - 'arn:aws:iam::aws:policy/service-role/AWSAppRunnerServicePolicyForECRAccess'
+
+  IAMCodeDeployRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service:
+                - 'codedeploy.amazonaws.com'
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWSCodeDeployRoleForLambda'
+        - 'arn:aws:iam::aws:policy/AmazonS3FullAccess'
+        - 'arn:aws:iam::aws:policy/service-role/AWSAppRunnerServicePolicyForECRAccess'
+
+  # -----------------------------------------------------------
+  # CodeDeploy
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-codedeploy-deploymentgroup.html
+  # -----------------------------------------------------------
+  {% for lambda_dict in imported.LAMBDAS %}
+  {{lambda_dict['name']}}CodeDeployApplication:
+    Type: 'AWS::CodeDeploy::Application'
+    Properties:
+      ApplicationName: '{{lambda_dict['name']}}-deployer'
+      ComputePlatform: 'Lambda'
+
+  {{lambda_dict['name']}}CodeDeployGroup:
+    Type: 'AWS::CodeDeploy::DeploymentGroup'
+    DependsOn:
+      - {{lambda_dict['name']}}CodeDeployApplication
+      - IAMCodeDeployRole
+    Properties:
+      ApplicationName: !Ref {{lambda_dict['name']}}CodeDeployApplication
+      ServiceRoleArn: !GetAtt IAMCodeDeployRole.Arn
+
+      DeploymentConfigName: 'CodeDeployDefault.LambdaAllAtOnce'
+      # This Style is required for Lambda per: https://stackoverflow.com/questions/52636182/ec2tagfilters-in-deployment-group-for-computeplatform-lambda
+      DeploymentStyle:
+        DeploymentOption: 'WITH_TRAFFIC_CONTROL'
+        DeploymentType: 'BLUE_GREEN'
+      # Deployment:
+      #   Revision:
+      #     RevisionType: !Sub >
+      #       {
+      #         "version": "latest-{{lambda_dict['tag']}}",
+      #         "resources": [{
+      #           "{{lambda_dict['name']}}Function": {
+      #             "type": "AWS::Lambda::Function"
+      #             "properties": {
+      #               "name": !ImportValue
+      #                 'Fn::Sub': '${LambdaFunctionStackName}-{{lambda_dict['name']}}FunctionId',
+      #               "alias": "{{lambda_dict['name']}}",
+      #               "currentVersion": "latest-{{lambda_dict['tag']}}",
+      #               "targetVersion": "latest-{{lambda_dict['tag']}}"
+      #             }
+      #           }
+      #         }]
+      #       }
+  {% endfor %}
+
+  # -----------------------------------------------------------
+  # CodePipeline
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-codepipeline-pipeline.html
+  # -----------------------------------------------------------
+  {% for lambda_dict in imported.LAMBDAS %}
+  {{lambda_dict['name']}}Pipeline:
+    Type: 'AWS::CodePipeline::Pipeline'
+    DependsOn:
+      - IAMPipelineRole
+      - {{lambda_dict['name']}}CodeDeployGroup
+    Properties:
+      ArtifactStore:
+        Location: !Ref S3BucketId
+        # CloudFormation only supports S3 at the moment!
+        Type: 'S3'
+      RestartExecutionOnUpdate: true
+      RoleArn: !GetAtt IAMPipelineRole.Arn
+      Stages:
+        - Name: 'MonitorECR'
+          Actions:
+            # This action is triggered when the development branch of DMPRoadmap has a new commit
+            # it's output is the commit hash
+            - Name: 'dmphub-{{lambda_dict['tag']}}'
+              RunOrder: 1
+              ActionTypeId:
+                Category: 'Source'
+                Owner: 'AWS'
+                Provider: 'ECR'
+                Version: '1'
+              Configuration:
+                RepositoryName: !Ref ECRRepositoryName
+                ImageTag: 'latest-{{lambda_dict['tag']}}'
+              OutputArtifacts:
+                - Name: 'dmphub-{{lambda_dict['tag']}}-image'
+
+        - Name: 'DeployLambda'
+          Actions:
+            - Name: 'dmphub-{{lambda_dict['tag']}}-deploy'
+              RunOrder: 2
+              ActionTypeId:
+                Category: 'Deploy'
+                Owner: 'AWS'
+                Provider: 'CodeDeploy'
+                Version: '1'
+              Configuration:
+                ApplicationName: !Ref {{lambda_dict['name']}}CodeDeployApplication
+                DeploymentGroupName: !Ref {{lambda_dict['name']}}CodeDeployGroup
+              InputArtifacts:
+                - Name: 'dmphub-{{lambda_dict['tag']}}-image'
+  {% endfor %}
+
+Outputs:
+  CodeDeployRoleId:
+    Value: !Ref IAMCodeDeployRole
+  CodeDeployRoleArn:
+    Value: !GetAtt IAMCodeDeployRole.Arn
+
+  {% for lambda_dict in imported.LAMBDAS %}
+  {{lambda_dict['name']}}CodeDeployApplicationId:
+    Value: !Ref {{lambda_dict['name']}}CodeDeployApplication
+  {{lambda_dict['name']}}DeployPipelineId:
+    Value: !Ref {{lambda_dict['name']}}Pipeline
+  {{lambda_dict['name']}}DeployPipelineVersion:
+    Value: !GetAtt {{lambda_dict['name']}}Pipeline.Version
+  {% endfor %}

@@ -1,37 +1,31 @@
 template:
-  path: 'frontend.yaml'
+  path: 'frontend.yaml.j2'
   type: 'file'
 
 parameters:
-  ApiStageName: 'v0'
   AppName: !stack_attr sceptre_user_data.app_name
+  Env: !stack_attr sceptre_user_data.env
+  DomainName: !stack_attr sceptre_user_data.domain
+
+  ApiStageName: 'v0'
+
+  # Lambda Function IDs and ARNs are pulled into the template directly using CF's ImportValue
+  # function because jinja2 does not natively support the inclusion of j2 templates using a
+  # relative path. (e.g. '../../templates/includes.js')
+  LambdaFunctionStackName: !stack_output dev/application.yaml::StackName
 
   VpcId: !stack_output_external cdl-uc3-dev-vpc-stack::vpc
   HostedZoneId: !stack_output_external sceptre-uc3-ops-common-dev-route53::HostedZoneID
 
   CloudFrontWafArn: !stack_output dev/globals.yaml::WafArn
-  CertificateArn: !stack_output dev/data.yaml::CertificateArn
+  CertificateArn: !stack_output dev/globals.yaml::CertificateArn
 
   SystemsUserPoolId: !stack_output dev/cognito.yaml::SystemsUserPoolId
   SystemsUserPoolArn: !stack_output dev/cognito.yaml::SystemsUserPoolArn
 
-  Env: !stack_attr sceptre_user_data.env
-  DomainName: !stack_attr sceptre_user_data.domain
-
   S3BucketId: !stack_output dev/data.yaml::S3BucketId
   S3BucketArn: !stack_output dev/data.yaml::S3BucketArn
   S3LogBucketId: !stack_output dev/data.yaml::S3LogBucketId
-
-  LambdaDeleteDmpId: !stack_output dev/application.yaml::LambdaDeleteDmpId
-  LambdaDeleteDmpArn: !stack_output dev/application.yaml::LambdaDeleteDmpArn
-  LambdaGetDmpId: !stack_output dev/application.yaml::LambdaGetDmpId
-  LambdaGetDmpArn: !stack_output dev/application.yaml::LambdaGetDmpArn
-  LambdaGetDmpsId: !stack_output dev/application.yaml::LambdaGetDmpsId
-  LambdaGetDmpsArn: !stack_output dev/application.yaml::LambdaGetDmpsArn
-  LambdaPostDmpId: !stack_output dev/application.yaml::LambdaPostDmpId
-  LambdaPostDmpArn: !stack_output dev/application.yaml::LambdaPostDmpArn
-  LambdaPutDmpId: !stack_output dev/application.yaml::LambdaPutDmpId
-  LambdaPutDmpArn: !stack_output dev/application.yaml::LambdaPutDmpArn
 
   ApplicationLogGroupId: !stack_output dev/data.yaml::LogGroupId
   ApplicationLogGroupArn: !stack_output dev/data.yaml::LogGroupArn

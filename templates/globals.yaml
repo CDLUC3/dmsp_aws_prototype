@@ -1,11 +1,33 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: 'AWS::Serverless-2016-10-31'
 
-# Cloudfront requires that it's WAF resource be built in the us-east-1 region
+# API Gateway and Cloudfront require that their WAF and Ccert resources be built in the
+# us-east-1 region
 # See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-wafv2-webacl.html#cfn-wafv2-webacl-scope
 Description: 'Default WAF and SSL Cert'
 
+Parameters:
+  HostedZoneId:
+    Type: 'String'
+
+  DomainName:
+    Type: 'String'
+
 Resources:
+
+  # --------------------------------------------------------------------------
+  # SSL Cert for the application
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-certificatemanager-certificate.html
+  # --------------------------------------------------------------------------
+  Certificate:
+    Type: AWS::CertificateManager::Certificate
+    Properties:
+      DomainName: !Sub "*.${DomainName}"
+      DomainValidationOptions:
+        - DomainName: !Sub "*.${DomainName}"
+          HostedZoneId: !Ref HostedZoneId
+      ValidationMethod: 'DNS'
+
   # --------------------------------------------------------------------------
   # WAF for CloudFront distributions must be defined in us-east-1 (per AWS)
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-wafv2-webacl.html#cfn-wafv2-webacl-scope
@@ -70,3 +92,6 @@ Outputs:
     Value: !GetAtt Waf.Arn
   WafLabelNamespace:
     Value: !GetAtt Waf.LabelNamespace
+
+  CertificateArn:
+    Value: !Ref Certificate

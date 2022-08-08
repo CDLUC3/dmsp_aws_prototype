@@ -1,15 +1,29 @@
+---
+{% import 'includes.j2' as imported %}
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: 'AWS::Serverless-2016-10-31'
 
 Description: 'API Gateway, CloudFront, Route53, ACM and WAF config'
 
 Parameters:
+  AppName:
+    Type: 'String'
+  Env:
+    Type: 'String'
   DomainName:
     Type: 'String'
+
   VpcId:
     Type: 'String'
   HostedZoneId:
     Type: 'String'
+
+  ApiStageName:
+    Type: 'String'
+
+  LambdaFunctionStackName:
+    Type: 'String'
+
   CloudFrontWafArn:
     Type: 'String'
   CertificateArn:
@@ -20,39 +34,11 @@ Parameters:
   SystemsUserPoolArn:
     Type: 'String'
 
-  AppName:
-    Type: 'String'
-  Env:
-    Type: 'String'
-  ApiStageName:
-    Type: 'String'
-
   S3BucketId:
     Type: 'String'
   S3BucketArn:
     Type: 'String'
   S3LogBucketId:
-    Type: 'String'
-
-  LambdaDeleteDmpId:
-    Type: 'String'
-  LambdaDeleteDmpArn:
-    Type: 'String'
-  LambdaGetDmpId:
-    Type: 'String'
-  LambdaGetDmpArn:
-    Type: 'String'
-  LambdaGetDmpsId:
-    Type: 'String'
-  LambdaGetDmpsArn:
-    Type: 'String'
-  LambdaPostDmpId:
-    Type: 'String'
-  LambdaPostDmpArn:
-    Type: 'String'
-  LambdaPutDmpId:
-    Type: 'String'
-  LambdaPutDmpArn:
     Type: 'String'
 
   ApplicationLogGroupId:
@@ -100,7 +86,6 @@ Resources:
       BinaryMediaTypes:
         - 'application~pdf'
       ApiKeySourceType: 'HEADER'
-      Decription: !Sub '${AppName}-${Env} REST API'
       DisableExecuteApiEndpoint: false
       FailOnWarnings: true
       # Anything over 25kb will be compressed if the Accept header allows it
@@ -113,7 +98,7 @@ Resources:
   SystemsAuthorizer:
     Type: 'AWS::ApiGateway::Authorizer'
     Properties:
-      Name: '${AppName}${Env}SystemsAuthorizer'
+      Name: !Sub '${AppName}${Env}SystemsAuthorizer'
       Type: 'COGNITO_USER_POOLS'
       IdentitySource: 'method.request.header.Authorization'
       ProviderARNs:
@@ -130,92 +115,8 @@ Resources:
       ParentId: !GetAtt RestApi.RootResourceId
       RestApiId: !Ref RestApi
 
-  # GET /dmps
-  # ---------
-  GetDmpsLambdaPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref LambdaGetDmpsId
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Join
-        - ''
-        - - 'arn:aws:execute-api:'
-          - !Ref AWS::Region
-          - ':'
-          - !Ref AWS::AccountId
-          - ':'
-          - !Ref RestApi
-          - '/*/GET/dmps'
-
-  GetDmpsApiMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      OperationName: ListDMPs
-      HttpMethod: GET
-      ResourceId: !Ref DmpsResource
-      RestApiId: !Ref RestApi
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref SystemsAuthorizer
-      AuthorizationScopes:
-        - !Sub "https://${DomainName}/api.read"
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Join
-        - ''
-        - - 'arn:'
-          - !Ref 'AWS::Partition'
-          - ':apigateway:'
-          - !Ref 'AWS::Region'
-          - ':lambda:path/2015-03-31/functions/'
-          - !Ref LambdaGetDmpsArn
-          - '/invocations'
-
-  # POST /dmps
-  # ---------
-  PostDmpsLambdaPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref LambdaPostDmpId
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Join
-        - ''
-        - - 'arn:aws:execute-api:'
-          - !Ref AWS::Region
-          - ':'
-          - !Ref AWS::AccountId
-          - ':'
-          - !Ref RestApi
-          - '/*/POST/dmps'
-
-  PostDmpsApiMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      OperationName: CreateDmp
-      HttpMethod: POST
-      ResourceId: !Ref DmpsResource
-      RestApiId: !Ref RestApi
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref SystemsAuthorizer
-      AuthorizationScopes:
-        - !Sub "https://${DomainName}/api.write"
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Join
-        - ''
-        - - 'arn:'
-          - !Ref 'AWS::Partition'
-          - ':apigateway:'
-          - !Ref 'AWS::Region'
-          - ':lambda:path/2015-03-31/functions/'
-          - !Ref LambdaPostDmpArn
-          - '/invocations'
-
   DmpResource:
-    Type: AWS::ApiGateway::Resource
+    Type: 'AWS::ApiGateway::Resource'
     DependsOn:
       - DmpsResource
     Properties:
@@ -224,14 +125,16 @@ Resources:
       ParentId: !Ref DmpsResource
       RestApiId: !Ref RestApi
 
-  # DELETE /dmps/{dmp_id+}
-  # ---------
-  DeleteDmpLambdaPermission:
-    Type: AWS::Lambda::Permission
+  {% for lambda_dict in imported.LAMBDAS %}
+  # Build out the API endpoints for each Lambda that has a SourceArn defined
+  {% if lambda_dict['api_method'] is defined %}
+  {{lambda_dict['name']}}Permission:
+    Type: 'AWS::Lambda::Permission'
     Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref LambdaDeleteDmpId
-      Principal: apigateway.amazonaws.com
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !ImportValue
+        'Fn::Sub': '${LambdaFunctionStackName}-{{lambda_dict['name']}}FunctionId'
+      Principal: 'apigateway.amazonaws.com'
       SourceArn: !Join
         - ''
         - - 'arn:aws:execute-api:'
@@ -240,27 +143,34 @@ Resources:
           - !Ref AWS::AccountId
           - ':'
           - !Ref RestApi
-          - '/*/DELETE/dmps/{dmp_id+}'
+          - '/*/{{lambda_dict['api_method']}}{{lambda_dict['api_source_arn_suffix']}}'
 
-  DeleteDmpApiMethod:
-    Type: AWS::ApiGateway::Method
+  {{lambda_dict['name']}}ApiMethod:
+    Type: 'AWS::ApiGateway::Method'
     Properties:
-      OperationName: DeleteDMP
-      HttpMethod: DELETE
+      OperationName: '{{lambda_dict['name']}}'
+      HttpMethod: '{{lambda_dict['api_method']}}'
+      {% if '{dmp_id+}' in lambda_dict['api_source_arn_suffix'].split('/') %}
       ResourceId: !Ref DmpResource
+      {% else %}
+      ResourceId: !Ref DmpsResource
+      {% endif %}
       RestApiId: !Ref RestApi
-      AuthorizationType: COGNITO_USER_POOLS
+      {% if lambda_dict['cognito'] == 'true' %}
+      AuthorizationType: 'COGNITO_USER_POOLS'
       AuthorizerId: !Ref SystemsAuthorizer
       AuthorizationScopes:
+        {% if lambda_dict['api_method'] == 'GET' %}
         - !Sub "https://${DomainName}/api.read"
+        {% else %}
         - !Sub "https://${DomainName}/api.write"
-      RequestParameters:
-        method.request.path.dmp_id: true
+        {% endif %}
+      {% else %}
+      AuthorizationType: 'NONE'
+      {% endif %}
       Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        RequestParameters:
-          integration.request.path.dmp_id: method.request.path.dmp_id
+        Type: 'AWS_PROXY'
+        IntegrationHttpMethod: 'POST'
         Uri: !Join
         - ''
         - - 'arn:'
@@ -268,116 +178,29 @@ Resources:
           - ':apigateway:'
           - !Ref 'AWS::Region'
           - ':lambda:path/2015-03-31/functions/'
-          - !Ref LambdaDeleteDmpArn
+          - !ImportValue
+              'Fn::Sub': '${LambdaFunctionStackName}-{{lambda_dict['name']}}FunctionArn'
           - '/invocations'
-
-  # GET /dmps/{dmp_id+}
-  # ---------
-  GetDmpLambdaPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref LambdaGetDmpId
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Join
-        - ''
-        - - 'arn:aws:execute-api:'
-          - !Ref AWS::Region
-          - ':'
-          - !Ref AWS::AccountId
-          - ':'
-          - !Ref RestApi
-          - '/*/GET/dmps/{dmp_id+}'
-
-  GetDmpApiMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      OperationName: GetDMP
-      HttpMethod: GET
-      ResourceId: !Ref DmpResource
-      RestApiId: !Ref RestApi
-      RequestParameters:
-        method.request.path.dmp_id: true
-      AuthorizationType: NONE
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        RequestParameters:
-          integration.request.path.dmp_id: method.request.path.dmp_id
-        Uri: !Join
-        - ''
-        - - 'arn:'
-          - !Ref 'AWS::Partition'
-          - ':apigateway:'
-          - !Ref 'AWS::Region'
-          - ':lambda:path/2015-03-31/functions/'
-          - !Ref LambdaGetDmpArn
-          - '/invocations'
-
-  # PUT /dmps/{dmp_id+}
-  # ---------
-  PutDmpLambdaPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref LambdaPutDmpId
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Join
-        - ''
-        - - 'arn:aws:execute-api:'
-          - !Ref AWS::Region
-          - ':'
-          - !Ref AWS::AccountId
-          - ':'
-          - !Ref RestApi
-          - '/*/PUT/dmps/{dmp_id+}'
-
-  PutDmpApiMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      OperationName: PutDMP
-      HttpMethod: PUT
-      ResourceId: !Ref DmpResource
-      RestApiId: !Ref RestApi
-      RequestParameters:
-        method.request.path.dmp_id: true
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref SystemsAuthorizer
-      AuthorizationScopes:
-        - !Sub "https://${DomainName}/api.read"
-        - !Sub "https://${DomainName}/api.write"
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        RequestParameters:
-          integration.request.path.dmp_id: method.request.path.dmp_id
-        Uri: !Join
-        - ''
-        - - 'arn:'
-          - !Ref 'AWS::Partition'
-          - ':apigateway:'
-          - !Ref 'AWS::Region'
-          - ':lambda:path/2015-03-31/functions/'
-          - !Ref LambdaPutDmpArn
-          - '/invocations'
+  {% endif %}
+  {% endfor %}
 
   # -----------------------------------------------------------
   # Deployment and Stage
   # -----------------------------------------------------------
   RestApiDeployment:
-    Type: AWS::ApiGateway::Deployment
+    Type: 'AWS::ApiGateway::Deployment'
     DependsOn:
-      - GetDmpsApiMethod
-      - PostDmpsApiMethod
-      - GetDmpApiMethod
-      - DeleteDmpApiMethod
-      - PutDmpApiMethod
+      {% for lambda_dict in imported.LAMBDAS %}
+      {% if lambda_dict['api_method'] is defined %}
+      - {{lambda_dict['name']}}ApiMethod
+      {% endif %}
+      {% endfor %}
     Properties:
       RestApiId: !Ref RestApi
-      Description: Initial deployment of the DMPHub API
+      Description: 'Initial deployment of the DMPHub API'
 
   RestApiStage:
-    Type: AWS::ApiGateway::Stage
+    Type: 'AWS::ApiGateway::Stage'
     DependsOn:
       - RestApiDeployment
     Properties:
@@ -390,10 +213,14 @@ Resources:
       # ClientCertificateId: !Ref ClientCertificate
       AccessLogSetting:
         DestinationArn: !Ref ApplicationLogGroupArn
-        Format: '{"requestId":"$context.requestId","extendedRequestId":"$context.extendedRequestId","ip":"$context.identity.sourceIp","caller":"$context.identity.caller","user":"$context.identity.user","requestTime":"$context.requestTime","wafResponseCode":"$context.wafResponseCode","httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath","status":"$context.status","protocol":"$context.protocol","responseLength":"$context.responseLength" }'
+        # Cloud Formation requires the format to be a single line string (no newlines) :/
+        Format: '{"requestId":"$context.requestId","extendedRequestId":"$context.extendedRequestId","ip":"$context.identity.sourceIp","caller":"$context.identity.caller","user":"$context.identity.user","requestTime":"$context.requestTime","wafResponseCode":"$context.wafResponseCode","httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath","status":"$context.status","protocol":"$context.protocol","responseLength":"$context.responseLength"}'
       MethodSettings:
-        - ResourcePath: /dmps/
-          HttpMethod: GET
+        {% for lambda_dict in imported.LAMBDAS %}
+        {% if lambda_dict['api_method'] is defined %}
+        - ResourcePath: '{{lambda_dict['api_source_arn_suffix']}}'
+          # maybe needs a trailing slash when no {dmp_id+} is present
+          HttpMethod: '{{lambda_dict['api_method']}}'
           ThrottlingBurstLimit: 25
           ThrottlingRateLimit: 25
           CachingEnabled: true
@@ -401,55 +228,27 @@ Resources:
           MetricsEnabled: true
           DataTraceEnabled: true
           LoggingLevel: INFO
-        - ResourcePath: /dmps/
-          HttpMethod: POST
-          ThrottlingBurstLimit: 5
-          ThrottlingRateLimit: 5
-          MetricsEnabled: true
-          DataTraceEnabled: true
-          LoggingLevel: INFO
-        - ResourcePath: /dmps/{dmp_id+}
-          HttpMethod: GET
-          ThrottlingBurstLimit: 25
-          ThrottlingRateLimit: 25
-          CachingEnabled: true
-          CacheTtlInSeconds: 180
-          MetricsEnabled: true
-          DataTraceEnabled: true
-          LoggingLevel: INFO
-        - ResourcePath: /dmps/{dmp_id+}
-          HttpMethod: DELETE
-          ThrottlingBurstLimit: 5
-          ThrottlingRateLimit: 5
-          MetricsEnabled: true
-          DataTraceEnabled: true
-          LoggingLevel: INFO
-        - ResourcePath: /dmps/{dmp_id+}
-          HttpMethod: PUT
-          ThrottlingBurstLimit: 5
-          ThrottlingRateLimit: 5
-          MetricsEnabled: true
-          DataTraceEnabled: true
-          LoggingLevel: INFO
+        {% endif %}
+        {% endfor %}
 
   # -----------------------------------------------------------
   # Cloud Front to server static resources from S3 and also protect our Cognito
   # ----------------------------------------------------------
   CloudFrontOriginAccessIdentity:
-    Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
+    Type: 'AWS::CloudFront::CloudFrontOriginAccessIdentity'
     Properties:
       CloudFrontOriginAccessIdentityConfig:
         Comment: 'Cloud Front Identiity used to access S3 resources'
 
   CloudFrontDistro:
-    Type: AWS::CloudFront::Distribution
+    Type: 'AWS::CloudFront::Distribution'
     DependsOn:
       - CloudFrontOriginAccessIdentity
     Properties:
       DistributionConfig:
         Enabled: true
         IPV6Enabled: true
-        DefaultRootObject: index.html
+        DefaultRootObject: 'index.html'
         Origins:
           - Id: !Sub "cdn-${S3BucketId}"
             DomainName: !Sub "${S3BucketId}.s3.${AWS::Region}.amazonaws.com"
@@ -458,17 +257,17 @@ Resources:
         # Default Origin is the S3 Bucket
         DefaultCacheBehavior:
           AllowedMethods:
-            - GET
-            - HEAD
+            - 'GET'
+            - 'HEAD'
           Compress: true
           TargetOriginId: !Sub "cdn-${S3BucketId}"
           # Using the AWS Managed cache policy named 'CachingOptimized'
           # See https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-managed-cache-policies.html
           CachePolicyId: '658327ea-f89d-4fab-a63d-7e88639e58f6'
-          ViewerProtocolPolicy: redirect-to-https
+          ViewerProtocolPolicy: 'redirect-to-https'
         Logging:
           Bucket: !Sub "${S3LogBucketId}.s3.${AWS::Region}.amazonaws.com"
-          Prefix: cloudfront-logs
+          Prefix: 'cloudfront-logs'
           IncludeCookies: false
         WebACLId: !Ref CloudFrontWafArn
         ViewerCertificate:
@@ -487,7 +286,7 @@ Resources:
       HostedZoneId: !Ref HostedZoneId
       RecordSets:
         - Name: !Ref DomainName
-          Type: A
+          Type: 'A'
           AliasTarget:
             HostedZoneId: 'Z2FDTNDATAQYW2'
             DNSName: !GetAtt CloudFrontDistro.DomainName
@@ -508,28 +307,26 @@ Resources:
         #        - '.amazoncognito.com'
 
   RestApiDomainName:
-    Type: AWS::ApiGateway::DomainName
-    DependsOn:
-      - Certificate
+    Type: 'AWS::ApiGateway::DomainName'
     Properties:
-      CertificateArn: !Ref Certificate
+      CertificateArn: !Ref CertificateArn
       DomainName: !Sub "api.${DomainName}"
       EndpointConfiguration:
         Types:
-          - EDGE
+          - 'EDGE'
 
   RestApiBasePathMapping:
-    Type: AWS::ApiGateway::BasePathMapping
+    Type: 'AWS::ApiGateway::BasePathMapping'
     Properties:
       DomainName: !Ref RestApiDomainName
       RestApiId: !Ref RestApi
       Stage: !Ref ApiStageName
 
   # --------------------------------------------------------------------------
-  # WAF for the RestAPI must be Regional
+  # WAF for API Gateway and Cognito (must belong to same region and CloudFront's must be global)
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-wafv2-webacl.html#cfn-wafv2-webacl-scope
   # --------------------------------------------------------------------------
-  Waf:
+  ApiCognitoWaf:
     Type: 'AWS::WAFv2::WebACL'
     Properties:
       DefaultAction:
@@ -538,7 +335,7 @@ Resources:
       VisibilityConfig:
         SampledRequestsEnabled: true
         CloudWatchMetricsEnabled: true
-        MetricName: 'Uc3DmpHubCloudfrontWafMetric'
+        MetricName: 'Uc3DmpHubApiCognitoWafMetric'
       Rules:
         - Name: 'AWS-AWSManagedRulesAmazonIpReputationList'
           Priority: 0
@@ -582,12 +379,22 @@ Resources:
 
   # Attach WAF to API Gateway
   WafForApi:
-    Type: AWS::WAFv2::WebACLAssociation
+    Type: 'AWS::WAFv2::WebACLAssociation'
     DependsOn:
       - RestApiStage
     Properties:
-      WebACLArn: !Ref CloudFrontWafArn
-      # ResourceArn: !Sub 'arn:aws:apigateway:${AWS::Region}::/restapis/${RestApi}/stages/${ApiStageName}'
+      WebACLArn: !GetAtt ApiCognitoWaf.Arn
+      ResourceArn: !Join
+        - ''
+        - - 'arn:aws:apigateway:'
+          - !Ref AWS::Region
+          - '::/restapis/'
+          - !Ref RestApi
+          - '/stages/'
+          - !Ref "ApiStageName"
+
+  # TODO: Put this WAF in front of the Cognito auth methods
+  #       Figure out if we need to define the link between our Cert and the API/Cognito
 
 Outputs:
   RestApiId:
@@ -596,8 +403,6 @@ Outputs:
     Value: !Ref SystemsAuthorizer
   RestApiDmpsResource:
     Value: !Ref DmpsResource
-  RestApiDmpResource:
-    Value: !Ref DmpResource
   RestApiStageId:
     Value: !Ref RestApiStage
   RestApiDistributionDomainName:
@@ -609,6 +414,22 @@ Outputs:
     Value: !Sub "api.${DomainName}"
   ApiArn:
     Value: !Sub 'arn:aws:apigateway:${AWS::Region}::/restapis/${RestApi}/stages/${ApiStageName}'
+
+  {% for lambda_dict in imported.LAMBDAS %}
+  {% if lambda_dict['api_method'] is defined %}
+  {{lambda_dict['name']}}ApiMethodId:
+    Value: !Ref {{lambda_dict['name']}}ApiMethod
+  {% endif %}
+  {% endfor %}
+
+  ApiCognitoWafNameIdScope:
+    Value: !Ref ApiCognitoWaf
+  ApiCognitoWafId:
+    Value: !GetAtt ApiCognitoWaf.Id
+  ApiCognitoWafArn:
+    Value: !GetAtt ApiCognitoWaf.Arn
+  ApiCognitoWafLabelNamespace:
+    Value: !GetAtt ApiCognitoWaf.LabelNamespace
 
   CloudFrontOriginAccessIdentityId:
     Value: !Ref CloudFrontOriginAccessIdentity

@@ -1,0 +1,27 @@
+template:
+  path: 'build-pipeline.yaml'
+  type: 'file'
+
+parameters:
+  VpcID: !stack_output_external cdl-uc3-dev-vpc-stack::vpc
+  Subnets:
+    # - !stack_output_external cdl-uc3-dev-privatesubnet-stack::privatesubnet2a
+    # - !stack_output_external cdl-uc3-dev-privatesubnet-stack::privatesubnet2b
+    # - !stack_output_external cdl-uc3-dev-privatesubnet-stack::privatesubnet2c
+    - 'subnet-0b6ce38d6c451c40c'
+    - 'subnet-007d03c7b2d5867c9'
+    - 'subnet-01df5798fad9d5a9d'
+
+  Environment: !stack_attr sceptre_user_data.env
+  AppName: !stack_attr sceptre_user_data.app_name
+  DomainName: !stack_attr sceptre_user_data.domain
+
+  CodeStarConnectionArn: !ssm_parameter /uc3/dmp/hub/codestar_connection
+  RubyGemsApiKey: !ssm_parameter /uc3/RubyGemsApiKey
+
+  ECRRepositoryURI: !stack_output dev/data.yaml::ECRRepositoryURI
+  ECRRepositoryName: !stack_output dev/data.yaml::ECRRepositoryName
+
+  # The branches to monitor for changes.
+  DMPHubBranchToMonitor: 'main'
+  LambdaEnvironment: !stack_attr sceptre_user_data.env

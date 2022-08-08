@@ -203,27 +203,13 @@ Resources:
                   "type": "expire"
                 },
                 "selection": {
-                  "countType": "imageCountMoreThan",
-                  "countNumber": 1,
-                  "tagStatus": "tagged",
-                  "tagPrefixList": [
-                    "${ECRLifecyclePolicyTagPrefix}"
-                  ]
-                },
-                "description": "Ensure that we do not have more than 1 tagged version",
-                "rulePriority": 1
-              },
-              {
-                "action": {
-                  "type": "expire"
-                },
-                "selection": {
-                  "countType": "imageCountMoreThan",
-                  "countNumber": 3,
+                  "countType": "sinceImagePushed",
+                  "countUnit": "days",
+                  "countNumber": 2,
                   "tagStatus": "untagged"
                 },
-                "description": "Only retain the last 3 versions",
-                "rulePriority": 2
+                "description": "Only retain the prior versions for 48 hours",
+                "rulePriority": 1
               }
             ]
           }
@@ -289,19 +275,6 @@ Resources:
         - Protocol: 'sqs'
           Endpoint: !GetAtt SqsQueue.Arn
 
-  # --------------------------------------------------------------------------
-  # SSL Cert for the application
-  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-certificatemanager-certificate.html
-  # --------------------------------------------------------------------------
-  Certificate:
-    Type: AWS::CertificateManager::Certificate
-    Properties:
-      DomainName: !Ref DomainName
-      DomainValidationOptions:
-        - DomainName: !Ref DomainName
-          HostedZoneId: !Ref HostedZoneId
-      ValidationMethod: 'DNS'
-
 Outputs:
   LogGroupId:
     Value: !Ref LogGroup
@@ -348,6 +321,3 @@ Outputs:
     Value: !Ref SnsTopicPublication
   SnsTopicPublicationName:
     Value: !GetAtt SnsTopicPublication.TopicName
-
-  CertificateArn:
-    Value: !Ref Certificate

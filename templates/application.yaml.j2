@@ -1,8 +1,9 @@
 ---
+{% import 'includes.j2' as imported %}
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: 'AWS::Serverless-2016-10-31'
 
-Description: Template to build a lambda that fetchs summary info for a list of DMPs
+Description: 'Template to build the DMPHub lambdas'
 
 Parameters:
   AppName:
@@ -37,44 +38,8 @@ Parameters:
   LogGroupArn:
     Type: 'String'
 
-# The LAMBDAS array expects the following entries:
-#   name: The resource name for the Lambda Function/Role/Policy
-#   s3key: The key for the zip file containing the lambda code. Format is 'lambda-${s3key}.json'
-#   dynamo: an array of actions. An empty array means no access.
-#           Valid options: ['read', 'search', 'write']
-#   s3: an array of actions. An empty array means no access. Valid options: ['read', 'write']
-#   sqs: an array of topics. An empty array means that the lambda does not need to read/write
-#        from the SQS queue. The valid array options/topics are ['download', 'notify', 'publish']
-{%
-set LAMBDAS = [
-  { 'name': 'DeleteDmp', 'ecr_tag': 'delete-dmp',
-    'dynamo': ['read', 'write'], 's3': ['read', 'write'], 'sqs': ['download', 'publish'] },
-
-  { 'name': 'DocumentDownloader', 'ecr_tag': 'document-downloader',
-    'dynamo': ['read'], 's3': ['read', 'write'], 'sqs': ['download'] },
-
-  { 'name': 'EzidPublisher', 'ecr_tag': 'ezid-publisher',
-    'dynamo': ['read'], 's3': [], 'sqs': ['publish'] },
-
-  { 'name': 'GetDmp', 'ecr_tag': 'get-dmp',
-    'dynamo': ['read'], 's3': ['read'], 'sqs': [] },
-
-  { 'name': 'GetDmps', 'ecr_tag': 'get-dmps',
-    'dynamo': ['read', 'search'], 's3': [], 'sqs': [] },
-
-  { 'name': 'PostDmps', 'ecr_tag': 'post-dmps',
-    'dynamo': ['read', 'write'], 's3': [], 'sqs': ['download', 'notify', 'publish'] },
-
-  { 'name': 'ProvenanceNotifier', 'ecr_tag': 'provenance-notifier',
-    'dynamo': ['read'], 's3': [], 'sqs': ['notify'] },
-
-  { 'name': 'PutDmp', 'ecr_tag': 'put-dmp',
-    'dynamo': ['read', 'write'], 's3': [], 'sqs': ['download', 'notify', 'publish'] }
-]
-%}
-
 Resources:
-  {% for lambda_dict in LAMBDAS %}
+  {% for lambda_dict in imported.LAMBDAS %}
   # Build out custom roles for each Lambda so that they only have access to the things
   # that they need
   {{lambda_dict['name']}}Role:
@@ -169,11 +134,14 @@ Resources:
     DependsOn:
       - {{lambda_dict['name']}}Role
     Properties:
-      Handler: 'lambda_function.lambda_handler'
       Code:
-        ImageUri: !Sub '${ECRRepositoryUri}/:latest-{{lambda_dict['ecr_tag']}}'
+        ImageUri: !Join
+          - ''
+          - - !Ref ECRRepositoryUri
+            - ':latest-'
+            - {{lambda_dict['tag']}}
+      PackageType: 'Image'
       Role: !GetAtt {{lambda_dict['name']}}Role.Arn
-      Runtime: ruby2.7
       Timeout: 30
 
       # TODO: This isn't working, so maybe stuff them in SSM and have the Lambda fetch them there
@@ -242,13 +210,22 @@ Resources:
           - Pattern: '{"state": ["pending-notification"]}'
 
 Outputs:
-  {% for lambda_dict in LAMBDAS %}
+  StackName:
+    Value: !Ref AWS::StackName
+
+  {% for lambda_dict in imported.LAMBDAS %}
+  {{lambda_dict['name']}}RoleId:
+    Value: !Ref {{lambda_dict['name']}}Role
+
   {{lambda_dict['name']}}FunctionId:
     Value: !Ref {{lambda_dict['name']}}Function
+    Export:
+      Name:
+        'Fn::Sub': '${AWS::StackName}-{{lambda_dict['name']}}FunctionId'
 
   {{lambda_dict['name']}}FunctionArn:
     Value: !GetAtt {{lambda_dict['name']}}Function.Arn
-
-  {{lambda_dict['name']}}RoleId:
-    Value: !Ref {{lambda_dict['name']}}Role
+    Export:
+      Name:
+        'Fn::Sub': '${AWS::StackName}-{{lambda_dict['name']}}FunctionArn'
   {% endfor %}
