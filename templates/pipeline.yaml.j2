@@ -37,6 +37,9 @@ Parameters:
     Type: String
     Default: 'dev'
 
+  LambdaFunctionStackName:
+    Type: 'String'
+
 Resources:
   # -----------------------------------------------------------
   # Cloudwatch LogGroup for the Codepipeline
@@ -251,6 +254,9 @@ Resources:
             Value: !Ref LambdaEnvironment
           - Name: 'LAMBDA_NAME'
             Value: 'delete-dmp'
+          - Name: 'LAMBDA_ID'
+            Value: !ImportValue
+              'Fn::Sub': 'uc3-dmp-hub-dev-application-DeleteDmpFunctionId'
           - Name: 'ECR_REPOSITORY_URI'
             Value: !Ref ECRRepositoryURI
           - Name: 'ECR_REPOSITORY_NAME'
@@ -380,7 +386,7 @@ Resources:
               InputArtifacts:
                 - Name: 'dmphub-v2-delete-dmp-lambda_commit'
               OutputArtifacts:
-                - Name: 'dmphub-v2-delete-dmp-lambda_image'
+                - Name: 'dmphub-v2-delete-dmp-lambda_app_spec'
 
         - Name: 'DeployLambdas'
           Actions:
@@ -395,7 +401,7 @@ Resources:
                 ApplicationName: !Ref DeleteDmpCodeDeployApplication
                 DeploymentGroupName: !Ref DeleteDmpCodeDeployGroup
               InputArtifacts:
-                - Name: 'dmphub-v2-delete-dmp-lambda_image'
+                - Name: 'dmphub-v2-delete-dmp-lambda_app_spec'
 
 Outputs:
   LogGroupId:

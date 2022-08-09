@@ -166,6 +166,12 @@ Resources:
           AWS_SNS_PUBLICATION_TOPIC: !Ref SnsTopicPublicationName
           {% endif %}
           ENVIRONMENT: !Ref Env
+
+  {{lambda_dict['name']}}Version:
+    Type: 'AWS::Lambda::Version'
+    Properties:
+      Description: 'Initial version'
+      FunctionName: !Ref {{lambda_dict['name']}}Function
   {% endfor %}
 
   # Lambda Event Sources

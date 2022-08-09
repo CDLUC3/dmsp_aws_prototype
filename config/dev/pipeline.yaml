@@ -22,6 +22,11 @@ parameters:
   ECRRepositoryURI: !stack_output dev/data.yaml::ECRRepositoryURI
   ECRRepositoryName: !stack_output dev/data.yaml::ECRRepositoryName
 
+  # Lambda Function IDs and ARNs are pulled into the template directly using CF's ImportValue
+  # function because jinja2 does not natively support the inclusion of j2 templates using a
+  # relative path. (e.g. '../../templates/includes.js')
+  LambdaFunctionStackName: !stack_output dev/application.yaml::StackName
+
   # The branches to monitor for changes.
   DMPHubBranchToMonitor: 'main'
   LambdaEnvironment: !stack_attr sceptre_user_data.env
