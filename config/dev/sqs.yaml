@@ -1,0 +1,6 @@
+template:
+  path: sqs.yaml
+  type: file
+
+parameters:
+  AdminEmail: !ssm_parameter /uc3/dmp/hub/dev/AdminEmail

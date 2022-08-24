@@ -172,6 +172,14 @@ Resources:
     Properties:
       Description: 'Initial version'
       FunctionName: !Ref {{lambda_dict['name']}}Function
+
+  {{lambda_dict['name']}}FunctionAlias:
+    Type: 'AWS::Lambda::Alias'
+    Properties:
+      Name: !Sub 'dmphub-${Env}-{{lambda_dict['tag']}}'
+      FunctionName: !Ref {{lambda_dict['name']}}Function
+      FunctionVersion: '$LATEST'
+
   {% endfor %}
 
   # Lambda Event Sources

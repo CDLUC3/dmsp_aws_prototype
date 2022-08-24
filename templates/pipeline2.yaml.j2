@@ -1,7 +1,10 @@
+---
+{% import 'includes.j2' as imported %}
+
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: 'AWS::Serverless-2016-10-31'
 
-Description: 'Code build and pipeline for the DMPHub Lambda functions'
+Description: 'Code build and pipeline for the DMPHub Gems and Lambda functions'
 
 Parameters:
   VpcID:
@@ -34,6 +37,9 @@ Parameters:
   LambdaEnvironment:
     Type: String
     Default: 'dev'
+
+  LambdaFunctionStackName:
+    Type: 'String'
 
 Resources:
   # -----------------------------------------------------------
@@ -88,6 +94,7 @@ Resources:
         - 'arn:aws:iam::aws:policy/AWSCodePipelineFullAccess'
         - 'arn:aws:iam::aws:policy/AmazonS3FullAccess'
         - 'arn:aws:iam::aws:policy/AWSCodeBuildDeveloperAccess'
+        - 'arn:aws:iam::aws:policy/AWSCodeDeployDeployerAccess'
         - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
 
   IAMCodeBuildRole:
@@ -160,6 +167,23 @@ Resources:
               ]
             }
 
+  IAMCodeDeployRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service:
+                - 'codedeploy.amazonaws.com'
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWSCodeDeployRoleForLambda'
+        - 'arn:aws:iam::aws:policy/AmazonS3FullAccess'
+        - 'arn:aws:iam::aws:policy/service-role/AWSAppRunnerServicePolicyForECRAccess'
+
   # -----------------------------------------------------------
   # CodeBuild
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_CodeBuild.html
@@ -167,11 +191,11 @@ Resources:
   CodeBuildSecurityGroup:
     Type: 'AWS::EC2::SecurityGroup'
     Properties:
-      GroupName: !Sub '${AppName}-build-sec'
+      GroupName: !Sub '${AppName}-build-sec-grp'
       GroupDescription: !Sub '${AppName} CodeBuild SecurityGroup'
       VpcId: !Ref VpcID
 
-  CodeBuildProject:
+  GemBuildProject:
     Type: 'AWS::CodeBuild::Project'
     DependsOn:
       - CodeBuildSecurityGroup
@@ -195,14 +219,10 @@ Resources:
             Value: !Ref LambdaEnvironment
           - Name: 'RUBYGEMS_API_KEY'
             Value: !Ref RubyGemsApiKey
-          - Name: 'ECR_REPOSITORY_URI'
-            Value: !Ref ECRRepositoryURI
-          - Name: 'ECR_REPOSITORY_NAME'
-            Value: !Ref ECRRepositoryName
       Source:
         Type: 'CODEPIPELINE'
-        BuildSpec: '{{lambda_dict['tag']}}-buildspec.yaml'
-      TimeoutInMinutes: 15
+        BuildSpec: 'buildspec.yaml'
+      TimeoutInMinutes: 5
       VpcConfig:
         VpcId: !Ref VpcID
         Subnets: !Ref Subnets
@@ -212,6 +232,52 @@ Resources:
         Type: 'S3'
         Location: !Sub '${S3Bucket}/build-cache'
 
+  {% for lambda_dict in imported.LAMBDAS %}
+  {{lambda_dict['name']}}BuildProject:
+    Type: 'AWS::CodeBuild::Project'
+    DependsOn:
+      - CodeBuildSecurityGroup
+    Properties:
+      ServiceRole: !GetAtt IAMCodeBuildRole.Arn
+      Artifacts:
+        Type: 'CODEPIPELINE'
+      LogsConfig:
+        CloudWatchLogs:
+          GroupName: !Ref LogGroup
+          Status: 'ENABLED'
+          StreamName: 'codebuild-{{lambda_dict['tag']}}'
+      Environment:
+        Type: 'LINUX_CONTAINER'
+        ComputeType: 'BUILD_GENERAL1_SMALL'
+        Image: 'aws/codebuild/amazonlinux2-x86_64-standard:4.0'
+        # This is required in order for the Docker daemon to work!
+        PrivilegedMode: true
+        EnvironmentVariables:
+          - Name: 'LAMBDA_ENVIRONMENT'
+            Value: !Ref LambdaEnvironment
+          - Name: 'LAMBDA_NAME'
+            Value: '{{lambda_dict['tag']}}'
+          - Name: 'LAMBDA_ARN'
+            Value: !ImportValue
+              'Fn::Sub': '${LambdaFunctionStackName}-{{lambda_dict['name']}}FunctionArn'
+          - Name: 'ECR_REPOSITORY_URI'
+            Value: !Ref ECRRepositoryURI
+          - Name: 'ECR_REPOSITORY_NAME'
+            Value: !Ref ECRRepositoryName
+      Source:
+        Type: 'CODEPIPELINE'
+        BuildSpec: 'buildspec.yaml'
+      TimeoutInMinutes: 15
+      VpcConfig:
+        VpcId: !Ref VpcID
+        Subnets: !Ref Subnets
+        SecurityGroupIds:
+          - !Ref CodeBuildSecurityGroup
+      Cache:
+        Type: 'S3'
+        Location: !Sub '${S3Bucket}/build-cache'
+  {% endfor %}
+
   # -----------------------------------------------------------
   # CodePipeline
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-codepipeline-pipeline.html
@@ -220,6 +286,10 @@ Resources:
     Type: 'AWS::CodePipeline::Pipeline'
     DependsOn:
       - IAMPipelineRole
+      - GemBuildProject
+      {% for lambda_dict in imported.LAMBDAS %}
+      - {{lambda_dict['name']}}BuildProject
+      {% endfor %}
     Properties:
       ArtifactStore:
         Location: !Ref S3Bucket
@@ -228,11 +298,11 @@ Resources:
       RestartExecutionOnUpdate: true
       RoleArn: !GetAtt IAMPipelineRole.Arn
       Stages:
-        - Name: 'MonitorRepo'
+        - Name: 'MonitorRepos'
           Actions:
             # This action is triggered when the development branch of DMPRoadmap has a new commit
             # it's output is the commit hash
-            - Name: 'dmphub'
+            - Name: 'dmphub-v2-gems'
               RunOrder: 1
               ActionTypeId:
                 Category: 'Source'
@@ -243,17 +313,34 @@ Resources:
               # for info on tying CodeBuild in
               Configuration:
                 ConnectionArn: !Ref CodeStarConnectionArn
-                FullRepositoryId: 'CDLUC3/dmphub-v2'
+                FullRepositoryId: 'CDLUC3/dmphub-v2-gems'
                 BranchName: !Ref DMPHubBranchToMonitor
                 OutputArtifactFormat: 'CODEBUILD_CLONE_REF'
               OutputArtifacts:
-                - Name: 'dmphub_codebase_commit'
+                - Name: 'gems_commit'
 
-        - Name: 'DockerBuildPublish'
+            {% for lambda_dict in imported.LAMBDAS %}
+            - Name: '{{lambda_dict['tag']}}'
+              RunOrder: 1
+              ActionTypeId:
+                Category: 'Source'
+                Owner: 'AWS'
+                Provider: 'CodeStarSourceConnection'
+                Version: '1'
+              # See: https://docs.aws.amazon.com/codepipeline/latest/userguide/action-reference-CodestarConnectionSource.html
+              # for info on tying CodeBuild in
+              Configuration:
+                ConnectionArn: !Ref CodeStarConnectionArn
+                FullRepositoryId: 'CDLUC3/dmphub-v2-{{lambda_dict['tag']}}-lambda'
+                BranchName: !Ref DMPHubBranchToMonitor
+                OutputArtifactFormat: 'CODEBUILD_CLONE_REF'
+              OutputArtifacts:
+                - Name: '{{lambda_dict['tag']}}-lambda_commit'
+
+            {% endfor %}
+
+        - Name: 'BuildGems'
           Actions:
-            # This action is triggered by either the DMPRoadmapPush or DockerPush actions. This
-            # action uses the DMPRoadmapPush commit hash to the latest DockerPush zip to build
-            # the Docker image
             - Name: 'Build'
               RunOrder: 2
               ActionTypeId:
@@ -262,12 +349,29 @@ Resources:
                 Provider: 'CodeBuild'
                 Version: '1'
               Configuration:
-                ProjectName: !Ref CodeBuildProject
-                PrimarySource: !Sub 'dmphub_codebase_commit'
+                ProjectName: !Ref GemBuildProject
+                PrimarySource: 'gems_commit'
               InputArtifacts:
-                - Name: 'dmphub_codebase_commit'
+                - Name: 'gems_commit'
+
+        - Name: 'BuildPublishLambdas'
+          Actions:
+            {% for lambda_dict in imported.LAMBDAS %}
+            - Name: '{{lambda_dict['name']}}'
+              RunOrder: 3
+              ActionTypeId:
+                Category: 'Build'
+                Owner: 'AWS'
+                Provider: 'CodeBuild'
+                Version: '1'
+              Configuration:
+                ProjectName: !Ref {{lambda_dict['name']}}BuildProject
+                PrimarySource: '{{lambda_dict['tag']}}-lambda_commit'
+              InputArtifacts:
+                - Name: '{{lambda_dict['tag']}}-lambda_commit'
               OutputArtifacts:
-                - Name: 'dmphub_images'
+                - Name: '{{lambda_dict['tag']}}-image'
+            {% endfor %}
 
 Outputs:
   LogGroupId:
@@ -292,12 +396,19 @@ Outputs:
   S3BucketArn:
     Value: !GetAtt S3Bucket.Arn
 
-  CodeBuildProjectName:
-    Value: !Ref CodeBuildProject
-  CodeBuildProjectArn:
-    Value: !GetAtt CodeBuildProject.Arn
+  GemBuildProjectName:
+    Value: !Ref GemBuildProject
+  GemBuildProjectArn:
+    Value: !GetAtt GemBuildProject.Arn
 
-  BuildPipelineId:
+  {% for lambda_dict in imported.LAMBDAS %}
+  {{lambda_dict['name']}}BuildProjectName:
+    Value: !Ref {{lambda_dict['name']}}BuildProject
+  {{lambda_dict['name']}}BuildProjectArn:
+    Value: !GetAtt {{lambda_dict['name']}}BuildProject.Arn
+  {% endfor %}
+
+  PipelineId:
     Value: !Ref Pipeline
-  BuildPipelineVersion:
+  PipelineVersion:
     Value: !GetAtt Pipeline.Version

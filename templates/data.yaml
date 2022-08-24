@@ -1,37 +1,16 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: 'AWS::Serverless-2016-10-31'
 
-Description: 'Template to build the DMPHub LogGroup, Dynamo, ECR, S3, SQS and SNS resources'
-
-Parameters:
-  AppName:
-    Type: 'String'
-  DomainName:
-    Type: 'String'
-  Environment:
-    Type: 'String'
-  HostedZoneId:
-    Type: 'String'
-  ECRLifecyclePolicyTagPrefix:
-    Type: 'String'
+Description: 'Builds for Dynamo table and S3 bucket that stores DMP narrative docs'
 
 Resources:
-  # ----------------------------------------------
-  # Catchall CloudWatch LogGroup
-  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_Logs.html
-  # ----------------------------------------------
-  LogGroup:
-    Type: 'AWS::Logs::LogGroup'
-    Properties:
-      RetentionInDays: 14
-
   # ----------------------------------------------
   # DynamoDB polymorphic table
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html
   # ----------------------------------------------
   DynamoTable:
     Type: 'AWS::DynamoDB::Table'
-    # DeletionPolicy: Retain
+    DeletionPolicy: Retain
     Properties:
       # The base table's Partition key and Sort Key define both the DMP ID and version
       # There are 3 potential variants of these keys:
@@ -182,38 +161,6 @@ Resources:
       PointInTimeRecoverySpecification:
         PointInTimeRecoveryEnabled: false
 
-  # -----------------------------------------------------------
-  # Elastic Container Repository (ECR) - Hosts the application's Lambda code
-  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_ECR.html
-  # -----------------------------------------------------------
-  ECRRepository:
-    Type: 'AWS::ECR::Repository'
-    Properties:
-      # RepositoryName: !Sub '${AppName}-${Environment}-ecr'
-      ImageScanningConfiguration:
-        ScanOnPush: true
-      LifecyclePolicy:
-        # TODO: Update this to only keep the last 3 snapshots of 'untagged' since we
-        #       are using 'latest' as the only tag.
-        LifecyclePolicyText: !Sub >
-          {
-            "rules": [
-              {
-                "action": {
-                  "type": "expire"
-                },
-                "selection": {
-                  "countType": "sinceImagePushed",
-                  "countUnit": "days",
-                  "countNumber": 2,
-                  "tagStatus": "untagged"
-                },
-                "description": "Only retain the prior versions for 48 hours",
-                "rulePriority": 1
-              }
-            ]
-          }
-
   # ----------------------------------------------
   # Simple Storage Service (S3) buckets
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket.html
@@ -221,79 +168,18 @@ Resources:
   # S3 Bucket that stores DMP documents and UI resources (publicy accessible via CloudFront CDN)
   S3Bucket:
     Type: 'AWS::S3::Bucket'
+    DeletionPolicy: Retain
     Properties:
       PublicAccessBlockConfiguration:
         RestrictPublicBuckets: false
 
-  # S3 Bucket to store logs from services like CloudFront (not publicly accessible)
-  S3LogBucket:
-    Type: 'AWS::S3::Bucket'
-    Properties:
-      PublicAccessBlockConfiguration:
-        IgnorePublicAcls: true
-
-  # ----------------------------------------------
-  # Simple Queue Service (SQS). Some Lambdas write to the queue and others watch for messages
-  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-sqs-queue.html
-  # ----------------------------------------------
-  SqsQueue:
-    Type: 'AWS::SQS::Queue'
-    # DeletionPolicy: Retain
-    Properties:
-      MaximumMessageSize: 128000 # bytes == 128 KB
-      MessageRetentionPeriod: 604800 # seconds == 7 days
-
-  # ----------------------------------------------
-  # Simple Notification Service (SNS) topics
-  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-sqs-queue.html
-  # ----------------------------------------------
-  SnsTopicDownload:
-    Type: 'AWS::SNS::Topic'
-    Properties:
-      # For some reason AWS doesn't recognize this attribute even though its in the docs
-      # ContentBasedDeduplication: true
-      DisplayName: 'DmpHubDownload'
-      Subscription:
-        - Protocol: 'sqs'
-          Endpoint: !GetAtt SqsQueue.Arn
-
-  SnsTopicNotification:
-    Type: 'AWS::SNS::Topic'
-    Properties:
-      # ContentBasedDeduplication: true
-      DisplayName: 'DmpHubPublish'
-      Subscription:
-        - Protocol: 'sqs'
-          Endpoint: !GetAtt SqsQueue.Arn
-
-  SnsTopicPublication:
-    Type: 'AWS::SNS::Topic'
-    Properties:
-      # ContentBasedDeduplication: true
-      DisplayName: 'DmpHubNotify'
-      Subscription:
-        - Protocol: 'sqs'
-          Endpoint: !GetAtt SqsQueue.Arn
-
 Outputs:
-  LogGroupId:
-    Value: !Ref LogGroup
-  LogGroupArn:
-    Value: !GetAtt LogGroup.Arn
-
   DynamoTableName:
     Value: !Select [1, !Split ['/', !GetAtt DynamoTable.Arn]]
   DynamoTableId:
     Value: !Ref DynamoTable
   DynamoTableArn:
     Value: !GetAtt DynamoTable.Arn
-
-  ECRRepositoryName:
-    Value: !Ref ECRRepository
-  ECRRepositoryARN:
-    Value: !GetAtt ECRRepository.Arn
-  ECRRepositoryURI:
-    Value: !GetAtt ECRRepository.RepositoryUri
 
   S3BucketId:
     Value: !Ref S3Bucket
@@ -302,22 +188,3 @@ Outputs:
   S3BucketArn:
     Value: !GetAtt S3Bucket.Arn
 
-  S3LogBucketId:
-    Value: !Ref S3LogBucket
-
-  SqsQueueId:
-    Value: !Ref SqsQueue
-  SqsQueueArn:
-    Value: !GetAtt SqsQueue.Arn
-  SnsTopicDownloadId:
-    Value: !Ref SnsTopicDownload
-  SnsTopicDownloadName:
-    Value: !GetAtt SnsTopicDownload.TopicName
-  SnsTopicNotificationId:
-    Value: !Ref SnsTopicNotification
-  SnsTopicNotificationName:
-    Value: !GetAtt SnsTopicNotification.TopicName
-  SnsTopicPublicationId:
-    Value: !Ref SnsTopicPublication
-  SnsTopicPublicationName:
-    Value: !GetAtt SnsTopicPublication.TopicName

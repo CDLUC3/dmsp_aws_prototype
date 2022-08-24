@@ -1,0 +1,6 @@
+template:
+  path: logs.yaml
+  type: file
+
+parameters:
+  LogRetentionDays: '14'
