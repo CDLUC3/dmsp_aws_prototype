@@ -4,10 +4,18 @@ Transform: AWS::Serverless-2016-10-31
 Description: 'Cognito resources for accessing the API'
 
 Parameters:
+  HostedZoneId:
+    Type: 'String'
+
+  CertificateArn:
+    Type: 'String'
+
   NamePrefix:
     Type: 'String'
+
   DomainName:
     Type: 'String'
+
   Env:
     Type: 'String'
     Default: 'dev'
@@ -32,6 +40,14 @@ Resources:
         Service: 'dmp'
         Subservice: 'hub'
         Environment: !Ref Env
+
+  SystemsUserPoolDomain:
+    Type: 'AWS::Cognito::UserPoolDomain'
+    Properties:
+      CustomDomainConfig:
+        CertificateArn: !Ref CertificateArn
+      Domain: !Sub 'auth.${DomainName}'
+      UserPoolId: !Ref SystemsUserPool
 
   SystemsUserPoolResourceServer:
     Type: 'AWS::Cognito::UserPoolResourceServer'
@@ -74,6 +90,22 @@ Resources:
       CallbackURLs:
         - 'http://localhost:3000/callback'
         - !Ref DmptoolCallbackUri
+
+  # -----------------------------------------------------------
+  # Route53 - DNS configuration
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_Route53.html
+  # -----------------------------------------------------------
+  Route53RecordSet:
+    Type: AWS::Route53::RecordSet
+    DependsOn:
+      - SystemsUserPoolResourceServer
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Sub 'auth.${DomainName}'
+      Type: A
+      AliasTarget:
+        DNSName: !Ref SystemsUserPoolDomain # !GetAtt SystemsUserPool.ProviderURL
+        HostedZoneId: !Ref HostedZoneId
 
 Outputs:
   AuthDomainName:

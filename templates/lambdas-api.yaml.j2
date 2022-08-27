@@ -65,6 +65,18 @@ Parameters:
     Type: 'String'
 
 Resources:
+  # LambdaLayer:
+  #   Type: 'AWS::Lambda::LayerVersion'
+  #   Properties:
+  #     CompatibleRuntimes:
+  #       - 'ruby2.7'
+  #     Content:
+  #       S3Bucket: !Ref S3LambdaCodeSigningBucketId
+  #       S3Key: 'dev-lambda-layer.zip'
+  #     Description: 'Shared code and gems'
+  #     LicenseInfo: 'https://opensource.org/licenses/MIT'
+  #     LayerName: !Sub "${Env}-DmphubLambdaLayer"
+
   {% for lambda_dict in imported.API_LAMBDAS %}
   # -----------------------------------------------------------
   # Identitity and Access Management (IAM)
@@ -176,6 +188,8 @@ Resources:
       Role: !GetAtt {{lambda_dict['name']}}Role.Arn
       Runtime: 'ruby2.7'
       Timeout: 30
+      Layers:
+        - !Ref LambdaLayer
       # TODO: This isn't working, so maybe stuff them in SSM and have the Lambda fetch them there
       Environment:
         Variables:
@@ -287,7 +301,7 @@ Resources:
       Stages:
         - Name: 'MonitorRepo'
           Actions:
-            - Name: 'GitHub'
+            - Name: 'LambdaRepo'
               RunOrder: 1
               ActionTypeId:
                 Category: 'Source'
@@ -303,6 +317,24 @@ Resources:
                 OutputArtifactFormat: 'CODEBUILD_CLONE_REF'
               OutputArtifacts:
                 - Name: '{{lambda_dict['tag']}}-commit'
+
+            # - Name: 'LayerRepo'
+            #   RunOrder: 1
+            #   ActionTypeId:
+            #     Category: 'Source'
+            #     Owner: 'AWS'
+            #     Provider: 'CodeStarSourceConnection'
+            #     Version: '1'
+            #   # See: https://docs.aws.amazon.com/codepipeline/latest/userguide/action-reference-CodestarConnectionSource.html
+            #   # for info on tying CodeBuild in
+            #   Configuration:
+            #     ConnectionArn: !Ref CodeStarConnectionArn
+            #     FullRepositoryId: 'CDLUC3/dmphub-v2-lambda-layer'
+            #     BranchName: !Ref RepositoryBranchToMonitor
+            #     OutputArtifactFormat: 'CODEBUILD_CLONE_REF'
+            #   OutputArtifacts:
+            #     - Name: 'lambda-layer-commit'
+
 
         - Name: 'BuildPublish'
           Actions:
@@ -323,14 +355,24 @@ Resources:
   {% endfor %}
 
 Outputs:
+  LambdaApiStackName:
+    Value: !Ref AWS::StackName
+
   {% for lambda_dict in imported.API_LAMBDAS %}
   {{lambda_dict['name']}}RoleId:
     Value: !Ref {{lambda_dict['name']}}Role
 
   {{lambda_dict['name']}}FunctionId:
     Value: !Ref {{lambda_dict['name']}}Function
+    Export:
+      Name:
+        'Fn::Sub': '${AWS::StackName}-{{lambda_dict['name']}}FunctionId'
+
   {{lambda_dict['name']}}FunctionArn:
     Value: !GetAtt {{lambda_dict['name']}}Function.Arn
+    Export:
+      Name:
+        'Fn::Sub': '${AWS::StackName}-{{lambda_dict['name']}}FunctionArn'
 
   {{lambda_dict['name']}}AliasArn:
     Value: !Ref {{lambda_dict['name']}}FunctionAlias

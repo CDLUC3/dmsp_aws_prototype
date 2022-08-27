@@ -27,6 +27,9 @@ Resources:
         - DomainName: !Sub "*.${DomainName}"
           HostedZoneId: !Ref HostedZoneId
       ValidationMethod: 'DNS'
+      SubjectAlternativeNames:
+        - !Ref DomainName
+        # - !Sub "www.${DomainName}"
 
   # --------------------------------------------------------------------------
   # WAF for CloudFront distributions must be defined in us-east-1 (per AWS)

@@ -4,6 +4,15 @@ Transform: 'AWS::Serverless-2016-10-31'
 Description: 'Builds for Dynamo table and S3 bucket that stores DMP narrative docs'
 
 Parameters:
+  AppName:
+    Type: 'String'
+
+  Env:
+    Type: 'String'
+
+  SsmPath:
+    Type: 'String'
+
   AdminEmail:
     Type: 'String'
 
@@ -33,6 +42,16 @@ Resources:
         - Protocol: 'sqs'
           Endpoint: !GetAtt SqsQueue.Arn
 
+  # Add the Topic name to SSM so that our Lambdas can access it
+  SnsTopicDownloadParameter:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: !Sub "${AppName}-${Env} Download Topic"
+      Name: !Sub "${SsmPath}SnsDownloadTopicName"
+      # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
+      Type: 'String'
+      Value: !GetAtt SnsTopicDownload.TopicName
+
   SnsTopicNotification:
     Type: 'AWS::SNS::Topic'
     Properties:
@@ -41,6 +60,16 @@ Resources:
       Subscription:
         - Protocol: 'sqs'
           Endpoint: !GetAtt SqsQueue.Arn
+
+  # Add the Topic name to SSM so that our Lambdas can access it
+  SnsTopicNotificationParameter:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: !Sub "${AppName}-${Env} Notification Topic"
+      Name: !Sub "${SsmPath}SnsNotifyTopicName"
+      # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
+      Type: 'String'
+      Value: !GetAtt SnsTopicNotification.TopicName
 
   SnsTopicPublication:
     Type: 'AWS::SNS::Topic'
@@ -51,6 +80,16 @@ Resources:
         - Protocol: 'sqs'
           Endpoint: !GetAtt SqsQueue.Arn
 
+  # Add the Topic name to SSM so that our Lambdas can access it
+  SnsTopicPublicationParameter:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: !Sub "${AppName}-${Env} Publication Topic"
+      Name: !Sub "${SsmPath}SnsPublishTopicName"
+      # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
+      Type: 'String'
+      Value: !GetAtt SnsTopicPublication.TopicName
+
   SnsTopicEmail:
     Type: 'AWS::SNS::Topic'
     Properties:
@@ -59,6 +98,16 @@ Resources:
       Subscription:
         - Protocol: 'sqs'
           Endpoint: !GetAtt SqsQueue.Arn
+
+  # Add the Topic name to SSM so that our Lambdas can access it
+  SnsTopicEmailParameter:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: !Sub "${AppName}-${Env} Email Topic"
+      Name: !Sub "${SsmPath}SnsFatalErrorTopicName"
+      # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
+      Type: 'String'
+      Value: !GetAtt SnsTopicEmail.TopicName
 
   # You can only give one email address at a time. If you want to send a message to
   # multiple users, you have to create multiple subscriptions

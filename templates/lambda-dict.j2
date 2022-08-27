@@ -29,7 +29,7 @@ set DIRECT_LAMBDAS = [
 ]
 %}
 {%
-set SQS_LAMBDAS = [
+set SNS_LAMBDAS = [
   { "name": "DocumentDownloader", "tag": "document-downloader",
     "dynamo": ["read"], "s3": ["read", "write"], "sqs": ["download"] },
 
@@ -42,6 +42,10 @@ set SQS_LAMBDAS = [
 %}
 {%
 set API_LAMBDAS = [
+  { "name": "GetDmp", "tag": "get-dmp",
+    "api_method": "GET", "api_source_arn_suffix": "/dmps/{dmp_id+}", "cognito": "false",
+    "dynamo": ["read"], "s3": ["read"], "sqs": [] },
+
   { "name": "PostDmps", "tag": "post-dmps",
     "api_method": "POST", "api_source_arn_suffix": "/dmps", "cognito": "true",
     "dynamo": ["read", "search", "write"], "s3": [], "sqs": ["download", "notify", "publish"] }
@@ -51,10 +55,6 @@ set API_LAMBDAS = [
   { "name": "DeleteDmp", "tag": "delete-dmp",
     "api_method": "DELETE", "api_source_arn_suffix": "/dmps/{dmp_id+}", "cognito": "true",
     "dynamo": ["read", "write"], "s3": ["read", "write"], "sqs": ["download", "publish"] },
-
-  { "name": "GetDmp", "tag": "get-dmp",
-    "api_method": "GET", "api_source_arn_suffix": "/dmps/{dmp_id+}", "cognito": "true",
-    "dynamo": ["read"], "s3": ["read"], "sqs": [] },
 
   { "name": "GetDmps", "tag": "get-dmps",
     "api_method": "GET", "api_source_arn_suffix": "/dmps", "cognito": "false",

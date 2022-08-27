@@ -1,3 +1,8 @@
 template:
   path: data.yaml
   type: file
+
+parameters:
+  AppName: !stack_attr sceptre_user_data.app_name
+  Env: !stack_attr sceptre_user_data.env
+  SsmPath: !stack_attr sceptre_user_data.ssm_path

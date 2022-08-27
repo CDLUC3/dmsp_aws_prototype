@@ -3,6 +3,16 @@ Transform: 'AWS::Serverless-2016-10-31'
 
 Description: 'Builds for Dynamo table and S3 bucket that stores DMP narrative docs'
 
+Parameters:
+  AppName:
+    Type: 'String'
+
+  Env:
+    Type: 'String'
+
+  SsmPath:
+    Type: 'String'
+
 Resources:
   # ----------------------------------------------
   # DynamoDB polymorphic table
@@ -161,6 +171,16 @@ Resources:
       PointInTimeRecoverySpecification:
         PointInTimeRecoveryEnabled: false
 
+  # Add the Table name to SSM so that our Lambdas can access it
+  TableNameParameter:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: !Sub "${AppName}-${Env} DynamoTable"
+      Name: !Sub "${SsmPath}DynamoTableName"
+      # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
+      Type: 'String'
+      Value: !Select [1, !Split ['/', !GetAtt DynamoTable.Arn]]
+
   # ----------------------------------------------
   # Simple Storage Service (S3) buckets
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket.html
@@ -172,6 +192,16 @@ Resources:
     Properties:
       PublicAccessBlockConfiguration:
         RestrictPublicBuckets: false
+
+  # Add the Bucket URI to SSM so that our Lambdas can access it
+  S3BucketParameter:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: !Sub "${AppName}-${Env} S3Bucket"
+      Name: !Sub "${SsmPath}S3BucketUri"
+      # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
+      Type: 'String'
+      Value: !Sub "s3://${S3Bucket}"
 
 Outputs:
   DynamoTableName:

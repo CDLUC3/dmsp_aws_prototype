@@ -2,7 +2,16 @@ template:
   path: 'cognito.yaml'
   type: 'file'
 
+# The UserPoolDomainName here requires an existing A record for the root domain, so make sure it
+# has been created first!
+dependencies:
+  - dev/cloud-front.yaml
+
 parameters:
+  HostedZoneId: !stack_output_external sceptre-uc3-ops-common-dev-route53::HostedZoneID
+
+  CertificateArn: !stack_output dev/globals.yaml::CertificateArn
+
   DomainName: !stack_attr sceptre_user_data.domain
   NamePrefix: !stack_attr sceptre_user_data.resource_name_prefix
   Env: !stack_attr sceptre_user_data.env

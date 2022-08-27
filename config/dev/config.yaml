@@ -5,7 +5,7 @@ stack_tags:
   Service: 'dmp'
   Subservice: 'hub'
   Environment: 'dev'
-  CodeRepo: 'https://github.com/CDLUC3/cloud9-briley'
+  CodeRepo: 'https://github.com/CDLUC3/dmp-hub-cfn'
   Contact: 'briley'
 
 sceptre_user_data:
@@ -14,4 +14,5 @@ sceptre_user_data:
   # Some resources like the Cognito UserPool don't get the normal Sceptre stack name
   resource_name_prefix: 'uc3-dmp-hub'
   env: 'dev'
+  ssm_path: '/uc3/dmp/hub/dev/'
   lambda_code_dir: '~/Documents/workspace'
