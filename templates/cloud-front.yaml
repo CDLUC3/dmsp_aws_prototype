@@ -1,0 +1,87 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+
+Description: 'CloudFront distribution to serve up website assets and DMP PDFs'
+
+Parameters:
+  HostedZoneId:
+    Type: 'String'
+
+  CloudFrontWafArn:
+    Type: 'String'
+
+  S3BucketId:
+    Type: 'String'
+
+  S3LogBucketId:
+    Type: 'String'
+
+  DomainName:
+    Type: 'String'
+
+Resources:
+  # -----------------------------------------------------------
+  # Cloud Front to server static resources from S3 and also protect our Cognito
+  # ----------------------------------------------------------
+  CloudFrontOriginAccessIdentity:
+    Type: 'AWS::CloudFront::CloudFrontOriginAccessIdentity'
+    Properties:
+      CloudFrontOriginAccessIdentityConfig:
+        Comment: 'Cloud Front Identiity used to access S3 resources'
+
+  CloudFrontDistro:
+    Type: 'AWS::CloudFront::Distribution'
+    DependsOn:
+      - CloudFrontOriginAccessIdentity
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        IPV6Enabled: true
+        DefaultRootObject: 'index.html'
+        Origins:
+          - Id: !Sub "cdn-${S3BucketId}"
+            DomainName: !Sub "${S3BucketId}.s3.${AWS::Region}.amazonaws.com"
+            S3OriginConfig:
+              OriginAccessIdentity: !Sub "origin-access-identity/cloudfront/${CloudFrontOriginAccessIdentity}"
+        # Default Origin is the S3 Bucket
+        DefaultCacheBehavior:
+          AllowedMethods:
+            - 'GET'
+            - 'HEAD'
+          Compress: true
+          TargetOriginId: !Sub "cdn-${S3BucketId}"
+          # Using the AWS Managed cache policy named 'CachingOptimized'
+          # See https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-managed-cache-policies.html
+          CachePolicyId: '658327ea-f89d-4fab-a63d-7e88639e58f6'
+          ViewerProtocolPolicy: 'redirect-to-https'
+        Logging:
+          Bucket: !Sub "${S3LogBucketId}.s3.${AWS::Region}.amazonaws.com"
+          Prefix: 'cloudfront-logs'
+          IncludeCookies: false
+        WebACLId: !Ref CloudFrontWafArn
+        ViewerCertificate:
+          CloudFrontDefaultCertificate: true
+
+  # -----------------------------------------------------------
+  # DNS - Route53 and Certificate
+  # -----------------------------------------------------------
+  Route53RecordSet:
+    Type: AWS::Route53::RecordSetGroup
+    DependsOn:
+      - CloudFrontDistro
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      RecordSets:
+        - Name: !Ref DomainName
+          Type: 'A'
+          AliasTarget:
+            HostedZoneId: 'Z2FDTNDATAQYW2'
+            DNSName: !GetAtt CloudFrontDistro.DomainName
+
+Outputs:
+  CloudFrontOriginAccessIdentityId:
+    Value: !Ref CloudFrontOriginAccessIdentity
+  CloudFrontDistributionId:
+    Value: !Ref CloudFrontDistro
+  CloudFrontDistributionDomainName:
+    Value: !GetAtt CloudFrontDistro.DomainName
