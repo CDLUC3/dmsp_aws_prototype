@@ -181,6 +181,16 @@ Resources:
       Type: 'String'
       Value: !Select [1, !Split ['/', !GetAtt DynamoTable.Arn]]
 
+  # Add the Table name to SSM so that our Lambdas can access it
+  TableArnParameter:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: !Sub "${AppName}-${Env} DynamoTable"
+      Name: !Sub "${SsmPath}DynamoTableArn"
+      # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
+      Type: 'String'
+      Value: !GetAtt DynamoTable.Arn
+
   # ----------------------------------------------
   # Simple Storage Service (S3) buckets
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket.html
@@ -202,6 +212,16 @@ Resources:
       # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
       Type: 'String'
       Value: !Sub "s3://${S3Bucket}"
+
+  # Add the Bucket URI to SSM so that our Lambdas can access it
+  S3BucketArnParameter:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: !Sub "${AppName}-${Env} S3Bucket"
+      Name: !Sub "${SsmPath}S3BucketArn"
+      # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
+      Type: 'String'
+      Value: !GetAtt S3Bucket.Arn
 
 Outputs:
   DynamoTableName:

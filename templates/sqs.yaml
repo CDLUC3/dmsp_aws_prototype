@@ -28,6 +28,16 @@ Resources:
       MaximumMessageSize: 128000 # bytes == 128 KB
       MessageRetentionPeriod: 604800 # seconds == 7 days
 
+  # Add the Table name to SSM so that our Lambdas can access it
+  SqsQueueArnParameter:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: !Sub "${AppName}-${Env} SQS Queue"
+      Name: !Sub "${SsmPath}SqsQueueArn"
+      # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
+      Type: 'String'
+      Value: !GetAtt SqsQueue.Arn
+
   # ----------------------------------------------
   # Simple Notification Service (SNS) topics
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-sqs-queue.html
