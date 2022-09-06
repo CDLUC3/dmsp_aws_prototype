@@ -41,31 +41,31 @@ Resources:
         Subservice: 'hub'
         Environment: !Ref Env
 
-  SystemsUserPoolDomain:
-    Type: 'AWS::Cognito::UserPoolDomain'
-    Properties:
-      CustomDomainConfig:
-        CertificateArn: !Ref CertificateArn
-      Domain: !Sub 'auth.${DomainName}'
-      UserPoolId: !Ref SystemsUserPool
+  # SystemsUserPoolDomain:
+  #   Type: 'AWS::Cognito::UserPoolDomain'
+  #   Properties:
+  #     CustomDomainConfig:
+  #       CertificateArn: !Ref CertificateArn
+  #     Domain: !Sub 'auth.${DomainName}'
+  #     UserPoolId: !Ref SystemsUserPool
 
-  SystemsUserPoolResourceServer:
-    Type: 'AWS::Cognito::UserPoolResourceServer'
-    Properties:
-      Name: !Sub '${NamePrefix}-${Env}-UserPoolResourceServer'
-      Identifier: !Sub 'https://auth.${DomainName}'
-      UserPoolId: !Ref SystemsUserPool
-      Scopes:
-        - ScopeName: !Sub '${Env}.read'
-          ScopeDescription: 'Allows access to the GET api endpoints (default) (e.g. getDmp, getDmps)'
-        - ScopeName: !Sub '${Env}.write'
-          ScopeDescription: 'Allows access to POST, PUT and DELETE for DMPs (e.g. postDmp, putDmp, deleteDmp)'
+  # SystemsUserPoolResourceServer:
+  #   Type: 'AWS::Cognito::UserPoolResourceServer'
+  #   Properties:
+  #     Name: !Sub '${NamePrefix}-${Env}-UserPoolResourceServer'
+  #     Identifier: !Sub 'https://auth.${DomainName}'
+  #     UserPoolId: !Ref SystemsUserPool
+  #     Scopes:
+  #       - ScopeName: !Sub '${Env}.read'
+  #         ScopeDescription: 'Allows access to the GET api endpoints (default) (e.g. getDmp, getDmps)'
+  #       - ScopeName: !Sub '${Env}.write'
+  #         ScopeDescription: 'Allows access to POST, PUT and DELETE for DMPs (e.g. postDmp, putDmp, deleteDmp)'
 
   # Add the DMPTool as an initial client (not sure if we want to do this long term, probably better to retain the pool)
   DmptoolClient:
     Type: 'AWS::Cognito::UserPoolClient'
-    DependsOn:
-      - SystemsUserPoolResourceServer
+    # DependsOn:
+    #   - SystemsUserPoolResourceServer
     # DeletionPolicy: Retain
     Properties:
       ClientName: 'dmptool'
@@ -95,17 +95,17 @@ Resources:
   # Route53 - DNS configuration
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_Route53.html
   # -----------------------------------------------------------
-  Route53RecordSet:
-    Type: AWS::Route53::RecordSet
-    DependsOn:
-      - SystemsUserPoolResourceServer
-    Properties:
-      HostedZoneId: !Ref HostedZoneId
-      Name: !Sub 'auth.${DomainName}'
-      Type: A
-      AliasTarget:
-        DNSName: !Ref SystemsUserPoolDomain # !GetAtt SystemsUserPool.ProviderURL
-        HostedZoneId: !Ref HostedZoneId
+  # Route53RecordSet:
+  #   Type: AWS::Route53::RecordSet
+  #   DependsOn:
+  #     - SystemsUserPoolResourceServer
+  #   Properties:
+  #     HostedZoneId: !Ref HostedZoneId
+  #     Name: !Sub 'auth.${DomainName}'
+  #     Type: A
+  #     AliasTarget:
+  #       DNSName: 'd3exb48yfsh0pg.cloudfront.net' # !GetAtt SystemsUserPool.ProviderURL
+  #       HostedZoneId: 'Z2FDTNDATAQYW2'
 
 Outputs:
   AuthDomainName:
@@ -115,5 +115,7 @@ Outputs:
     Value: !Ref SystemsUserPool
   SystemsUserPoolArn:
     Value: !GetAtt SystemsUserPool.Arn
-  SystemsUserPoolResourceServerId:
-    Value: !Ref SystemsUserPoolResourceServer
+    Export:
+      Name: !Sub '${AWS::StackName}-SystemsUserPoolArn'
+  # SystemsUserPoolResourceServerId:
+  #   Value: !Ref SystemsUserPoolResourceServer

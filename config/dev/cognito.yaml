@@ -4,8 +4,8 @@ template:
 
 # The UserPoolDomainName here requires an existing A record for the root domain, so make sure it
 # has been created first!
-dependencies:
-  - dev/cloud-front.yaml
+# dependencies:
+#   - dev/cloud-front.yaml
 
 parameters:
   HostedZoneId: !stack_output_external sceptre-uc3-ops-common-dev-route53::HostedZoneID
