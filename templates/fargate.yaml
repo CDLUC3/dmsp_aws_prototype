@@ -1,0 +1,257 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Description: 'Serverless architecture for the DMPRoadmap system'
+
+Parameters:
+  VpcId:
+    Type: 'AWS::EC2::VPC::Id'
+  Subnets:
+    Type: 'List<AWS::EC2::Subnet::Id>'
+
+  Subdomain:
+    Type: String
+  Env:
+    Type: String
+    Default: 'dev'
+  Domain:
+    Type: String
+
+  EcsDesiredServiceCount:
+    Type: Number
+    Default: 1
+
+  EcrRepositoryUri:
+    Type: String
+  EcrRepositoryName:
+    Type: String
+
+  AlbTargetGroupArn:
+    Type: String
+  AlbDnsName:
+    Type: String
+  AlbSecurityGroupId:
+    Type: String
+
+  RailsEnv:
+    Type: String
+  RailsLogLevel:
+    Type: String
+    Default: 'warn'
+    AllowedValues:
+      - 'debug'
+      - 'warn'
+      - 'error'
+
+  RdsSecurityGroupId:
+    Type: String
+  RdsSnapshot:
+    Type: String
+    Default: 'none'
+  RdsAddress:
+    Type: String
+  RdsPort:
+    Type: String
+  RdsName:
+    Type: String
+
+Resources:
+  # -----------------------------------------------------------
+  # Identitity and Access Management (IAM)
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_IAM.html
+  # -----------------------------------------------------------
+  # Role that grants the ECS container agent permission to make AWS API calls
+  EcsTaskExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service:
+                - 'ecs-tasks.amazonaws.com'
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy'
+        - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
+
+  # Role that grants containers in the task permission to call AWS APIs on your behalf
+  EcsTaskRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service:
+                - 'ecs-tasks.amazonaws.com'
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonRDSDataFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSESFullAccess'
+        - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
+
+  # -----------------------------------------------------------
+  # EC2 Security Groups for ECS containers (see their definitions in application.yaml)
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-security-group.html
+  # -----------------------------------------------------------
+  EcsSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: !Sub 'Fargate security group for ${Subdomain}-${Env}'
+      GroupName: !Sub '${Subdomain}-ecs-sec'
+      VpcId: !Ref VpcId
+
+  # Allow traffic to the ECS instances from the ALB
+  EcsSecurityGroupIngressFromAlb:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    DependsOn:
+      - EcsSecurityGroup
+    Properties:
+      IpProtocol: 'tcp'
+      FromPort: 80
+      ToPort: 80
+      GroupId: !GetAtt EcsSecurityGroup.GroupId
+      SourceSecurityGroupId: !Ref AlbSecurityGroupId
+
+  # Allow the RDS instance(s) to receive traffic from the ECS instance(s)
+  DBSecurityGroupIngressFromEcs:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    DependsOn:
+      - EcsSecurityGroup
+    Properties:
+      IpProtocol: 'tcp'
+      FromPort: 3306
+      ToPort: 3306
+      GroupId: !Ref RdsSecurityGroupId
+      SourceSecurityGroupId: !GetAtt EcsSecurityGroup.GroupId
+
+  # -----------------------------------------------------------
+  # Elastic Container Service (ECS) - Containers that host the application
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_ECS.html
+  # -----------------------------------------------------------
+  EcsCluster:
+    Type: 'AWS::ECS::Cluster'
+    Properties:
+      ClusterName: !Sub '${Subdomain}-${Env}-fargate-clst'
+      CapacityProviders:
+        - 'FARGATE'
+      DefaultCapacityProviderStrategy:
+        - CapacityProvider: 'FARGATE'
+
+  # The Application/Task definition
+  EcsTaskDefinition:
+    Type: 'AWS::ECS::TaskDefinition'
+    DependsOn:
+      - EcsTaskExecutionRole
+      - EcsTaskRole
+    Properties:
+      Cpu: '2048' # 2 vCPU
+      Memory: '4096' # 4GB
+      ExecutionRoleArn: !GetAtt EcsTaskExecutionRole.Arn
+      TaskRoleArn: !GetAtt EcsTaskRole.Arn
+      Family: !Sub '${Subdomain}-${Env}-fargate'
+      NetworkMode: 'awsvpc' # Required for Fargate!
+      RuntimePlatform:
+        CpuArchitecture: 'X86_64'
+        OperatingSystemFamily: 'LINUX'
+      ContainerDefinitions:
+        -
+          Image: !Ref EcrRepositoryUri
+          Cpu: 2
+          DisableNetworking: false
+          Essential: true
+          Interactive: true
+          Memory: 2000
+          Name: !Ref Subdomain
+          StartTimeout: 180
+          StopTimeout: 60
+          # TODO: Figure out why this is invalid for FARGATE
+          LogConfiguration:
+            LogDriver: 'awslogs'
+            Options:
+              awslogs-region: !Ref AWS::Region
+              awslogs-create-group: true
+              awslogs-group: !Sub '${Subdomain}-${Env}-ecs'
+              awslogs-stream-prefix: !Sub '${Env}-ecs'
+          PortMappings:
+            # SES port
+            - ContainerPort: 25
+              Protocol: 'tcp'
+            # ALB port
+            - ContainerPort: 80
+              Protocol: 'tcp'
+            # RDS port
+            - ContainerPort: 3306
+              Protocol: 'tcp'
+          Environment:
+            - Name: 'RAILS_ENV'
+              Value: !Ref RailsEnv
+            - Name: 'RAILS_LOG_LEVEL'
+              Value: !Ref RailsLogLevel
+            - Name: 'RAILS_LOG_TO_STDOUT'
+              Value: true
+            - Name: 'RAILS_MASTER_KEY'
+              Value: !Sub '{{resolve:ssm:/uc3/dmp/hub/${Env}/RailsMasterKey}}'
+
+            - Name: 'RAILS_HOST'
+              Value: !Sub "${Subdomain}.${Domain}"
+
+            - Name: 'DB_SNAPSHOT'
+              Value: !Ref RdsSnapshot
+            - Name: 'DB_HOST'
+              Value: !Ref RdsAddress
+            - Name: 'DB_PORT'
+              Value: !Ref RdsPort
+            - Name: 'DB_NAME'
+              Value: !Ref RdsName
+            - Name: 'DB_USERNAME'
+              Value: !Sub '{{resolve:ssm:/uc3/dmp/hub/${Env}/RdsUsername}}'
+            - Name: 'DB_PASSWORD'
+              Value: !Sub '{{resolve:ssm:/uc3/dmp/hub/${Env}/RdsPassword}}'
+
+  # Container Service definition
+  EcsService:
+    Type: 'AWS::ECS::Service'
+    DependsOn:
+      - EcsTaskDefinition
+    Properties:
+      Cluster: !Ref EcsCluster
+      DesiredCount: !Ref EcsDesiredServiceCount
+      EnableECSManagedTags: true
+      HealthCheckGracePeriodSeconds: 300 # 5 minutes for app startup
+      LaunchType: 'FARGATE'
+      LoadBalancers:
+        - TargetGroupArn: !Ref AlbTargetGroupArn
+          ContainerPort: 80
+          ContainerName: !Ref Subdomain
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          SecurityGroups:
+            - !GetAtt EcsSecurityGroup.GroupId
+            - !Ref AlbSecurityGroupId
+            - !Ref RdsSecurityGroupId
+            # - !Ref S3SecurityGroupID
+          AssignPublicIp: 'ENABLED'
+          Subnets: !Ref Subnets
+      PlatformVersion: 'LATEST'
+      PropagateTags: 'TASK_DEFINITION'
+      SchedulingStrategy: 'REPLICA'
+      TaskDefinition: !Ref EcsTaskDefinition
+
+Outputs:
+  EcsFargateClusterId:
+    Value: !Ref EcsCluster
+  EcsFargateClusterArn:
+    Value: !GetAtt EcsCluster.Arn
+  EcsServiceArn:
+    Value: !Ref EcsService
+  EcsServiceName:
+    Value: !GetAtt EcsService.Name
+  EcsTaskId:
+    Value: !Ref EcsTaskDefinition

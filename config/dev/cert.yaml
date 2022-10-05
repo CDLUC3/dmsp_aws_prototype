@@ -1,0 +1,11 @@
+template:
+  path: cert.yaml
+  type: file
+
+parameters:
+  # Use the HostedZoneId stored in SSM since this template is not in us-west-2 and will not
+  # have access to !external_stack_output for stacks in that region
+  HostedZoneId: !stack_output_external sceptre-uc3-ops-common-dev-route53::HostedZoneID
+
+  Domain: !stack_attr sceptre_user_data.domain
+  Subdomain: !stack_attr sceptre_user_data.subdomain

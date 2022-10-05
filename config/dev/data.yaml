@@ -3,6 +3,31 @@ template:
   type: file
 
 parameters:
-  AppName: !stack_attr sceptre_user_data.app_name
+  VpcId: !stack_output_external cdl-uc3-dev-vpc-stack::vpc
+  PublicSubnets:
+    - !stack_output_external cdl-uc3-dev-defaultsubnet-stack::defaultsubnet2a
+    - !stack_output_external cdl-uc3-dev-defaultsubnet-stack::defaultsubnet2b
+    - !stack_output_external cdl-uc3-dev-defaultsubnet-stack::defaultsubnet2c
+  PrivateSubnets:
+    - !stack_output_external cdl-uc3-dev-privatesubnet-stack::privatesubnet2a
+    - !stack_output_external cdl-uc3-dev-privatesubnet-stack::privatesubnet2b
+    - !stack_output_external cdl-uc3-dev-privatesubnet-stack::privatesubnet2c
+
+  Subdomain: !stack_attr sceptre_user_data.subdomain
   Env: !stack_attr sceptre_user_data.env
   SsmPath: !stack_attr sceptre_user_data.ssm_path
+
+  EcrLifecyclePolicyTagPrefix: 'latest'
+
+  # If you have an existing RDS snapshot of your DB, you can include it here and CF will
+  # restore that snapshot. If not, just leave this commented out and Docker will initialize
+  # the DB
+  # DBSnapshot: 'arn:aws:rds:us-west-2:671846987296:snapshot:uc3-dmp-roadmap-initial'
+
+  RdsInstanceType: 'db.t3.micro'
+  # Valid options are based on the DB engine.
+  #   See: at: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-rds-database-instance.html#cfn-rds-dbinstance-allocatedstorage
+  RdsSizeGB: '20'
+  RdsName: 'dmphub'
+  RdsEngine: 'MySQL'
+  RdsEngineVersion: '8.0.30'

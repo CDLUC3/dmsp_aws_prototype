@@ -29,7 +29,7 @@ Resources:
   # -----------------------------------------------------------
   SystemsUserPool:
     Type: 'AWS::Cognito::UserPool'
-    # DeletionPolicy: Retain
+    DeletionPolicy: Retain
     Properties:
       AdminCreateUserConfig:
         AllowAdminCreateUserOnly: true
@@ -41,32 +41,32 @@ Resources:
         Subservice: 'hub'
         Environment: !Ref Env
 
-  # SystemsUserPoolDomain:
-  #   Type: 'AWS::Cognito::UserPoolDomain'
-  #   Properties:
-  #     CustomDomainConfig:
-  #       CertificateArn: !Ref CertificateArn
-  #     Domain: !Sub 'auth.${DomainName}'
-  #     UserPoolId: !Ref SystemsUserPool
+  SystemsUserPoolDomain:
+    Type: 'AWS::Cognito::UserPoolDomain'
+    Properties:
+      CustomDomainConfig:
+        CertificateArn: !Ref CertificateArn
+      Domain: !Sub 'auth.${DomainName}'
+      UserPoolId: !Ref SystemsUserPool
 
-  # SystemsUserPoolResourceServer:
-  #   Type: 'AWS::Cognito::UserPoolResourceServer'
-  #   Properties:
-  #     Name: !Sub '${NamePrefix}-${Env}-UserPoolResourceServer'
-  #     Identifier: !Sub 'https://auth.${DomainName}'
-  #     UserPoolId: !Ref SystemsUserPool
-  #     Scopes:
-  #       - ScopeName: !Sub '${Env}.read'
-  #         ScopeDescription: 'Allows access to the GET api endpoints (default) (e.g. getDmp, getDmps)'
-  #       - ScopeName: !Sub '${Env}.write'
-  #         ScopeDescription: 'Allows access to POST, PUT and DELETE for DMPs (e.g. postDmp, putDmp, deleteDmp)'
+  SystemsUserPoolResourceServer:
+    Type: 'AWS::Cognito::UserPoolResourceServer'
+    Properties:
+      Name: !Sub '${NamePrefix}-${Env}-UserPoolResourceServer'
+      Identifier: !Sub 'https://auth.${DomainName}'
+      UserPoolId: !Ref SystemsUserPool
+      Scopes:
+        - ScopeName: !Sub '${Env}.read'
+          ScopeDescription: 'Allows access to the GET api endpoints (default) (e.g. getDmp, getDmps)'
+        - ScopeName: !Sub '${Env}.write'
+          ScopeDescription: 'Allows access to POST, PUT and DELETE for DMPs (e.g. postDmp, putDmp, deleteDmp)'
 
   # Add the DMPTool as an initial client (not sure if we want to do this long term, probably better to retain the pool)
   DmptoolClient:
     Type: 'AWS::Cognito::UserPoolClient'
-    # DependsOn:
-    #   - SystemsUserPoolResourceServer
-    # DeletionPolicy: Retain
+    DependsOn:
+      - SystemsUserPoolResourceServer
+    DeletionPolicy: Retain
     Properties:
       ClientName: 'dmptool'
       UserPoolId: !Ref SystemsUserPool
@@ -117,5 +117,5 @@ Outputs:
     Value: !GetAtt SystemsUserPool.Arn
     Export:
       Name: !Sub '${AWS::StackName}-SystemsUserPoolArn'
-  # SystemsUserPoolResourceServerId:
-  #   Value: !Ref SystemsUserPoolResourceServer
+  SystemsUserPoolResourceServerId:
+    Value: !Ref SystemsUserPoolResourceServer

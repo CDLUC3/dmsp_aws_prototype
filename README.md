@@ -140,8 +140,14 @@ Sample Provenance item:
  "description": "An example system",
  "homepage": "https://example.com",
  "name": "Example DMP authoring system",
+ # The prefix for downloading the DMP narrative doccument if applicable. This will be used
+ # to confirm the URL is valid. The URL will appear in a DMP's `dmproadmap_related_identifiers`
+ # attribute with `{ "descriptor": "is_metadata_for", "work_type": "output_management_plan" }`
+ "downloadUri": "https://dmptool-stg.cdlib.org/plans/",
  # The API endpoint that we can call to send updated information about the DMP (if applicable)
- "redirectUri": "https://example.com/api/dmps/callback"
+ # The DMP's DMP ID will be appended to the end of the URL
+ #  (e.g. `https://example.com/api/dmps/callback/10.12345/D1H52A.H7`)
+ "callbackUri": "https://example.com/api/dmps/callback"
 }
 ```
 

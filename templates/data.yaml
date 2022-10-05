@@ -4,14 +4,46 @@ Transform: 'AWS::Serverless-2016-10-31'
 Description: 'Builds for Dynamo table and S3 bucket that stores DMP narrative docs'
 
 Parameters:
-  AppName:
-    Type: 'String'
+  VpcId:
+    Type: 'AWS::EC2::VPC::Id'
+  PrivateSubnets:
+    Type: 'List<AWS::EC2::Subnet::Id>'
+  PublicSubnets:
+    Type: 'List<AWS::EC2::Subnet::Id>'
 
+  Subdomain:
+    Type: 'String'
   Env:
     Type: 'String'
-
   SsmPath:
     Type: 'String'
+
+  EcrLifecyclePolicyTagPrefix:
+    Type: String
+    Default: 'latest'
+
+  RdsSnapshot:
+    Type: String
+    Default: 'none'
+
+  RdsInstanceType:
+    Type: String
+    Default: 'db.t3.small'
+  RdsSizeGB:
+    Type: Number
+    Default: 20
+  RdsEngine:
+    Type: String
+    Default: 'MySQL'
+  RdsEngineVersion:
+    Type: String
+    Default: '8.0.30'
+  RdsName:
+    Type: String
+
+Conditions:
+  InitializeRds:
+    !Not [!Equals [!Ref RdsSnapshot, 'none']]
 
 Resources:
   # ----------------------------------------------
@@ -175,7 +207,7 @@ Resources:
   TableNameParameter:
     Type: 'AWS::SSM::Parameter'
     Properties:
-      Description: !Sub "${AppName}-${Env} DynamoTable"
+      Description: !Sub "${Subdomain}-${Env} DynamoTable"
       Name: !Sub "${SsmPath}DynamoTableName"
       # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
       Type: 'String'
@@ -185,7 +217,7 @@ Resources:
   TableArnParameter:
     Type: 'AWS::SSM::Parameter'
     Properties:
-      Description: !Sub "${AppName}-${Env} DynamoTable"
+      Description: !Sub "${Subdomain}-${Env} DynamoTable"
       Name: !Sub "${SsmPath}DynamoTableArn"
       # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
       Type: 'String'
@@ -207,21 +239,149 @@ Resources:
   S3BucketParameter:
     Type: 'AWS::SSM::Parameter'
     Properties:
-      Description: !Sub "${AppName}-${Env} S3Bucket"
+      Description: !Sub "${Subdomain}-${Env} S3Bucket"
       Name: !Sub "${SsmPath}S3BucketUri"
       # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
       Type: 'String'
-      Value: !Sub "s3://${S3Bucket}"
+      Value: !Ref S3Bucket
+
+  S3BucketUrlParameter:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: !Sub "${Subdomain}-${Env} S3Bucket"
+      Name: !Sub "${SsmPath}S3BucketUrl"
+      # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
+      Type: 'String'
+      Value: !GetAtt S3Bucket.WebsiteURL
 
   # Add the Bucket URI to SSM so that our Lambdas can access it
   S3BucketArnParameter:
     Type: 'AWS::SSM::Parameter'
     Properties:
-      Description: !Sub "${AppName}-${Env} S3Bucket"
+      Description: !Sub "${Subdomain}-${Env} S3Bucket"
       Name: !Sub "${SsmPath}S3BucketArn"
       # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
       Type: 'String'
       Value: !GetAtt S3Bucket.Arn
+
+  # -----------------------------------------------------------
+  # Elastic Container Repository (ECR) - Hosts the Rails application's Docker images
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_ECR.html
+  # -----------------------------------------------------------
+  ECRRepository:
+    Type: 'AWS::ECR::Repository'
+    Properties:
+      RepositoryName: !Sub '${Subdomain}-${Env}-ecr'
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      LifecyclePolicy:
+        # TODO: Update this to only keep the last 3 snapshots of 'untagged' since we
+        #       are using 'latest' as the only tag.
+        LifecyclePolicyText: !Sub >
+          {
+            "rules": [
+              {
+                "action": {
+                  "type": "expire"
+                },
+                "selection": {
+                  "countType": "imageCountMoreThan",
+                  "countNumber": 1,
+                  "tagStatus": "tagged",
+                  "tagPrefixList": [
+                    "${EcrLifecyclePolicyTagPrefix}"
+                  ]
+                },
+                "description": "Ensure that we do not have more than 1 tagged version",
+                "rulePriority": 1
+              },
+              {
+                "action": {
+                  "type": "expire"
+                },
+                "selection": {
+                  "countType": "imageCountMoreThan",
+                  "countNumber": 3,
+                  "tagStatus": "untagged"
+                },
+                "description": "Only retain the last 3 versions",
+                "rulePriority": 2
+              }
+            ]
+          }
+
+  # -----------------------------------------------------------
+  # Identitity and Access Management (IAM)
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_IAM.html
+  # -----------------------------------------------------------
+  RdsMonitoringRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service:
+                - 'monitoring.rds.amazonaws.com'
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole'
+
+  # -----------------------------------------------------------
+  # EC2 Security Groups for use with RDS database and S3 Bucket
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-security-group.html
+  # -----------------------------------------------------------
+  RdsSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: !Sub 'RDS security group for ${Subdomain}-${Env}'
+      GroupName: !Sub '${Subdomain}-rds-sec'
+      VpcId: !Ref VpcId
+
+  # -----------------------------------------------------------
+  # Relational Database Service (RDS) - DB for the application
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_RDS.html
+  # -----------------------------------------------------------
+  RdsSubnetGroupPrivate:
+    Type: 'AWS::RDS::DBSubnetGroup'
+    Properties:
+      DBSubnetGroupDescription: !Sub 'Subnet group for ${Subdomain}-${Env}'
+      SubnetIds:
+        !Ref PrivateSubnets
+
+  RdsDatabase:
+    Type: 'AWS::RDS::DBInstance'
+    DependsOn:
+      - RdsSubnetGroupPrivate
+      - RdsSecurityGroup
+    Properties:
+      VPCSecurityGroups:
+        - !Ref RdsSecurityGroup
+      DBSubnetGroupName: !Ref RdsSubnetGroupPrivate
+
+      # If an RDS Snapshot was defined, then instruct CF to restore it
+      DBSnapshotIdentifier: !If
+        - InitializeRds
+        - !Ref RdsSnapshot
+        - !Ref AWS::NoValue
+
+      PubliclyAccessible: false
+      AllowMajorVersionUpgrade: true
+      AutoMinorVersionUpgrade: true
+      BackupRetentionPeriod: 7 # days
+      CopyTagsToSnapshot: true
+      AllocatedStorage: !Ref RdsSizeGB
+      Port: '3306'
+      Engine: !Ref RdsEngine
+      EngineVersion: !Ref RdsEngineVersion
+      MonitoringInterval: '60'
+      MonitoringRoleArn: !GetAtt RdsMonitoringRole.Arn
+      DBName: !Ref RdsName
+      DBInstanceClass: !Ref RdsInstanceType
+      MasterUsername: !Sub '{{resolve:ssm:/uc3/dmp/hub/${Env}/RdsUsername}}'
+      MasterUserPassword: !Sub '{{resolve:ssm:/uc3/dmp/hub/${Env}/RdsPassword}}'
 
 Outputs:
   DynamoTableName:
@@ -238,3 +398,21 @@ Outputs:
   S3BucketArn:
     Value: !GetAtt S3Bucket.Arn
 
+  EcrRepositoryName:
+    Value: !Ref ECRRepository
+  EcrRepositoryArn:
+    Value: !GetAtt ECRRepository.Arn
+  EcrRepositoryUri:
+    Value: !GetAtt ECRRepository.RepositoryUri
+
+  RdsInstanceName:
+    Value: !Ref RdsDatabase
+  RdsAddress:
+    Value: !GetAtt RdsDatabase.Endpoint.Address
+  RdsPort:
+    Value: !GetAtt RdsDatabase.Endpoint.Port
+  RdsName:
+    Value: !Ref RdsName
+
+  RdsSecurityGroupId:
+    Value: !GetAtt RdsSecurityGroup.GroupId

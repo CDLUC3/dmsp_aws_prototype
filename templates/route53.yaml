@@ -1,0 +1,74 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+
+Description: 'DNS for the Fargate cluster, API and Cognito'
+
+Parameters:
+  HostedZoneId:
+    Type: 'AWS::Route53::HostedZone::Id'
+
+  Domain:
+    Type: 'String'
+  Subdomain:
+    Type: 'String'
+
+  AlbDnsName:
+    Type: 'String'
+  AlbHostedZoneId:
+    Type: 'String'
+
+Resources:
+  # -----------------------------------------------------------
+  # Route53 - DNS configuration
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_Route53.html
+  # -----------------------------------------------------------
+  AlbAlias:
+    Type: 'AWS::Route53::RecordSet'
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Sub "${Subdomain}.${Domain}"
+      Type: 'A'
+      AliasTarget:
+        DNSName: !Ref AlbDnsName
+        HostedZoneId: !Ref AlbHostedZoneId
+        # EvaluateTargetHealth: true
+
+  # AlbCName:
+  #   Type: 'AWS::Route53::RecordSet'
+  #   Properties:
+  #     HostedZoneId: !Ref HostedZoneId
+  #     Name: !Sub "www.${Subdomain}.${Domain}"
+  #     Type: 'CNAME'
+  #     ResourceRecords:
+  #       - !Ref AlbAlias
+  #     TTL: 60
+
+  # ApiAlias:
+  #   Type: 'AWS::Route53::RecordSet'
+  #   Properties:
+  #     HostedZoneId: !Ref HostedZoneId
+  #     Name: !Sub 'api.${Domain}'
+  #     Type: 'A'
+  #     AliasTarget:
+  #       DNSName: !Ref AlbDnsName
+  #       HostedZoneId: !Ref AlbHostedZoneId
+        # EvaluateTargetHealth: true
+
+  # AuthAlias:
+  #   Type: 'AWS::Route53::RecordSet'
+  #   Properties:
+  #     HostedZoneId: !Ref HostedZoneId
+  #     Name: !Sub 'auth.${Domain}'
+  #     Type: 'A'
+  #     AliasTarget:
+  #       DNSName: !Ref AuthDnsName
+  #       HostedZoneId: !Ref AlbHostedZoneId
+        # EvaluateTargetHealth: true
+
+Outputs:
+  DomainName:
+    Value: !Ref AlbAlias
+  # ApiEndpoint:
+  #   Value: !Ref ApiAlias
+  # AuthEndpoint:
+  #   Value: !Ref AuthAlias

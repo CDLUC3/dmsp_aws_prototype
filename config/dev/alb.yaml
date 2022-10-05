@@ -1,0 +1,13 @@
+template:
+  path: 'alb.yaml'
+  type: 'file'
+
+parameters:
+  VpcId: !stack_output_external cdl-uc3-dev-vpc-stack::vpc
+  Subnets:
+    - !stack_output_external cdl-uc3-dev-defaultsubnet-stack::defaultsubnet2a
+    - !stack_output_external cdl-uc3-dev-defaultsubnet-stack::defaultsubnet2b
+    - !stack_output_external cdl-uc3-dev-defaultsubnet-stack::defaultsubnet2c
+
+  Env: !stack_attr sceptre_user_data.env
+  Subdomain: !stack_attr sceptre_user_data.subdomain

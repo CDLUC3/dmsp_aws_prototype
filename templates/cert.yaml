@@ -1,0 +1,32 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+
+Description: 'SSL Cert for all DMPHub endpoints'
+
+Parameters:
+  HostedZoneId:
+    Type: 'String'
+
+  Domain:
+    Type: 'String'
+  Subdomain:
+    Type: 'String'
+
+Resources:
+  # --------------------------------------------------------------------------
+  # SSL Certs (we likely only need one to protect the Alb, Api and Cognito, but since
+  # we're using a hosted zone we need separate ones :/)
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-certificatemanager-certificate.html
+  # --------------------------------------------------------------------------
+  AlbCertificate:
+    Type: 'AWS::CertificateManager::Certificate'
+    Properties:
+      DomainName: !Sub "${Subdomain}.${Domain}"
+      DomainValidationOptions:
+        - DomainName: !Sub "${Subdomain}.${Domain}"
+          HostedZoneId: !Ref HostedZoneId
+      ValidationMethod: 'DNS'
+
+Outputs:
+  AlbCertificateArn:
+    Value: !Ref AlbCertificate

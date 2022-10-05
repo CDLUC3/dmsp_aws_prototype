@@ -1,50 +1,30 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Transform: 'AWS::Serverless-2016-10-31'
+Transform: AWS::Serverless-2016-10-31
 
-# API Gateway and Cloudfront require that their WAF and Ccert resources be built in the
-# us-east-1 region
-# See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-wafv2-webacl.html#cfn-wafv2-webacl-scope
-Description: 'Default WAF and SSL Cert'
+Description: 'Serverless architecture for the DMPRoadmap system'
 
 Parameters:
-  HostedZoneId:
-    Type: 'String'
-
-  DomainName:
-    Type: 'String'
+  Subdomain:
+    Type: String
+  Env:
+    Type: String
+    Default: 'dev'
 
 Resources:
-
-  # --------------------------------------------------------------------------
-  # SSL Cert for the application
-  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-certificatemanager-certificate.html
-  # --------------------------------------------------------------------------
-  Certificate:
-    Type: AWS::CertificateManager::Certificate
-    Properties:
-      DomainName: !Sub "*.${DomainName}"
-      DomainValidationOptions:
-        - DomainName: !Sub "*.${DomainName}"
-          HostedZoneId: !Ref HostedZoneId
-      ValidationMethod: 'DNS'
-      SubjectAlternativeNames:
-        - !Ref DomainName
-        # - !Sub "www.${DomainName}"
-
-  # --------------------------------------------------------------------------
-  # WAF for CloudFront distributions must be defined in us-east-1 (per AWS)
-  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-wafv2-webacl.html#cfn-wafv2-webacl-scope
-  # --------------------------------------------------------------------------
-  Waf:
+  # -----------------------------------------------------------
+  # Web Application Firewall (WAF) - Stops malicious actors/bots from reaching application
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_WAFv2.html
+  # -----------------------------------------------------------
+  WafRegional:
     Type: 'AWS::WAFv2::WebACL'
     Properties:
       DefaultAction:
         Allow: {}
-      Scope: 'CLOUDFRONT'
+      Scope: 'REGIONAL'
       VisibilityConfig:
         SampledRequestsEnabled: true
         CloudWatchMetricsEnabled: true
-        MetricName: 'Uc3DmpHubCloudfrontWafMetric'
+        MetricName: !Sub '${Subdomain}-${Env}-waf-metric'
       Rules:
         - Name: 'AWS-AWSManagedRulesAmazonIpReputationList'
           Priority: 0
@@ -87,14 +67,7 @@ Resources:
               ExcludedRules: []
 
 Outputs:
-  WafNameIdScope:
-    Value: !Ref Waf
   WafId:
-    Value: !GetAtt Waf.Id
+    Value: !GetAtt WafRegional.Id
   WafArn:
-    Value: !GetAtt Waf.Arn
-  WafLabelNamespace:
-    Value: !GetAtt Waf.LabelNamespace
-
-  CertificateArn:
-    Value: !Ref Certificate
+    Value: !GetAtt WafRegional.Arn

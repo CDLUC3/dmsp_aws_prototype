@@ -1,0 +1,38 @@
+template:
+  path: 'fargate.yaml'
+  type: 'file'
+
+dependencies:
+  - dev/bindings.yaml
+
+parameters:
+  VpcId: !stack_output_external cdl-uc3-dev-vpc-stack::vpc
+  Subnets:
+    - !stack_output_external cdl-uc3-dev-privatesubnet-stack::privatesubnet2a
+    - !stack_output_external cdl-uc3-dev-privatesubnet-stack::privatesubnet2b
+    - !stack_output_external cdl-uc3-dev-privatesubnet-stack::privatesubnet2c
+
+  Env: !stack_attr sceptre_user_data.env
+  Domain: !stack_attr sceptre_user_data.domain
+  Subdomain: !stack_attr sceptre_user_data.subdomain
+
+  EcsDesiredServiceCount: '1'
+
+  EcrRepositoryUri: !stack_output dev/data.yaml::EcrRepositoryUri
+  EcrRepositoryName: !stack_output dev/data.yaml::EcrRepositoryName
+
+  AlbTargetGroupArn: !stack_output dev/alb.yaml::AlbTargetGroupArn
+  AlbDnsName: !stack_output dev/alb.yaml::AlbDnsName
+  AlbSecurityGroupId: !stack_output dev/alb.yaml::AlbSecurityGroupID
+
+  RailsEnv: !stack_attr sceptre_user_data.rails_env
+  RailsLogLevel: !stack_attr sceptre_user_data.rails_log_level
+
+  RdsSecurityGroupId: !stack_output dev/data.yaml::RdsSecurityGroupId
+  RdsAddress: !stack_output dev/data.yaml::RdsAddress
+  RdsPort: !stack_output dev/data.yaml::RdsPort
+  RdsName: !stack_output dev/data.yaml::RdsName
+
+  # If you have an existing RDS snapshot of your DB, you can include it here and CF will
+  # restore that snapshot. If not, just leave this commented out and Docker will initialize the DB
+  # RdsSnapshot: 'ARN of my DBSnapshotIdentifier'

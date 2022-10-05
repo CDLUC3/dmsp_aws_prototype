@@ -10,9 +10,11 @@ template:
 parameters:
   HostedZoneId: !stack_output_external sceptre-uc3-ops-common-dev-route53::HostedZoneID
 
-  CertificateArn: !stack_output dev/globals.yaml::CertificateArn
+  # CertificateArn: !stack_output dev/cert.yaml::CertificateArn
 
-  DomainName: !stack_attr sceptre_user_data.domain
+  Domain: !stack_attr sceptre_user_data.domain
+  Subdomain: !stack_attr sceptre_user_data.subdomain
+
   NamePrefix: !stack_attr sceptre_user_data.resource_name_prefix
   Env: !stack_attr sceptre_user_data.env
 
