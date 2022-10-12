@@ -1,9 +1,6 @@
 template:
-  path: 'fargate.yaml'
+  path: 'pipeline.yaml'
   type: 'file'
-
-dependencies:
-  - dev/route53.yaml
 
 parameters:
   VpcId: !stack_output_external cdl-uc3-dev-vpc-stack::vpc
@@ -12,30 +9,34 @@ parameters:
     - !stack_output_external cdl-uc3-dev-privatesubnet-stack::privatesubnet2b
     - !stack_output_external cdl-uc3-dev-privatesubnet-stack::privatesubnet2c
 
-  Env: !stack_attr sceptre_user_data.env
-  Domain: !stack_attr sceptre_user_data.domain
+  DomainName: !stack_attr sceptre_user_data.domain
   Subdomain: !stack_attr sceptre_user_data.subdomain
+  Environment: !stack_attr sceptre_user_data.env
 
-  EcsDesiredServiceCount: '1'
+  CodeStarConnectionArn: !ssm_parameter /uc3/CodeStarConnectionArn
+
+  ECSClusterName: !stack_output dev/fargate.yaml::EcsFargateClusterId
+  ECSServiceName: !stack_output dev/fargate.yaml::EcsServiceName
 
   EcrRepositoryUri: !stack_output dev/data.yaml::EcrRepositoryUri
   EcrRepositoryName: !stack_output dev/data.yaml::EcrRepositoryName
 
-  AlbTargetGroupArn: !stack_output dev/alb.yaml::AlbTargetGroupArn
-  AlbDnsName: !stack_output dev/alb.yaml::AlbDnsName
-  AlbSecurityGroupId: !stack_output dev/alb.yaml::AlbSecurityGroupID
+  LogGroupId: !stack_output dev/logs.yaml::LogGroupId
+  LogGroupArn: !stack_output dev/logs.yaml::LogGroupArn
 
+  S3ArtifactBucketId: !stack_output dev/data.yaml::S3BucketId
+  S3LogBucketId: !stack_output dev/logs.yaml::S3LogBucket
+
+  # The branches to monitor for changes.
+  BranchToMonitor: 'main'
+
+  # Environment variables required to build the Docker image
   RailsEnv: !stack_attr sceptre_user_data.rails_env
   RailsLogLevel: !stack_attr sceptre_user_data.rails_log_level
   RailsPort: !stack_attr sceptre_user_data.rails_port
 
-  RdsSecurityGroupId: !stack_output dev/data.yaml::RdsSecurityGroupId
   RdsAddress: !stack_output dev/data.yaml::RdsAddress
   RdsPort: !stack_output dev/data.yaml::RdsPort
   RdsName: !stack_output dev/data.yaml::RdsName
   RdsUsername: !ssm_parameter '/uc3/dmp/hub/dev/RdsUsername'
   RdsPassword: !ssm_parameter '/uc3/dmp/hub/dev/RdsPassword'
-
-  # If you have an existing RDS snapshot of your DB, you can include it here and CF will
-  # restore that snapshot. If not, just leave this commented out and Docker will initialize the DB
-  # RdsSnapshot: 'ARN of my DBSnapshotIdentifier'

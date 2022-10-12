@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Transform: AWS::Serverless-2016-10-31
+Transform: 'AWS::Serverless-2016-10-31'
 
 Description: 'Serverless architecture for the DMPRoadmap system'
 
@@ -10,50 +10,57 @@ Parameters:
     Type: 'List<AWS::EC2::Subnet::Id>'
 
   Subdomain:
-    Type: String
+    Type: 'String'
   Env:
-    Type: String
+    Type: 'String'
     Default: 'dev'
   Domain:
-    Type: String
+    Type: 'String'
 
   EcsDesiredServiceCount:
-    Type: Number
+    Type: 'Number'
     Default: 1
 
   EcrRepositoryUri:
-    Type: String
+    Type: 'String'
   EcrRepositoryName:
-    Type: String
+    Type: 'String'
 
   AlbTargetGroupArn:
-    Type: String
+    Type: 'String'
   AlbDnsName:
-    Type: String
+    Type: 'String'
   AlbSecurityGroupId:
-    Type: String
+    Type: 'String'
 
   RailsEnv:
-    Type: String
+    Type: 'String'
   RailsLogLevel:
-    Type: String
+    Type: 'String'
     Default: 'warn'
     AllowedValues:
       - 'debug'
       - 'warn'
       - 'error'
+  RailsPort:
+    Type: 'String'
+    Default: '80'
 
   RdsSecurityGroupId:
-    Type: String
+    Type: 'String'
   RdsSnapshot:
-    Type: String
+    Type: 'String'
     Default: 'none'
   RdsAddress:
-    Type: String
+    Type: 'String'
   RdsPort:
-    Type: String
+    Type: 'String'
   RdsName:
-    Type: String
+    Type: 'String'
+  RdsUsername:
+    Type: 'String'
+  RdsPassword:
+    Type: 'String'
 
 Resources:
   # -----------------------------------------------------------
@@ -126,8 +133,8 @@ Resources:
       - EcsSecurityGroup
     Properties:
       IpProtocol: 'tcp'
-      FromPort: 3306
-      ToPort: 3306
+      FromPort: !Ref RdsPort
+      ToPort: !Ref RdsPort
       GroupId: !Ref RdsSecurityGroupId
       SourceSecurityGroupId: !GetAtt EcsSecurityGroup.GroupId
 
@@ -187,7 +194,7 @@ Resources:
             - ContainerPort: 80
               Protocol: 'tcp'
             # RDS port
-            - ContainerPort: 3306
+            - ContainerPort: !Ref RdsPort
               Protocol: 'tcp'
           Environment:
             - Name: 'RAILS_ENV'
@@ -201,6 +208,8 @@ Resources:
 
             - Name: 'RAILS_HOST'
               Value: !Sub "${Subdomain}.${Domain}"
+            - Name: 'RAILS_PORT'
+              Value: !Ref RailsPort
 
             - Name: 'DB_SNAPSHOT'
               Value: !Ref RdsSnapshot
@@ -211,9 +220,9 @@ Resources:
             - Name: 'DB_NAME'
               Value: !Ref RdsName
             - Name: 'DB_USERNAME'
-              Value: !Sub '{{resolve:ssm:/uc3/dmp/hub/${Env}/RdsUsername}}'
+              Value: !Ref RdsUsername
             - Name: 'DB_PASSWORD'
-              Value: !Sub '{{resolve:ssm:/uc3/dmp/hub/${Env}/RdsPassword}}'
+              Value: !Ref RdsPassword
 
   # Container Service definition
   EcsService:
@@ -228,7 +237,7 @@ Resources:
       LaunchType: 'FARGATE'
       LoadBalancers:
         - TargetGroupArn: !Ref AlbTargetGroupArn
-          ContainerPort: 80
+          ContainerPort: !Ref RailsPort
           ContainerName: !Ref Subdomain
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -236,7 +245,6 @@ Resources:
             - !GetAtt EcsSecurityGroup.GroupId
             - !Ref AlbSecurityGroupId
             - !Ref RdsSecurityGroupId
-            # - !Ref S3SecurityGroupID
           AssignPublicIp: 'ENABLED'
           Subnets: !Ref Subnets
       PlatformVersion: 'LATEST'

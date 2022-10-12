@@ -20,3 +20,4 @@ sceptre_user_data:
 
   rails_env: 'development'
   rails_log_level: 'debug'
+  rails_port: '80'

@@ -1,0 +1,332 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+
+Description: 'Code build and pipeline for the DMPRoadmap system'
+
+Parameters:
+  VpcId:
+    Type: 'AWS::EC2::VPC::Id'
+  Subnets:
+    Type: 'List<AWS::EC2::Subnet::Id>'
+
+  DomainName:
+    Type: 'String'
+  Subdomain:
+    Type: 'String'
+  Environment:
+    Type: 'String'
+    Default: 'dev'
+
+  CodeStarConnectionArn:
+    Type: 'String'
+
+  EcsClusterName:
+    Type: 'String'
+  EcsServiceName:
+    Type: 'String'
+
+  EcrRepositoryUri:
+    Type: 'String'
+  EcrRepositoryName:
+    Type: 'String'
+
+  LogGroupId:
+    Type: 'String'
+  LogGroupArn:
+    Type: 'String'
+
+  S3ArtifactBucketId:
+    Type: 'String'
+  S3LogBucketId:
+    Type: 'String'
+
+  BranchToMonitor:
+    Type: 'String'
+    Default: 'main'
+
+  RailsEnv:
+    Type: 'String'
+  RailsLogLevel:
+    Type: 'String'
+    Default: 'warn'
+    AllowedValues:
+      - 'debug'
+      - 'warn'
+      - 'error'
+  RailsPort:
+    Type: 'String'
+    Default: '80'
+
+  RdsSnapshot:
+    Type: 'String'
+    Default: 'none'
+  RdsAddress:
+    Type: 'String'
+  RdsPort:
+    Type: 'String'
+  RdsName:
+    Type: 'String'
+  RdsUsername:
+    Type: 'String'
+  RdsPassword:
+    Type: 'String'
+
+Resources:
+  # -----------------------------------------------------------
+  # Identitity and Access Management (IAM)
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_IAM.html
+  # -----------------------------------------------------------
+  IamPipelineRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service:
+                - 'codepipeline.amazonaws.com'
+            Action:
+              - 'sts:AssumeRole'
+      Policies:
+        - PolicyName: !Sub '${Subdomain}-pipline-policy'
+          PolicyDocument: !Sub >
+            {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": ["codestar-connections:UseConnection"],
+                  "Resource": "${CodeStarConnectionArn}"
+                }
+              ]
+            }
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AWSCodePipelineFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonS3FullAccess'
+        - 'arn:aws:iam::aws:policy/AWSCodeBuildDeveloperAccess'
+        - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
+
+  IamCodeBuildRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service: 'codebuild.amazonaws.com'
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AmazonS3FullAccess'
+        - 'arn:aws:iam::aws:policy/EC2InstanceProfileForImageBuilderECRContainerBuilds'
+      Policies:
+        - PolicyName: !Sub '${Subdomain}-build-policy'
+          PolicyDocument: !Sub >
+            {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "logs:CreateLogGroup",
+                    "logs:CreateLogStream",
+                    "logs:PutLogEvents",
+                    "logs:AssociateKmsKey"
+                  ],
+                  "Resource": [
+                    "${LogGroupArn}"
+                  ]
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "cloudwatch:PutMetricData"
+                  ],
+                  "Resource": [
+                    "*"
+                  ]
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "logs:*",
+                    "ec2:CreateNetworkInterface",
+                    "ec2:DescribeNetworkInterfaces",
+                    "ec2:DeleteNetworkInterface",
+                    "ec2:DescribeSubnets",
+                    "ec2:DescribeSecurityGroups",
+                    "ec2:DescribeDhcpOptions",
+                    "ec2:DescribeVpcs",
+                    "ec2:CreateNetworkInterfacePermission"
+                  ],
+                  "Resource": [
+                    "*"
+                  ]
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": ["codestar-connections:UseConnection"],
+                  "Resource": "${CodeStarConnectionArn}"
+                }
+              ]
+            }
+
+  # -----------------------------------------------------------
+  # CodeBuild
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_CodeBuild.html
+  # -----------------------------------------------------------
+  CodeBuildSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupName: !Sub '${Subdomain}-build-sec'
+      GroupDescription: !Sub '${Subdomain} CodeBuild SecurityGroup'
+      VpcId: !Ref VpcID
+      Tags:
+        - Key: 'ConfigExclude'
+          Value: 'Security-group-attached-to-ENI'
+
+  CodeBuildProject:
+    Type: 'AWS::CodeBuild::Project'
+    DependsOn:
+      - CodeBuildSecurityGroup
+    Properties:
+      ServiceRole: !GetAtt IamCodeBuildRole.Arn
+      Artifacts:
+        Type: 'CODEPIPELINE'
+      LogsConfig:
+        CloudWatchLogs:
+          GroupName: !Ref LogGroupId
+          Status: 'ENABLED'
+          StreamName: 'codebuild'
+      Environment:
+        Type: 'LINUX_CONTAINER'
+        ComputeType: 'BUILD_GENERAL1_SMALL'
+        Image: 'aws/codebuild/amazonlinux2-x86_64-standard:4.0'
+        # This is required in order for the Docker daemon to work!
+        PrivilegedMode: true
+        EnvironmentVariables:
+          - Name: 'RAILS_ENV'
+            Value: !Ref RailsEnv
+          - Name: 'RAILS_LOG_LEVEL'
+            Value: !Ref RailsLogLevel
+          - Name: 'RAILS_LOG_TO_STDOUT'
+            Value: true
+          - Name: 'RAILS_MASTER_KEY'
+            Value: !Sub '{{resolve:ssm:/uc3/dmp/hub/${Env}/RailsMasterKey}}'
+
+          - Name: 'RAILS_APP_NAME'
+            Value: !Ref Subdomain
+          - Name: 'RAILS_HOST'
+            Value: !Sub "${Subdomain}.${Domain}"
+          - Name: 'RAILS_PORT'
+            Value: !Ref RailsPort
+
+          - Name: 'DB_SNAPSHOT'
+            Value: !Ref RdsSnapshot
+          - Name: 'DB_HOST'
+            Value: !Ref RdsAddress
+          - Name: 'DB_PORT'
+            Value: !Ref RdsPort
+          - Name: 'DB_NAME'
+            Value: !Ref RdsName
+          - Name: 'DB_USERNAME'
+            Value: !Ref RdsUsername
+          - Name: 'DB_PASSWORD'
+            Value: !Ref RdsPassword
+
+          - Name: ECR_REPOSITORY_URI
+            Value: !Ref EcrRepositoryUri
+          - Name: ECR_REPOSITORY_NAME
+            Value: !Ref EcrRepositoryName
+      Source:
+        Type: 'CODEPIPELINE'
+      TimeoutInMinutes: 15
+      VpcConfig:
+        VpcId: !Ref VpcId
+        Subnets: !Ref Subnets
+        SecurityGroupIds:
+          - !Ref CodeBuildSecurityGroup
+      Cache:
+        Type: 'S3'
+        Location: !Sub '${S3ArtifactBucket}/build-cache'
+
+  # -----------------------------------------------------------
+  # CodePipeline
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-codepipeline-pipeline.html
+  # -----------------------------------------------------------
+  Pipeline:
+    Type: 'AWS::CodePipeline::Pipeline'
+    DependsOn:
+      - IamPipelineRole
+    Properties:
+      ArtifactStore:
+        Location: !Ref S3ArtifactBucket
+        # CloudFormation only supports S3 at the moment!
+        Type: 'S3'
+      RestartExecutionOnUpdate: true
+      RoleArn: !GetAtt IamPipelineRole.Arn
+      Stages:
+        - Name: 'MonitorRepo'
+          Actions:
+            # This action is triggered when the development branch of DMPRoadmap has a new commit
+            # it's output is the commit hash
+            - Name: 'DmpHubEcsRepo'
+              RunOrder: 1
+              ActionTypeId:
+                Category: 'Source'
+                Owner: 'AWS'
+                Provider: 'CodeStarSourceConnection'
+                Version: '1'
+              # See: https://docs.aws.amazon.com/codepipeline/latest/userguide/action-reference-CodestarConnectionSource.html
+              # for info on tying CodeBuild in
+              Configuration:
+                ConnectionArn: !Ref CodeStarConnectionArn
+                FullRepositoryId: 'CDLUC3/dmp-hub-ecs'
+                BranchName: !Ref BranchToMonitor
+                OutputArtifactFormat: 'CODEBUILD_CLONE_REF'
+              OutputArtifacts:
+                - Name: !Sub "${Subdomain}_commit"
+
+        - Name: 'DockerBuildPublish'
+          Actions:
+            # This action is triggered by either the DMPRoadmapPush or DockerPush actions. This
+            # action uses the DMPRoadmapPush commit hash to the latest DockerPush zip to build
+            # the Docker image
+            - Name: 'DmpHubEcsBuild'
+              RunOrder: 2
+              ActionTypeId:
+                Category: 'Build'
+                Owner: 'AWS'
+                Provider: 'CodeBuild'
+                Version: '1'
+              # RoleArn: !GetAtt IamCodeBuildRole.Arn
+              Configuration:
+                ProjectName: !Ref CodeBuildProject
+                PrimarySource: !Sub "${Subdomain}_commit"
+              InputArtifacts:
+                - Name: !Sub "${Subdomain}_commit"
+              OutputArtifacts:
+                - Name: !Sub "${Subdomain}_image"
+
+Outputs:
+  PipelineRoleId:
+    Value: !Ref IamPipelineRole
+  PipelineRoleArn:
+    Value: !GetAtt IamPipelineRole.Arn
+
+  CodeBuildRoleId:
+    Value: !Ref IamCodeBuildRole
+  CodeBuildRoleArn:
+    Value: !GetAtt IamCodeBuildRole.Arn
+
+  CodeBuildProjectName:
+    Value: !Ref CodeBuildProject
+  CodeBuildProjectArn:
+    Value: !GetAtt CodeBuildProject.Arn
+
+  PipelineId:
+    Value: !Ref Pipeline
+  PipelineVersion:
+    Value: !GetAtt Pipeline.Version

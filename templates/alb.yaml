@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Transform: AWS::Serverless-2016-10-31
+Transform: 'AWS::Serverless-2016-10-31'
 
 Description: 'Application load balancer for Fargate'
 
@@ -10,49 +10,19 @@ Parameters:
     Type: 'List<AWS::EC2::Subnet::Id>'
 
   Subdomain:
-    Type: String
+    Type: 'String'
   Env:
-    Type: String
+    Type: 'String'
     Default: 'dev'
+
+  CertificateArn:
+    Type: 'String'
+  WafArn:
+    Type: 'String'
 
 Resources:
   # -----------------------------------------------------------
-  # EC2 Security Groups for ECS containers (see their definitions in application.yaml)
-  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-security-group.html
-  # -----------------------------------------------------------
-  AlbSecurityGroup:
-    Type: 'AWS::EC2::SecurityGroup'
-    Properties:
-      GroupDescription: !Sub 'Fargate security group for ${Subdomain}-${Env}'
-      GroupName: !Sub '${Subdomain}-alb-sec'
-      VpcId: !Ref VpcId
-
-  # Allow HTTP traffic to the ALB
-  AlbSecurityGroupIngress:
-    Type: 'AWS::EC2::SecurityGroupIngress'
-    DependsOn:
-      - AlbSecurityGroup
-    Properties:
-      IpProtocol: 'tcp'
-      FromPort: 80
-      ToPort: 80
-      CidrIp: 0.0.0.0/0
-      GroupId: !GetAtt AlbSecurityGroup.GroupId
-
-  # Allow HTTPS traffic to the ALB
-  AlbSecurityGroupIngress:
-    Type: 'AWS::EC2::SecurityGroupIngress'
-    DependsOn:
-      - AlbSecurityGroup
-    Properties:
-      IpProtocol: 'tcp'
-      FromPort: 443
-      ToPort: 443
-      CidrIp: 0.0.0.0/0
-      GroupId: !GetAtt AlbSecurityGroup.GroupId
-
-  # -----------------------------------------------------------
-  # Elastic Load Balancer (ELB) - Handles which container receives traffic
+  # Elastic Load Balancer (ELB) Target Group
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_ElasticLoadBalancingV2.html
   # -----------------------------------------------------------
   AlbTargetGroup:
@@ -79,6 +49,10 @@ Resources:
           Value: 900 # 15 minutes
       TargetType: 'ip'
 
+  # -----------------------------------------------------------
+  # Elastic Load Balancer (ELB)
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-elasticloadbalancingv2-loadbalancer.html
+  # -----------------------------------------------------------
   Alb:
     Type: 'AWS::ElasticLoadBalancingV2::LoadBalancer'
     Properties:
@@ -87,6 +61,73 @@ Resources:
       SecurityGroups:
         - !GetAtt AlbSecurityGroup.GroupId
       Subnets: !Ref Subnets
+
+  # -----------------------------------------------------------
+  # EC2 ALB Listeners
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-elasticloadbalancingv2-listener.html
+  # -----------------------------------------------------------
+   # Listener that redirects all HTTP traffic to HTTPS
+  AlbListenerHttp:
+    Type: 'AWS::ElasticLoadBalancingV2::Listener'
+    Properties:
+      LoadBalancerArn: !Ref Alb
+      DefaultActions:
+        - Type: 'redirect'
+          RedirectConfig:
+            Protocol: 'HTTPS'
+            Port: 443
+            Host: '#{host}'
+            Path: '/#{path}'
+            Query: '#{query}'
+            StatusCode: 'HTTP_301'
+      Protocol: 'HTTP'
+      Port: 80
+
+  # HTTPS Listener for HTTPS that sends traffic to the ALB target (ECS) over HTTP
+  AlbListenerHttps:
+    Type: 'AWS::ElasticLoadBalancingV2::Listener'
+    Properties:
+      LoadBalancerArn: !Ref Alb
+      DefaultActions:
+        - Type: 'forward'
+          TargetGroupArn: !Ref AlbTargetGroup
+      Protocol: 'HTTPS'
+      Port: 443
+      Certificates:
+        - CertificateArn: !Ref CertificateArn
+
+  # -----------------------------------------------------------
+  # EC2 Security Groups for ECS containers
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-security-group.html
+  # -----------------------------------------------------------
+  AlbSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: !Sub 'Fargate security group for ${Subdomain}-${Env}'
+      GroupName: !Sub '${Subdomain}-alb-sec'
+      VpcId: !Ref VpcId
+
+  # The ALB will terminate the SSL, so only accept 443 here
+  AlbSecurityGroupIngressHttps:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    DependsOn:
+      - AlbSecurityGroup
+    Properties:
+      IpProtocol: 'tcp'
+      FromPort: 443
+      ToPort: 443
+      CidrIp: '0.0.0.0/0'
+      GroupId: !GetAtt AlbSecurityGroup.GroupId
+
+  # -----------------------------------------------------------
+  # Elastic Load Balancer (ELB) - Web Application Firewall (WAF) association
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-wafv2-webaclassociation.html
+  # -----------------------------------------------------------
+  WafAlbAssociation:
+    Type: 'AWS::WAFv2::WebACLAssociation'
+    Properties:
+      WebACLArn: !Ref WafArn
+      ResourceArn: !Ref Alb
 
 Outputs:
   AlbTargetGroupArn:

@@ -12,6 +12,7 @@ parameters:
     - !stack_output_external cdl-uc3-dev-privatesubnet-stack::privatesubnet2a
     - !stack_output_external cdl-uc3-dev-privatesubnet-stack::privatesubnet2b
     - !stack_output_external cdl-uc3-dev-privatesubnet-stack::privatesubnet2c
+  CidrBlock: !ssm_parameter /uc3/CidrBlock
 
   Subdomain: !stack_attr sceptre_user_data.subdomain
   Env: !stack_attr sceptre_user_data.env
@@ -29,5 +30,9 @@ parameters:
   #   See: at: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-rds-database-instance.html#cfn-rds-dbinstance-allocatedstorage
   RdsSizeGB: '20'
   RdsName: 'dmphub'
-  RdsEngine: 'MySQL'
-  RdsEngineVersion: '8.0.30'
+  RdsEngine: 'postgres'
+  RdsEngineVersion: '13.7'
+  RdsPort: '5432'
+  RdsUsername: !ssm_parameter /uc3/dmp/hub/dev/RdsUsername
+  # RdsPassword: !password_generator 12
+  RdsPassword: !ssm_parameter /uc3/dmp/hub/dev/RdsPassword

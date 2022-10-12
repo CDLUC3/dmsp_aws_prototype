@@ -10,6 +10,8 @@ Parameters:
     Type: 'List<AWS::EC2::Subnet::Id>'
   PublicSubnets:
     Type: 'List<AWS::EC2::Subnet::Id>'
+  CidrBlock:
+    Type: 'String'
 
   Subdomain:
     Type: 'String'
@@ -19,27 +21,34 @@ Parameters:
     Type: 'String'
 
   EcrLifecyclePolicyTagPrefix:
-    Type: String
+    Type: 'String'
     Default: 'latest'
 
   RdsSnapshot:
-    Type: String
+    Type: 'String'
     Default: 'none'
 
   RdsInstanceType:
-    Type: String
+    Type: 'String'
     Default: 'db.t3.small'
   RdsSizeGB:
-    Type: Number
+    Type: 'Number'
     Default: 20
   RdsEngine:
-    Type: String
+    Type: 'String'
     Default: 'MySQL'
   RdsEngineVersion:
-    Type: String
+    Type: 'String'
     Default: '8.0.30'
-  RdsName:
+  RdsPort:
     Type: String
+    Default: '3306'
+  RdsUsername:
+    Type: 'String'
+  RdsPassword:
+    Type: 'String'
+  RdsName:
+    Type: 'String'
 
 Conditions:
   InitializeRds:
@@ -356,6 +365,7 @@ Resources:
     DependsOn:
       - RdsSubnetGroupPrivate
       - RdsSecurityGroup
+      # - RdsPasswordParameter
     Properties:
       VPCSecurityGroups:
         - !Ref RdsSecurityGroup
@@ -373,15 +383,15 @@ Resources:
       BackupRetentionPeriod: 7 # days
       CopyTagsToSnapshot: true
       AllocatedStorage: !Ref RdsSizeGB
-      Port: '3306'
+      Port: !Ref RdsPort
       Engine: !Ref RdsEngine
       EngineVersion: !Ref RdsEngineVersion
       MonitoringInterval: '60'
       MonitoringRoleArn: !GetAtt RdsMonitoringRole.Arn
       DBName: !Ref RdsName
       DBInstanceClass: !Ref RdsInstanceType
-      MasterUsername: !Sub '{{resolve:ssm:/uc3/dmp/hub/${Env}/RdsUsername}}'
-      MasterUserPassword: !Sub '{{resolve:ssm:/uc3/dmp/hub/${Env}/RdsPassword}}'
+      MasterUsername: !Ref RdsUsername
+      MasterUserPassword: !Ref RdsPassword
 
 Outputs:
   DynamoTableName:
