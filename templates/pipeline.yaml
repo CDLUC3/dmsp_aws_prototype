@@ -13,9 +13,16 @@ Parameters:
     Type: 'String'
   Subdomain:
     Type: 'String'
-  Environment:
+  Env:
     Type: 'String'
     Default: 'dev'
+
+  Program:
+    Type: 'String'
+  Service:
+    Type: 'String'
+  Subservice:
+    Type: 'String'
 
   CodeStarConnectionArn:
     Type: 'String'
@@ -105,6 +112,7 @@ Resources:
         - 'arn:aws:iam::aws:policy/AWSCodePipelineFullAccess'
         - 'arn:aws:iam::aws:policy/AmazonS3FullAccess'
         - 'arn:aws:iam::aws:policy/AWSCodeBuildDeveloperAccess'
+        - 'arn:aws:iam::aws:policy/AmazonECS_FullAccess'
         - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
 
   IamCodeBuildRole:
@@ -182,10 +190,18 @@ Resources:
     Properties:
       GroupName: !Sub '${Subdomain}-build-sec'
       GroupDescription: !Sub '${Subdomain} CodeBuild SecurityGroup'
-      VpcId: !Ref VpcID
+      VpcId: !Ref VpcId
       Tags:
         - Key: 'ConfigExclude'
           Value: 'Security-group-attached-to-ENI'
+        - Key: 'Program'
+          Value: !Ref Program
+        - Key: 'Service'
+          Value: !Ref Service
+        - Key: 'Subservice'
+          Value: !Ref Subservice
+        - Key: 'Environment'
+          Value: !Ref Env
 
   CodeBuildProject:
     Type: 'AWS::CodeBuild::Project'
@@ -219,7 +235,7 @@ Resources:
           - Name: 'RAILS_APP_NAME'
             Value: !Ref Subdomain
           - Name: 'RAILS_HOST'
-            Value: !Sub "${Subdomain}.${Domain}"
+            Value: !Sub "${Subdomain}.${DomainName}"
           - Name: 'RAILS_PORT'
             Value: !Ref RailsPort
 
@@ -250,7 +266,7 @@ Resources:
           - !Ref CodeBuildSecurityGroup
       Cache:
         Type: 'S3'
-        Location: !Sub '${S3ArtifactBucket}/build-cache'
+        Location: !Sub '${S3ArtifactBucketId}/build-cache'
 
   # -----------------------------------------------------------
   # CodePipeline
@@ -262,7 +278,7 @@ Resources:
       - IamPipelineRole
     Properties:
       ArtifactStore:
-        Location: !Ref S3ArtifactBucket
+        Location: !Ref S3ArtifactBucketId
         # CloudFormation only supports S3 at the moment!
         Type: 'S3'
       RestartExecutionOnUpdate: true
@@ -308,6 +324,23 @@ Resources:
               InputArtifacts:
                 - Name: !Sub "${Subdomain}_commit"
               OutputArtifacts:
+                - Name: !Sub "${Subdomain}_image"
+
+        - Name: 'EcsDeploy'
+          Actions:
+            - Name: 'DMpHubEcsDeploy'
+              RunOrder: 3
+              ActionTypeId:
+                Category: 'Deploy'
+                Owner: 'AWS'
+                Provider: 'ECS'
+                Version: '1'
+              Configuration:
+                ClusterName: !Ref EcsClusterName
+                ServiceName: !Ref EcsServiceName
+                FileName: 'imagedefinitions.json'
+                DeploymentTimeout: '15'
+              InputArtifacts:
                 - Name: !Sub "${Subdomain}_image"
 
 Outputs:

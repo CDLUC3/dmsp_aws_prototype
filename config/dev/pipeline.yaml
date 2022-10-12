@@ -11,12 +11,19 @@ parameters:
 
   DomainName: !stack_attr sceptre_user_data.domain
   Subdomain: !stack_attr sceptre_user_data.subdomain
-  Environment: !stack_attr sceptre_user_data.env
+  Env: !stack_attr sceptre_user_data.env
+
+  # We need to add a special tag to the CodeBuild SecGroup so that it does not
+  # generate an alarm after the EC2 instance used by CodeBuild is removed.
+  # So, we need to pass in our normal tags here so that the SecGroup will have all of them
+  Program: !stack_attr stack_tags.Program
+  Service: !stack_attr stack_tags.Service
+  Subservice: !stack_attr stack_tags.Subservice
 
   CodeStarConnectionArn: !ssm_parameter /uc3/CodeStarConnectionArn
 
-  ECSClusterName: !stack_output dev/fargate.yaml::EcsFargateClusterId
-  ECSServiceName: !stack_output dev/fargate.yaml::EcsServiceName
+  EcsClusterName: !stack_output dev/fargate.yaml::EcsFargateClusterId
+  EcsServiceName: !stack_output dev/fargate.yaml::EcsServiceName
 
   EcrRepositoryUri: !stack_output dev/data.yaml::EcrRepositoryUri
   EcrRepositoryName: !stack_output dev/data.yaml::EcrRepositoryName
@@ -25,7 +32,7 @@ parameters:
   LogGroupArn: !stack_output dev/logs.yaml::LogGroupArn
 
   S3ArtifactBucketId: !stack_output dev/data.yaml::S3BucketId
-  S3LogBucketId: !stack_output dev/logs.yaml::S3LogBucket
+  S3LogBucketId: !stack_output dev/logs.yaml::S3LogBucketId
 
   # The branches to monitor for changes.
   BranchToMonitor: 'main'
