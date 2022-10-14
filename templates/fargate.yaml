@@ -62,6 +62,9 @@ Parameters:
   RdsPassword:
     Type: 'String'
 
+  ApiBaseUrl:
+    Type: 'String'
+
 Resources:
   # -----------------------------------------------------------
   # Identitity and Access Management (IAM)
@@ -224,6 +227,10 @@ Resources:
             - Name: 'DB_PASSWORD'
               Value: !Ref RdsPassword
 
+            - Name: 'API_BASE_URL'
+              Value: !Ref ApiBaseUrl
+              # Value: !Sub "${Subdomain}.${Domain}/api/v0"
+
   # Container Service definition
   EcsService:
     Type: 'AWS::ECS::Service'
@@ -247,6 +254,10 @@ Resources:
             - !Ref RdsSecurityGroupId
           AssignPublicIp: 'ENABLED'
           Subnets: !Ref Subnets
+      DeploymentConfiguration:
+        DeploymentCircuitBreaker:
+          Enable: true
+          Rollback: true
       PlatformVersion: 'LATEST'
       PropagateTags: 'TASK_DEFINITION'
       SchedulingStrategy: 'REPLICA'

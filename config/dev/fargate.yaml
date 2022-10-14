@@ -36,6 +36,9 @@ parameters:
   RdsUsername: !ssm_parameter '/uc3/dmp/hub/dev/RdsUsername'
   RdsPassword: !ssm_parameter '/uc3/dmp/hub/dev/RdsPassword'
 
+  # ApiBaseUrl: !stack_output_external uc3-dmp-hub-dev-lambdas::ApiBaseUrl
+  ApiBaseUrl: 'https://64rihsjsk4.execute-api.us-west-2.amazonaws.com/v0/'
+
   # If you have an existing RDS snapshot of your DB, you can include it here and CF will
   # restore that snapshot. If not, just leave this commented out and Docker will initialize the DB
   # RdsSnapshot: 'ARN of my DBSnapshotIdentifier'
