@@ -28,6 +28,7 @@ Resources:
   # ----------------------------------------------
   S3LogBucket:
     Type: 'AWS::S3::Bucket'
+    DeletionPolicy: Delete
     Properties:
       PublicAccessBlockConfiguration:
         IgnorePublicAcls: true

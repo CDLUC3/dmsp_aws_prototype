@@ -279,6 +279,7 @@ Resources:
   # -----------------------------------------------------------
   ECRRepository:
     Type: 'AWS::ECR::Repository'
+    DeletionPolicy: Retain
     Properties:
       RepositoryName: !Sub '${Subdomain}-${Env}-ecr'
       ImageScanningConfiguration:
@@ -362,6 +363,7 @@ Resources:
 
   RdsDatabase:
     Type: 'AWS::RDS::DBInstance'
+    DeletionPolicy: Snapshot
     DependsOn:
       - RdsSubnetGroupPrivate
       - RdsSecurityGroup

@@ -5,7 +5,7 @@
      \__,_|/_/    \_| '__/|_| |_|_____|_'__/     |_| |_|
  -------------------|-|-------------------------------------
 
-This repository manages the infrastructure of the DMPHub 2.0 in the AWS environment
+This repository manages the infrastructure for the DMPHub metadata repository
 
 <img src="architecture-v4.png?raw=true">
 
