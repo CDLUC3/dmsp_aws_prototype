@@ -1,0 +1,40 @@
+# GraphQL Schema
+schema {
+  query: Query
+  mutation: Mutation
+}
+
+# Queries
+type Query {
+  getDmp(id: ID!): Dmp
+}
+
+# Mutations
+type Mutation {
+  dmp(title: String!, contact: Contact!, created: DateTime!, updated: DateTime!,
+      ethical_issues_exist: YesNoUknown = unknown, description: String)
+}
+
+# Types
+type Dmp {
+  id: ID!
+  title: String!
+  description: String
+  created: DateTime!
+  updated: DateTime!
+  ethical_issues_exist: YesNoUnknown!
+  contact: Contact!
+}
+
+type Contact {
+  id: ID!
+  name: String!
+  email: String!
+}
+
+# Enums
+enum YesNoUnknown {
+  yes
+  no
+  unknown
+}

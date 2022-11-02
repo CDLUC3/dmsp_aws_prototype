@@ -1,0 +1,154 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+
+Description: 'Lambda functions to support the GraphQL API'
+
+Parameters:
+  Domain:
+    Type: 'String'
+  Subdomain:
+    Type: 'String'
+  Env:
+    Type: 'String'
+    Default: 'dev'
+
+  DynamoTableArn:
+    Type: 'String'
+
+  S3BucketUri:
+    Type: 'String'
+  S3BucketArn:
+    Type: 'String'
+
+Resources:
+  # -----------------------------------------------------------
+  # IAM Roles
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_IAM.html
+  # -----------------------------------------------------------
+  LambdaRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service: 'lambda.amazonaws.com'
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+      Policies:
+        - PolicyName: !Sub "${Subdomain}-${Env}-LambdaDynamoPolicy"
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              Effect: 'Allow'
+              Action:
+                - 'dynamodb:GetItem'
+                - 'dynamodb:DeleteItem'
+                - 'dynamodb:PutItem'
+                - 'dynamodb:UpdateItem'
+                - 'dynamodb:BatchWriteItem'
+                - 'dynamodb:PartiQLDelete'
+                - 'dynamodb:PartiQLInsert'
+                - 'dynamodb:PartiQLUpdate'
+                - 'dynamodb:BatchGetItem'
+                - 'dynamodb:Describe*'
+                - 'dynamodb:List*'
+                - 'dynamodb:GetItem'
+                - 'dynamodb:Query'
+                - 'dynamodb:PartiQLSelect'
+              Resource:
+                - !Ref DynamoTableArn
+                - !Sub '${DynamoTableArn}/index/*'
+        - PolicyName: !Sub "${Subdomain}-${Env}-LambdaS3Policy"
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              Effect: 'Allow'
+              Action:
+                - 's3:Get*'
+                - 's3:List*'
+                - 's3-object-lambda:Get*'
+                - 's3-object-lambda:List*'
+                - 's3:PutObject'
+                - 's3:DeleteObject'
+                - 's3-object-lambda:PutObject'
+                - 's3-object-lambda:DeleteObject'
+              Resource: !Ref S3BucketArn
+
+  # -----------------------------------------------------------
+  # Lambda Layer
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-lambda-layerversion.html
+  # -----------------------------------------------------------
+  # LambdaLayer:
+  #   Type: 'AWS::Lambda::LayerVersion'
+  #   Properties:
+  #     Description: 'Shared dependencies for the GraphQL API Lambdas'
+  #     Content:
+  #       S3Bucket: !Ref S3BucketUri
+  #       S3Key: layer.zip
+  #     CompatibleRuntimes:
+  #       - ruby2.7
+
+  # -----------------------------------------------------------
+  # Lambda Functions
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-lambda-function.html
+  # -----------------------------------------------------------
+  GetDmpLambdaFunction:
+    Type: 'AWS::Lambda::Function'
+    DependsOn:
+      - LambdaRole
+      # - LambdaLayer
+    Properties:
+      Code:
+        S3Bucket: !Ref S3BucketUri
+        S3Key: 'graphql_api/get_dmp.zip'
+      Description: !Sub "$(Subdomain}-${Env} Lambda Function to fetch a single DMP"
+      Handler: 'handler.Functions::GetDmp.process'
+      # TODO: Setup our Lambda Layer and hook it in here
+      # Layers:
+      #   - !Ref LambdaLayer
+      MemorySize: 128
+      PackageType: 'Zip'
+      Role: !GetAtt LambdaRole.Arn
+      Runtime: 'ruby2.7'
+      Timeout: 5 # seconds
+      TracingConfig:
+        Mode: 'Active'
+
+  AddDmpLambdaFunction:
+    Type: 'AWS::Lambda::Function'
+    DependsOn:
+      - LambdaRole
+      # - LambdaLayer
+    Properties:
+      Code:
+        S3Bucket: !Ref S3BucketUri
+        S3Key: 'graphql_api/add_dmp.zip'
+      Description: !Sub "$(Subdomain}-${Env} Lambda Function to create a new DMP"
+      Handler: 'handler.Functions::AddDmp.process'
+      # TODO: Setup our Lambda Layer and hook it in here
+      # Layers:
+      #   - !Ref LambdaLayer
+      MemorySize: 128
+      PackageType: 'Zip'
+      Role: !GetAtt LambdaRole.Arn
+      Runtime: 'ruby2.7'
+      Timeout: 5 # seconds
+      TracingConfig:
+        Mode: 'Active'
+
+Outputs:
+  # LambdaLayerId:
+  #   Value: !Ref LambdaLayer
+
+  GetDmpLambdaFunctionId:
+    Value: !Ref GetDmpLambdaFunction
+  GetDmpLambdaFunctionArn:
+    Value: !GetAtt GetDmpLambdaFunction.Arn
+  AddDmpLambdaFunctionId:
+    Value: !Ref AddDmpLambdaFunction
+  AddDmpLambdaFunctionArn:
+    Value: !GetAtt AddDmpLambdaFunction.Arn

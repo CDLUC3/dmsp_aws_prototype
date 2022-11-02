@@ -1,0 +1,13 @@
+template:
+  path: appsync.yaml
+  type: file
+
+parameters:
+  Env: !stack_attr sceptre_user_data.env
+  Domain: !stack_attr sceptre_user_data.domain
+  Subdomain: !stack_attr sceptre_user_data.subdomain
+
+  DynamoTableArn: !stack_output dev/data.yaml::DynamoTableArn
+
+  S3BucketUri: !stack_output dev/data.yaml::S3BucketUri
+  S3BucketArn: !stack_output dev/data.yaml::S3BucketArn

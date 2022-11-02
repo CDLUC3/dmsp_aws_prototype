@@ -1,0 +1,287 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+
+Description: 'App Sync GraphQL API'
+
+Parameters:
+  Domain:
+    Type: 'String'
+  Subdomain:
+    Type: 'String'
+  Env:
+    Type: 'String'
+    Default: 'dev'
+
+  LogRetentionDays:
+    Type: 'Number'
+    Default: 7
+
+  CertificateArn:
+    Type: 'String'
+  CognitoUserPoolId:
+    Type: 'String'
+
+  GetDmpLambdaArn:
+    Type: 'String'
+
+  S3BucketUri:
+    Type: 'String'
+
+Resources:
+  # -----------------------------------------------------------------------
+  # CloudWatch Logs
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_Logs.html
+  # -----------------------------------------------------------------------
+  LogGroup:
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      RetentionInDays: !Ref LogRetentionDays
+
+  # -----------------------------------------------------------------------
+  # IAM Role
+   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_IAM.html
+  # -----------------------------------------------------------------------
+  LambdaDataSourceRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service:
+                - 'ecs-tasks.amazonaws.com'
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AWSAppSyncInvokeFullAccess'
+        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaRole'
+
+  # -----------------------------------------------------------------------
+  # AppSync GraphQL API
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-appsync-graphqlapi.html
+  # -----------------------------------------------------------------------
+  GraphQlApi:
+    Type: 'AWS::AppSync::GraphQLApi'
+    Properties:
+      Name: !Sub "${Subdomain}-${Env}-graphql-api"
+      AuthenticationType: 'AMAZON_COGNITO_USER_POOLS'
+      LogConfig:
+        CloudWatchLogsRoleArn: !GetAtt LogGroup.Arn
+        ExcludeVerboseContent: false
+        FieldLogLevel: 'ALL'
+      # Name: !Sub "${Subdomain}-${Env}-graphql-api"
+      UserPoolConfig:
+        UserPoolId: !Ref CognitoUserPoolId
+        AwsRegion: !Ref AWS::Region
+      XrayEnabled: true
+
+  # -----------------------------------------------------------------------
+  # GraphQL Schema
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-appsync-graphqlschema.html
+  # -----------------------------------------------------------------------
+  GraphQlSchema:
+    Type: 'AWS::AppSync::GraphQLSchema'
+    DependsOn:
+      - GraphQlApi
+    Properties:
+      ApiId: !GetAtt GraphQlApi.ApiId
+      DefinitionS3Location: !Sub "${S3BucketUri}/graphql_api/schema.graphql"
+
+  # -----------------------------------------------------------------------
+  # AppSync DataSources (Lambdas)
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-appsync-datasource.html
+  # -----------------------------------------------------------------------
+  GetDmpGraphQlDataSource:
+    Type: 'AWS::AppSync::DataSource'
+    DependsOn:
+      - GraphQlApi
+    Properties:
+      ApiId: !GetAtt GraphQlApi.ApiId
+      Description: !Sub "${Subdomain}-${Env} GraphQL datasource for the GetDmp Lambda"
+      LambdaConfig:
+        LambdaFunctionArn: !Ref GetDmpLambdaArn
+      ServiceRoleArn: !GetAtt LambdaDataSourceRole.Arn
+      Type: 'AWS_LAMBDA'
+
+  AddDmpGraphQlDataSource:
+    Type: 'AWS::AppSync::DataSource'
+    DependsOn:
+      - GraphQlApi
+    Properties:
+      ApiId: !GetAtt GraphQlApi.ApiId
+      Description: !Sub "${Subdomain}-${Env} GraphQL datasource for the AddDmp Lambda"
+      LambdaConfig:
+        LambdaFunctionArn: !Ref AddDmpLambdaArn
+      ServiceRoleArn: !GetAtt LambdaDataSourceRole.Arn
+      Type: 'AWS_LAMBDA'
+
+  # -----------------------------------------------------------------------
+  # AppSync Function Config
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-appsync-functionconfiguration.html
+  #
+  # TODO: Investigate adding a pipeline resolver that does an AuthZ check
+  #   See https://docs.aws.amazon.com/appsync/latest/devguide/pipeline-resolvers.html
+  # -----------------------------------------------------------------------
+
+  GetDmpAppSyncResolver:
+    Type: 'AWS::AppSync::Resolver'
+    DependsOn:
+      - GraphSqlApi
+      - GetDmpGraphQlDataSource
+    Properties:
+      ApiId: !GetAtt GraphQlApi.ApiId
+      CachingConfig:
+        CachingKeys: '$context.arguments'
+        Ttl: 60 # seconds
+      DataSourceName: !GetAtt GetDmpGraphQlDataSource.Name
+      TypeName: 'Query'
+      FieldName: 'getDmp'
+      MaxBatchSize: 5
+      Kind: 'UNIT' # TODO: Swicth to 'PIPELINE' when we want to query DMPHub and DMPTool
+      # PipelineConfig:
+      RequestMappingTemplate: !Sub >
+        {
+          "version": "2018-05-29",
+            "operation": "Invoke",
+            "payload": {
+                "field": "getDmp",
+                "arguments": $util.toJson($context.arguments)
+            }
+        }
+      ResponseMappingTemplate: '$util.toJson($context.result.items)'
+
+  AddDmpAppSyncResolver:
+    Type: 'AWS::AppSync::Resolver'
+    DependsOn:
+      - GraphSqlApi
+      - AddDmpGraphQlDataSource
+    Properties:
+      ApiId: !GetAtt GraphQlApi.ApiId
+      DataSourceName: !GetAtt AddDmpGraphQlDataSource.Name
+      TypeName: 'Mutation'
+      FieldName: 'addDmp'
+      MaxBatchSize: 5
+      Kind: 'UNIT' # TODO: Swicth to 'PIPELINE' when we want to query DMPHub and DMPTool
+      # PipelineConfig:
+      RequestMappingTemplate: !Sub >
+        {
+          "version" : "2017-02-28",
+          "operation" : "Invoke",
+          "payload": {
+              "field": "addDmp",
+              "arguments": $util.toJson($context.arguments)
+          }
+        }
+
+  # Request resolver
+        {
+            "version": "2018-05-29",
+            "operation": "Invoke",
+            "payload": {
+                "field": "getDmp",
+                "arguments": $util.toJson($context.arguments)
+            }
+        }
+
+  # Results in a Lambda Request like this:
+  #   {
+  #       "version": "2018-05-29",
+  #       "operation": "Invoke",
+  #       "payload": {
+  #           "field": "getDmp",
+  #           "arguments": {
+  #               "id": "10.12345/10.ABCD1234"
+  #           }
+  #       }
+  #   }
+
+  # Response resolver (default) ... we need to do more to transform the RDA JSON into GraphQL
+    #if( $context.result && $context.result.errorMessage )
+      $utils.error($context.result.errorMessage, $context.result.errorType, $context.result.data)
+    #else
+      $utils.toJson($context.result.data)
+    #end
+
+  # Expecting the Lambda to return
+  #   {
+  #     "data" : { ... }, // your data
+  #     "errorMessage" : { ... }, // optional, if included an error entry is added to the "errors" object in the AppSync response
+  #     "errorType" : { ... } // optional, the error type
+  #   }
+
+
+
+  # GraphQlDomainName:
+  #   Type: 'AWS::AppSync::DomainName'
+  #   Properties:
+  #     CertificateArn: !Ref CertificateArn
+  #     Description: !Sub "${Subdomain}-${Env} GraphQL API"
+  #     DomainName: !Sub "${Subdomain}.${Domain}"
+
+  # GraphQlDomainApiAssoc:
+  #   Type: 'AWS::AppSync::DomainNameApiAssociation'
+  #   DependsOn:
+  #     - GraphQlApi
+  #     - GraphQlDomainName
+  #   Properties:
+  #     ApiId: !GetAtt GraphQlApi.ApiId
+  #     DomainName: !Ref GraphQlDomainName
+
+  # -----------------------------------------------------------------------
+  # GraphQL Api Cache
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-appsync-apicache.html
+  # -----------------------------------------------------------------------
+  GraphQlApiCache:
+    Type: 'AWS::AppSync::ApiCache'
+    DependsOn:
+      - GraphQlApi
+    Properties:
+      ApiCachingBehavior: 'FULL_REQUEST_CACHING'
+      ApiId: !GetAtt GraphQlApi.ApiId
+      AtRestEncryptionEnabled: true
+      TransitEncryptionEnabled: true
+      Ttl: 300 # 5 minutes
+      Type: 'SMALL'
+
+Outputs:
+  LogGroupId:
+    Value: !Ref LogGroup
+  LogGroupArn:
+    Value: !GetAtt LogGroup.Arn
+
+  GraphQlApiArn:
+    Value: !Ref GraphQlApi
+  GraphQlApiId:
+    Value: !GetAtt GraphQlApi.ApiId
+  GraphQlApiUrl:
+    Value: !GetAtt GraphQlApi.GraphQLUrl
+
+  GetDmpGraphQlDataSourceArn:
+    Value: !Ref GetDmpGraphQlDataSource
+  GetDmpGraphQlDataSourceName:
+    Value: !GetAtt GetDmpGraphQlDataSource.Name
+  AddDmpGraphQlDataSourceArn:
+    Value: !Ref AddDmpGraphQlDataSource
+  AddDmpGraphQlDataSourceName:
+    Value: !GetAtt AddDmpGraphQlDataSource.Name
+
+  GetDmpAppSyncResolverArn:
+    Value: !Ref GetDmpAppSyncResolver
+  GetDmpAppSyncResolverTypeName:
+    Value: !GetAtt GetDmpAppSyncResolver.TypeName
+  AddDmpAppSyncResolverFieldName:
+    Value: !GetAtt GetDmpAppSyncResolver.FieldName
+  AddDmpAppSyncResolverArn:
+    Value: !Ref AddDmpAppSyncResolver
+  AddDmpAppSyncResolverTypeName:
+    Value: !GetAtt AddDmpAppSyncResolver.TypeName
+  AddDmpAppSyncResolverFieldName:
+    Value: !GetAtt AddDmpAppSyncResolver.FieldName
+
+  # DomainName:
+  #   Value: !Ref GraphQlDomainName
+  # AppSyncDomainName:
+  #   Value: !GetAtt GraphQlDomainName.AppSyncDomainName
+  # HostedZoneId:
+  #   Value: !GetAtt GraphQlDomainName.HostedZoneId
