@@ -31,7 +31,7 @@ parameters:
   LogGroupId: !stack_output dev/logs.yaml::LogGroupId
   LogGroupArn: !stack_output dev/logs.yaml::LogGroupArn
 
-  S3ArtifactBucketId: !stack_output dev/data.yaml::S3BucketId
+  S3ArtifactBucketId: !stack_attr template_bucket_name
   S3LogBucketId: !stack_output dev/logs.yaml::S3LogBucketId
 
   # The branches to monitor for changes.

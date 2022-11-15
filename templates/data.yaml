@@ -20,6 +20,9 @@ Parameters:
   SsmPath:
     Type: 'String'
 
+  LogBucket:
+    Type: 'String'
+
   EcrLifecyclePolicyTagPrefix:
     Type: 'String'
     Default: 'latest'
@@ -95,15 +98,6 @@ Resources:
         # DMPHub attribute that stores the id of the provenance user/system
         - AttributeName: 'dmphub_provenance_id'
           AttributeType: 'S'
-        # DMPHub attribute that stores all affiliation/funder/sponsor RORs and Fundrefs
-        - AttributeName: 'dmphub_affiliation_ids'
-          AttributeType: 'S'
-        # DMPHub attribute that stores all related identifiers and grant ids
-        - AttributeName: 'dmphub_related_identifier_ids'
-          AttributeType: 'S'
-        # DMPHub attribute that stores all contributor/contact emails and ORCIDs
-        - AttributeName: 'dmphub_contributor_ids'
-          AttributeType: 'S'
 
       GlobalSecondaryIndexes:
         # An index to help us quickly fetch all of the DMPs for a specific date range
@@ -146,55 +140,8 @@ Resources:
             - AttributeName: 'PK'
               KeyType: 'RANGE'
           Projection:
-            ProjectionType: 'KEYS_ONLY'
-          ContributorInsightsSpecification:
-            Enabled: true
-          ProvisionedThroughput:
-            ReadCapacityUnits: 5
-            WriteCapacityUnits: 5
-
-        # An index to help us quickly fetch all of the DMPs for a specific ROR/Fundref
-        - IndexName: 'affiliation_ids_gsi'
-          KeySchema:
-            - AttributeName: 'dmphub_affiliation_ids'
-              KeyType: 'HASH'
-            - AttributeName: 'PK'
-              KeyType: 'RANGE'
-          Projection:
             ProjectionType: 'INCLUDE'
-            NonKeyAttributes: ['title', 'contact', 'project', 'dmphub_contributor_ids']
-          ContributorInsightsSpecification:
-            Enabled: true
-          ProvisionedThroughput:
-            ReadCapacityUnits: 5
-            WriteCapacityUnits: 5
-
-        # An index to help us quickly fetch all of the DMPs for a specific contributor email/ORCID
-        - IndexName: 'contributor_ids_gsi'
-          KeySchema:
-            - AttributeName: 'dmphub_contributor_ids'
-              KeyType: 'HASH'
-            - AttributeName: 'PK'
-              KeyType: 'RANGE'
-          Projection:
-            ProjectionType: 'INCLUDE'
-            NonKeyAttributes: ['title', 'contact']
-          ContributorInsightsSpecification:
-            Enabled: true
-          ProvisionedThroughput:
-            ReadCapacityUnits: 5
-            WriteCapacityUnits: 5
-
-        # An index to help us quickly fetch all of the DMPs for a specific related identifier
-        - IndexName: 'related_identifier_ids_gsi'
-          KeySchema:
-            - AttributeName: 'dmphub_related_identifier_ids'
-              KeyType: 'HASH'
-            - AttributeName: 'PK'
-              KeyType: 'RANGE'
-          Projection:
-            ProjectionType: 'INCLUDE'
-            NonKeyAttributes: ['title', 'contact']
+            NonKeyAttributes: ['title', 'contact', 'modified']
           ContributorInsightsSpecification:
             Enabled: true
           ProvisionedThroughput:
@@ -241,14 +188,16 @@ Resources:
     Type: 'AWS::S3::Bucket'
     DeletionPolicy: Retain
     Properties:
-      PublicAccessBlockConfiguration:
-        RestrictPublicBuckets: false
+      AccessControl: 'PublicRead'
+      LoggingConfiguration:
+        DestinationBucketName: !Ref LogBucket
+        LogFilePrefix: 's3-access'
 
   # Add the Bucket URI to SSM so that our Lambdas can access it
   S3BucketParameter:
     Type: 'AWS::SSM::Parameter'
     Properties:
-      Description: !Sub "${Subdomain}-${Env} S3Bucket"
+      Description: !Sub "${Subdomain}-${Env} S3 Public Bucket ID"
       Name: !Sub "${SsmPath}S3BucketUri"
       # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
       Type: 'String'
@@ -257,7 +206,7 @@ Resources:
   S3BucketUrlParameter:
     Type: 'AWS::SSM::Parameter'
     Properties:
-      Description: !Sub "${Subdomain}-${Env} S3Bucket"
+      Description: !Sub "${Subdomain}-${Env} S3 Public Bucket URL"
       Name: !Sub "${SsmPath}S3BucketUrl"
       # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
       Type: 'String'
@@ -267,7 +216,7 @@ Resources:
   S3BucketArnParameter:
     Type: 'AWS::SSM::Parameter'
     Properties:
-      Description: !Sub "${Subdomain}-${Env} S3Bucket"
+      Description: !Sub "${Subdomain}-${Env} Public S3 Bucket ARN"
       Name: !Sub "${SsmPath}S3BucketArn"
       # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
       Type: 'String'
@@ -395,25 +344,17 @@ Resources:
       MasterUsername: !Ref RdsUsername
       MasterUserPassword: !Ref RdsPassword
 
+  # -----------------------------------------------------------
   # Additional SSM Parameters required by the system
-
-  # TODO: Potential deletions:
-  #         - /uc3/dmp/hub/codestar_connection
-  #         - /uc3/dmp/hub/dev/ApiBaseUrl
-  #         - /uc3/dmp/hub/dev/BaseUrl
-  #         - /uc3/dmp/hub/dev/
-  #         - /uc3/dmp/hub/dev/
-
+  # -----------------------------------------------------------
   # Places all lambdas into debug mode which means that the CloudWatch logs will become verbose
   DebugParameter:
     Type: 'AWS::SSM::Parameter'
     Properties:
       Description: !Sub "${Subdomain}-${Env} Lambda Debug on/off flag"
       Name: !Sub "${SsmPath}Debug"
-      # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
       Type: 'String'
-      Value: !Ref S3Bucket
-  !Sub "/uc3/dmp/hub/${Env}/Debug"
+      Value: 'false'
 
 Outputs:
   DynamoTableName:
@@ -423,11 +364,11 @@ Outputs:
   DynamoTableArn:
     Value: !GetAtt DynamoTable.Arn
 
-  S3BucketId:
+  S3PublicBucketId:
     Value: !Ref S3Bucket
-  S3BucketUri:
+  S3PublicBucketUri:
     Value: !Sub "s3://${S3Bucket}"
-  S3BucketArn:
+  S3PublicBucketArn:
     Value: !GetAtt S3Bucket.Arn
 
   EcrRepositoryName:

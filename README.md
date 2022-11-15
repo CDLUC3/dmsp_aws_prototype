@@ -5,7 +5,8 @@
      \__,_|/_/    \_| '__/|_| |_|_____|_'__/     |_| |_|
                     |_|
 
-This repository manages the infrastructure for the DMPHub metadata repository
+This repository manages the infrastructure for the DMPHub metadata repository.
+It works in conjunction with the [dmp-hub-sam repository](https://github.com/CDLUC3/dmp-hub-sam) which contains the source code for all lambdas as well as the infrastructure defintions for the Lambdas and API Gateway (using AWS SAM), and the [dmp-hub-ecs repository](https://github.com/CDLUC3/dmp-hub-ecs) which hosts the Rails application that is built and deployed by this repository's CodePipeline.
 
 <img src="architecture-v4.png?raw=true">
 
@@ -148,7 +149,7 @@ Sample Provenance item:
   "homepage": "https://example.com",
   "name": "Example System",
   "redirectUri": "https://example.com/callback",
-  "seeding_with_live_dmp_ids": true,
+  "seedingWithLiveDmpIds": true,
   "tokenUri": "https://example.com/oauth/token"
 }
 ```
@@ -161,7 +162,7 @@ Explanation of Provenance keys:
 - **homepage** - The landing page for the external system (displayed in the UI)
 - **name** - The name of the external system (displayed in the UI)
 - **redirectUri** - The URI that the DMPHub can use to send updates about the DMP. For example if the DMPHub learns of a grant ID that was associated with the DMP, it will send that information back to external system via this URI.
-- **seeding_with_live_dmp_ids** - Flag that can be used when seeding DMPs from an external system to the DMPHub this flag will use the provided DMP ID instead of minting a new one with EZID. __Note that the DMP ID targets would need to be updated with the minting authority
+- **seedingWithLiveDmpIds** - Flag that can be used when seeding DMPs from an external system to the DMPHub this flag will use the provided DMP ID instead of minting a new one with EZID. __Note that the DMP ID targets would need to be updated with the minting authority
 so that they point to the new DMPHub landing page.__ (default is false)
 - **tokenUri** - The endpoint the DMPHub should use to obtain an access token that can be used when calling the downloadUri and redirectUri (if applicable). Note that the tokenUri works in conjunction with 2 SSM parameters (note that the 'example' must match the PK value for the item!): `/uc3/dmp/hub/dev/example/client_id`, `/uc3/dmp/hub/dev/example/client_secret`
 
