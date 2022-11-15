@@ -27,6 +27,11 @@ Parameters:
   S3BucketUri:
     Type: 'String'
 
+  GetDmpLambdaArn:
+    Type: 'String'
+  AddDmpLambdaArn:
+    Type: 'String'
+
 Resources:
   # -----------------------------------------------------------------------
   # CloudWatch Logs
@@ -86,7 +91,7 @@ Resources:
       - GraphQlApi
     Properties:
       ApiId: !GetAtt GraphQlApi.ApiId
-      DefinitionS3Location: !Sub "${S3BucketUri}/graphql_api/schema.graphql"
+      DefinitionS3Location: !Sub "${S3BucketUri}/graphql-api/schema.graphql"
 
   # -----------------------------------------------------------------------
   # AppSync DataSources (Lambdas)
@@ -124,10 +129,17 @@ Resources:
   #   See https://docs.aws.amazon.com/appsync/latest/devguide/pipeline-resolvers.html
   # -----------------------------------------------------------------------
 
-  GetDmpAppSyncResolver:
+  # -----------------------------------------------------------------------
+  # Request and Response Resolvers
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-appsync-resolver.html
+  #
+  # For a description of the resolver JSON format
+  #   See: https://docs.aws.amazon.com/appsync/latest/devguide/pipeline-resolvers.html
+  # -----------------------------------------------------------------------
+  GetDmpAppSyncRequestResolver:
     Type: 'AWS::AppSync::Resolver'
     DependsOn:
-      - GraphSqlApi
+      - GraphQlApi
       - GetDmpGraphQlDataSource
     Properties:
       ApiId: !GetAtt GraphQlApi.ApiId
@@ -151,10 +163,10 @@ Resources:
         }
       ResponseMappingTemplate: '$util.toJson($context.result.items)'
 
-  AddDmpAppSyncResolver:
+  AddDmpAppSyncRequestResolver:
     Type: 'AWS::AppSync::Resolver'
     DependsOn:
-      - GraphSqlApi
+      - GraphQlApi
       - AddDmpGraphQlDataSource
     Properties:
       ApiId: !GetAtt GraphQlApi.ApiId
@@ -173,16 +185,7 @@ Resources:
               "arguments": $util.toJson($context.arguments)
           }
         }
-
-  # Request resolver
-        {
-            "version": "2018-05-29",
-            "operation": "Invoke",
-            "payload": {
-                "field": "getDmp",
-                "arguments": $util.toJson($context.arguments)
-            }
-        }
+      ResponseMappingTemplate: '$util.toJson($context.result.items)'
 
   # Results in a Lambda Request like this:
   #   {
@@ -198,9 +201,9 @@ Resources:
 
   # Response resolver (default) ... we need to do more to transform the RDA JSON into GraphQL
     #if( $context.result && $context.result.errorMessage )
-      $utils.error($context.result.errorMessage, $context.result.errorType, $context.result.data)
+      # $utils.error($context.result.errorMessage, $context.result.errorType, $context.result.data)
     #else
-      $utils.toJson($context.result.data)
+      # $utils.toJson($context.result.data)
     #end
 
   # Expecting the Lambda to return
@@ -266,17 +269,17 @@ Outputs:
   AddDmpGraphQlDataSourceName:
     Value: !GetAtt AddDmpGraphQlDataSource.Name
 
-  GetDmpAppSyncResolverArn:
+  GetDmpAppSyncRequestResolverArn:
     Value: !Ref GetDmpAppSyncResolver
-  GetDmpAppSyncResolverTypeName:
+  GetDmpAppSyncRequestResolverTypeName:
     Value: !GetAtt GetDmpAppSyncResolver.TypeName
-  AddDmpAppSyncResolverFieldName:
+  AddDmpAppSyncRequestResolverFieldName:
     Value: !GetAtt GetDmpAppSyncResolver.FieldName
-  AddDmpAppSyncResolverArn:
+  AddDmpAppSyncRequestResolverArn:
     Value: !Ref AddDmpAppSyncResolver
-  AddDmpAppSyncResolverTypeName:
+  AddDmpAppSyncRequestResolverTypeName:
     Value: !GetAtt AddDmpAppSyncResolver.TypeName
-  AddDmpAppSyncResolverFieldName:
+  AddDmpAppSyncRequestResolverFieldName:
     Value: !GetAtt AddDmpAppSyncResolver.FieldName
 
   # DomainName:

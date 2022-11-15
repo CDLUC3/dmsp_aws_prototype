@@ -1,40 +1,800 @@
+# --------------------------------------------------------
 # GraphQL Schema
+# --------------------------------------------------------
 schema {
   query: Query
   mutation: Mutation
 }
 
+# --------------------------------------------------------
 # Queries
+# --------------------------------------------------------
 type Query {
+  # Return the currently logged in User
+  getMe: User
+
+  # Return the DMPs for the logged in User
+  #   paginated - 20 at a time
+  #   sorted - descending by modified date
+  #
+  #  User Role           |     Results
+  #  ------------------------------------------------------------------
+  #  researcher          - array of their DMPs
+  #  institutional_admin - array of DMPs who have their Contact/Contributor affiliation
+  #  funder_admin        - array of DMPs who have their Funding affiliation
+  #  super_admin         - all DMPs
+  #
+  getMyDmps: [Dmp]
+
+  # Public facing entrypoint that returns all DMPs
+  #   paginated - 20 at a time
+  #   sorted - descending by modified date
+  #
+  getDmps: [Dmp]
+
+  # Return a specific DMP
   getDmp(id: ID!): Dmp
 }
 
+# --------------------------------------------------------
 # Mutations
+# --------------------------------------------------------
 type Mutation {
-  dmp(title: String!, contact: Contact!, created: DateTime!, updated: DateTime!,
-      ethical_issues_exist: YesNoUknown = unknown, description: String)
+  updateMe(name: String!, mbox: String!, dmproadmap_affiliation: Affiliation!,
+           user_identifier: PersonIdentifier): User
+
+  # Callable by instituationl_admins and super_admins only.
+  #  User Role           |     Results
+  #  ------------------------------------------------------------------
+  #  researcher          - can NOT update other Users
+  #  institutional_admin - can only update their own Users
+  #  funder_admin        - can NOT update Users
+  #  super_admin         - can update any User
+  #
+  updateUser(name: String!, mbox: String!, dmproadmap_affiliation: Affiliation!,
+             user_identifier: PersonIdentifier, user_role: UserRole!, locked: Boolean!): User
+
+  # Create a DMP
+  #  User Role           |     Results
+  #  ------------------------------------------------------------------
+  #  researcher          - can create DMPs for themselves
+  #  institutional_admin - can create DMPs on behalf of one of their Users. Note that the
+  #                        Contact must belong to their institution
+  #  funder_admin        - can create DMPS on behalf of a User. Note that the Funding must
+  #                        be for them and they MUST include a grant id
+  #  super_admin         - can create a DMP on behalf of any user (or themselves for testing)
+  #
+  addDmp(title: String!, contact: Contact!, dmp_id: GenericIdentifier!,
+         ethical_issues_exist: YesNoUnknown!, language: Language!, project: [Project!]!,
+         description: String, ethical_issues_description: String, ethical_issues_report: Url,
+         contributor: [Contributor!], cost: [Cost!], dataset: [Dataset!],
+         dmproadmap_research_facilities: [Affiliation!],
+         dmproadmap_related_identifiers: [RelatedWork!]): Dmp
+
+  # Update a DMP
+  #  User Role           |     Results
+  #  ------------------------------------------------------------------
+  #  researcher          - can only update their DMPs
+  #  institutional_admin - can only update DMPs who have their Contact/Contributor affiliation
+  #  funder_admin        - can only update Funding info for DMPs who have their Funding affiliation
+  #  super_admin         - can update any DMP
+  #
+  updateDmp(title: String!, contact: Contact!, ethical_issues_exist: YesNoUnknown!,
+            language: Language!, project: [Project!]!, description: String,
+            ethical_issues_description: String, ethical_issues_report: Url,
+            contributor: [Contributor!], cost: [Cost!], dataset: [Dataset!],
+            dmproadmap_research_facilities: [Affiliation!],
+            dmproadmap_related_identifiers: [RelatedWork!]): Dmp
+
+  # Tombstone the DMP
+  #  User Role           |     Results
+  #  ------------------------------------------------------------------
+  #  researcher          - can only tombstone their DMPs
+  #  institutional_admin - can only tomstone DMPs who have their Contact/Contributor affiliation
+  #  funder_admin        - can NOT tomstone DMPs
+  #  super_admin         - can tombstone any DMP
+  #
+  deleteDmp(dmp_id: GenericIdentifier): Dmp
 }
 
+# --------------------------------------------------------
+# Custom Scalar values
+# --------------------------------------------------------
+scalar Url
+
+# --------------------------------------------------------
 # Types
+# --------------------------------------------------------
+# A Data Management Plan (DMP) ... The main entry point
 type Dmp {
   id: ID!
-  title: String!
-  description: String
-  created: DateTime!
-  updated: DateTime!
-  ethical_issues_exist: YesNoUnknown!
   contact: Contact!
+  created: DateTime!
+  description: String
+  dmp_id: GenericIdentifier!
+  ethical_issues_description: String
+  ethical_issues_exist: YesNoUnknown!
+  ethical_issues_report: Url
+  language: Language!
+  modified: DateTime!
+  title: String!
+  contributor: [Contributor!]
+  cost: [Cost!]
+  dataset: [Dataset!]
+  dmproadmap_research_facilities: [Affiliation!]
+  dmproadmap_related_identifiers: [RelatedWork!]
+  project: [Project!]!
 }
 
-type Contact {
+# Humans
+# -----------------------------
+interface Person {
   id: ID!
   name: String!
-  email: String!
+  mbox: String!
+  dmproadmap_affiliation: Affiliation!
+}
+# A user account
+type User implements Person {
+  id: ID!
+  name: String!
+  mbox: String!
+  dmproadmap_affiliation: Affiliation!
+  user_identifier: PersonIdentifier
+  user_role: UserRole!
+  last_login_at: DateTime!
+  locked: Boolean!
+  dmps: [Dmp]
+}
+# A DMP primary contact
+type Contact implements Person {
+  id: ID!
+  name: String!
+  mbox: String!
+  dmproadmap_affiliation: Affiliation!
+  contact_id: PersonIdentifier!
+}
+# A DMP contributor
+type Contributor {
+  id: ID!
+  name: String!
+  mbox: String
+  dmproadmap_affiliation: Affiliation
+  contributor_id: PersonIdentifier
+  role: [ContributorRole]!
 }
 
+# Costs
+# -----------------------------
+type Cost {
+  currency_code: CurrencyCode!
+  description: String
+  title: String!
+  value: Float
+}
+
+# Project and Funding
+# -----------------------------
+type Project {
+  description: String
+  end: Date
+  start: Date
+  title: String!
+  funding: [Funding]
+}
+
+type Funding {
+  funder_id: FunderIdentifier
+  funding_status: FundingStatus!
+  grant_id: GrantIdentifier
+  name: String!
+}
+
+# Anticipated Datasets
+# -----------------------------
+type Dataset {
+  data_quality_assurance: [String!]
+  dataset_id: GenericIdentifier
+  description: String
+  issued: Date
+  keyword: [String!]
+  language: Language
+  personal_data: YesNoUnknown
+  preservation_statement: [String!]
+  sensitive_data: YesNoUnknown
+  title: String!
+  type: DatasetType
+  distribution: [Distribution!]
+  metadata: [MetadataStandard!]
+  security_and_privacy: [SecurityStatement!]
+  technical_resource: [TechnicalResource!]
+}
+
+type Distribution {
+  access_url: Url
+  available_until: Date
+  byte_size: Int
+  data_access: DataAccess
+  description: String
+  download_url: Url
+  host: Host!
+  license: [License!]
+}
+
+type Host {
+  description: String
+  dmproadmap_host_id: GenericIdentifier!
+  title: String!
+  url: Url!
+}
+
+type License {
+  license_ref: Url!
+  start_date: Date!
+}
+
+type MetadataStandard {
+  description: String
+  language: Language
+  metadata_standard_id: GenericIdentifier!
+}
+
+type SecurityStatement {
+  description: String
+  title: String!
+}
+
+type TechnicalResource {
+  description: String
+  dmproadmap_technical_resource_id: GenericIdentifier
+  name: String!
+}
+
+# Institutions/Organizations/Agencies/Faciltities
+# -----------------------------
+type Affiliation {
+  name: String!
+  affiliation_id: AffiliationIdentifier
+}
+
+# Persistent Identifiers
+# -----------------------------
+interface Identifier {
+  identifier: String!
+}
+# An Identifier (e.g. ORCID, ROR, DOI, etc.)
+type PersonIdentifier implements Identifier {
+  identifier: String!
+  type: PersonIdentifierType!
+}
+# An Identifier (e.g. ORCID, ROR, DOI, etc.)
+type AffiliationIdentifier implements Identifier {
+  identifier: String!
+  type: AffiliationIdentifierType!
+}
+# An Identifier (e.g. ORCID, ROR, DOI, etc.)
+type FunderIdentifier implements Identifier {
+  identifier: String!
+  type: FunderIdentifierType!
+}
+type GrantIdentifier implements Identifier {
+  identifier: String!
+  type: GrantIdentifierType!
+}
+type GenericIdentifier implements Identifier {
+  identifier: String!
+  type: GenericIdentifierType!
+}
+type RelatedWork implements Identifier {
+  identifier: String!
+  type: GenericIdentifierType!
+  work_type: RelatedWorkType!
+  descriptor: RelatedWorkDescriptor
+}
+
+# --------------------------------------------------------
 # Enums
+# --------------------------------------------------------
+enum UserRole {
+  funder_admin
+  institutional_admin
+  researcher
+  super_admin
+}
+
+# Derived from
+enum ContributorRole {
+  Conceptualization
+  Data_Curation
+  Investigation
+  Methodology
+  Project_Administration
+  Software
+  Supervision
+  Validation
+  Visualization
+}
+
+# Valid Identifier Types for a Person
+enum PersonIdentifierType {
+  isni
+  openid
+  orcid
+  other
+}
+# Valid Identifier Types for an Institution
+enum AffiliationIdentifierType {
+  doi
+  ror
+  url
+  other
+}
+# Valid Identifier Types for a Funder
+enum FunderIdentifierType {
+  fundref
+  url
+  other
+}
+# Valid identifier types for a Grant/Award
+enum GrantIdentifierType {
+  doi
+  url
+  other
+}
+# Valid identifier types for Outputs, Related Works and Repositories
+# (e.g. dataset, software, article, protocol, Dryad, Zenodo, etc.)
+enum GenericIdentifierType {
+  ark
+  doi
+  handle
+  url
+  other
+}
+
+# The type of a work related to the DMP
+enum RelatedWorkType {
+  article
+  book
+  dataset
+  metadata_template
+  output_management_plan
+  paper
+  preprint
+  protocol
+  software
+  supplemental_information
+  other
+}
+
+# How the work is related to the DMP (e.g. the DMP 'describes' dataset ABCD)
+enum RelatedWorkDescriptor {
+  is_cited_by
+  cites
+  is_supplement_to
+  is_supplemented_by
+  is_described_by
+  describes
+  has_metadata
+  is_metadata_for
+  is_part_of
+  has_part
+  is_referenced_by
+  references
+  is_documented_by
+  documents
+  is_new_version_of
+  is_previous_version_of
+}
+
+# Valid Funding statuses (default is 'planned')
+enum FundingStatus {
+  planned
+  applied
+  granted
+  rejected
+}
+
+# Valid access levels for a Research Output (default is 'open')
+enum DataAccess {
+  closed
+  open
+  shared
+}
+
+# Valid Research Output types (default is 'dataset')
+enum DatasetType {
+  audiovisual
+  collection
+  data_paper
+  dataset
+  event
+  image
+  interactive_resource
+  model_representation
+  physical_object
+  service
+  software
+  sound
+  text
+  workflow
+  other
+}
+
+# Yes, no or unknown fields
 enum YesNoUnknown {
   yes
   no
   unknown
 }
+
+# Three character language codes
+enum Language {
+  aar
+  abk
+  afr
+  aka
+  amh
+  ara
+  arg
+  asm
+  ava
+  ave
+  aym
+  aze
+  bak
+  bam
+  bel
+  ben
+  bih
+  bis
+  bod
+  bos
+  bre
+  bul
+  cat
+  ces
+  cha
+  che
+  chu
+  chv
+  cor
+  cos
+  cre
+  cym
+  dan
+  deu
+  div
+  dzo
+  ell
+  eng
+  epo
+  est
+  eus
+  ewe
+  fao
+  fas
+  fij
+  fin
+  fra
+  fry
+  ful
+  gla
+  gle
+  glg
+  glv
+  grn
+  guj
+  hat
+  hau
+  hbs
+  heb
+  her
+  hin
+  hmo
+  hrv
+  hun
+  hye
+  ibo
+  ido
+  iii
+  iku
+  ile
+  ina
+  ind
+  ipk
+  isl
+  ita
+  jav
+  jpn
+  kal
+  kan
+  kas
+  kat
+  kau
+  kaz
+  khm
+  kik
+  kin
+  kir
+  kom
+  kon
+  kor
+  kua
+  kur
+  lao
+  lat
+  lav
+  lim
+  lin
+  lit
+  ltz
+  lub
+  lug
+  mah
+  mal
+  mar
+  mkd
+  mlg
+  mlt
+  mon
+  mri
+  msa
+  mya
+  nau
+  nav
+  nbl
+  nde
+  ndo
+  nep
+  nld
+  nno
+  nob
+  nor
+  nya
+  oci
+  oji
+  ori
+  orm
+  oss
+  pan
+  pli
+  pol
+  por
+  pus
+  que
+  roh
+  ron
+  run
+  rus
+  sag
+  san
+  sin
+  slk
+  slv
+  sme
+  smo
+  sna
+  snd
+  som
+  sot
+  spa
+  sqi
+  srd
+  srp
+  ssw
+  sun
+  swa
+  swe
+  tah
+  tam
+  tat
+  tel
+  tgk
+  tgl
+  tha
+  tir
+  ton
+  tsn
+  tso
+  tuk
+  tur
+  twi
+  uig
+  ukr
+  urd
+  uzb
+  ven
+  vie
+  vol
+  wln
+  wol
+  xho
+  yid
+  yor
+  zha
+  zho
+  zul
+}
+
+# Valid 3 character currency codes
+enum CurrencyCode {
+  AED
+  AFN
+  ALL
+  AMD
+  ANG
+  AOA
+  ARS
+  AUD
+  AWG
+  AZN
+  BAM
+  BBD
+  BDT
+  BGN
+  BHD
+  BIF
+  BMD
+  BND
+  BOB
+  BRL
+  BSD
+  BTN
+  BWP
+  BYN
+  BZD
+  CAD
+  CDF
+  CHF
+  CLP
+  CNY
+  COP
+  CRC
+  CUC
+  CUP
+  CVE
+  CZK
+  DJF
+  DKK
+  DOP
+  DZD
+  EGP
+  ERN
+  ETB
+  EUR
+  FJD
+  FKP
+  GBP
+  GEL
+  GGP
+  GHS
+  GIP
+  GMD
+  GNF
+  GTQ
+  GYD
+  HKD
+  HNL
+  HRK
+  HTG
+  HUF
+  IDR
+  ILS
+  IMP
+  INR
+  IQD
+  IRR
+  ISK
+  JEP
+  JMD
+  JOD
+  JPY
+  KES
+  KGS
+  KHR
+  KMF
+  KPW
+  KRW
+  KWD
+  KYD
+  KZT
+  LAK
+  LBP
+  LKR
+  LRD
+  LSL
+  LYD
+  MAD
+  MDL
+  MGA
+  MKD
+  MMK
+  MNT
+  MOP
+  MRU
+  MUR
+  MVR
+  MWK
+  MXN
+  MYR
+  MZN
+  NAD
+  NGN
+  NIO
+  NOK
+  NPR
+  NZD
+  OMR
+  PAB
+  PEN
+  PGK
+  PHP
+  PKR
+  PLN
+  PYG
+  QAR
+  RON
+  RSD
+  RUB
+  RWF
+  SAR
+  SBD
+  SCR
+  SDG
+  SEK
+  SGD
+  SHP
+  SLL
+  SOS
+  SPL
+  SRD
+  STN
+  SVC
+  SYP
+  SZL
+  THB
+  TJS
+  TMT
+  TND
+  TOP
+  TRY
+  TTD
+  TVD
+  TWD
+  TZS
+  UAH
+  UGX
+  USD
+  UYU
+  UZS
+  VEF
+  VND
+  VUV
+  WST
+  XAF
+  XCD
+  XDR
+  XOF
+  XPF
+  YER
+  ZAR
+  ZMW
+  ZWD
+}
+
+# In the resolver convert the ContributorRole to a credit NISO URI
+# const resolvers = {
+#   ContributorRole: {
+#     Conceptualization: 'https://credit.niso.org/contributor-roles/conceptualization/',
+#     Data_Curation: 'https://credit.niso.org/contributor-roles/data-curation/',
+#     Investigation: 'https://credit.niso.org/contributor-roles/investigation/',
+#     Methodology: 'https://credit.niso.org/contributor-roles/methodology/',
+#     Project_Administration: 'https://credit.niso.org/contributor-roles/project-administration/',
+#     Software: 'https://credit.niso.org/contributor-roles/software/',
+#     Supervision: 'https://credit.niso.org/contributor-roles/supervision/',
+#     Validation: 'https://credit.niso.org/contributor-roles/validation/',
+#     Visualization: 'https://credit.niso.org/contributor-roles/visualization/'
+#   },
+#
+#   // ...other resolver definitions...
+# };

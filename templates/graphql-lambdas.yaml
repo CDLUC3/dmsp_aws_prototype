@@ -15,7 +15,7 @@ Parameters:
   DynamoTableArn:
     Type: 'String'
 
-  S3BucketUri:
+  S3BucketId:
     Type: 'String'
   S3BucketArn:
     Type: 'String'
@@ -87,8 +87,8 @@ Resources:
   #   Properties:
   #     Description: 'Shared dependencies for the GraphQL API Lambdas'
   #     Content:
-  #       S3Bucket: !Ref S3BucketUri
-  #       S3Key: layer.zip
+  #       S3Bucket: !Ref S3BucketId
+  #       S3Key: 'graphql-api/layer.zip
   #     CompatibleRuntimes:
   #       - ruby2.7
 
@@ -103,8 +103,8 @@ Resources:
       # - LambdaLayer
     Properties:
       Code:
-        S3Bucket: !Ref S3BucketUri
-        S3Key: 'graphql_api/get_dmp.zip'
+        S3Bucket: !Ref S3BucketId
+        S3Key: 'graphql-api/get_dmp.zip'
       Description: !Sub "$(Subdomain}-${Env} Lambda Function to fetch a single DMP"
       Handler: 'handler.Functions::GetDmp.process'
       # TODO: Setup our Lambda Layer and hook it in here
@@ -125,8 +125,8 @@ Resources:
       # - LambdaLayer
     Properties:
       Code:
-        S3Bucket: !Ref S3BucketUri
-        S3Key: 'graphql_api/add_dmp.zip'
+        S3Bucket: !Ref S3BucketId
+        S3Key: 'graphql-api/add_dmp.zip'
       Description: !Sub "$(Subdomain}-${Env} Lambda Function to create a new DMP"
       Handler: 'handler.Functions::AddDmp.process'
       # TODO: Setup our Lambda Layer and hook it in here

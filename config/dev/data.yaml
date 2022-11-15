@@ -36,3 +36,12 @@ parameters:
   RdsUsername: !ssm_parameter /uc3/dmp/hub/dev/RdsUsername
   # RdsPassword: !password_generator 12
   RdsPassword: !ssm_parameter /uc3/dmp/hub/dev/RdsPassword
+
+# Add some After hooks to bundle and zip up our Lambdas and then push the zip files and the
+# graphQL schema to the S3 bucket
+#
+# Maybe create as a shell script and then just execute that here
+#
+# S3_BUCKET=$(aws ssm get-parameter --name '/uc3/dmp/hub/dev/S3BucketUri' --query "Parameter.Value" --output text)
+# aws s3 cp ./src/functions/[name].zip ${S3BucketUri}/graphql_api/[name].zip
+# aws s3 cp ./src/schema.graphql ${S3bucketUri}/graphql_api/schema.graphql

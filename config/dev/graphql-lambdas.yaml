@@ -1,5 +1,5 @@
 template:
-  path: appsync.yaml
+  path: graphql-lambdas.yaml
   type: file
 
 parameters:
@@ -9,5 +9,5 @@ parameters:
 
   DynamoTableArn: !stack_output dev/data.yaml::DynamoTableArn
 
-  S3BucketUri: !stack_output dev/data.yaml::S3BucketUri
+  S3BucketId: !stack_output dev/data.yaml::S3BucketId
   S3BucketArn: !stack_output dev/data.yaml::S3BucketArn

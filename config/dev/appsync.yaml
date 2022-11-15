@@ -12,5 +12,5 @@ parameters:
 
   S3BucketUri: !stack_output dev/data.yaml::S3BucketUri
 
-  GetDmpLambdaArn: !stack_output dev/lambdas.yaml::GetDmpLambdaFunctionArn
-  AddDmpLambdaArn: !stack_output dev/lambdas.yaml::AddDmpLambdaFunctionArn
+  GetDmpLambdaArn: !stack_output dev/graphql-lambdas.yaml::GetDmpLambdaFunctionArn
+  AddDmpLambdaArn: !stack_output dev/graphql-lambdas.yaml::AddDmpLambdaFunctionArn
