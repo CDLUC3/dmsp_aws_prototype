@@ -3,7 +3,7 @@
      / _` |  / \/ \ |  _ \| `_ \| | | | '_ \     | | | |
     | (_| | / /\/\ \| | ) | | | | |_| | |_) |    | | | |
      \__,_|/_/    \_| '__/|_| |_|_____|_'__/     |_| |_|
- -------------------|-|-------------------------------------
+                    |_|
 
 This repository manages the infrastructure for the DMPHub metadata repository
 
@@ -79,12 +79,21 @@ Build the project directory: `sceptre new project uc3-dmp-hub`
 
 ### SSM parameter setup
 
-The following SSM parameters should be defined:
-- EZID username: `aws ssm put-parameter --name /uc3/dmp/hub/[env]/EzidUsername --value "[username]" --type "SecureString"`
-- EZID password: `aws ssm put-parameter --name /uc3/dmp/hub/[env]/EzidPassword --value "[password]" --type "SecureString"`
-- EZID hosting institution: `aws ssm put-parameter --name /uc3/dmp/hub/[env]/EzidHostingInstitution --value "[name]" --type "String"`
-- EZID shoulder: `aws ssm put-parameter --name /uc3/dmp/hub/[env]/EzidShoulder --value "[shoulder]" --type "String"`
+You must add your administrator email to the SSM parameter store. This email will receive fatal error messages produced by the lambdas
+- Admin email: `aws ssm put-parameter --name /uc3/dmp/hub/[env]/AdminEmail --value "[email]" --type "String"`
+
+The following SSM parameters should be defined for integration with EZID for registering DOIs:
+- EZID api url (e.g. `https://ezid-stg.cdlib.org/`): `aws ssm put-parameter --name /uc3/dmp/hub/[env]/EzidApiUrl --value "[url]" --type "String"`
+- EZID base url (the prefix for the DOI - e.g. `https://doi.org/`): `aws ssm put-parameter --name /uc3/dmp/hub/[env]/EzidBaseUrl --value "[url]" --type "String"`
 - EZID debug mode: `aws ssm put-parameter --name /uc3/dmp/hub/[env]/EzidDebugMode --value "true" --type "Boolean"`
+- EZID hosting institution: `aws ssm put-parameter --name /uc3/dmp/hub/[env]/EzidHostingInstitution --value "[name]" --type "String"`
+- EZID password: `aws ssm put-parameter --name /uc3/dmp/hub/[env]/EzidPassword --value "[password]" --type "SecureString"`
+- EZID shoulder: `aws ssm put-parameter --name /uc3/dmp/hub/[env]/EzidShoulder --value "[shoulder]" --type "String"`
+- EZID username: `aws ssm put-parameter --name /uc3/dmp/hub/[env]/EzidUsername --value "[username]" --type "SecureString"`
+
+If you have any external systems that will be communicating with the DMPHub API, you will need to add any OAuth client credentials required by that external system. This will be used when attempting to download DMP PDF docuemnts and/or send updated metadata back to the external system. __Note that the `system_key` in the examples below MUST match the PK value for the external system in the Dynamo table. (e.g. the `PROVENANCE#example` Dyanmo item would result in an ssm parameter of `/uc3/dmp/hub/[env]/example/client_id`). See below for an example Provenance item.
+- Client id: `aws ssm put-parameter --name /uc3/dmp/hub/[env]/[system_key]/client_id --value "[username]" --type "SecureString"`
+- Client secret: `aws ssm put-parameter --name /uc3/dmp/hub/[env]/[system_key]/client_secret --value "[username]" --type "SecureString"`
 
 You can use `aws ssm get-parameters-by-path --path '/uc3/dmp/hub/[env]/'` to see what parameters have already been set.
 
@@ -128,28 +137,33 @@ curl -v -H 'Accept: application/json' \
 Sample Provenance item:
 ```
 {
- "PK": "PROVENANCE#example",
- "SK": "PROFILE",
- # Only used when transferring DMPs from another system and we do not want to register our own
- # DMP IDs for those records
- "can_predefine_dmp_ids": true,
- "contact": {
-  "email": "jane.doe@example.com",
-  "name": "Jane Doe"
- },
- "description": "An example system",
- "homepage": "https://example.com",
- "name": "Example DMP authoring system",
- # The prefix for downloading the DMP narrative doccument if applicable. This will be used
- # to confirm the URL is valid. The URL will appear in a DMP's `dmproadmap_related_identifiers`
- # attribute with `{ "descriptor": "is_metadata_for", "work_type": "output_management_plan" }`
- "downloadUri": "https://dmptool-stg.cdlib.org/plans/",
- # The API endpoint that we can call to send updated information about the DMP (if applicable)
- # The DMP's DMP ID will be appended to the end of the URL
- #  (e.g. `https://example.com/api/dmps/callback/10.12345/D1H52A.H7`)
- "callbackUri": "https://example.com/api/dmps/callback"
+  "PK": "PROVENANCE#example",
+  "SK": "PROFILE",
+  "contact": {
+    "email": "jane.doe@example.com",
+    "name": "Jane Doe"
+  },
+  "description": "An external system",
+  "downloadUri": "https://example.com/api/dmps/",
+  "homepage": "https://example.com",
+  "name": "Example System",
+  "redirectUri": "https://example.com/callback",
+  "seeding_with_live_dmp_ids": true,
+  "tokenUri": "https://example.com/oauth/token"
 }
 ```
+Explanation of Provenance keys:
+- **PK** - A unique partition key for the external system. Note that it must start with `PROVENANCE#`
+- **SK** - The sort key (do not change this)
+- **contact** - The primary technical contact for the external system (displayed in the UI)
+- **description** - A description of the external system (displayed in the UI)
+- **downloadUri** - The endpoint that the DMPHub can use to download the DMP as a PDF. The specific location of the PDF is embedded in the DMP's JSON as a `dmproadmap_related_identifier` with the `"descriptor": "is_metadata_for"` and `"work_type": "output_management_plan"`. Note that the system will first check that the target of that related identifier matches the downloadUri defined here (e.g. https://example.org/dmps/download/). If it does not match, an error is raised. This prevents downloads from unknown/unverified locations
+- **homepage** - The landing page for the external system (displayed in the UI)
+- **name** - The name of the external system (displayed in the UI)
+- **redirectUri** - The URI that the DMPHub can use to send updates about the DMP. For example if the DMPHub learns of a grant ID that was associated with the DMP, it will send that information back to external system via this URI.
+- **seeding_with_live_dmp_ids** - Flag that can be used when seeding DMPs from an external system to the DMPHub this flag will use the provided DMP ID instead of minting a new one with EZID. __Note that the DMP ID targets would need to be updated with the minting authority
+so that they point to the new DMPHub landing page.__ (default is false)
+- **tokenUri** - The endpoint the DMPHub should use to obtain an access token that can be used when calling the downloadUri and redirectUri (if applicable). Note that the tokenUri works in conjunction with 2 SSM parameters (note that the 'example' must match the PK value for the item!): `/uc3/dmp/hub/dev/example/client_id`, `/uc3/dmp/hub/dev/example/client_secret`
 
 Sample DMP item (minimal metadata):
 ```

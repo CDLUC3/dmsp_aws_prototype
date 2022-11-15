@@ -395,6 +395,26 @@ Resources:
       MasterUsername: !Ref RdsUsername
       MasterUserPassword: !Ref RdsPassword
 
+  # Additional SSM Parameters required by the system
+
+  # TODO: Potential deletions:
+  #         - /uc3/dmp/hub/codestar_connection
+  #         - /uc3/dmp/hub/dev/ApiBaseUrl
+  #         - /uc3/dmp/hub/dev/BaseUrl
+  #         - /uc3/dmp/hub/dev/
+  #         - /uc3/dmp/hub/dev/
+
+  # Places all lambdas into debug mode which means that the CloudWatch logs will become verbose
+  DebugParameter:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: !Sub "${Subdomain}-${Env} Lambda Debug on/off flag"
+      Name: !Sub "${SsmPath}Debug"
+      # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
+      Type: 'String'
+      Value: !Ref S3Bucket
+  !Sub "/uc3/dmp/hub/${Env}/Debug"
+
 Outputs:
   DynamoTableName:
     Value: !Select [1, !Split ['/', !GetAtt DynamoTable.Arn]]
