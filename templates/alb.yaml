@@ -96,6 +96,18 @@ Resources:
       Certificates:
         - CertificateArn: !Ref CertificateArn
 
+  # Need some new Listener Rules attached to AlbListenerHttps
+  #   https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-elasticloadbalancingv2-listenerrule.html
+
+  # Send default traffic to the API
+
+  # Send '/auth' traffic to Cognito
+
+  # Send '/dmps/{dmp_id+}' landing page traffic to the new React app
+  # Send '/dmps/upload' upload page traffic to the new React app
+  # Send '/dashboard' dashboard page traffic to the new React app
+
+
   # -----------------------------------------------------------
   # EC2 Security Groups for ECS containers
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-security-group.html

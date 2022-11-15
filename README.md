@@ -132,7 +132,7 @@ Sample Provenance item:
  "SK": "PROFILE",
  # Only used when transferring DMPs from another system and we do not want to register our own
  # DMP IDs for those records
- "can_predefine_dmp_ids": true,
+ "seeding_with_live_dmp_ids": true,
  "contact": {
   "email": "jane.doe@example.com",
   "name": "Jane Doe"
