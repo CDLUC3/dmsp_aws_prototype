@@ -9,7 +9,7 @@ stack_tags:
   Contact: 'briley'
 
 sceptre_user_data:
-  domain: !ssm_parameter /uc3/dmp/dev/hosted_zone_name
+  domain: !ssm_parameter /uc3/dev/HostedZoneName
   subdomain: 'dmphub'
 
   # Some resources like the Cognito UserPool don't get the normal Sceptre stack name

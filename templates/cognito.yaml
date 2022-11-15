@@ -13,7 +13,10 @@ Parameters:
   NamePrefix:
     Type: 'String'
 
-  DomainName:
+  Domain:
+    Type: 'String'
+
+  Subdomain:
     Type: 'String'
 
   Env:
@@ -27,6 +30,47 @@ Resources:
   # -----------------------------------------------------------
   # Cognito resources
   # -----------------------------------------------------------
+  UserPool:
+    Type: 'AWS::Cognito::UserPool'
+    Properties:
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: false
+        UnusedAccountValidityDays: 7
+      MfaConfiguration: 'OFF'
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+      Schema:
+        - Name: 'email'
+          Required: true
+          Mutable: true
+          DeveloperOnlyAttribute: false
+          AttributeDataType: 'String'
+          StringAttributeConstraints:
+            MinLength: 0
+            MaxLength: 2048
+        - Name: 'email_verified'
+          Required: false
+          Mutable: true
+          DeveloperOnlyAttribute: false
+          AttributeDataType: 'Boolean'
+      UsernameAttributes:
+        - 'email'
+      AutoVerifiedAttributes:
+        - 'email'
+
+  UserPoolDomain:
+    Type: 'AWS::Cognito::UserPoolDomain'
+    Properties:
+      CustomDomainConfig:
+        CertificateArn: !Ref CertificateArn
+      Domain: !Sub "${Subdomain}-${Env}"
+      UserPoolId: !Ref UserPool
+
   SystemsUserPool:
     Type: 'AWS::Cognito::UserPool'
     DeletionPolicy: Retain
@@ -41,19 +85,11 @@ Resources:
         Subservice: 'hub'
         Environment: !Ref Env
 
-  SystemsUserPoolDomain:
-    Type: 'AWS::Cognito::UserPoolDomain'
-    Properties:
-      CustomDomainConfig:
-        CertificateArn: !Ref CertificateArn
-      Domain: !Sub 'auth.${DomainName}'
-      UserPoolId: !Ref SystemsUserPool
-
   SystemsUserPoolResourceServer:
     Type: 'AWS::Cognito::UserPoolResourceServer'
     Properties:
       Name: !Sub '${NamePrefix}-${Env}-UserPoolResourceServer'
-      Identifier: !Sub 'https://auth.${DomainName}'
+      Identifier: !Sub 'https://${Subdomain}-auth.${Domain}'
       UserPoolId: !Ref SystemsUserPool
       Scopes:
         - ScopeName: !Sub '${Env}.read'
@@ -64,8 +100,8 @@ Resources:
   # Add the DMPTool as an initial client (not sure if we want to do this long term, probably better to retain the pool)
   DmptoolClient:
     Type: 'AWS::Cognito::UserPoolClient'
-    DependsOn:
-      - SystemsUserPoolResourceServer
+    # DependsOn:
+    #   - SystemsUserPoolResourceServer
     DeletionPolicy: Retain
     Properties:
       ClientName: 'dmptool'
@@ -79,8 +115,8 @@ Resources:
       AllowedOAuthFlows:
         - 'client_credentials'
       AllowedOAuthScopes:
-        - !Sub 'https://auth.${DomainName}/${Env}.read'
-        - !Sub 'https://auth.${DomainName}/${Env}.write'
+        - !Sub 'https://${Subdomain}-auth.${Domain}/${Env}.read'
+        - !Sub 'https://${Subdomain}-auth.${Domain}/${Env}.write'
       EnableTokenRevocation: true
       PreventUserExistenceErrors: 'ENABLED'
       GenerateSecret: true
@@ -90,6 +126,26 @@ Resources:
       CallbackURLs:
         - 'http://localhost:3000/callback'
         - !Ref DmptoolCallbackUri
+
+  # DMPHub client used by the ALB to communicate with Cognito
+  DmphubClient:
+    Type: 'AWS::Cognito::UserPoolClient'
+    Properties:
+      UserPoolId: !Ref UserPool
+      ClientName: 'dmphub'
+      SupportedIdentityProviders:
+        - 'COGNITO'
+      AllowedOAuthFlowsUserPoolClient:  true
+      AllowedOAuthScopes:
+        - 'openid'
+        - 'email'
+      AllowedOAuthFlows:
+        - 'code'
+        - 'implicit'
+      CallbackURLs:
+        - !Sub "https://${Subdomain}.${Domain}/oauth2/idpresponse"
+      GenerateSecret: true
+      RefreshTokenValidity: 7
 
   # -----------------------------------------------------------
   # Route53 - DNS configuration
@@ -109,7 +165,14 @@ Resources:
 
 Outputs:
   AuthDomainName:
-    Value: !Sub "auth.${DomainName}"
+    Value: !Sub "${Subdomain}-${Env}.auth.${AWS::Region}.amazoncognito.com"
+
+  UserPoolId:
+    Value: !Ref UserPool
+  UserPoolArn:
+    Value: !GetAtt UserPool.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-UserPoolArn'
 
   SystemsUserPoolId:
     Value: !Ref SystemsUserPool
@@ -117,5 +180,5 @@ Outputs:
     Value: !GetAtt SystemsUserPool.Arn
     Export:
       Name: !Sub '${AWS::StackName}-SystemsUserPoolArn'
-  SystemsUserPoolResourceServerId:
-    Value: !Ref SystemsUserPoolResourceServer
+  # SystemsUserPoolResourceServerId:
+  #   Value: !Ref SystemsUserPoolResourceServer

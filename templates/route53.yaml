@@ -61,7 +61,7 @@ Resources:
   #     Name: !Sub 'auth.${Domain}'
   #     Type: 'A'
   #     AliasTarget:
-  #       DNSName: !Ref AuthDnsName
+  #       DNSName: !Ref AlbDnsName
   #       HostedZoneId: !Ref AlbHostedZoneId
         # EvaluateTargetHealth: true
 

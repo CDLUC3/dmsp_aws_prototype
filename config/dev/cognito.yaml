@@ -4,13 +4,13 @@ template:
 
 # The UserPoolDomainName here requires an existing A record for the root domain, so make sure it
 # has been created first!
-# dependencies:
-#   - dev/cloud-front.yaml
+dependencies:
+  - dev/route53.yaml
 
 parameters:
   HostedZoneId: !stack_output_external sceptre-uc3-ops-common-dev-route53::HostedZoneID
 
-  # CertificateArn: !stack_output dev/cert.yaml::CertificateArn
+  CertificateArn: !stack_output dev/cert.yaml::AlbCertificateArn
 
   Domain: !stack_attr sceptre_user_data.domain
   Subdomain: !stack_attr sceptre_user_data.subdomain
