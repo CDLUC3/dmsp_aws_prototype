@@ -140,7 +140,7 @@ curl -v -H 'Accept: application/json' \
 
 ## Sample DynamoDB Table Items
 
-Sample Provenance item:
+### Sample Provenance item:
 ```
 {
   "PK": "PROVENANCE#example",
@@ -171,7 +171,7 @@ Explanation of Provenance keys:
 so that they point to the new DMPHub landing page.__ (default is false)
 - **tokenUri** - The endpoint the DMPHub should use to obtain an access token that can be used when calling the downloadUri and redirectUri (if applicable). Note that the tokenUri works in conjunction with 2 SSM parameters (note that the 'example' must match the PK value for the item!): `/uc3/dmp/hub/dev/example/client_id`, `/uc3/dmp/hub/dev/example/client_secret`
 
-Sample DMP item (minimal metadata):
+### Sample DMP item (minimal metadata):
 ```
 {
  "PK": "DMP#doi.org/10.12345/A1.1A2B3C4D5",

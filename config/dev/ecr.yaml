@@ -9,6 +9,8 @@ parameters:
 
 # TODO: Commenting out for now because we're not sure if this is the way we want to host the new DMPHub UI
 #       If we decide to go this way, we may want to keep it in a separate repo to take advantage of the Pipeline
+#       It might be possible to include this as a Git Submodule so that changes to these files do not kick
+#       off the CodePipeline.
 # hooks:
   # after_create:
     # The Fargate and Pipeline templates require that the ECR contains an image. This hook will build
