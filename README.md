@@ -201,7 +201,7 @@ so that they point to the new DMPHub landing page.__ (default is false)
 }
 ```
 
-Sample DMP item (complete metadata):
+### Sample DMP item (complete metadata):
 ```
 {
   "dmp": {
