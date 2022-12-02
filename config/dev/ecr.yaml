@@ -1,0 +1,16 @@
+template:
+  path: ecr.yaml
+  type: file
+
+parameters:
+  SsmPath: !stack_attr sceptre_user_data.ssm_path
+
+  EcrLifecyclePolicyTagPrefix: 'latest'
+
+# TODO: Commenting out for now because we're not sure if this is the way we want to host the new DMPHub UI
+#       If we decide to go this way, we may want to keep it in a separate repo to take advantage of the Pipeline
+# hooks:
+  # after_create:
+    # The Fargate and Pipeline templates require that the ECR contains an image. This hook will build
+    # the Docker image and push it to ECR. The CodePipeline will handle builds and deploys afterward
+    # - !docker_to_ecr dockerfile_dir=src/ecs ssm_path=/uc3/dmp/hub/dev ecr_name=/EcrName ecr_uri=EcrUri

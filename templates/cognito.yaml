@@ -10,9 +10,6 @@ Parameters:
   CertificateArn:
     Type: 'String'
 
-  NamePrefix:
-    Type: 'String'
-
   Domain:
     Type: 'String'
 
@@ -27,6 +24,11 @@ Parameters:
     Type: 'String'
 
 Resources:
+
+  # See the following for example of hooking an ALB up to Cognito
+  #   https://www.kdgregory.com/index.php?page=aws.albCognito
+  #   https://www.kdgregory.com/misc/aws.albCognito/examples/template.yml
+
   # -----------------------------------------------------------
   # Cognito resources
   # -----------------------------------------------------------
@@ -34,8 +36,8 @@ Resources:
     Type: 'AWS::Cognito::UserPool'
     Properties:
       AdminCreateUserConfig:
-        AllowAdminCreateUserOnly: false
-        UnusedAccountValidityDays: 7
+        AllowAdminCreateUserOnly: true
+        UnusedAccountValidityDays: 14
       MfaConfiguration: 'OFF'
       Policies:
         PasswordPolicy:
@@ -63,49 +65,68 @@ Resources:
       AutoVerifiedAttributes:
         - 'email'
 
-  UserPoolDomain:
-    Type: 'AWS::Cognito::UserPoolDomain'
-    Properties:
-      CustomDomainConfig:
-        CertificateArn: !Ref CertificateArn
-      Domain: !Sub "${Subdomain}-${Env}"
-      UserPoolId: !Ref UserPool
+  # UserPoolDomain:
+  #   Type: 'AWS::Cognito::UserPoolDomain'
+  #   Properties:
+  #     CustomDomainConfig:
+  #       CertificateArn: !Ref CertificateArn
+  #     Domain: !Sub "${Subdomain}-auth.${Domain}"
+  #     UserPoolId: !Ref UserPool
 
-  SystemsUserPool:
+  SystemPool:
     Type: 'AWS::Cognito::UserPool'
     DeletionPolicy: Retain
     Properties:
       AdminCreateUserConfig:
         AllowAdminCreateUserOnly: true
       # There's an open issue on this for AWS, but because this one is not named 'Tags' it doesn't inherit the stack tags
-      UserPoolName: !Sub '${NamePrefix}-${Env}-UserPool'
+      UserPoolName: !Sub '${AWS::StackName}-UserPool'
       UserPoolTags:
         Program: 'uc3'
         Service: 'dmp'
         Subservice: 'hub'
         Environment: !Ref Env
 
-  SystemsUserPoolResourceServer:
+  SystemPoolResourceServer:
     Type: 'AWS::Cognito::UserPoolResourceServer'
     Properties:
-      Name: !Sub '${NamePrefix}-${Env}-UserPoolResourceServer'
+      Name: !Sub '${AWS::StackName}-UserPoolResourceServer'
       Identifier: !Sub 'https://${Subdomain}-auth.${Domain}'
-      UserPoolId: !Ref SystemsUserPool
+      UserPoolId: !Ref SystemPool
       Scopes:
         - ScopeName: !Sub '${Env}.read'
           ScopeDescription: 'Allows access to the GET api endpoints (default) (e.g. getDmp, getDmps)'
         - ScopeName: !Sub '${Env}.write'
           ScopeDescription: 'Allows access to POST, PUT and DELETE for DMPs (e.g. postDmp, putDmp, deleteDmp)'
 
+  # Add the User Pool's client
+  UserPoolClient:
+    Type: 'AWS::Cognito::UserPoolClient'
+    Properties:
+      UserPoolId: !Ref UserPool
+      ClientName: 'default'
+      SupportedIdentityProviders:
+        - 'COGNITO'
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthScopes:
+        - 'openid'
+        - 'email'
+      AllowedOAuthFlows:
+        - 'code'
+      CallbackURLs:
+        - !Sub "https://${Subdomain}-auth.${Domain}/oauth2/idpresponse"
+      GenerateSecret: true
+      RefreshTokenValidity: 7
+
   # Add the DMPTool as an initial client (not sure if we want to do this long term, probably better to retain the pool)
   DmptoolClient:
     Type: 'AWS::Cognito::UserPoolClient'
-    # DependsOn:
-    #   - SystemsUserPoolResourceServer
+    DependsOn:
+      - SystemPoolResourceServer
     DeletionPolicy: Retain
     Properties:
       ClientName: 'dmptool'
-      UserPoolId: !Ref SystemsUserPool
+      UserPoolId: !Ref SystemPool
       ExplicitAuthFlows:
         - 'ALLOW_ADMIN_USER_PASSWORD_AUTH'
         - 'ALLOW_CUSTOM_AUTH'
@@ -127,26 +148,6 @@ Resources:
         - 'http://localhost:3000/callback'
         - !Ref DmptoolCallbackUri
 
-  # DMPHub client used by the ALB to communicate with Cognito
-  DmphubClient:
-    Type: 'AWS::Cognito::UserPoolClient'
-    Properties:
-      UserPoolId: !Ref UserPool
-      ClientName: 'dmphub'
-      SupportedIdentityProviders:
-        - 'COGNITO'
-      AllowedOAuthFlowsUserPoolClient:  true
-      AllowedOAuthScopes:
-        - 'openid'
-        - 'email'
-      AllowedOAuthFlows:
-        - 'code'
-        - 'implicit'
-      CallbackURLs:
-        - !Sub "https://${Subdomain}.${Domain}/oauth2/idpresponse"
-      GenerateSecret: true
-      RefreshTokenValidity: 7
-
   # -----------------------------------------------------------
   # Route53 - DNS configuration
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_Route53.html
@@ -154,18 +155,18 @@ Resources:
   # Route53RecordSet:
   #   Type: AWS::Route53::RecordSet
   #   DependsOn:
-  #     - SystemsUserPoolResourceServer
+  #     - SystemPoolResourceServer
   #   Properties:
   #     HostedZoneId: !Ref HostedZoneId
   #     Name: !Sub 'auth.${DomainName}'
   #     Type: A
   #     AliasTarget:
-  #       DNSName: 'd3exb48yfsh0pg.cloudfront.net' # !GetAtt SystemsUserPool.ProviderURL
+  #       DNSName: 'd3exb48yfsh0pg.cloudfront.net' # !GetAtt SystemPool.ProviderURL
   #       HostedZoneId: 'Z2FDTNDATAQYW2'
 
 Outputs:
   AuthDomainName:
-    Value: !Sub "${Subdomain}-${Env}.auth.${AWS::Region}.amazoncognito.com"
+    Value: !Sub "${AWS::StackName}.auth.${AWS::Region}.amazoncognito.com"
 
   UserPoolId:
     Value: !Ref UserPool
@@ -173,12 +174,14 @@ Outputs:
     Value: !GetAtt UserPool.Arn
     Export:
       Name: !Sub '${AWS::StackName}-UserPoolArn'
+  # UserPoolDomain:
+  #   Value: !Ref UserPoolDomain
 
-  SystemsUserPoolId:
-    Value: !Ref SystemsUserPool
-  SystemsUserPoolArn:
-    Value: !GetAtt SystemsUserPool.Arn
+  SystemPoolId:
+    Value: !Ref SystemPool
+  SystemPoolArn:
+    Value: !GetAtt SystemPool.Arn
     Export:
-      Name: !Sub '${AWS::StackName}-SystemsUserPoolArn'
-  # SystemsUserPoolResourceServerId:
-  #   Value: !Ref SystemsUserPoolResourceServer
+      Name: !Sub '${AWS::StackName}-SystemPoolArn'
+  # SystemPoolResourceServerId:
+  #   Value: !Ref SystemPoolResourceServer

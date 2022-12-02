@@ -1,0 +1,135 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+
+Description: 'S3 buckets both public (app files) and private (CodePipeline, CodeBuild, etc.)'
+
+Parameters:
+  SsmPath:
+    Type: 'String'
+
+  LogBucketObjectLifeSpan:
+    Type: 'Number'
+    Default: 30
+
+Resources:
+  # ----------------------------------------------
+  # Simple Storage Service (S3) buckets
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket.html
+  # ----------------------------------------------
+  # S3 Bucket to store logs from services like CloudFront
+  S3LogBucket:
+    Type: 'AWS::S3::Bucket'
+    DeletionPolicy: Delete
+    Properties:
+      LifecycleConfiguration:
+        Rules:
+          - ExpirationInDays: !Ref LogBucketObjectLifeSpan
+            Status: 'Enabled'
+      PublicAccessBlockConfiguration:
+        IgnorePublicAcls: true
+
+  # S3 Bucket that stores DMP documents and UI resources. It is not directly public, but
+  # instead uses PresignedUrls
+  S3PublicBucket:
+    Type: 'AWS::S3::Bucket'
+    DeletionPolicy: Retain
+    Properties:
+      PublicAccessBlockConfiguration:
+        RestrictPublicBuckets: false
+      LoggingConfiguration:
+        DestinationBucketName: !Ref S3LogBucket
+        LogFilePrefix: 's3-access'
+
+  # S3 Bucket for storing things that should not be publicly accessible like CodePipeline artifacts
+  S3PrivateBucket:
+    Type: 'AWS::S3::Bucket'
+    DeletionPolicy: Retain
+    Properties:
+      PublicAccessBlockConfiguration:
+        RestrictPublicBuckets: false
+      LoggingConfiguration:
+        DestinationBucketName: !Ref S3LogBucket
+        LogFilePrefix: 's3-access'
+
+  # ----------------------------------------------
+  # SSM Parameter Store
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-ssm-parameter.html
+  # ----------------------------------------------
+  # S3 Bucket Ids
+  S3PublicBucketIdParameter:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: !Sub "${AWS::StackName} S3 Public Bucket ID"
+      Name: !Sub "${SsmPath}S3PublicBucketId"
+      # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
+      Type: 'String'
+      Value: !Ref S3PublicBucket
+
+  S3PrivateBucketIdParameter:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: !Sub "${AWS::StackName} S3 Private Bucket ID"
+      Name: !Sub "${SsmPath}S3PrivateBucketId"
+      # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
+      Type: 'String'
+      Value: !Ref S3PrivateBucket
+
+  # S3 Bucket Urls
+  S3PublicBucketUrlParameter:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: !Sub "${AWS::StackName} S3 Public Bucket URL"
+      Name: !Sub "${SsmPath}S3PublicBucketUrl"
+      # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
+      Type: 'String'
+      Value: !GetAtt S3PublicBucket.WebsiteURL
+
+  S3PrivateBucketUrlParameter:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: !Sub "${AWS::StackName} S3 Private Bucket URL"
+      Name: !Sub "${SsmPath}S3PrivateBucketUrl"
+      # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
+      Type: 'String'
+      Value: !GetAtt S3PrivateBucket.WebsiteURL
+
+  # S3 Bucket Arns
+  S3PublicBucketArnParameter:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: !Sub "${AWS::StackName} Public S3 Bucket ARN"
+      Name: !Sub "${SsmPath}S3PublicBucketArn"
+      # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
+      Type: 'String'
+      Value: !GetAtt S3PublicBucket.Arn
+
+  S3PrivateBucketArnParameter:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: !Sub "${AWS::StackName} Private S3 Bucket ARN"
+      Name: !Sub "${SsmPath}S3PrivateBucketArn"
+      # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
+      Type: 'String'
+      Value: !GetAtt S3PrivateBucket.Arn
+
+Outputs:
+  S3LogBucketId:
+    Value: !Ref S3LogBucket
+  S3LogBucketUri:
+    Value: !Sub "s3://${S3LogBucket}"
+  S3LogBucketArn:
+    Value: !GetAtt S3LogBucket.Arn
+
+  S3PublicBucketId:
+    Value: !Ref S3PublicBucket
+  S3PublicBucketUri:
+    Value: !Sub "s3://${S3PublicBucket}"
+  S3PublicBucketArn:
+    Value: !GetAtt S3PublicBucket.Arn
+
+  S3PrivateBucketId:
+    Value: !Ref S3PrivateBucket
+  S3PrivateBucketUri:
+    Value: !Sub "s3://${S3PrivateBucket}"
+  S3PrivateBucketArn:
+    Value: !GetAtt S3PrivateBucket.Arn

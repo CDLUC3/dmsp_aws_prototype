@@ -1,20 +1,26 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: 'AWS::Serverless-2016-10-31'
 
-Description: 'Builds for Dynamo table and S3 bucket that stores DMP narrative docs'
+Description: 'Builds out an SQS queue used to email sys admin and trigger some lambdas'
 
 Parameters:
-  Subdomain:
-    Type: 'String'
-
-  Env:
-    Type: 'String'
-
   SsmPath:
     Type: 'String'
 
   AdminEmail:
     Type: 'String'
+
+  MessageRetentionSeconds:
+    Type: 'Number'
+    Default: 7200
+
+  DelaySeconds:
+    Type: 'Number'
+    Default: 5
+
+  MaxReceiveCount:
+    Type: 'Number'
+    Default: 5
 
 Resources:
   # ----------------------------------------------
@@ -26,20 +32,19 @@ Resources:
 
   SqsQueue:
     Type: 'AWS::SQS::Queue'
-    # DeletionPolicy: Retain
     Properties:
       # MaximumMessageSize: 128000 # bytes == 128 KB
-      MessageRetentionPeriod: 604800 # seconds == 7 days
-      DelaySeconds: 5 # Delay to allow Lambda to scale if necessary
+      MessageRetentionPeriod: !Ref MessageRetentionSeconds # seconds == 7 days
+      DelaySeconds: !Ref DelaySeconds # Delay to allow Lambda to scale if necessary
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt DeadLetterQueue.Arn
-        maxReceiveCount: 5
+        maxReceiveCount: !Ref MaxReceiveCount
 
   # Add the Queue ARN and URL to SSM so that our Lambdas can access it
   SqsQueueArnParameter:
     Type: 'AWS::SSM::Parameter'
     Properties:
-      Description: !Sub "${Subdomain}-${Env} SQS Queue ARN"
+      Description: !Sub "${AWS::StackName} SQS Queue ARN"
       Name: !Sub "${SsmPath}SqsQueueArn"
       # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
       Type: 'String'
@@ -48,7 +53,7 @@ Resources:
   SqsQueueUrlParameter:
     Type: 'AWS::SSM::Parameter'
     Properties:
-      Description: !Sub "${Subdomain}-${Env} SQS Queue URL"
+      Description: !Sub "${AWS::StackName} SQS Queue URL"
       Name: !Sub "${SsmPath}SqsQueueUrl"
       # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
       Type: 'String'
@@ -72,7 +77,7 @@ Resources:
   SnsTopicDownloadParameter:
     Type: 'AWS::SSM::Parameter'
     Properties:
-      Description: !Sub "${Subdomain}-${Env} Download Topic"
+      Description: !Sub "${AWS::StackName} Download Topic"
       Name: !Sub "${SsmPath}SnsDownloadTopicArn"
       # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
       Type: 'String'
@@ -91,7 +96,7 @@ Resources:
   SnsTopicNotificationParameter:
     Type: 'AWS::SSM::Parameter'
     Properties:
-      Description: !Sub "${Subdomain}-${Env} Notification Topic"
+      Description: !Sub "${AWS::StackName} Notification Topic"
       Name: !Sub "${SsmPath}SnsNotifyTopicArn"
       # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
       Type: 'String'
@@ -110,7 +115,7 @@ Resources:
   SnsTopicPublicationParameter:
     Type: 'AWS::SSM::Parameter'
     Properties:
-      Description: !Sub "${Subdomain}-${Env} Publication Topic"
+      Description: !Sub "${AWS::StackName} Publication Topic"
       Name: !Sub "${SsmPath}SnsPublishTopicArn"
       # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
       Type: 'String'
@@ -129,7 +134,7 @@ Resources:
   SnsTopicEmailParameter:
     Type: 'AWS::SSM::Parameter'
     Properties:
-      Description: !Sub "${Subdomain}-${Env} Email Topic"
+      Description: !Sub "${AWS::StackName} Email Topic"
       Name: !Sub "${SsmPath}SnsFatalErrorTopicArn"
       # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
       Type: 'String'

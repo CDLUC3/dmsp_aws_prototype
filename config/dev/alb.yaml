@@ -9,8 +9,25 @@ parameters:
     - !stack_output_external cdl-uc3-dev-defaultsubnet-stack::defaultsubnet2b
     - !stack_output_external cdl-uc3-dev-defaultsubnet-stack::defaultsubnet2c
 
-  Env: !stack_attr sceptre_user_data.env
-  Subdomain: !stack_attr sceptre_user_data.subdomain
-
-  CertificateArn: !stack_output dev/cert.yaml::AlbCertificateArn
+  CertificateArn: !stack_output dev/cert.yaml::CertificateArn
   WafArn: !stack_output dev/waf.yaml::WafArn
+
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-elasticloadbalancingv2-loadbalancer.html
+  ElbType: 'application'
+  ElbScheme: 'internet-facing'
+
+  # ELB Target Group options
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_ElasticLoadBalancingV2.html
+  # The port and protocol the Target Group listens to
+  ElbTgPort: '80'
+  ElbTgProtocol: 'HTTP'
+  ElbTgTargetType: 'ip'
+  ElbTgMatcherHttpCode: '200'
+  ElbTgSessionStickinessSeconds: '900' # 15 minutes
+  ElbTgHealthCheckIntervalSeconds: '300' # 5 minutes
+  ElbTgHealthCheckPath: '/'
+  ElbTgHealthCheckProtocol: 'HTTP'
+  ElbTgHealthCheckTimeoutSeconds: '30'
+  # The number of failed checks before we report an issue (so if it checks every 5 minutes this
+  # should start alerting after 15 minutes)
+  ElbTgHealthCheckThresholdCount: '3'

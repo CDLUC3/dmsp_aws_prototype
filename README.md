@@ -83,6 +83,11 @@ Build the project directory: `sceptre new project uc3-dmp-hub`
 You must add your administrator email to the SSM parameter store. This email will receive fatal error messages produced by the lambdas
 - Admin email: `aws ssm put-parameter --name /uc3/dmp/hub/[env]/AdminEmail --value "[email]" --type "String"`
 
+You must add the Rails master key for the application in src/ecs to the SSM parameter store. If the config/master.key does not exist in the environment, you will need to run `EDITOR=vim cd src/ecs && bundle install && bin/rails credentials:edit` Make any necessary changes to the values via the editor.
+- Rails master key: `aws ssm put-parameter --name /uc3/dmp/hub/[env]/RailsMasterKey --value "[key]" --type "String"`
+
+**Note:** After the sqs.yaml stack is created, AWS will send an email to the address you define in the `AdminEmail` parameter. You will need to click the link in that email to confirm the subscription!
+
 The following SSM parameters should be defined for integration with EZID for registering DOIs:
 - EZID api url (e.g. `https://ezid-stg.cdlib.org/`): `aws ssm put-parameter --name /uc3/dmp/hub/[env]/EzidApiUrl --value "[url]" --type "String"`
 - EZID base url (the prefix for the DOI - e.g. `https://doi.org/`): `aws ssm put-parameter --name /uc3/dmp/hub/[env]/EzidBaseUrl --value "[url]" --type "String"`

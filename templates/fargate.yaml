@@ -20,6 +20,63 @@ Parameters:
   EcsDesiredServiceCount:
     Type: 'Number'
     Default: 1
+  EcsDefaultCapacityProvider:
+    Type: 'String'
+    Default: 'FARGATE'
+  EcsNetworkMode:
+    Type: 'String'
+    Default: 'awsvpc' # Required for Fargate!
+  EcsCpuAllocation:
+    Type: 'Number'
+    Default: '2048' # 2 vCPU
+  EcsMemoryAllocation:
+    Type: 'Number'
+    Default: '4096' # 4GB
+  EcsCpuArchitecture:
+    Type: 'String'
+    Default: 'X86_64'
+  EcsOsFamily:
+    Type: 'String'
+    Default: 'LINUX'
+  EcsPlatformVersion:
+    Type: 'String'
+    Default: 'LATEST'
+  EcsPropogateTags:
+    Type: 'String'
+    Default: 'TASK_DEFINITION'
+  EcsSchedulingStrategy:
+    Type: 'String'
+    Default: 'REPLICA'
+  EcsStartTimeout:
+    Type: 'Number'
+    Default: 180
+  EcsStopTimeout:
+    Type: 'Number'
+    Default: 60
+  EcsHealthCheckGracePeriod:
+    Type: 'Number'
+    Default: 300 # 5 minutes (allows for slow startup)
+  EcsAssignPublicIp:
+    Type: 'String'
+    Default: 'ENABLED'
+  EcsDisableNetworking:
+    Type: 'String'
+    Default: 'false'
+    AllowedValues:
+      - 'true'
+      - 'false'
+  EcsIsEssential:
+    Type: 'String'
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
+  EcsIsInteractive:
+    Type: 'String'
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
 
   EcrRepositoryUri:
     Type: 'String'
@@ -32,6 +89,19 @@ Parameters:
     Type: 'String'
   AlbSecurityGroupId:
     Type: 'String'
+  AlbTargetGroupProtocol:
+    Type: 'String'
+    Default: 'tcp'
+  AlbTargetGroupPort:
+    Type: 'Number'
+    Default: 80
+
+  MailPort:
+    Type: 'Number'
+    Default: 25
+  MailProtocol:
+    Type: 'String'
+    Default: 'tcp'
 
   RailsEnv:
     Type: 'String'
@@ -53,8 +123,12 @@ Parameters:
     Default: 'none'
   RdsAddress:
     Type: 'String'
-  RdsPort:
+  RdsProtocol:
     Type: 'String'
+    Default: 'tcp'
+  RdsPort:
+    Type: 'Number'
+    Default: 3306
   RdsName:
     Type: 'String'
   RdsUsername:
@@ -113,8 +187,8 @@ Resources:
   EcsSecurityGroup:
     Type: 'AWS::EC2::SecurityGroup'
     Properties:
-      GroupDescription: !Sub 'Fargate security group for ${Subdomain}-${Env}'
-      GroupName: !Sub '${Subdomain}-ecs-sec'
+      GroupDescription: !Sub 'Fargate security group for ${AWS::StackName}'
+      GroupName: !Sub '${AWS::StackName}-ecs-sec'
       VpcId: !Ref VpcId
 
   # Allow traffic to the ECS instances from the ALB
@@ -123,9 +197,9 @@ Resources:
     DependsOn:
       - EcsSecurityGroup
     Properties:
-      IpProtocol: 'tcp'
-      FromPort: 80
-      ToPort: 80
+      IpProtocol: !Ref AlbTargetGroupProtocol
+      FromPort: !Ref AlbTargetGroupPort
+      ToPort: !Ref AlbTargetGroupPort
       GroupId: !GetAtt EcsSecurityGroup.GroupId
       SourceSecurityGroupId: !Ref AlbSecurityGroupId
 
@@ -135,7 +209,7 @@ Resources:
     DependsOn:
       - EcsSecurityGroup
     Properties:
-      IpProtocol: 'tcp'
+      IpProtocol: !Ref RdsProtocol
       FromPort: !Ref RdsPort
       ToPort: !Ref RdsPort
       GroupId: !Ref RdsSecurityGroupId
@@ -148,11 +222,11 @@ Resources:
   EcsCluster:
     Type: 'AWS::ECS::Cluster'
     Properties:
-      ClusterName: !Sub '${Subdomain}-${Env}-fargate-clst'
+      ClusterName: !Sub '${AWS::StackName}-ecs-clst'
       CapacityProviders:
-        - 'FARGATE'
+        - !Ref EcsDefaultCapacityProvider
       DefaultCapacityProviderStrategy:
-        - CapacityProvider: 'FARGATE'
+        - CapacityProvider: !Ref EcsDefaultCapacityProvider
 
   # The Application/Task definition
   EcsTaskDefinition:
@@ -161,44 +235,44 @@ Resources:
       - EcsTaskExecutionRole
       - EcsTaskRole
     Properties:
-      Cpu: '2048' # 2 vCPU
-      Memory: '4096' # 4GB
+      Cpu: !Ref EcsCpuAllocation
+      Memory: !Ref EcsMemoryAllocation
       ExecutionRoleArn: !GetAtt EcsTaskExecutionRole.Arn
       TaskRoleArn: !GetAtt EcsTaskRole.Arn
-      Family: !Sub '${Subdomain}-${Env}-fargate'
-      NetworkMode: 'awsvpc' # Required for Fargate!
+      Family: !Sub '${AWS::StackName}-ecs'
+      NetworkMode: !Ref EcsNetworkMode
       RuntimePlatform:
-        CpuArchitecture: 'X86_64'
-        OperatingSystemFamily: 'LINUX'
+        CpuArchitecture: !Ref EcsCpuArchitecture
+        OperatingSystemFamily: !Ref EcsOsFamily
       ContainerDefinitions:
         -
           Image: !Ref EcrRepositoryUri
-          Cpu: 2
-          DisableNetworking: false
-          Essential: true
-          Interactive: true
-          Memory: 2000
+          # Cpu: 2
+          DisableNetworking: !Ref EcsDisableNetworking
+          Essential: !Ref EcsIsEssential
+          Interactive: !Ref EcsIsInteractive
+          # Memory: 2000
           Name: !Ref Subdomain
-          StartTimeout: 180
-          StopTimeout: 60
+          StartTimeout: !Ref EcsStartTimeout
+          StopTimeout: !Ref EcsStopTimeout
           # TODO: Figure out why this is invalid for FARGATE
           LogConfiguration:
             LogDriver: 'awslogs'
             Options:
               awslogs-region: !Ref AWS::Region
               awslogs-create-group: true
-              awslogs-group: !Sub '${Subdomain}-${Env}-ecs'
+              awslogs-group: !Sub '${AWS::StackName}-ecs'
               awslogs-stream-prefix: !Sub '${Env}-ecs'
           PortMappings:
             # SES port
-            - ContainerPort: 25
-              Protocol: 'tcp'
+            - ContainerPort: !Ref MailPort
+              Protocol: !Ref MailProtocol
             # ALB port
-            - ContainerPort: 80
-              Protocol: 'tcp'
+            - ContainerPort: !Ref AlbTargetGroupPort
+              Protocol: !Ref AlbTargetGroupProtocol
             # RDS port
             - ContainerPort: !Ref RdsPort
-              Protocol: 'tcp'
+              Protocol: !Ref RdsProtocol
           Environment:
             - Name: 'RAILS_ENV'
               Value: !Ref RailsEnv
@@ -240,8 +314,8 @@ Resources:
       Cluster: !Ref EcsCluster
       DesiredCount: !Ref EcsDesiredServiceCount
       EnableECSManagedTags: true
-      HealthCheckGracePeriodSeconds: 300 # 5 minutes for app startup
-      LaunchType: 'FARGATE'
+      HealthCheckGracePeriodSeconds: !Ref EcsHealthCheckGracePeriod
+      LaunchType: !Ref EcsDefaultCapacityProvider
       LoadBalancers:
         - TargetGroupArn: !Ref AlbTargetGroupArn
           ContainerPort: !Ref RailsPort
@@ -252,15 +326,15 @@ Resources:
             - !GetAtt EcsSecurityGroup.GroupId
             - !Ref AlbSecurityGroupId
             - !Ref RdsSecurityGroupId
-          AssignPublicIp: 'ENABLED'
+          AssignPublicIp: !Ref EcsAssignPublicIp
           Subnets: !Ref Subnets
       DeploymentConfiguration:
         DeploymentCircuitBreaker:
           Enable: true
           Rollback: true
-      PlatformVersion: 'LATEST'
-      PropagateTags: 'TASK_DEFINITION'
-      SchedulingStrategy: 'REPLICA'
+      PlatformVersion: !Ref EcsPlatformVersion
+      PropagateTags: !Ref EcsPropogateTags
+      SchedulingStrategy: !Ref EcsSchedulingStrategy
       TaskDefinition: !Ref EcsTaskDefinition
 
 Outputs:

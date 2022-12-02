@@ -4,11 +4,26 @@ Transform: AWS::Serverless-2016-10-31
 Description: 'Serverless architecture for the DMPRoadmap system'
 
 Parameters:
-  Subdomain:
-    Type: String
-  Env:
-    Type: String
-    Default: 'dev'
+  Scope:
+    Type: 'String'
+    Default: 'REGIONAL'
+    AllowedValues:
+      - 'CLOUDFRONT'
+      - 'REGIONAL'
+
+  SampledRequestsEnabled:
+    Type: 'String'
+    Default: 'false'
+    AllowedValues:
+      - 'true'
+      - 'false'
+
+  CloudWatchMetricsEnabled:
+    Type: 'String'
+    Default: 'false'
+    AllowedValues:
+      - 'true'
+      - 'false'
 
 Resources:
   # -----------------------------------------------------------
@@ -20,11 +35,11 @@ Resources:
     Properties:
       DefaultAction:
         Allow: {}
-      Scope: 'REGIONAL'
+      Scope: !Ref Scope
       VisibilityConfig:
-        SampledRequestsEnabled: true
-        CloudWatchMetricsEnabled: true
-        MetricName: !Sub '${Subdomain}-${Env}-waf-metric'
+        SampledRequestsEnabled: !Ref SampledRequestsEnabled
+        CloudWatchMetricsEnabled: !Ref CloudWatchMetricsEnabled
+        MetricName: !Sub '${AWS::StackName}-waf-metric'
       Rules:
         - Name: 'AWS-AWSManagedRulesAmazonIpReputationList'
           Priority: 0

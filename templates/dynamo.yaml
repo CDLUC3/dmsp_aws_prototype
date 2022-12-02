@@ -1,0 +1,173 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+
+Description: 'DynamoDB that backs the API dmp-hub-sam'
+
+Parameters:
+  SsmPath:
+    Type: 'String'
+
+  DynamoTableClass:
+    Type: 'String'
+    Default: 'STANDARD'
+    AllowedValues:
+      - 'STANDARD'
+      - 'STANDARD_INFREQUENT_ACCESS'
+  DynamoEnableContributorInsights:
+    Type: 'String'
+    Default: 'false'
+    AllowedValues:
+      - 'true'
+      - 'false'
+  DynamoEnablePointInTimeRecovery:
+    Type: 'String'
+    Default: 'false'
+    AllowedValues:
+      - 'true'
+      - 'false'
+  DynamoBillingMode:
+    Type: 'String'
+    Default: 'PROVISIONED'
+    AllowedValues:
+      - 'PROVISIONED'
+      - 'PAY_PER_REQUEST'
+  DynamoReadCapacityUnits:
+    Type: 'Number'
+    Default: 10
+  DynamoWriteCapacityUnits:
+    Type: 'Number'
+    Default: 10
+
+  RdsSnapshot:
+    Type: 'String'
+    Default: 'none'
+
+Resources:
+  # ----------------------------------------------
+  # DynamoDB polymorphic table
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html
+  # ----------------------------------------------
+  DynamoTable:
+    Type: 'AWS::DynamoDB::Table'
+    DeletionPolicy: Retain
+    Properties:
+      # The base table's Partition key and Sort Key define both the DMP ID and version
+      # There are 3 potential variants of these keys:
+      # PK - PROVENANCE#dmptool,      SK - PROFILE                       <--- Provenance info
+      # PK - PROVENANCE#dmptool,      SK - DMPS                          <--- Array of DMP PKs for the Provenance
+      # PK - DMP#doi:10.48321/D1M30K, SK - VERSION#latest                <--- Latest version
+      # PK - DMP#doi:10.48321/D1M30K, SK - VERSION#2022-02-18T12:30:25Z  <--- Historical version
+      # PK - PERSON#[orcid],          SK - DMPS                          <--- Array of DMP PKs for the Person
+      # PK - AFFILIATION#[id],        SK - DMPS                          <--- Array of DMP PKs for the Affiliation / Funder
+      # PK - RELATED#[:id],           SK - DMPS                          <--- Array of DMP PKs for the Related Identifier / Grant
+
+      KeySchema:
+        - AttributeName: 'PK'
+          KeyType: 'HASH'
+        - AttributeName: 'SK'
+          KeyType: 'RANGE'
+
+      AttributeDefinitions:
+        # DMPHub attribute that stores the provenance/DMP id (see above)
+        - AttributeName: 'PK'
+          AttributeType: 'S'
+        # DMPHub attribute that stores the provenance profile or the DMP version (see above)
+        - AttributeName: 'SK'
+          AttributeType: 'S'
+        # DMPHub attribute that stores the mod date as YYYY-MM-DD for fast date range retrievals
+        - AttributeName: 'dmphub_modification_day'
+          AttributeType: 'S'
+        # The originating provenance system's ID for the DMP
+        - AttributeName: 'dmphub_provenance_identifier'
+          AttributeType: 'S'
+        # DMPHub attribute that stores the id of the provenance user/system
+        - AttributeName: 'dmphub_provenance_id'
+          AttributeType: 'S'
+
+      GlobalSecondaryIndexes:
+        # An index to help us quickly fetch all of the DMPs for a specific date range
+        - IndexName: 'modification_day_gsi'
+          KeySchema:
+            - AttributeName: 'dmphub_modification_day'
+              KeyType: 'HASH'
+            - AttributeName: 'PK'
+              KeyType: 'RANGE'
+          Projection:
+            ProjectionType: 'INCLUDE'
+            NonKeyAttributes: ['SK', 'title', 'contact', 'dmphub_affiliation_ids']
+          ContributorInsightsSpecification:
+            Enabled: !Ref DynamoEnableContributorInsights
+          ProvisionedThroughput:
+            ReadCapacityUnits: !Ref DynamoReadCapacityUnits
+            WriteCapacityUnits: !Ref DynamoWriteCapacityUnits
+
+        # An index to help us quickly fetch a DMP by its identifier for the provenance system
+        - IndexName: 'dmphub_provenance_identifier_gsi'
+          KeySchema:
+            - AttributeName: 'dmphub_provenance_identifier'
+              KeyType: 'HASH'
+            - AttributeName: 'PK'
+              KeyType: 'RANGE'
+          Projection:
+            ProjectionType: 'INCLUDE'
+            NonKeyAttributes: ['PK', 'SK']
+          ContributorInsightsSpecification:
+            Enabled: !Ref DynamoEnableContributorInsights
+          ProvisionedThroughput:
+            ReadCapacityUnits: !Ref DynamoReadCapacityUnits
+            WriteCapacityUnits: !Ref DynamoWriteCapacityUnits
+
+        # An index to help us quickly fetch all of the DMPs for a specific provenance
+        - IndexName: 'provenance_dmps_gsi'
+          KeySchema:
+            - AttributeName: 'dmphub_provenance_id'
+              KeyType: 'HASH'
+            - AttributeName: 'PK'
+              KeyType: 'RANGE'
+          Projection:
+            ProjectionType: 'INCLUDE'
+            NonKeyAttributes: ['title', 'contact', 'modified']
+          ContributorInsightsSpecification:
+            Enabled: !Ref DynamoEnableContributorInsights
+          ProvisionedThroughput:
+            ReadCapacityUnits: !Ref DynamoReadCapacityUnits
+            WriteCapacityUnits: !Ref DynamoWriteCapacityUnits
+
+      BillingMode: !Ref DynamoBillingMode
+      TableClass: !Ref DynamoTableClass
+      ProvisionedThroughput:
+        ReadCapacityUnits: !Ref DynamoReadCapacityUnits
+        WriteCapacityUnits: !Ref DynamoWriteCapacityUnits
+      ContributorInsightsSpecification:
+        Enabled: !Ref DynamoEnableContributorInsights
+      # Determine cost before enabling
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: !Ref DynamoEnablePointInTimeRecovery
+
+  # Add the Table name to SSM so that our Lambdas can access it
+  TableNameParameter:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: !Sub "${AWS::StackName} DynamoTable"
+      Name: !Sub "${SsmPath}DynamoTableName"
+      # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
+      Type: 'String'
+      Value: !Select [1, !Split ['/', !GetAtt DynamoTable.Arn]]
+
+  # Add the Table name to SSM so that our Lambdas can access it
+  TableArnParameter:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: !Sub "${AWS::StackName} DynamoTable"
+      Name: !Sub "${SsmPath}DynamoTableArn"
+      # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
+      Type: 'String'
+      Value: !GetAtt DynamoTable.Arn
+
+Outputs:
+  DynamoTableName:
+    Value: !Select [1, !Split ['/', !GetAtt DynamoTable.Arn]]
+  DynamoTableId:
+    Value: !Ref DynamoTable
+  DynamoTableArn:
+    Value: !GetAtt DynamoTable.Arn

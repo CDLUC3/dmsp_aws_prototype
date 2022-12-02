@@ -6,19 +6,85 @@ Description: 'Application load balancer for Fargate'
 Parameters:
   VpcId:
     Type: 'AWS::EC2::VPC::Id'
+
   Subnets:
     Type: 'List<AWS::EC2::Subnet::Id>'
 
-  Subdomain:
-    Type: 'String'
-  Env:
-    Type: 'String'
-    Default: 'dev'
-
   CertificateArn:
     Type: 'String'
+
   WafArn:
     Type: 'String'
+
+  ElbType:
+    Type: 'String'
+    Default: 'application'
+    AllowedValues:
+      - 'application'
+      - 'gateway'
+      - 'network'
+
+  ElbScheme:
+    Type: 'String'
+    Default: 'internet-facing'
+    AllowedValues:
+      - 'internal'
+      - 'internet-facing'
+
+  ElbTgPort:
+    Type: 'Number'
+    Default: 80
+
+  ElbTgProtocol:
+    Type: 'String'
+    Default: 'HTTP'
+    AllowedValues:
+      - 'HTTP'
+      - 'HTTPS'
+
+  ElbTgTargetType:
+    Type: 'String'
+    Default: 'ip'
+    AllowedValues:
+      - 'alb'
+      - 'instance'
+      - 'ip'
+      - 'lambda'
+
+  ElbTgMatcherHttpCode:
+    Type: 'Number'
+    Default: 200
+
+  ElbTgSessionStickinessSeconds:
+    Type: 'Number'
+    Default: 900 # 15 minutes
+
+  ElbTgHealthCheckIntervalSeconds:
+    Type: 'Number'
+    Default: 300 # 5 minutes
+
+  ElbTgHealthCheckPort:
+    Type: 'Number'
+    Default: 80
+
+  ElbTgHealthCheckPath:
+    Type: 'String'
+    Default: '/'
+
+  ElbTgHealthCheckProtocol:
+    Type: 'String'
+    Default: 'HTTP'
+    AllowedValues:
+      - 'HTTP'
+      - 'HTTPS'
+
+  ElbTgHealthCheckTimeoutSeconds:
+    Type: 'Number'
+    Default: 30
+
+  ElbTgHealthCheckThresholdCount:
+    Type: 'Number'
+    Default: 3
 
 Resources:
   # -----------------------------------------------------------
@@ -29,25 +95,25 @@ Resources:
     Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
     Properties:
       HealthCheckEnabled: true
-      HealthCheckIntervalSeconds: 300 # 5 minutes
-      HealthCheckPath: '/'
-      HealthCheckPort: 'traffic-port'
-      HealthCheckProtocol: 'HTTP'
-      HealthCheckTimeoutSeconds: 30
-      UnhealthyThresholdCount: 3
+      HealthCheckIntervalSeconds: !Ref ElbTgHealthCheckIntervalSeconds
+      HealthCheckPath: !Ref ElbTgHealthCheckPath
+      HealthCheckPort: !Ref ElbTgHealthCheckPort
+      HealthCheckProtocol: !Ref ElbTgHealthCheckProtocol
+      HealthCheckTimeoutSeconds: !Ref ElbTgHealthCheckTimeoutSeconds
+      UnhealthyThresholdCount: !Ref ElbTgHealthCheckThresholdCount
       Matcher:
-        HttpCode: 200
+        HttpCode: !Ref ElbTgMatcherHttpCode
       VpcId: !Ref VpcId
-      Port: 80
-      Protocol: 'HTTP'
+      Port: !Ref ElbTgPort
+      Protocol: !Ref ElbTgProtocol
       TargetGroupAttributes:
         - Key: 'stickiness.enabled'
           Value: true
         - Key: 'stickiness.type'
           Value: 'lb_cookie'
         - Key: 'stickiness.lb_cookie.duration_seconds'
-          Value: 900 # 15 minutes
-      TargetType: 'ip'
+          Value: !Ref ElbTgSessionStickinessSeconds
+      TargetType: !Ref ElbTgTargetType
 
   # -----------------------------------------------------------
   # Elastic Load Balancer (ELB)
@@ -56,8 +122,8 @@ Resources:
   Alb:
     Type: 'AWS::ElasticLoadBalancingV2::LoadBalancer'
     Properties:
-      Type: 'application'
-      Scheme: 'internet-facing'
+      Type: !Ref ElbType
+      Scheme: !Ref ElbScheme
       SecurityGroups:
         - !GetAtt AlbSecurityGroup.GroupId
       Subnets: !Ref Subnets
@@ -83,7 +149,7 @@ Resources:
       Protocol: 'HTTP'
       Port: 80
 
-  # HTTPS Listener for HTTPS that sends traffic to the ALB target (ECS) over HTTP
+  # HTTPS Listener that sends traffic to the ALB target (ECS) over HTTP
   AlbListenerHttps:
     Type: 'AWS::ElasticLoadBalancingV2::Listener'
     Properties:
@@ -96,33 +162,6 @@ Resources:
       Certificates:
         - CertificateArn: !Ref CertificateArn
 
-  # CognitoListenerRule:
-  #   Type: 'AWS::ElasticLoadBalancingV2::ListenerRule'
-  #   Properties:
-  #     Actions:
-  #       - Type: 'authenticate-cognito'
-  #         AuthenticateCognitoConfig:
-  #           UserPoolArn: CognitoUserPoolArn
-  #           UserPoolClientId: CognitoUserPoolClient
-  #           UserPoolDomain: CognitoUserPoolDomain
-  #     Conditions:
-  #       - Field: 'path-pattern'
-  #         PathPatternConfig:
-  #           Values:
-  #             - 'auth'
-  #     ListenerArn: !Ref AlbListenerHttps
-  #     Priority: 1
-
-  # Need some new Listener Rules attached to AlbListenerHttps
-  #   https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-elasticloadbalancingv2-listenerrule.html
-
-  # Send default traffic to the API
-
-  # Send '/auth' traffic to Cognito
-
-  # Send '/dmps/{dmp_id+}' landing page traffic to the new React app
-  # Send '/dmps/upload' upload page traffic to the new React app
-  # Send '/dashboard' dashboard page traffic to the new React app
   # -----------------------------------------------------------
   # EC2 Security Groups for ECS containers
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-security-group.html
@@ -130,8 +169,8 @@ Resources:
   AlbSecurityGroup:
     Type: 'AWS::EC2::SecurityGroup'
     Properties:
-      GroupDescription: !Sub 'Fargate security group for ${Subdomain}-${Env}'
-      GroupName: !Sub '${Subdomain}-alb-sec'
+      GroupDescription: !Sub 'Fargate security group for ${AWS::StackName}'
+      GroupName: !Sub '${AWS::StackName}-alb-sec'
       VpcId: !Ref VpcId
 
   # The ALB will terminate the SSL, so only accept 443 here
@@ -170,6 +209,11 @@ Outputs:
     Value: !GetAtt Alb.DNSName
   AlbHostedZoneId:
     Value: !GetAtt Alb.CanonicalHostedZoneID
+  AlbTargetGroupPort:
+    Value: !Ref ElbTgPort
 
   AlbSecurityGroupID:
     Value: !GetAtt AlbSecurityGroup.GroupId
+
+  AlbListenerHttpsId:
+    Value: !Ref AlbListenerHttps

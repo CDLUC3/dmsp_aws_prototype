@@ -1,0 +1,102 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+
+Description: 'Application load balancer for Fargate'
+
+Parameters:
+  AlbListenerHttpsId:
+    Type: 'String'
+
+  CognitoUserPoolArn:
+    Type: 'String'
+
+  CognitoUserPoolClientId:
+    Type: 'String'
+
+  CognitoUserPoolDomain:
+    Type: 'String'
+
+Resources:
+  # -----------------------------------------------------------
+  # Need some new Listener Rules attached to AlbListenerHttps
+  #   https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-elasticloadbalancingv2-listenerrule.html
+  # -----------------------------------------------------------
+
+  # TODO: We ultimately want to obscure the distinction between the DMPTool and DMPHub from users
+  #       to do this we need to have the ALB send traffic to the appropriate destination based on
+  #       the path.
+  #
+  # Desired situation:
+  # ------------------
+  # - URLs are all is dmptool-dev.cdlib.org, dmptool-stg.cdlib.org or dmptool.org
+  # - Protect all endpoints with Cognito (exclude DMPTool at first until others are working)
+  # - Default traffic goes to the DMPTool (either a redirect to the Rails app in the main account OR port to new
+  #   AWS environment)
+  # - Send '/dmps/{dmp_id+}' landing page traffic to the new React app
+  # - Send '/dmps/upload' upload page traffic to the new React app
+  # - Send '/dashboard' dashboard page traffic to the new React app
+  #
+  # Current situation:
+  # ------------------
+  # ALB default action is currently to send traffic to the Rails app hosted on ECS (Fargate)
+  #
+
+  # HTTPS Listener that sends traffic to Cognito
+  AlbCognitoListenerRule:
+    Type: 'AWS::ElasticLoadBalancingV2::ListenerRule'
+    Properties:
+      ListenerArn: !Ref AlbListenerHttpsId
+      Priority: 10
+      Conditions:
+        - Field: 'path-pattern'
+          Values:
+            - '/'
+      Actions:
+        - Type: 'authenticate-cognito'
+          Order: 100
+          AuthenticateCognitoConfig:
+            UserPoolArn: !Ref CognitoUserPoolArn
+            UserPoolClientId: !Ref CognitoUserPoolClientId
+            UserPoolDomain: !Ref CognitoUserPoolDomain
+            OnUnauthenticatedRequest: 'authenticate'
+        - Type: 'fixed-response'
+          Order: 200
+          FixedResponseConfig:
+            StatusCode: 200
+            ContentType: 'text/html'
+            MessageBody: |
+              <!doctype html>
+              <html lang="en">
+              <head>
+                  <title>Simple Page</title>
+              </head>
+              <body>
+                  <button onclick="pressMe()">Press Me</button>
+              </body>
+              <script type="text/javascript">
+                  const rootUrl = window.location.href.replace(/[^/]*$/, "");
+                  const queryUrl = rootUrl + "api/example";
+
+                  async function pressMe() {
+                      console.log("making remote call");
+                      const request = {
+                          method: 'POST',
+                          cache: 'no-cache',
+                          headers: {
+                              'Content-Type': 'application/json'
+                          },
+                          body: "test data"
+                      };
+                      const response = await fetch(queryUrl, request);
+                      if (response.ok) {
+                          content = await response.text();
+                          console.log("response: " + content)
+                      }
+                      else {
+                          console.log("failed to execute remote call: " + response.status)
+                      }
+                  }
+              </script>
+              </html>
+
+Outputs:

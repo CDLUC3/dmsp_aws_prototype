@@ -2,20 +2,17 @@ template:
   path: 'cognito.yaml'
   type: 'file'
 
-# The UserPoolDomainName here requires an existing A record for the root domain, so make sure it
-# has been created first!
 dependencies:
-  - dev/route53.yaml
+  - 'dev/route53.yaml'
 
 parameters:
   HostedZoneId: !stack_output_external sceptre-uc3-ops-common-dev-route53::HostedZoneID
 
-  CertificateArn: !stack_output dev/cert.yaml::AlbCertificateArn
+  CertificateArn: !stack_output dev/cert.yaml::CognitoCertificateArn
 
   Domain: !stack_attr sceptre_user_data.domain
   Subdomain: !stack_attr sceptre_user_data.subdomain
 
-  NamePrefix: !stack_attr sceptre_user_data.resource_name_prefix
   Env: !stack_attr sceptre_user_data.env
 
   DmptoolCallbackUri: 'https://dmptool-dev.cdlib.org/callback'

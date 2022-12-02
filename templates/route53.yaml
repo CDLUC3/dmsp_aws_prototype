@@ -33,36 +33,26 @@ Resources:
         HostedZoneId: !Ref AlbHostedZoneId
         # EvaluateTargetHealth: true
 
-  # AlbCName:
-  #   Type: 'AWS::Route53::RecordSet'
-  #   Properties:
-  #     HostedZoneId: !Ref HostedZoneId
-  #     Name: !Sub "www.${Subdomain}.${Domain}"
-  #     Type: 'CNAME'
-  #     ResourceRecords:
-  #       - !Ref AlbAlias
-  #     TTL: 60
-
-  # ApiAlias:
-  #   Type: 'AWS::Route53::RecordSet'
-  #   Properties:
-  #     HostedZoneId: !Ref HostedZoneId
-  #     Name: !Sub 'api.${Domain}'
-  #     Type: 'A'
-  #     AliasTarget:
-  #       DNSName: !Ref AlbDnsName
-  #       HostedZoneId: !Ref AlbHostedZoneId
+  ApiAlias:
+    Type: 'AWS::Route53::RecordSet'
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Sub "${Subdomain}-api.${Domain}"
+      Type: 'A'
+      AliasTarget:
+        DNSName: !Ref AlbDnsName
+        HostedZoneId: !Ref AlbHostedZoneId
         # EvaluateTargetHealth: true
 
-  # AuthAlias:
-  #   Type: 'AWS::Route53::RecordSet'
-  #   Properties:
-  #     HostedZoneId: !Ref HostedZoneId
-  #     Name: !Sub 'auth.${Domain}'
-  #     Type: 'A'
-  #     AliasTarget:
-  #       DNSName: !Ref AlbDnsName
-  #       HostedZoneId: !Ref AlbHostedZoneId
+  AuthAlias:
+    Type: 'AWS::Route53::RecordSet'
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Sub "${Subdomain}-auth.${Domain}"
+      Type: 'A'
+      AliasTarget:
+        DNSName: !Ref AlbDnsName
+        HostedZoneId: !Ref AlbHostedZoneId
         # EvaluateTargetHealth: true
 
 Outputs:

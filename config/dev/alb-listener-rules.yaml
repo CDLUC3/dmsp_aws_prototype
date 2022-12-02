@@ -1,0 +1,10 @@
+template:
+  path: 'alb-listener-rules.yaml'
+  type: 'file'
+
+parameters:
+  AlbListenerHttpsId: !stack_output dev/alb.yaml::AlbListenerHttpsId
+
+  CognitoUserPoolArn: !stack_output dev/cognito.yaml::UserPoolArn
+  CognitoUserPoolClientId: !stack_output dev/cognito.yaml::UserPoolId
+  CognitoUserPoolDomain: !stack_output dev/cognito.yaml::UserPoolDomain

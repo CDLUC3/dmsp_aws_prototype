@@ -20,30 +20,31 @@ parameters:
   Service: !stack_attr stack_tags.Service
   Subservice: !stack_attr stack_tags.Subservice
 
+  LogRetentionDays: '14'
+
+  # The repository branch the CodePipeline should monitor for changes.
+  CodePipelineRepositoryName: 'CDLUC3/dmp-hub-ecs'
+  CodePipelineBranchToMonitor: 'main'
+
   CodeStarConnectionArn: !ssm_parameter /uc3/CodeStarConnectionArn
 
   EcsClusterName: !stack_output dev/fargate.yaml::EcsFargateClusterId
   EcsServiceName: !stack_output dev/fargate.yaml::EcsServiceName
 
-  EcrRepositoryUri: !stack_output dev/data.yaml::EcrRepositoryUri
-  EcrRepositoryName: !stack_output dev/data.yaml::EcrRepositoryName
+  EcrRepositoryUri: !stack_output dev/ecr.yaml::EcrRepositoryUri
+  EcrRepositoryName: !stack_output dev/ecr.yaml::EcrRepositoryName
 
-  LogGroupId: !stack_output dev/logs.yaml::LogGroupId
-  LogGroupArn: !stack_output dev/logs.yaml::LogGroupArn
-
-  S3ArtifactBucketId: !stack_attr template_bucket_name
-  S3LogBucketId: !stack_output dev/logs.yaml::S3LogBucketId
-
-  # The branches to monitor for changes.
-  BranchToMonitor: 'main'
+  S3ArtifactBucketId: !stack_output dev/s3.yaml::S3PrivateBucketId
+  S3LogBucketId: !stack_output dev/s3.yaml::S3LogBucketId
 
   # Environment variables required to build the Docker image
   RailsEnv: !stack_attr sceptre_user_data.rails_env
+  RailsMasterKey: !ssm_parameter /uc3/dmp/hub/dev/RailsMasterKey
   RailsLogLevel: !stack_attr sceptre_user_data.rails_log_level
   RailsPort: !stack_attr sceptre_user_data.rails_port
 
-  RdsAddress: !stack_output dev/data.yaml::RdsAddress
-  RdsPort: !stack_output dev/data.yaml::RdsPort
-  RdsName: !stack_output dev/data.yaml::RdsName
+  RdsAddress: !stack_output dev/rds.yaml::RdsAddress
+  RdsPort: !stack_output dev/rds.yaml::RdsPort
+  RdsName: !stack_output dev/rds.yaml::RdsName
   RdsUsername: !ssm_parameter '/uc3/dmp/hub/dev/RdsUsername'
   RdsPassword: !ssm_parameter '/uc3/dmp/hub/dev/RdsPassword'

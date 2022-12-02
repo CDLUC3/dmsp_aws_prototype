@@ -1,0 +1,26 @@
+template:
+  path: dynamo.yaml
+  type: file
+
+dependencies:
+  - dev/sqs.yaml
+
+parameters:
+  SsmPath: !stack_attr sceptre_user_data.ssm_path
+
+  # Dynamo settings
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html
+  DynamoTableClass: 'STANDARD'
+  DynamoEnableContributorInsights: 'true'
+  DynamoEnablePointInTimeRecovery: 'false'
+  DynamoBillingMode: 'PROVISIONED'
+  DynamoReadCapacityUnits: '16'
+  DynamoWriteCapacityUnits: '60'
+
+# TODO: Consider commenting this out if we end up using AppSync and GraphQL. In that situation we will want
+#       to defined the Lambdas in the normal CF templates since there would be no need for the API Gateway.
+hooks:
+  after_create:
+    # Once the Dynamo table has been created, we can deploy our Lambdas and the API Gateway which are managed
+    # by AWS SAM.
+    - !sam_deploy location=src/sam config=dev

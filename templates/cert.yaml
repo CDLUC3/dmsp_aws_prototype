@@ -18,7 +18,7 @@ Resources:
   # we're using a hosted zone we need separate ones :/)
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-certificatemanager-certificate.html
   # --------------------------------------------------------------------------
-  AlbCertificate:
+  Certificate:
     Type: 'AWS::CertificateManager::Certificate'
     Properties:
       DomainName: !Sub "${Subdomain}.${Domain}"
@@ -27,6 +27,28 @@ Resources:
           HostedZoneId: !Ref HostedZoneId
       ValidationMethod: 'DNS'
 
+  ApiCertificate:
+    Type: 'AWS::CertificateManager::Certificate'
+    Properties:
+      DomainName: !Sub "${Subdomain}-api.${Domain}"
+      DomainValidationOptions:
+        - DomainName: !Sub "${Subdomain}-api.${Domain}"
+          HostedZoneId: !Ref HostedZoneId
+      ValidationMethod: 'DNS'
+
+  AuthCertificate:
+    Type: 'AWS::CertificateManager::Certificate'
+    Properties:
+      DomainName: !Sub "${Subdomain}-auth.${Domain}"
+      DomainValidationOptions:
+        - DomainName: !Sub "${Subdomain}-auth.${Domain}"
+          HostedZoneId: !Ref HostedZoneId
+      ValidationMethod: 'DNS'
+
 Outputs:
-  AlbCertificateArn:
-    Value: !Ref AlbCertificate
+  CertificateArn:
+    Value: !Ref Certificate
+  ApiCertificateArn:
+    Value: !Ref ApiCertificate
+  CognitoCertificateArn:
+    Value: !Ref AuthCertificate

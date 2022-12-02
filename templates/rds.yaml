@@ -1,0 +1,159 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+
+Description: 'RDS database that supports the Rails UI dmp-hub-ecs'
+
+Parameters:
+  VpcId:
+    Type: 'AWS::EC2::VPC::Id'
+  PrivateSubnets:
+    Type: 'List<AWS::EC2::Subnet::Id>'
+
+  SsmPath:
+    Type: 'String'
+
+  RdsSnapshot:
+    Type: 'String'
+    Default: 'none'
+
+  RdsInstanceType:
+    Type: 'String'
+    Default: 'db.t3.small'
+  RdsSizeGB:
+    Type: 'Number'
+    Default: 20
+  RdsBackupRetentionDays:
+    Type: 'Number'
+    Default: 14
+  RdsEngine:
+    Type: 'String'
+    Default: 'MySQL'
+  RdsEngineVersion:
+    Type: 'String'
+    Default: '8.0.30'
+  RdsPort:
+    Type: String
+    Default: '3306'
+  RdsUsername:
+    Type: 'String'
+    NoEcho: true
+  RdsPassword:
+    Type: 'String'
+    NoEcho: true
+  RdsName:
+    Type: 'String'
+
+# If an RDS Snapshot was specified then restore it onto the newly created RDS instance
+Conditions:
+  InitializeRds:
+    !Not [!Equals [!Ref RdsSnapshot, 'none']]
+
+Resources:
+  # -----------------------------------------------------------
+  # Identitity and Access Management (IAM)
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_IAM.html
+  # -----------------------------------------------------------
+  RdsMonitoringRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service:
+                - 'monitoring.rds.amazonaws.com'
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole'
+
+  # -----------------------------------------------------------
+  # EC2 Security Groups for use with RDS database and S3 Bucket
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-security-group.html
+  # -----------------------------------------------------------
+  RdsSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: !Sub 'RDS security group for ${AWS::StackName}'
+      GroupName: !Sub '${AWS::StackName}-rds-sec'
+      VpcId: !Ref VpcId
+
+  # -----------------------------------------------------------
+  # Relational Database Service (RDS) - DB for the application
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_RDS.html
+  # -----------------------------------------------------------
+  RdsSubnetGroupPrivate:
+    Type: 'AWS::RDS::DBSubnetGroup'
+    Properties:
+      DBSubnetGroupDescription: !Sub 'Subnet group for ${AWS::StackName}'
+      SubnetIds:
+        !Ref PrivateSubnets
+
+  RdsDatabase:
+    Type: 'AWS::RDS::DBInstance'
+    DeletionPolicy: Snapshot
+    DependsOn:
+      - RdsSubnetGroupPrivate
+      - RdsSecurityGroup
+      # - RdsPasswordParameter
+    Properties:
+      VPCSecurityGroups:
+        - !Ref RdsSecurityGroup
+      DBSubnetGroupName: !Ref RdsSubnetGroupPrivate
+      # If an RDS Snapshot was defined, then instruct CF to restore it
+      DBSnapshotIdentifier: !If
+        - InitializeRds
+        - !Ref RdsSnapshot
+        - !Ref AWS::NoValue
+      PubliclyAccessible: false
+      AllowMajorVersionUpgrade: true
+      AutoMinorVersionUpgrade: true
+      BackupRetentionPeriod: !Ref RdsBackupRetentionDays # days
+      CopyTagsToSnapshot: true
+      AllocatedStorage: !Ref RdsSizeGB
+      Port: !Ref RdsPort
+      Engine: !Ref RdsEngine
+      EngineVersion: !Ref RdsEngineVersion
+      MonitoringInterval: '60'
+      MonitoringRoleArn: !GetAtt RdsMonitoringRole.Arn
+      # If an RDS Snapshot was defined, then use it's name
+      DBName: !If
+        - InitializeRds
+        - !Ref AWS::NoValue
+        - !Ref RdsName
+      DBInstanceClass: !Ref RdsInstanceType
+      MasterUsername: !Ref RdsUsername
+      MasterUserPassword: !Ref RdsPassword
+
+  # Add the Credentials to SSM so that we can access the RDS instance!
+  RdsUsernameParameter:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: !Sub "${AWS::StackName} RDS Username"
+      Name: !Sub "${SsmPath}RdsUsername"
+      # Note: AWS CloudFormation does not yet support creating a SecureString parameter type yet.
+      Type: 'String'
+      Value: !Ref RdsUsername
+
+  RdsPasswordParameter:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: !Sub "${AWS::StackName} RDS Password"
+      Name: !Sub "${SsmPath}RdsPassword"
+      # Note: AWS CloudFormation does not yet support creating a SecureString parameter type yet.
+      Type: 'String'
+      Value: !Ref RdsPassword
+
+Outputs:
+  RdsInstanceName:
+    Value: !Ref RdsDatabase
+  RdsAddress:
+    Value: !GetAtt RdsDatabase.Endpoint.Address
+  RdsPort:
+    Value: !GetAtt RdsDatabase.Endpoint.Port
+  RdsName:
+    Value: !Ref RdsName
+
+  RdsSecurityGroupId:
+    Value: !GetAtt RdsSecurityGroup.GroupId

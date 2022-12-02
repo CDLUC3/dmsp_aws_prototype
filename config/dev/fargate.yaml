@@ -18,27 +18,24 @@ parameters:
 
   EcsDesiredServiceCount: '1'
 
-  EcrRepositoryUri: !stack_output dev/data.yaml::EcrRepositoryUri
-  EcrRepositoryName: !stack_output dev/data.yaml::EcrRepositoryName
+  EcrRepositoryUri: !stack_output dev/ecr.yaml::EcrRepositoryUri
+  EcrRepositoryName: !stack_output dev/ecr.yaml::EcrRepositoryName
 
   AlbTargetGroupArn: !stack_output dev/alb.yaml::AlbTargetGroupArn
   AlbDnsName: !stack_output dev/alb.yaml::AlbDnsName
   AlbSecurityGroupId: !stack_output dev/alb.yaml::AlbSecurityGroupID
+  AlbTargetGroupPort: !stack_output dev/alb.yaml::AlbTargetGroupPort
 
   RailsEnv: !stack_attr sceptre_user_data.rails_env
   RailsLogLevel: !stack_attr sceptre_user_data.rails_log_level
   RailsPort: !stack_attr sceptre_user_data.rails_port
 
-  RdsSecurityGroupId: !stack_output dev/data.yaml::RdsSecurityGroupId
-  RdsAddress: !stack_output dev/data.yaml::RdsAddress
-  RdsPort: !stack_output dev/data.yaml::RdsPort
-  RdsName: !stack_output dev/data.yaml::RdsName
+  RdsSecurityGroupId: !stack_output dev/rds.yaml::RdsSecurityGroupId
+  RdsAddress: !stack_output dev/rds.yaml::RdsAddress
+  RdsPort: !stack_output dev/rds.yaml::RdsPort
+  RdsName: !stack_output dev/rds.yaml::RdsName
   RdsUsername: !ssm_parameter '/uc3/dmp/hub/dev/RdsUsername'
   RdsPassword: !ssm_parameter '/uc3/dmp/hub/dev/RdsPassword'
 
   # ApiBaseUrl: !stack_output_external uc3-dmp-hub-dev-lambdas::ApiBaseUrl
   ApiBaseUrl: 'https://64rihsjsk4.execute-api.us-west-2.amazonaws.com/v0/'
-
-  # If you have an existing RDS snapshot of your DB, you can include it here and CF will
-  # restore that snapshot. If not, just leave this commented out and Docker will initialize the DB
-  # RdsSnapshot: 'ARN of my DBSnapshotIdentifier'

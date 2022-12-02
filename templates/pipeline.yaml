@@ -24,6 +24,47 @@ Parameters:
   Subservice:
     Type: 'String'
 
+  ApiLogRetentionDays:
+    Type: 'Number'
+    Default: 7
+
+  CodeBuildEnvironmentType:
+    Type: 'String'
+    Default: 'LINUX_CONTAINER'
+  CodeBuildEnvironmentComputeType:
+    Type: 'String'
+    Default: 'BUILD_GENERAL1_SMALL'
+  CodeBuidlEnvironmentImage:
+    Type: 'String'
+    Default: 'aws/codebuild/amazonlinux2-x86_64-standard:4.0'
+  CodeBuildArtifactType:
+    Type: 'String'
+    Default: 'CODEPIPELINE'
+  CodeBuildTimeout:
+    Type: 'Number'
+    Default: 15 # minutes
+
+  CodePipelineRestartExecutionOnUpdate:
+    Type: 'String'
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
+  CodePipelineRepositoryName:
+    Type: 'String'
+  CodePipelineBranchToMonitor:
+    Type: 'String'
+    Default: 'main'
+  CodePipelineSourceOutputArtifactFormat:
+    Type: 'String'
+    Default: 'CODEBUILD_CLONE_REF'
+  CodePipelineDeploymentTimeout:
+    Type: 'String'
+    Default: '15'
+  CodePipelineBuildArtifactFileName:
+    Type: 'String'
+    Default: 'imagedefinitions.json'
+
   CodeStarConnectionArn:
     Type: 'String'
 
@@ -37,21 +78,14 @@ Parameters:
   EcrRepositoryName:
     Type: 'String'
 
-  LogGroupId:
-    Type: 'String'
-  LogGroupArn:
-    Type: 'String'
-
   S3ArtifactBucketId:
     Type: 'String'
   S3LogBucketId:
     Type: 'String'
 
-  BranchToMonitor:
-    Type: 'String'
-    Default: 'main'
-
   RailsEnv:
+    Type: 'String'
+  RailsMasterKey:
     Type: 'String'
   RailsLogLevel:
     Type: 'String'
@@ -96,7 +130,7 @@ Resources:
             Action:
               - 'sts:AssumeRole'
       Policies:
-        - PolicyName: !Sub '${Subdomain}-pipline-policy'
+        - PolicyName: !Sub '${AWS::StackName}-pipline-policy'
           PolicyDocument: !Sub >
             {
               "Version": "2012-10-17",
@@ -130,7 +164,7 @@ Resources:
         - 'arn:aws:iam::aws:policy/AmazonS3FullAccess'
         - 'arn:aws:iam::aws:policy/EC2InstanceProfileForImageBuilderECRContainerBuilds'
       Policies:
-        - PolicyName: !Sub '${Subdomain}-build-policy'
+        - PolicyName: !Sub '${AWS::StackName}-build-policy'
           PolicyDocument: !Sub >
             {
               "Version": "2012-10-17",
@@ -181,6 +215,15 @@ Resources:
               ]
             }
 
+  # ----------------------------------------------------
+  # CloudWatch LogGroup
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_Logs.html
+  # ----------------------------------------------------
+  PipelineLogGroup:
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      RetentionInDays: !Ref LogRetentionDays
+
   # -----------------------------------------------------------
   # CodeBuild
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_CodeBuild.html
@@ -188,8 +231,8 @@ Resources:
   CodeBuildSecurityGroup:
     Type: 'AWS::EC2::SecurityGroup'
     Properties:
-      GroupName: !Sub '${Subdomain}-build-sec'
-      GroupDescription: !Sub '${Subdomain} CodeBuild SecurityGroup'
+      GroupName: !Sub '${AWS::StackName}-build-sec'
+      GroupDescription: !Sub '${AWS::StackName} CodeBuild SecurityGroup'
       VpcId: !Ref VpcId
       Tags:
         - Key: 'ConfigExclude'
@@ -210,16 +253,16 @@ Resources:
     Properties:
       ServiceRole: !GetAtt IamCodeBuildRole.Arn
       Artifacts:
-        Type: 'CODEPIPELINE'
+        Type: !Ref CodeBuildArtifactType
       LogsConfig:
         CloudWatchLogs:
-          GroupName: !Ref LogGroupId
+          GroupName: !Ref PipelineLogGroup
           Status: 'ENABLED'
           StreamName: 'codebuild'
       Environment:
-        Type: 'LINUX_CONTAINER'
-        ComputeType: 'BUILD_GENERAL1_SMALL'
-        Image: 'aws/codebuild/amazonlinux2-x86_64-standard:4.0'
+        Type: !Ref CodeBuildEnvironmentType
+        ComputeType: !Ref CodeBuildEnvironmentComputeType
+        Image: !Ref CodeBuildEnvironmentImage
         # This is required in order for the Docker daemon to work!
         PrivilegedMode: true
         EnvironmentVariables:
@@ -230,7 +273,7 @@ Resources:
           - Name: 'RAILS_LOG_TO_STDOUT'
             Value: true
           - Name: 'RAILS_MASTER_KEY'
-            Value: !Sub '{{resolve:ssm:/uc3/dmp/hub/${Env}/RailsMasterKey}}'
+            Value: !Ref RailsMasterKey
 
           - Name: 'RAILS_APP_NAME'
             Value: !Ref Subdomain
@@ -257,8 +300,8 @@ Resources:
           - Name: ECR_REPOSITORY_NAME
             Value: !Ref EcrRepositoryName
       Source:
-        Type: 'CODEPIPELINE'
-      TimeoutInMinutes: 15
+        Type: !Ref CodeBuildArtifactType
+      TimeoutInMinutes: !Ref CodeBuildTimeout
       VpcConfig:
         VpcId: !Ref VpcId
         Subnets: !Ref Subnets
@@ -281,7 +324,7 @@ Resources:
         Location: !Ref S3ArtifactBucketId
         # CloudFormation only supports S3 at the moment!
         Type: 'S3'
-      RestartExecutionOnUpdate: true
+      RestartExecutionOnUpdate: !Ref CodePipelineRestartExecutionOnUpdate
       RoleArn: !GetAtt IamPipelineRole.Arn
       Stages:
         - Name: 'MonitorRepo'
@@ -299,11 +342,11 @@ Resources:
               # for info on tying CodeBuild in
               Configuration:
                 ConnectionArn: !Ref CodeStarConnectionArn
-                FullRepositoryId: 'CDLUC3/dmp-hub-ecs'
-                BranchName: !Ref BranchToMonitor
-                OutputArtifactFormat: 'CODEBUILD_CLONE_REF'
+                FullRepositoryId: !Ref CodePipelineRepositoryName
+                BranchName: !Ref CodePipelineBranchToMonitor
+                OutputArtifactFormat: !Ref CodePipelineSourceOutputArtifactFormat
               OutputArtifacts:
-                - Name: !Sub "${Subdomain}_commit"
+                - Name: !Sub "${AWS::StackName}-commit"
 
         - Name: 'DockerBuildPublish'
           Actions:
@@ -320,11 +363,11 @@ Resources:
               # RoleArn: !GetAtt IamCodeBuildRole.Arn
               Configuration:
                 ProjectName: !Ref CodeBuildProject
-                PrimarySource: !Sub "${Subdomain}_commit"
+                PrimarySource: !Sub "${AWS::StackName}-commit"
               InputArtifacts:
-                - Name: !Sub "${Subdomain}_commit"
+                - Name: !Sub "${AWS::StackName}-commit"
               OutputArtifacts:
-                - Name: !Sub "${Subdomain}_image"
+                - Name: !Sub "${AWS::StackName}-image"
 
         - Name: 'EcsDeploy'
           Actions:
@@ -338,10 +381,10 @@ Resources:
               Configuration:
                 ClusterName: !Ref EcsClusterName
                 ServiceName: !Ref EcsServiceName
-                FileName: 'imagedefinitions.json'
-                DeploymentTimeout: '15'
+                FileName: !Ref CodePipelineBuildArtifactFileName
+                DeploymentTimeout: !Ref CodePipelineDeploymentTimeout
               InputArtifacts:
-                - Name: !Sub "${Subdomain}_image"
+                - Name: !Sub "${AWS::StackName}-image"
 
 Outputs:
   PipelineRoleId:
