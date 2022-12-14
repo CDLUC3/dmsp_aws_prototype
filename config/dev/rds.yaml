@@ -22,8 +22,8 @@ parameters:
   RdsSizeGB: '20'
   RdsBackupRetentionDays: '14'
   RdsName: 'dmphub'
-  RdsEngine: 'postgres'
-  RdsEngineVersion: '13.7'
-  RdsPort: '5432'
+  RdsEngine: 'mysql'
+  RdsEngineVersion: '8.0'
+  RdsPort: '3000'
   RdsUsername: !password_generator 8 false
   RdsPassword: !password_generator 12 true
