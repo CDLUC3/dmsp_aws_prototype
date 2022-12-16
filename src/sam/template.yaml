@@ -1,0 +1,502 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+Description: >
+  dmp-hub-sam
+
+  Sample SAM Template for dmp-hub-sam
+
+# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
+Globals:
+  Function:
+    Timeout: 3
+    Tracing: 'Active'
+  Api:
+    TracingEnabled: True
+
+Resources:
+  # -----------------------------------------------------------
+  # SSM Parameter used to toggle lambda debug mode
+  # -----------------------------------------------------------
+  # Places all lambdas into debug mode which means that the CloudWatch logs will become verbose
+  DebugParameter:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: !Sub "${AWS::StackName} Lambda Debug on/off flag"
+      Name: !Sub "/uc3/dmp/hub/dev/Debug"
+      Type: 'String'
+      Value: 'false'
+
+  # ----------------------------------------------------
+  # Managed IAM Policies for DMPHub resources
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-iam-managedpolicy.html
+  # ----------------------------------------------------
+  DmpHubDynamoTableReadPolicy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      Description: 'DMPHub - Read access to the DynamoDB Table'
+      ManagedPolicyName: 'DmpHubDynamoReadPolicy'
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          Effect: 'Allow'
+          Action:
+            - 'dynamodb:BatchGetItem'
+            - 'dynamodb:Describe*'
+            - 'dynamodb:List*'
+            - 'dynamodb:GetItem'
+            - 'dynamodb:Query'
+            - 'dynamodb:Scan'
+            - 'dynamodb:PartiQLSelect'
+          Resource:
+            - !Sub '{{resolve:ssm:/uc3/dmp/hub/dev/DynamoTableArn:1}}'
+            - !Sub '{{resolve:ssm:/uc3/dmp/hub/dev/DynamoTableArn:1}}/index/*'
+
+  DmpHubDynamoTableWritePolicy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      Description: 'DMPHub - Write access (and GetItem) to the DynamoDB Table'
+      ManagedPolicyName: 'DmpHubDynamoWritePolicy'
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          Effect: 'Allow'
+          Action:
+            - 'dynamodb:DeleteItem'
+            - 'dynamodb:GetItem'
+            - 'dynamodb:PutItem'
+            - 'dynamodb:BatchWriteItem'
+            - 'dynamodb:PartiQLInsert'
+          Resource:
+            - !Sub '{{resolve:ssm:/uc3/dmp/hub/dev/DynamoTableArn:1}}'
+            - !Sub '{{resolve:ssm:/uc3/dmp/hub/dev/DynamoTableArn:1}}/index/*'
+
+  S3BucketPolicy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      Description: 'DMPHub - Access to the S3 Bucket'
+      ManagedPolicyName: 'DmpHubS3Policy'
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          Effect: 'Allow'
+          Action:
+            - 's3:*'
+            - 's3-object-lambda:*'
+          Resource: !Sub '{{resolve:ssm:/uc3/dmp/hub/dev/S3PublicBucketArn:1}}'
+
+  SqsQueuePolicy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      Description: 'DMPHub - Access to the SQS Queue'
+      ManagedPolicyName: 'DmpHubSQSQueuePolicy'
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          Effect: 'Allow'
+          Action:
+            - 'sqs:DeleteMessage'
+            - 'sqs:ReceiveMessage'
+            - 'sqs:SendMessage'
+            - 'sqs:GetQueueAttributes'
+            - 'sqs:GetQueueUrl'
+            - 'sqs:ListDeadLetterSourceQueues'
+            - 'sqs:ListQueues'
+          Resource: !Sub '{{resolve:ssm:/uc3/dmp/hub/dev/SqsQueueArn:1}}'
+
+  # ----------------------------------------------------
+  # API Definition
+  #  see: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-resource-api.html
+  # ----------------------------------------------------
+  DmpHubRestApi:
+    Type: 'AWS::Serverless::Api'
+    Properties:
+      # TODO: Set this up!
+      AccessLogSetting:
+        DestinationArn: 'arn:aws:logs:us-west-2:671846987296:log-group:uc3-dmp-hub-dev-logs-LogGroup-07ZxAX9w3zlN:*'
+        Format: '{"requestId":"$context.requestId","ip": "$context.identity.sourceIp","caller":"$context.identity.caller","user":"$context.identity.user","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath","status":"$context.status","protocol":"$context.protocol","responseLength":"$context.responseLength"}'
+  #     CacheClusterEnabled: true
+      # TODO: Enable this once we have the Route53 setup
+      #  DisableExecuteApiEndpoint: true
+
+      # TODO: Setup the cert and route53 record in the dmp-hub-cf repo and then ref
+      #       the exported variables here
+      # Domain:
+      #   DomainName: !Sub "api.${domain name}"
+      #   CertificateArn: [cert-arn]
+      #   EndpointConfiguration: 'EDGE'
+      #   Route53:
+      #     HostedZoneId: [hosted zone id]
+      #     BasePath:
+      #       - /
+
+      StageName: 'v0'
+      TracingEnabled: true
+      Auth:
+        Authorizers:
+          DmpHubCognitoAuthorizer:
+            UserPoolArn: !ImportValue 'uc3-dmp-hub-dev-cognito-SystemPoolArn'
+            AuthType: 'COGNITO_USER_POOLS'
+            Identity:
+              Header: 'Authorization'
+            AuthorizationScopes:
+              - 'https://auth.dmphub.uc3dev.cdlib.org/dev.read'
+              - 'https://auth.dmphub.uc3dev.cdlib.org/dev.search'
+              - 'https://auth.dmphub.uc3dev.cdlib.org/dev.write'
+        DefaultAuthorizer: DmpHubCognitoAuthorizer
+
+  # ----------------------------------------------------
+  # Lambda Layers
+  #   See: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-resource-layerversion.html
+  # ----------------------------------------------------
+  LambdaLayer:
+    Type: 'AWS::Serverless::LayerVersion'
+    Properties:
+      LayerName: 'uc3-dmp-hub-lambda-layer'
+      Description: 'Core Lambda Layer for DMPHub'
+      ContentUri: layers/uc3-dmp-hub-lambda-layer.zip
+      CompatibleRuntimes:
+        - ruby2.7
+      RetentionPolicy: Delete
+
+  # ----------------------------------------------------
+  # API Lambdas
+  #  See: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-property-function-api.html
+  # ----------------------------------------------------
+  DeleteDmpFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      CodeUri: 'functions/delete_dmp/'
+      Handler: 'app.Functions::DeleteDmp.process'
+      Runtime: 'ruby2.7'
+      Timeout: 5
+      Architectures:
+        - 'x86_64'
+      Layers:
+        - !Ref LambdaLayer
+      Policies:
+        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSQSFullAccess'
+        - !Ref DmpHubDynamoTableWritePolicy
+        # - !Ref SqsQueuePolicy
+      Environment:
+        Variables:
+          LAMBDA_ENV: dev
+      Events:
+        PostDmps:
+          # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Type: 'Api'
+          Properties:
+            RestApiId: !Ref DmpHubRestApi
+            Path: '/dmps/{dmp_id+}'
+            Method: 'delete'
+            RequestParameters:
+              - 'method.request.header.Authorization'
+            # Auth:
+            #   Authorizer: 'NONE'
+              # AuthorizationScopes:
+              #   - 'https://auth.dmphub.uc3dev.cdlib.org/dev.write'
+
+  # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+  GetDmpFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      CodeUri: 'functions/get_dmp/'
+      Handler: 'app.Functions::GetDmp.process'
+      Runtime: 'ruby2.7'
+      Timeout: 5
+      Architectures:
+        - 'x86_64'
+      Layers:
+        - !Ref LambdaLayer
+      Policies:
+        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
+        - !Ref DmpHubDynamoTableReadPolicy
+        - !Ref S3BucketPolicy
+      Environment:
+        Variables:
+          LAMBDA_ENV: dev
+      Events:
+        GetDmp:
+          # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Type: 'Api'
+          Properties:
+            RestApiId: !Ref DmpHubRestApi
+            Path: '/dmps/{dmp_id+}'
+            Method: 'get'
+            Auth:
+              Authorizer: 'NONE'
+
+  PostDmpsFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      CodeUri: 'functions/post_dmps/'
+      Handler: 'app.Functions::PostDmps.process'
+      Runtime: 'ruby2.7'
+      Timeout: 5
+      Architectures:
+        - 'x86_64'
+      Layers:
+        - !Ref LambdaLayer
+      Policies:
+        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSQSFullAccess'
+        - !Ref DmpHubDynamoTableWritePolicy
+        # - !Ref SqsQueuePolicy
+      Environment:
+        Variables:
+          LAMBDA_ENV: dev
+      Events:
+        PostDmps:
+          # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Type: 'Api'
+          Properties:
+            RestApiId: !Ref DmpHubRestApi
+            Path: '/dmps'
+            Method: 'post'
+            RequestParameters:
+              - 'method.request.header.Authorization'
+            Auth:
+              Authorizer: 'NONE'
+            #   AuthorizationScopes:
+            #     - 'https://auth.dmphub.uc3dev.cdlib.org/dev.write'
+
+  PutDmpFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      CodeUri: 'functions/put_dmp/'
+      Handler: 'app.Functions::PutDmp.process'
+      Runtime: 'ruby2.7'
+      Timeout: 10
+      Architectures:
+        - 'x86_64'
+      Layers:
+        - !Ref LambdaLayer
+      Policies:
+        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSQSFullAccess'
+        - !Ref DmpHubDynamoTableWritePolicy
+        # - !Ref SqsQueuePolicy
+      Environment:
+        Variables:
+          LAMBDA_ENV: dev
+      Events:
+        PutDmps:
+          # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Type: 'Api'
+          Properties:
+            RestApiId: !Ref DmpHubRestApi
+            Path: '/dmps/{dmp_id+}'
+            Method: 'put'
+            RequestParameters:
+              - 'method.request.header.Authorization'
+            Auth:
+              Authorizer: 'NONE'
+            #   AuthorizationScopes:
+            #     - 'https://auth.dmphub.uc3dev.cdlib.org/dev.write'
+
+  ValidateDmpFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      CodeUri: 'functions/validate_dmp/'
+      Handler: 'app.Functions::ValidateDmp.process'
+      Runtime: 'ruby2.7'
+      Timeout: 5
+      Architectures:
+        - 'x86_64'
+      Layers:
+        - !Ref LambdaLayer
+      Policies:
+        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
+      Environment:
+        Variables:
+          LAMBDA_ENV: dev
+      Events:
+        ValidateDmp:
+          # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Type: 'Api'
+          Properties:
+            RestApiId: !Ref DmpHubRestApi
+            Path: '/dmps/validate'
+            Method: 'post'
+            Auth:
+              Authorizer: 'NONE'
+
+  # ----------------------------------------------------
+  # SNS Lambdas
+  #   See: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-property-function-sns.html
+  # ----------------------------------------------------
+  EzidPublisherFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      CodeUri: 'functions/ezid_publisher/'
+      Handler: 'app.Functions::EzidPublisher.process'
+      Runtime: 'ruby2.7'
+      Timeout: 30
+      Architectures:
+        - 'x86_64'
+      Layers:
+        - !Ref LambdaLayer
+      Policies:
+        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSQSFullAccess'
+        - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
+        - !Ref DmpHubDynamoTableWritePolicy
+        # - !Ref SqsQueuePolicy
+      Environment:
+        Variables:
+          LAMBDA_ENV: dev
+      Events:
+        PublishTopicEvent:
+          Type: 'SNS'
+          Properties:
+            Topic: !Sub '{{resolve:ssm:/uc3/dmp/hub/dev/SnsPublishTopicArn:1}}'
+
+  # Annoyingly, SAM does not auto-generate LogGroup for a non-API tiggered lambda
+  EzidPublisherFunctionLogGroup:
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${EzidPublisherFunction}"
+      RetentionInDays: 14
+
+  PdfDownloaderFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      CodeUri: 'functions/pdf_downloader/'
+      Handler: 'app.Functions::PdfDownloader.process'
+      Runtime: 'ruby2.7'
+      Timeout: 120 # DMPTool can be a bit slow producing these
+      Architectures:
+        - 'x86_64'
+      Layers:
+        - !Ref LambdaLayer
+      Policies:
+        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSQSFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonS3FullAccess'
+        - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
+        - !Ref DmpHubDynamoTableWritePolicy
+        # - !Ref SqsQueuePolicy
+        # - !Ref S3BucketPolicy
+      Environment:
+        Variables:
+          LAMBDA_ENV: dev
+      Events:
+        DownloadTopicEvent:
+          Type: 'SNS'
+          Properties:
+            Topic: !Sub '{{resolve:ssm:/uc3/dmp/hub/dev/SnsDownloadTopicArn:1}}'
+
+  # Annoyingly, SAM does not auto-generate LogGroup for a non-API tiggered lambda and
+  # it expects a specific name :/
+  PdfDownloaderFunctionLogGroup:
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${PdfDownloaderFunction}"
+      RetentionInDays: 14
+
+  ProvenanceNotifierFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      CodeUri: 'functions/provenance_notifier/'
+      Handler: 'app.Functions::ProvenanceNotifier.process'
+      Runtime: 'ruby2.7'
+      Timeout: 30
+      Architectures:
+        - 'x86_64'
+      Layers:
+        - !Ref LambdaLayer
+      Policies:
+        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSQSFullAccess'
+        - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
+        - !Ref DmpHubDynamoTableWritePolicy
+        # - !Ref SqsQueuePolicy
+      Environment:
+        Variables:
+          LAMBDA_ENV: dev
+      Events:
+        NortifyTopicEvent:
+          Type: 'SNS'
+          Properties:
+            Topic: !Sub '{{resolve:ssm:/uc3/dmp/hub/dev/SnsNotifyTopicArn:1}}'
+
+  # Annoyingly, SAM does not auto-generate LogGroup for a non-API tiggered lambda
+  ProvenanceNotifierFunctionLogGroup:
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${ProvenanceNotifierFunction}"
+      RetentionInDays: 14
+
+  # TODO: Add the actual API domain name to SSM so it can be referenced in the Lambdas!
+  #       figure out how to pass in the Env!
+  # Add the API domain name to SSM so that our Lambdas can build pagination links
+  ApiBaseUrlParameter:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: !Sub "DMPHub-dev API Base Domain"
+      Name: !Sub "/uc3/dmp/hub/dev/ApiBaseUrl"
+      # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
+      Type: 'String'
+      Value: !Sub "https://${DmpHubRestApi}.execute-api.${AWS::Region}.amazonaws.com/v0/"
+
+
+# TODO: When setting up the pipeline for this be sure to set a tag as:
+#           ConfigExclude: 'Security-group-attached-to-ENI'
+#
+
+Outputs:
+  DmpHubDynamoTableReadPolicyArn:
+    Value: !Ref DmpHubDynamoTableReadPolicy
+  DmpHubDynamoTableWritePolicyArn:
+    Value: !Ref DmpHubDynamoTableWritePolicy
+  S3BucketPolicyArn:
+    Value: !Ref S3BucketPolicy
+  SqsQueuePolicyArn:
+    Value: !Ref SqsQueuePolicy
+
+  DeleteDmpFunctionArn:
+    Value: !GetAtt DeleteDmpFunction.Arn
+    Export:
+      Name: DeleteDmpFunctionArn
+  GetDmpFunctionArn:
+    Value: !GetAtt GetDmpFunction.Arn
+    Export:
+      Name: GetDmpFunctionArn
+  PostDmpsFunctionArn:
+    Value: !GetAtt PostDmpsFunction.Arn
+    Export:
+      Name: PostDmpsFunctionArn
+  PutDmpFunctionArn:
+    Value: !GetAtt PutDmpFunction.Arn
+    Export:
+      Name: PutDmpFunctionArn
+  ValidateDmpFunctionArn:
+    Value: !GetAtt ValidateDmpFunction.Arn
+    Export:
+      Name: ValidateDmpFunctionArn
+
+  EzidPublisherFunctionArn:
+    Value: !GetAtt EzidPublisherFunction.Arn
+  PdfDownloaderFunctionArn:
+    Value: !GetAtt PdfDownloaderFunction.Arn
+  ProvenanceNotifierFunctionArn:
+    Value: !GetAtt ProvenanceNotifierFunction.Arn
+
+  # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
+  # Find out more about other implicit resources you can reference within SAM
+  # https://github.com/awslabs/serverless-application-model/blob/master/docs/internals/generated_resources.rst#api
+  GetDmpEndpoint:
+    Value: !Sub "GET https://${DmpHubRestApi}.execute-api.${AWS::Region}.amazonaws.com/v0/dmps/{dmp_id+}"
+  PostDmpsEndpoint:
+    Value: !Sub "POST https://${DmpHubRestApi}.execute-api.${AWS::Region}.amazonaws.com/v0/dmps"
+  ValidateDmpEndpoint:
+    Value: !Sub "POST https://${DmpHubRestApi}.execute-api.${AWS::Region}.amazonaws.com/v0/dmps/validate"
+
+  ApiBaseUrl:
+    Value: !Sub "https://${DmpHubRestApi}.execute-api.${AWS::Region}.amazonaws.com/v0/"
