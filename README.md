@@ -1,67 +1,61 @@
-         _                 _           _          _   _
-      __| |   _  _   ___  | |__  _   _| |_       | | | |
-     / _` |  / \/ \ |  _ \| `_ \| | | | '_ \     | | | |
-    | (_| | / /\/\ \| | ) | | | | |_| | |_) |    | | | |
-     \__,_|/_/    \_| '__/|_| |_|_____|_'__/     |_| |_|
+# DMPHub
+         _                 _           _
+      __| |   _  _   ___  | |__  _   _| |_
+     / _` |  / \/ \ |  _ \| `_ \| | | | '_ \
+    | (_| | / /\/\ \| | ) | | | | |_| | |_) |
+     \__,_|/_/    \_| '__/|_| |_|_____|_'__/
                     |_|
 
-This repository manages the infrastructure for the DMPHub metadata repository.
-It works in conjunction with the [dmp-hub-sam repository](https://github.com/CDLUC3/dmp-hub-sam) which contains the source code for all lambdas as well as the infrastructure defintions for the Lambdas and API Gateway (using AWS SAM), and the [dmp-hub-ecs repository](https://github.com/CDLUC3/dmp-hub-ecs) which hosts the Rails application that is built and deployed by this repository's CodePipeline.
+This repository manages both the application logic and the infrastructure for the DMPHub metadata repository.
+It works in conjunction with the [dmp-hub-ui repository](https://github.com/CDLUC3/dmp-hub-ui) which contains the source code for the React UI.
 
-<img src="architecture-v4.png?raw=true">
+<img src="docs/architecture.png?raw=true">
 
 ## CloudFormation via Sceptre
 
-This directory uses [Sceptre](https://github.com/Sceptre/sceptre) to manage AWS CloudFormation templates and stacks.
+This repository uses the [AWS Serverless Application Model (SAM)](https://aws.amazon.com/serverless/sam/) to manage the AWS API Gateway and Lambda resources. It uses [Sceptre](https://github.com/Sceptre/sceptre) to manage the remaining resources via [AWS Cloud Formation](https://aws.amazon.com/cloudformation/).
+
+The entire initial build process however is managed by Sceptre. Sceptre has a hook that will build the SAM application once the resources it depends on (e.g. DynamoDb Table) have been created.
 
 Directory structure:
 ```
      config
+     |  |
+     |   ----- [env]          # Sceptre configs by Environment (each config corresponds to a template)
      |
-      ----- [env]   # Sceptre stack config by Environment
-              |
-               ---- application    # The Application logic (Lambdas)
-              |
-               ---- data    # The resources that should be persistent (e.g. Dynamo, S3)
-              |
-               ---- frontend    # The resources that interact with http requests (e.g. WAF, Cognito)
-              |
-               ---- management    # The general system management components (e.g. CloudWatch, SSM vars)
-              |
-               ---- pipeline    # The CodeBuild and CodePipeline for the Lambda code
+     docs                     # Diagrams and documentation
      |
+     src                      # The SAM managed code
+     |  |
+     |   ----- functions      # The lambda functions
+     |  |
+     |   ----- layers         # The lambda layers
+     |  |
+     |   ----- spec           # Tests for the functions and layers
+     |  |
+     |   ----- template.yaml  # The SAM Cloud Formation template
      |
-      ----- templates   # the CF templates
+     templates                # The Cloud Formation templates (each template corresponds to a config)
 ```
 
-### Notes about Sceptre
-AWS Resource names are auto-constructed by Sceptre using the "${project_name}-${stack-name}-${yaml-name}-${resource-id}" format.
-For example a sceptre project directory like this:
-```
-my-project (defined in the root `config/config.yaml` file)
-    |
-     ---- config
-    |      |
-    |       ------ dev
-    |               |
-    |                ----- application.yaml
-    |
-     ---- templates
-             |
-              ----- application.yaml (containing a resource called ExampleBucket)
-```
-With the s3-bucket.yaml template containing:
-```
-AWSTemplateFormatVersion: '2010-09-09'
-Transform: AWS::Serverless-2016-10-31
+## Installation
 
-Resources:
-  ExampleBucket:
-    Type: AWS::S3::Bucket
-```
-Would result in a BucketName of "my-project-dev-application-ExampleBucket-[unique-id]"
+You will need to install a few things before you're able to build the application. Please note that this system uses Amazon Web Services (AWS). You will create an account if you do not already have one.
 
-Sceptre will place a copy of the compiled/aggregated CF template into the S3 bucket defined in the stack's root config.yaml
+**Please note that building this application will create resources in your account that will incur charges!**
+
+### AWS Resource prerequisits
+
+You will need to have a VPC and Subnets defined and available to house the resources built by this repository. You will also need to have a Hosted Zone defined so that the SSL Certificate and Route53 resources can be constructed.
+
+We recommend exporting the VPC, Subnet and Hosted Zone IDs as stack outputs if they were constructed via Cloud Formation. If they were not built by Cloud Formation, then you can place them in SSM parameters.
+
+Once you've identified these ids you will need to update the following Sceptre config files: cert.yaml, cognito.yaml, config.yaml and route53.yaml
+
+### AWS credentials
+You must have your [AWS credentials setup on your system](https://docs.aws.amazon.com/sdk-for-java/v1/developer-guide/setup-credentials.html) in order to build the application and infrastructure.
+
+You will also need to install the [AWS CLI](https://aws.amazon.com/cli/)
 
 ### Sceptre installation and setup
 Ensure Python is installed: `python --version`
@@ -74,9 +68,11 @@ Make sure the install was successful: `sceptre --version`
 
 Update Sceptre (at any time): `pip install sceptre -U`
 
-Install the Sceptre SSM resolver: `pip install sceptre-ssm-resolver`
+### Install UC3 Sceptre Utilities
 
-Build the project directory: `sceptre new project uc3-dmp-hub`
+Clone the [uc3-sceptre-utils repository](https://github.com/CDLUC3/uc3-sceptre-utils)
+
+Build and install the python based resolvers and hooks for Sceptre: `pip install ./`
 
 ### SSM parameter setup
 
@@ -105,6 +101,36 @@ You can use `aws ssm get-parameters-by-path --path '/uc3/dmp/hub/[env]/'` to see
 
 Any new parameters should maintain the `/uc3/dmp/hub/[env]/` prefix!
 
+## Notes about Sceptre
+
+AWS Resource names are auto-constructed by Sceptre using the "${project_name}-${stack-name}-${yaml-name}-${resource-id}" format.
+For example a sceptre project directory like this:
+```
+my-project (defined in the root `config/config.yaml` file)
+    |
+     ---- config
+    |      |
+    |       ------ dev
+    |               |
+    |                ----- application.yaml
+    |
+     ---- templates
+             |
+              ----- application.yaml (containing a resource called ExampleBucket)
+```
+With the s3-bucket.yaml template containing:
+```
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Resources:
+  ExampleBucket:
+    Type: AWS::S3::Bucket
+```
+Would result in a BucketName of "my-project-dev-application-ExampleBucket-[unique-id]"
+
+Sceptre will place a copy of the compiled/aggregated CF template into the S3 bucket defined in the stack's root config.yaml. You can also inspect the stack in the AWs console to see the resources created, outputs defined, along with the logs.
+
 ### Creating new stacks
 
 Create an env specific config directory: `mkdir config/dev && touch config/dev/config.yaml`
@@ -117,10 +143,7 @@ Update a stack after changing a config or template: `sceptre update dev/resource
 
 Delete a stack (will delete the actual resource!): `sceptre delete dev/resource.yaml`
 
-
-## Verifying the stack
-
-### Testing API access for system-to-system integrations
+## Testing API access for system-to-system integrations
 
 Ensure that you can authenticate and receive back avalid JWT (the credentials can be found in the AWS console under the Cognito user pool's app integration section)
 ```
