@@ -42,7 +42,7 @@ Directory structure:
 
 You will need to install a few things before you're able to build the application. Please note that this system uses Amazon Web Services (AWS). You will create an account if you do not already have one.
 
-**Please note that building this application will create resources in your account that will incur charges!**
+_**Please note that building this application will create resources in your account that will incur charges!**_
 
 ### AWS Resource prerequisites
 
@@ -50,7 +50,7 @@ You will need to have a VPC and Subnets defined and available to house the resou
 
 We recommend exporting the VPC, Subnet and Hosted Zone IDs as stack outputs if they were constructed via Cloud Formation. If they were not built by Cloud Formation, then you can place them in SSM parameters.
 
-Once you've identified these ids you will need to update the following Sceptre config files: cert.yaml, cognito.yaml, config.yaml and route53.yaml
+Once you've identified these ids you will need to update the following Sceptre config files: `cert.yaml`, `cognito.yaml`, `config.yaml` and `route53.yaml`
 
 ### AWS credentials
 You must have your [AWS credentials setup on your system](https://docs.aws.amazon.com/sdk-for-java/v1/developer-guide/setup-credentials.html) in order to build the application and infrastructure.
