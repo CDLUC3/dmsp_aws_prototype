@@ -44,7 +44,7 @@ You will need to install a few things before you're able to build the applicatio
 
 **Please note that building this application will create resources in your account that will incur charges!**
 
-### AWS Resource prerequisits
+### AWS Resource prerequisites
 
 You will need to have a VPC and Subnets defined and available to house the resources built by this repository. You will also need to have a Hosted Zone defined so that the SSL Certificate and Route53 resources can be constructed.
 
