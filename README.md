@@ -44,7 +44,7 @@ You will need to install a few things before you're able to build the applicatio
 
 _**Please note that building this application will create resources in your account that will incur charges!**_
 
-### AWS Resource prerequisites
+### AWS resource prerequisites
 
 You will need to have a VPC and Subnets defined and available to house the resources built by this repository. You will also need to have a Hosted Zone defined so that the SSL Certificate and Route53 resources can be constructed.
 
@@ -68,19 +68,18 @@ Make sure the install was successful: `sceptre --version`
 
 Update Sceptre (at any time): `pip install sceptre -U`
 
-### Install UC3 Sceptre Utilities
+### Install UC3 Sceptre utilities
 
 Clone the [uc3-sceptre-utils repository](https://github.com/CDLUC3/uc3-sceptre-utils)
 
 Build and install the python based resolvers and hooks for Sceptre: `pip install ./`
 
-### SSM parameter setup
+### Required SSM parameters
 
-You must add your administrator email to the SSM parameter store. This email will receive fatal error messages produced by the lambdas
+The following SSM parameters must be setup manually in your AWS account prior to installation. Note that the instructions below use the AWS CLI but you may set them up through the AWS console as well.
+
+Add your administrator email to the SSM parameter store. This email will receive fatal error messages produced by the Lambdas
 - Admin email: `aws ssm put-parameter --name /uc3/dmp/hub/[env]/AdminEmail --value "[email]" --type "String"`
-
-You must add the Rails master key for the application in src/ecs to the SSM parameter store. If the config/master.key does not exist in the environment, you will need to run `EDITOR=vim cd src/ecs && bundle install && bin/rails credentials:edit` Make any necessary changes to the values via the editor.
-- Rails master key: `aws ssm put-parameter --name /uc3/dmp/hub/[env]/RailsMasterKey --value "[key]" --type "String"`
 
 **Note:** After the sqs.yaml stack is created, AWS will send an email to the address you define in the `AdminEmail` parameter. You will need to click the link in that email to confirm the subscription!
 
@@ -100,6 +99,358 @@ If you have any external systems that will be communicating with the DMPHub API,
 You can use `aws ssm get-parameters-by-path --path '/uc3/dmp/hub/[env]/'` to see what parameters have already been set.
 
 Any new parameters should maintain the `/uc3/dmp/hub/[env]/` prefix!
+
+## DynamoDB Table Items
+
+### Sample Provenance item:
+The following JSON object represents a provenance system record. All provenance system records have a Partition Key (PK) that begins with the `PROVENANCE#` prefix and a Sort Key (SK) that is equal to `PROFILE`.
+
+```
+{
+  "PK": "PROVENANCE#example",
+  "SK": "PROFILE",
+  "contact": {
+    "email": "admin@example.com",
+    "name": "Example system administrator"
+  },
+  "description": "An external system",
+  "downloadUri": "https://example.com/api/dmps/",
+  "homepage": "https://example.com",
+  "name": "Example System",
+  "redirectUri": "https://example.com/callback",
+  "seedingWithLiveDmpIds": true,
+  "tokenUri": "https://example.com/oauth/token"
+}
+```
+Explanation of Provenance item attributes:
+- **PK** - **required** A unique partition key for the external system. Note that it must start with `PROVENANCE#`
+- **SK** - **required** The sort key (do not change this)
+- **contact** - **required** The primary technical contact for the external system (displayed in the UI)
+- **description** - A description of the external system (displayed in the UI)
+- **downloadUri** - The endpoint that the DMPHub can use to download the DMP as a PDF (if applicable). The specific location of the PDF is embedded in the DMP's JSON as a `dmproadmap_related_identifier` with the `"descriptor": "is_metadata_for"` and `"work_type": "output_management_plan"`. Note that the system will first check that the target of that related identifier matches the downloadUri defined here (e.g. https://example.org/dmps/download/). If it does not match, an error is raised. This prevents downloads from unknown/unverified locations
+- **homepage** - **required** The landing page for the external system (displayed in the UI)
+- **name** - **required** The name of the external system (displayed in the UI)
+- **redirectUri** - The URI that the DMPHub can use to send updates about the DMP. For example if the DMPHub learns of a grant ID that was associated with the DMP, it will send that information back to external system via this URI.
+- **seedingWithLiveDmpIds** - Flag that can be used when seeding DMPs from an external system to the DMPHub this flag will use the provided DMP ID instead of minting a new one with EZID. __Note that the DMP ID targets would need to be updated with the minting authority
+so that they point to the new DMPHub landing page.__ (default is false)
+- **tokenUri** - The endpoint the DMPHub should use to obtain an access token that can be used when calling the downloadUri and redirectUri (if applicable). Note that the tokenUri works in conjunction with 2 SSM parameters (note that the 'example' must match the PK value for the item!): `/uc3/dmp/hub/dev/example/client_id`, `/uc3/dmp/hub/dev/example/client_secret`
+
+### Sample DMP item (complete metadata):
+The following JSON object represents a DMP item in the Dynamo table.
+```
+{
+  "PK": "DMP#doi.org/10.12345/A1.1A2B3C4D6",
+  "SK": "latest",
+  "contact": {
+    "contact_id": {
+      "identifier": "https://orcid.org/0000-0000-0000-0000",
+      "type": "orcid"
+    },
+    "mbox": "jane.doe@example.com",
+    "name": "Doe, Jane"
+  },
+  "contributor": [
+    {
+      "affiliation": {
+        "affiliation_id": {
+          "identifier": "https://ror.org/12344556",
+          "type": "ror"
+        },
+        "name": "Example University"
+      },
+      "contributor_id": {
+        "identifier": "https://orcid.org/0000-0000-0000-0000",
+        "type": "orcid"
+      },
+      "mbox": "Jane.Doe@example.com",
+      "name": "Doe, Jane",
+      "role": [
+        "http://credit.niso.org/contributor-roles/data-curation",
+        "http://credit.niso.org/contributor-roles/investigation"
+      ]
+    },
+    {
+      "affiliation": {
+        "affiliation_id": {
+          "identifier": "https://ror.org/23864587935",
+          "type": "ror"
+        },
+        "name": "Another University"
+      },
+      "mbox": "someone.else@example.org",
+      "name": "Else, Someone",
+      "role": [
+        "http://credit.niso.org/contributor-roles/project-administration"
+      ]
+    },
+    {
+      "name": "So PhD., So N.",
+      "role": [
+        "http://credit.niso.org/contributor-roles/investigation"
+      ]
+    }
+  ],
+  "cost": [
+    {
+      "currency_code": "USD",
+      "title": "Preservation costs",
+      "description": "The estimated costs for preserving our data for 20 years",
+      "value": 10000
+    }
+  ],
+  "created": "2021-11-08T19:06:04Z",
+  "dataset": [
+    {
+      "dataset_id": {
+        "identifier": "1550",
+        "type": "other"
+      },
+      "data_quality_assurance": [
+        "We will verify the quality of all data collected during this project through a third party."
+      ],
+      "description": "<p>A collection of radiographic images of coral.</p>",
+      "distribution": [
+        {
+          "data_access": "open",
+          "host": {
+            "description": "The test data repository for oceanographic information.",
+            "dmproadmap_host_id": {
+              "identifier": "https://www.re3data.org/api/v1/repository/r3d0000000000000",
+              "type": "url"
+            },
+            "title": "Generic Ocean Information Data Repository",
+            "url": "http://example.org/repo"
+          },
+          "license": [
+            {
+              "license_ref": "https://spdx.org/licenses/CC-BY-4.0.json",
+              "start_date": "2021-05-18T00:00:00Z"
+            }
+          ],
+          "title": "Anticipated distribution of coral images"
+        }
+      ],
+      "issued": "2026-05-18T00:00:00Z",
+      "keyword": [
+        "Earth and related environmental sciences",
+        "Coral"
+      ],
+      "metadata": [
+        {
+          "description": "Example Core - a tests metadata standard",
+          "metadata_standard_id": {
+            "identifier": "https://rdamsc.bath.ac.uk/api2/2485ty247y7t9y429t4295t",
+            "type": "url"
+          }
+        }
+      ],
+      "personal_data": "unknown",
+      "preservation_statement": "The images will be depositied in a repository and made available until 2050",
+      "security_and_privacy": [
+        {
+          "title": "Data security",
+          "description": "We're going to encrypt this one."
+        }
+      ],
+      "sensitive_data": "unknown",
+      "technical_resource": [
+        {
+          "name": "Example University's thermal imaging camera 1234",
+          "description": "A super powerful thermal imaging camera"
+        }
+      ],
+      "title": "Images of brain coral time series",
+      "type": "dataset"
+    }
+  ],
+  "description": "<p>The example data management plan for the DMPHub.</p>",
+  "dmphub_created_at": "2022-11-29T19:49:08+00:00",
+  "dmphub_modification_day": "2022-11-29",
+  "dmphub_provenance_id": "PROVENANCE#example",
+  "dmphub_provenance_identifier": "https://example.com/dmps/989898",
+  "dmphub_updated_at": "2022-11-29T19:49:08+00:00",
+  "dmproadmap_external_system_identifier": "989898",
+  "dmproadmap_privacy": "public",
+  "dmproadmap_related_identifiers": [
+    {
+      "descriptor": "describes",
+      "identifier": "https://doi.org/10.21966/1.566666",
+      "type": "doi",
+      "work_type": "dataset"
+    },
+    {
+      "descriptor": "references",
+      "identifier": "https://doi.org/10.5281/zenodo.5719523",
+      "type": "doi",
+      "work_type": "article"
+    },
+    {
+      "descriptor": "is_metadata_for",
+      "identifier": "https://example.com/api/v2/dmps/989898.pdf",
+      "type": "url",
+      "work_type": "output_management_plan"
+    },
+    {
+      "descriptor": "is_new_version_of",
+      "identifier": "https://example.com/api/v0/10.12345/A1.1A2B3C4D6?version=2022-10-03T08:41:32+00:00",
+      "type": "url",
+      "work_type": "output_management_plan"
+    }
+  ],
+  "dmp_id": {
+    "identifier": "https://doi.org/10.12345/A1.1A2B3C4D6",
+    "type": "doi"
+  },
+  "ethical_issues_description": "We will need to ensure that we anonymie our data",
+  "ethical_issues_exist": "yes",
+  "ethical_issues_report": "https://example.edu/privacy_policy",
+  "language": "eng",
+  "modified": "2022-11-14T22:18:18Z",
+  "project": [
+    {
+      "description": "Our sample project for the DMPHub.",
+      "end": "2024-11-29T19:48:57Z",
+      "funding": [
+        {
+          "funder_id": {
+            "identifier": "https://ror.org/0000000000",
+            "type": "ror"
+          },
+          "funding_status": "granted",
+          "name": "National Funding Institute",
+          "grant_id": {
+            "type": "other",
+            "identifier": "34562356
+        }
+      ],
+      "start": "2015-05-12T00:00:00Z",
+      "title": "DMPHub example DMP project."
+    }
+  ],
+  "title": "Example DMP record for the DMPHub."
+}
+```
+Explanation of DMP item attributes that are used internally by the DMPHub and are relevant internally and NOT distributed in API callers. For a full explanation of the other DMP attributes, please see the API documentation in the wiki:
+- **PK** - **required** A unique partition key for the DMP which equates to it's DMP ID (DOI). Note that it must start with `DMP#`
+- **SK** - **required** The sort key which represents the DMP version. The most current version is always `VERSION#latest` and prior versions use a date time stamp in UTC (e.g. `VERSION#2022-10-03T09:15:32+00:00`)
+- **"dmphub_created_at** - The date time stamp (UTC) of when the original version of the DMP was added to the DMPHub. This value remains the same regardless of the version (e.g. `2022-10-03T09:15:32+00:00`).
+- **dmphub_modification_day** - The date of the version (UTC) (e.g. `2022-11-29`) which is used to facilitate querying and sorting.
+- **dmphub_provenance_id** - The `PK` of the Provenance system that created the DMP (e.g. `PROVENANCE#example`)
+- **dmphub_provenance_identifier** - The Provenance system's internal identifier for the DMP. This is used in conjunction with the Provenance system's `redirectUri` to send updates to the Provenance system (e.g. `https://example.com/dmps/989898` or `989898`)
+- **dmphub_updated_at** - The date time stamp (UTC) that this version of the DMP was added to the DMPHub. This value is used to create the official version `SK` the next time an update is made to the DMP.
+
+## DMP versioning strategy
+As noted above, the latest version of the DMP always has the Sort Key (SK) or `VERSION#latest`. Prior versions use the `modified` value of the DMP at the time of the update `VERSION#2022-12-15T11:42:15+00:00`.
+
+The system also generates `dmproadmap_related_identifiers` that can be used to traverse between DMP versions. Each DMP is only aware of it's immediate ancestor and which version followed it.
+
+To illustrate this, consider a DMP that has 4 versions. When viewing the `VERSION#latest` of a DMP we will see a link to the prior version in the array:
+```
+{
+  "SK": "VERSION#latest",
+  "dmproadmap_related_identifiers": [
+    {
+      "descriptor": "is_new_version_of",
+      "work_type": "output_management_plan",
+      "type": "url",
+      "identifier": "https://example.com/api/v0/10.12345/A1.1A2B3C4D6?version=2022-10-09T08:07:06+00:00"
+    }
+  ]
+}
+```
+When viewing that '2022-10-09' prior version, we will see a link to the latest version as well as a link to the version of the DMP that it replaced.
+```
+{
+  "SK": "VERSION#2022-10-09T08:07:06+00:00",
+  "dmproadmap_related_identifiers": [
+    {
+      "descriptor": "is_previous_version_of",
+      "work_type": "output_management_plan",
+      "type": "doi",
+      "identifier": "https://doi.org/10.12345/ABC123"
+    },
+    {
+      "descriptor": "is_new_version_of",
+      "work_type": "output_management_plan",
+      "type": "url",
+      "identifier": "https://example.com/api/v0/10.12345/A1.1A2B3C4D6?version=2022-05-04T03:02:01+00:00"
+    }
+  ]
+}
+```
+When we follow that link to the prior '2022-05-04' version we will see a link to the '2022-10-09' version we were just looking at as well as a link to the original '2022-01-01' version:
+```
+{
+  "SK": "VERSION#2022-05-04T03:02:01+00:00",
+  "dmproadmap_related_identifiers": [
+    {
+      "descriptor": "is_previous_version_of",
+      "work_type": "output_management_plan",
+      "type": "url",
+      "identifier": "https://example.com/api/v0/10.12345/A1.1A2B3C4D6?version=2022-10-09T08:07:06+00:00"
+    },
+    {
+      "descriptor": "is_new_version_of",
+      "work_type": "output_management_plan",
+      "type": "url",
+      "identifier": "https://example.com/api/v0/10.12345/A1.1A2B3C4D6?version=2022-01-01T01:01:01+00:00"
+    }
+  ]
+}
+```
+When we finally drill through to the original '2022-01-01' version we will only find a link back to the '2022-05-04' version:
+```
+{
+  "SK": "VERSION#2022-01-01T01:01:01+00:00",
+  "dmproadmap_related_identifiers": [
+    {
+      "descriptor": "is_previous_version_of",
+      "work_type": "output_management_plan",
+      "type": "url",
+      "identifier": "https://example.com/api/v0/10.12345/A1.1A2B3C4D6?version=2022-05-04T03:02:01+00:00"
+    }
+  ]
+}
+```
+
+### Sample DMP metadata amendments from another system
+
+When DMPs are created, a `dmphub_provenance_id` is recorded in the the DMP JSON. This is used to define the system of provenance. When another system apends metadata to the DMP, it's provenance is recorded. These provenance markers help prevent systems from overwriting one another's changes and also help determine when a new version should be created.
+
+```
+{
+  "dmp": {
+    "PK": "DMP#doi.org/10.12345/A1.1A2B3C4D6",
+    "SK": "latest",
+    "dmphub_provenance_id": "PROVENANCE#example",
+    "title": "Example complete DMP",
+    "dmp_id": {
+      "type": "doi",
+      "identifier": "https://doi.org/10.12345/A1.1A2B3C4D5"
+    },
+    "project": [
+      {
+        "title": "Example research project",
+        "funding": [
+          {
+            "name": "National Funding Organization",
+            "funder_id": {
+              "type": "fundref",
+              "identifier": "http://dx.doi.org/10.13039/100005595"
+            }
+            "funding_status": "granted",
+            "grant_id": {
+              "type": "url",
+              "identifier": "https://awards.example.fund/1213424"
+            },
+            "dmphub_provenance_id": "PROVENANCE#funder123"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
 
 ## Notes about Sceptre
 
@@ -159,266 +510,4 @@ Then verify that you can access the API endpoints (not the :domain can be found 
 curl -v -H 'Accept: application/json' \
         -H 'Authorization: [token]'
         https://[domain]/v0/dmps
-```
-
-## Sample DynamoDB Table Items
-
-### Sample Provenance item:
-```
-{
-  "PK": "PROVENANCE#example",
-  "SK": "PROFILE",
-  "contact": {
-    "email": "jane.doe@example.com",
-    "name": "Jane Doe"
-  },
-  "description": "An external system",
-  "downloadUri": "https://example.com/api/dmps/",
-  "homepage": "https://example.com",
-  "name": "Example System",
-  "redirectUri": "https://example.com/callback",
-  "seedingWithLiveDmpIds": true,
-  "tokenUri": "https://example.com/oauth/token"
-}
-```
-Explanation of Provenance keys:
-- **PK** - A unique partition key for the external system. Note that it must start with `PROVENANCE#`
-- **SK** - The sort key (do not change this)
-- **contact** - The primary technical contact for the external system (displayed in the UI)
-- **description** - A description of the external system (displayed in the UI)
-- **downloadUri** - The endpoint that the DMPHub can use to download the DMP as a PDF. The specific location of the PDF is embedded in the DMP's JSON as a `dmproadmap_related_identifier` with the `"descriptor": "is_metadata_for"` and `"work_type": "output_management_plan"`. Note that the system will first check that the target of that related identifier matches the downloadUri defined here (e.g. https://example.org/dmps/download/). If it does not match, an error is raised. This prevents downloads from unknown/unverified locations
-- **homepage** - The landing page for the external system (displayed in the UI)
-- **name** - The name of the external system (displayed in the UI)
-- **redirectUri** - The URI that the DMPHub can use to send updates about the DMP. For example if the DMPHub learns of a grant ID that was associated with the DMP, it will send that information back to external system via this URI.
-- **seedingWithLiveDmpIds** - Flag that can be used when seeding DMPs from an external system to the DMPHub this flag will use the provided DMP ID instead of minting a new one with EZID. __Note that the DMP ID targets would need to be updated with the minting authority
-so that they point to the new DMPHub landing page.__ (default is false)
-- **tokenUri** - The endpoint the DMPHub should use to obtain an access token that can be used when calling the downloadUri and redirectUri (if applicable). Note that the tokenUri works in conjunction with 2 SSM parameters (note that the 'example' must match the PK value for the item!): `/uc3/dmp/hub/dev/example/client_id`, `/uc3/dmp/hub/dev/example/client_secret`
-
-### Sample DMP item (minimal metadata):
-```
-{
- "PK": "DMP#doi.org/10.12345/A1.1A2B3C4D5",
- "SK": "VERSION#latest",
- "contact": {
-  "contact_id": {
-   "identifier": "https://orcid.org/0000-0000-0000-000X",
-   "type": "orcid"
-  },
-  "mbox": "jane@example.edu",
-  "name": "jane doe"
- },
- "created": "2022-05-24T12:33:44Z",
- "dataset": [],
- "dmphub_created_at": "2022-08-25T16:24:56+00:00",
- "dmphub_modification_day": "2022-08-25",
- "dmphub_provenance_id": "PROVENANCE#example",
- "dmphub_provenance_identifier": "https://example.com/api/dmps/callback/45645",
- "dmphub_updated_at": "2022-08-25T16:24:56+00:00",
- "dmp_id": {
-  "identifier": "https://doi.org/10.12345/A1.1A2B3C4D5",
-  "type": "doi"
- },
- "modified": "2022-05-24T12:33:44Z",
- "project": [],
- "title": "Example minimal DMP"
-}
-```
-
-### Sample DMP item (complete metadata):
-```
-{
-  "dmp": {
-    "PK": "DMP#doi.org/10.12345/A1.1A2B3C4D6",
-    "dmphub_provenance_id": "PROVENANCE#example",
-    "title": "Example complete DMP",
-    "description": "An exceptional example of complete DMP metadata",
-    "language": "eng",
-    "created": "2021-11-08T19:06:04Z",
-    "modified": "2022-01-28T17:52:14Z",
-    "ethical_issues_description": "We may need to anonymize user data",
-    "ethical_issues_exist": "yes",
-    "ethical_issues_report": "https://example.edu/privacy_policy",
-    "dmp_id": {
-      "type": "doi",
-      "identifier": "https://doi.org/10.12345/A1.1A2B3C4D5"
-    },
-    "contact": {
-      "name": "Jane Doe",
-      "mbox": "jane.doe@example.com",
-      "dmproadmap_affiliation": {
-        "name": "Example University (example.com)",
-        "affiliation_id": {
-          "type": "ror",
-          "identifier": "https://ror.org/1234567890"
-        }
-      },
-      "contact_id": {
-        "type": "orcid",
-        "identifier": "https://orcid.org/0000-0000-0000-000X"
-      }
-    },
-    "contributor": [
-      {
-        "name": "Jane Doe",
-        "mbox": "jane.doe@example.com",
-        "role": [
-          "http://credit.niso.org/contributor-roles/data-curation",
-          "http://credit.niso.org/contributor-roles/investigation"
-        ],
-        "dmproadmap_affiliation": {
-          "name": "Example University (example.com)",
-          "affiliation_id": {
-            "type": "ror",
-            "identifier": "https://ror.org/1234567890"
-          }
-        },
-        "contributor_id": {
-          "type": "orcid",
-          "identifier": "https://orcid.org/0000-0000-0000-000X"
-        }
-      }, {
-        "name":"Jennifer Smith",
-        "role": [
-          "http://credit.niso.org/contributor-roles/investigation"
-        ],
-        "dmproadmap_affiliation": {
-          "name": "University of Somewhere (somwhere.edu)",
-          "affiliation_id": {
-            "type": "ror",
-            "identifier": "https://ror.org/0987654321"
-          }
-        }
-      }, {
-        "name": "Sarah James",
-        "role": [
-          "http://credit.niso.org/contributor-roles/project_administration"
-        ]
-      }
-    ],
-    "cost": [
-      {
-        "currency_code": "USD",
-        "title": "Preservation costs",
-        "description": "The estimated costs for preserving our data for 20 years",
-        "value": 10000
-      }
-    ],
-    "dataset": [
-      {
-        "type": "dataset",
-        "title": "Odds and ends",
-        "description": "Collection of odds and ends",
-        "issued": "2022-03-15",
-        "keyword": [
-          "foo"
-        ],
-        "dataset_id": {
-          "type": "doi",
-          "identifier": "http://doi.org/10.99999/8888.7777"
-        },
-        "language": "eng",
-        "metadata": [
-          {
-            "description": "The industry standard!",
-            "language": "eng",
-            "metadata_standard_id": {
-              "type": "url",
-              "identifier": "https://example.com/metadata_standards/123"
-            }
-          }
-        ],
-        "personal_data": "no",
-        "data_quality_assurance": [
-          "We will ensure that the preserved copies are of high quality"
-        ],
-        "preservation_statement": "We are going to preserve this data for 20 years",
-        "security_and_privacy": [
-          {
-            "title": "Data security",
-            "description": "We're going to encrypt this one."
-          }
-        ],
-        "sensitive_data": "yes",
-        "technical_resource": [
-          {
-            "name": "Elctron microscope 1234",
-            "description": "A super electron microscope"
-          }
-        ],
-        "distribution": [
-          {
-            "title": "Distribution of 'Odds and Ends' to 'Random repo'",
-            "access_url": "https://example.edu/datasets/00000",
-            "download_url": "https://example.edu/datasets/00000.pdf",
-            "available_until": "2052-03-15",
-            "byte_size": 1234567890,
-            "data_access": "shared",
-            "format": [
-              "application/vnd.ms-excel"
-            ],
-            "host": {
-              "title": "Random repo",
-              "url": "A generic data repository",
-              "dmproadmap_host_id": {
-                "type": "url",
-                "identifier": "https://hosts.example.org/765675"
-              }
-            },
-            "license": [
-              {
-                "license_ref": "https://licenses.example.org/zyxw",
-                "start_date": "2022-03-15"
-              }
-            ]
-          }
-        ]
-      }
-    ],
-    "language": "eng",
-    "project": [
-      {
-        "title": "Example research project",
-        "description": "Abstract of what we're going to do.",
-        "start": "2015-05-12T00:00:00Z",
-        "end": "2024-05-24T11:32:21-07:00",
-        "funding": [
-          {
-            "name": "National Funding Organization",
-            "funder_id": {
-              "type": "fundref",
-              "identifier": "http://dx.doi.org/10.13039/100005595"
-            },
-            "funding_status": "granted",
-            "grant_id": {
-              "type": "url",
-              "identifier": "https://nfo.example.org/awards/098765"
-            },
-            "dmproadmap_funded_affiliations": [
-              {
-                "name": "Example University (example.edu)",
-                "affiliation_id": {
-                  "type": "ror",
-                  "identifier": "https://ror.org/1234567890"
-                }
-              }
-            ]
-          }
-        ]
-      }
-    ],
-    "dmproadmap_related_identifiers": [
-      {
-        "descriptor": "cites",
-        "type": "doi",
-        "identifier": "https://doi.org/10.21966/1.566666",
-        "work_type": "dataset"
-      },{
-        "descriptor": "is_referenced_by",
-        "type": "doi",
-        "identifier": "10.1111/fog.12471",
-        "work_type": "article"
-      }
-    ]
-  }
-}
 ```
