@@ -10,3 +10,15 @@ confirm_changeset = true
 capabilities = "CAPABILITY_NAMED_IAM"
 disable_rollback = false
 image_repositories = []
+# We send the SSM parameter keys in to let the CF parameters section load the latest value of each param.
+parameter_overrides = [
+  "Env=dev",
+  "CognitoSystemsPoolArn=/uc3/dmp/hub/dev/CognitoSystemPoolArn",
+  "CognitoDomain=/uc3/dmp/hub/dev/CognitoDomain",
+  "DynamoTableArn=/uc3/dmp/hub/dev/DynamoTableArn",
+  "S3PublicBucketArn=/uc3/dmp/hub/dev/S3PublicBucketArn",
+  "SnsDownloadTopicArn=/uc3/dmp/hub/dev/SnsDownloadTopicArn",
+  "SnsNotifyTopicArn=/uc3/dmp/hub/dev/SnsNotifyTopicArn",
+  "SnsPublishTopicArn=/uc3/dmp/hub/dev/SnsPublishTopicArn",
+  "SqsQueueArn=/uc3/dmp/hub/dev/SqsQueueArn"
+]

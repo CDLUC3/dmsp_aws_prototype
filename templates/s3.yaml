@@ -28,8 +28,8 @@ Resources:
       PublicAccessBlockConfiguration:
         IgnorePublicAcls: true
 
-  # S3 Bucket that stores DMP documents and UI resources. It is not directly public, but
-  # instead uses PresignedUrls
+  # S3 Bucket that stores DMP documents and UI resources. It is not directly public, but is
+  # instead server through the CloudFront Distribution
   S3PublicBucket:
     Type: 'AWS::S3::Bucket'
     DeletionPolicy: Retain

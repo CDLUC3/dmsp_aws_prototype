@@ -13,6 +13,47 @@ Globals:
   Api:
     TracingEnabled: True
 
+Parameters:
+  Env:
+    Type: 'String'
+    Default: 'dev'
+
+  CognitoSystemsPoolArn:
+    Type: 'AWS::SSM::Parameter::Value<String>'
+    Default: '/SsmKeyFor/CognitoSystemsPoolArn/ShouldBeSpecifiedIn/SamConigToml'
+
+  CognitoDomain:
+    Type: 'AWS::SSM::Parameter::Value<String>'
+    Default: '/SsmKeyFor/CognitoDomain/ShouldBeSpecifiedIn/SamConigToml'
+
+  DynamoTableArn:
+    Type: 'AWS::SSM::Parameter::Value<String>'
+    Default: '/SsmKeyFor/DynamoTableArn/ShouldBeSpecifiedIn/SamConigToml'
+
+  S3PublicBucketArn:
+    Type: 'AWS::SSM::Parameter::Value<String>'
+    Default: '/SsmKeyFor/S3PublicBucketArn/ShouldBeSpecifiedIn/SamConigToml'
+
+  SnsDownloadTopicArn:
+    Type: 'AWS::SSM::Parameter::Value<String>'
+    Default: '/SsmKeyFor/SnsDownloadTopicArn/ShouldBeSpecifiedIn/SamConigToml'
+
+  SnsNotifyTopicArn:
+    Type: 'AWS::SSM::Parameter::Value<String>'
+    Default: '/SsmKeyFor/SnsNotifyTopicArn/ShouldBeSpecifiedIn/SamConigToml'
+
+  SnsPublishTopicArn:
+    Type: 'AWS::SSM::Parameter::Value<String>'
+    Default: '/SsmKeyFor/SnsPublishTopicArn/ShouldBeSpecifiedIn/SamConigToml'
+
+  SqsQueueArn:
+    Type: 'AWS::SSM::Parameter::Value<String>'
+    Default: '/SsmKeyFor/SqsQueueArn/ShouldBeSpecifiedIn/SamConigToml'
+
+  LogRetentionDays:
+    Type: 'Number'
+    Default: 14
+
 Resources:
   # -----------------------------------------------------------
   # SSM Parameter used to toggle lambda debug mode
@@ -22,7 +63,7 @@ Resources:
     Type: 'AWS::SSM::Parameter'
     Properties:
       Description: !Sub "${AWS::StackName} Lambda Debug on/off flag"
-      Name: !Sub "/uc3/dmp/hub/dev/Debug"
+      Name: !Sub "/uc3/dmp/hub/${Env}/Debug"
       Type: 'String'
       Value: 'false'
 
@@ -48,8 +89,8 @@ Resources:
             - 'dynamodb:Scan'
             - 'dynamodb:PartiQLSelect'
           Resource:
-            - !Sub '{{resolve:ssm:/uc3/dmp/hub/dev/DynamoTableArn:1}}'
-            - !Sub '{{resolve:ssm:/uc3/dmp/hub/dev/DynamoTableArn:1}}/index/*'
+            - !Ref DynamoTableArn
+            - !Sub '${DynamoTableArn}/index/*'
 
   DmpHubDynamoTableWritePolicy:
     Type: 'AWS::IAM::ManagedPolicy'
@@ -67,8 +108,8 @@ Resources:
             - 'dynamodb:BatchWriteItem'
             - 'dynamodb:PartiQLInsert'
           Resource:
-            - !Sub '{{resolve:ssm:/uc3/dmp/hub/dev/DynamoTableArn:1}}'
-            - !Sub '{{resolve:ssm:/uc3/dmp/hub/dev/DynamoTableArn:1}}/index/*'
+            - !Ref DynamoTableArn
+            - !Sub '${DynamoTableArn}/index/*'
 
   S3BucketPolicy:
     Type: 'AWS::IAM::ManagedPolicy'
@@ -82,7 +123,7 @@ Resources:
           Action:
             - 's3:*'
             - 's3-object-lambda:*'
-          Resource: !Sub '{{resolve:ssm:/uc3/dmp/hub/dev/S3PublicBucketArn:1}}'
+          Resource: !Ref S3PublicBucketArn
 
   SqsQueuePolicy:
     Type: 'AWS::IAM::ManagedPolicy'
@@ -101,7 +142,16 @@ Resources:
             - 'sqs:GetQueueUrl'
             - 'sqs:ListDeadLetterSourceQueues'
             - 'sqs:ListQueues'
-          Resource: !Sub '{{resolve:ssm:/uc3/dmp/hub/dev/SqsQueueArn:1}}'
+          Resource: !Ref SqsQueueArn
+
+  # ----------------------------------------------------
+  # CloudWatch LogGroup
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_Logs.html
+  # ----------------------------------------------------
+  ApiAccessLogGroup:
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      RetentionInDays: !Ref LogRetentionDays
 
   # ----------------------------------------------------
   # API Definition
@@ -112,7 +162,7 @@ Resources:
     Properties:
       # TODO: Set this up!
       AccessLogSetting:
-        DestinationArn: 'arn:aws:logs:us-west-2:671846987296:log-group:uc3-dmp-hub-dev-logs-LogGroup-07ZxAX9w3zlN:*'
+        DestinationArn: !GetAtt ApiAccessLogGroup.Arn
         Format: '{"requestId":"$context.requestId","ip": "$context.identity.sourceIp","caller":"$context.identity.caller","user":"$context.identity.user","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath","status":"$context.status","protocol":"$context.protocol","responseLength":"$context.responseLength"}'
   #     CacheClusterEnabled: true
       # TODO: Enable this once we have the Route53 setup
@@ -134,14 +184,14 @@ Resources:
       Auth:
         Authorizers:
           DmpHubCognitoAuthorizer:
-            UserPoolArn: !ImportValue 'uc3-dmp-hub-dev-cognito-SystemPoolArn'
+            UserPoolArn: !Ref CognitoSystemsPoolArn
             AuthType: 'COGNITO_USER_POOLS'
             Identity:
               Header: 'Authorization'
             AuthorizationScopes:
-              - 'https://auth.dmphub.uc3dev.cdlib.org/dev.read'
-              - 'https://auth.dmphub.uc3dev.cdlib.org/dev.search'
-              - 'https://auth.dmphub.uc3dev.cdlib.org/dev.write'
+              - !Sub 'https://${CognitoDomain}/${Env}.read'
+              - !Sub 'https://${CognitoDomain}/${Env}.search'
+              - !Sub 'https:/${CognitoDomain}/${Env}.write'
         DefaultAuthorizer: DmpHubCognitoAuthorizer
 
   # ----------------------------------------------------
@@ -151,8 +201,8 @@ Resources:
   LambdaLayer:
     Type: 'AWS::Serverless::LayerVersion'
     Properties:
-      LayerName: 'uc3-dmp-hub-lambda-layer'
-      Description: 'Core Lambda Layer for DMPHub'
+      LayerName: !Sub '${AWS::StackName}-lambda-layer'
+      Description: !Sub 'Core Lambda Layer for DMPHub ${Env}'
       ContentUri: layers/uc3-dmp-hub-lambda-layer.zip
       CompatibleRuntimes:
         - ruby2.7
@@ -181,7 +231,7 @@ Resources:
         # - !Ref SqsQueuePolicy
       Environment:
         Variables:
-          LAMBDA_ENV: dev
+          LAMBDA_ENV: !Ref Env
       Events:
         PostDmps:
           # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
@@ -195,7 +245,7 @@ Resources:
             # Auth:
             #   Authorizer: 'NONE'
               # AuthorizationScopes:
-              #   - 'https://auth.dmphub.uc3dev.cdlib.org/dev.write'
+              #   - !Sub 'https://${CognitoDomain}/${Env}.write'
 
   # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
   GetDmpFunction:
@@ -215,7 +265,7 @@ Resources:
         - !Ref S3BucketPolicy
       Environment:
         Variables:
-          LAMBDA_ENV: dev
+          LAMBDA_ENV: !Ref Env
       Events:
         GetDmp:
           # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
@@ -246,7 +296,7 @@ Resources:
         # - !Ref SqsQueuePolicy
       Environment:
         Variables:
-          LAMBDA_ENV: dev
+          LAMBDA_ENV: !Ref Env
       Events:
         PostDmps:
           # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
@@ -260,7 +310,7 @@ Resources:
             Auth:
               Authorizer: 'NONE'
             #   AuthorizationScopes:
-            #     - 'https://auth.dmphub.uc3dev.cdlib.org/dev.write'
+            #     - !Sub 'https://${CognitoDomain}/${Env}.write'
 
   PutDmpFunction:
     Type: 'AWS::Serverless::Function'
@@ -281,7 +331,7 @@ Resources:
         # - !Ref SqsQueuePolicy
       Environment:
         Variables:
-          LAMBDA_ENV: dev
+          LAMBDA_ENV: !Ref Env
       Events:
         PutDmps:
           # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
@@ -295,7 +345,7 @@ Resources:
             Auth:
               Authorizer: 'NONE'
             #   AuthorizationScopes:
-            #     - 'https://auth.dmphub.uc3dev.cdlib.org/dev.write'
+            #     - !Sub 'https://${CognitoDomain}/${Env}.write'
 
   ValidateDmpFunction:
     Type: 'AWS::Serverless::Function'
@@ -312,7 +362,7 @@ Resources:
         - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
       Environment:
         Variables:
-          LAMBDA_ENV: dev
+          LAMBDA_ENV: !Ref Env
       Events:
         ValidateDmp:
           # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
@@ -348,12 +398,12 @@ Resources:
         # - !Ref SqsQueuePolicy
       Environment:
         Variables:
-          LAMBDA_ENV: dev
+          LAMBDA_ENV: !Ref Env
       Events:
         PublishTopicEvent:
           Type: 'SNS'
           Properties:
-            Topic: !Sub '{{resolve:ssm:/uc3/dmp/hub/dev/SnsPublishTopicArn:1}}'
+            Topic: !Ref SnsPublishTopicArn
 
   # Annoyingly, SAM does not auto-generate LogGroup for a non-API tiggered lambda
   EzidPublisherFunctionLogGroup:
@@ -384,12 +434,12 @@ Resources:
         # - !Ref S3BucketPolicy
       Environment:
         Variables:
-          LAMBDA_ENV: dev
+          LAMBDA_ENV: !Ref Env
       Events:
         DownloadTopicEvent:
           Type: 'SNS'
           Properties:
-            Topic: !Sub '{{resolve:ssm:/uc3/dmp/hub/dev/SnsDownloadTopicArn:1}}'
+            Topic: !Ref SnsDownloadTopicArn
 
   # Annoyingly, SAM does not auto-generate LogGroup for a non-API tiggered lambda and
   # it expects a specific name :/
@@ -419,12 +469,12 @@ Resources:
         # - !Ref SqsQueuePolicy
       Environment:
         Variables:
-          LAMBDA_ENV: dev
+          LAMBDA_ENV: !Ref Env
       Events:
         NortifyTopicEvent:
           Type: 'SNS'
           Properties:
-            Topic: !Sub '{{resolve:ssm:/uc3/dmp/hub/dev/SnsNotifyTopicArn:1}}'
+            Topic: !Ref SnsNotifyTopicArn
 
   # Annoyingly, SAM does not auto-generate LogGroup for a non-API tiggered lambda
   ProvenanceNotifierFunctionLogGroup:
@@ -439,8 +489,8 @@ Resources:
   ApiBaseUrlParameter:
     Type: 'AWS::SSM::Parameter'
     Properties:
-      Description: !Sub "DMPHub-dev API Base Domain"
-      Name: !Sub "/uc3/dmp/hub/dev/ApiBaseUrl"
+      Description: !Sub "DMPHub-${Env} API Base Domain"
+      Name: !Sub "/uc3/dmp/hub/${Env}/ApiBaseUrl"
       # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
       Type: 'String'
       Value: !Sub "https://${DmpHubRestApi}.execute-api.${AWS::Region}.amazonaws.com/v0/"
@@ -491,10 +541,14 @@ Outputs:
   # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
   # Find out more about other implicit resources you can reference within SAM
   # https://github.com/awslabs/serverless-application-model/blob/master/docs/internals/generated_resources.rst#api
+  DeleteDmpEndpoint:
+    Value: !Sub "DELETE https://${DmpHubRestApi}.execute-api.${AWS::Region}.amazonaws.com/v0/dmps/{dmp_id+}"
   GetDmpEndpoint:
     Value: !Sub "GET https://${DmpHubRestApi}.execute-api.${AWS::Region}.amazonaws.com/v0/dmps/{dmp_id+}"
   PostDmpsEndpoint:
     Value: !Sub "POST https://${DmpHubRestApi}.execute-api.${AWS::Region}.amazonaws.com/v0/dmps"
+  PutDmpEndpoint:
+    Value: !Sub "PUT https://${DmpHubRestApi}.execute-api.${AWS::Region}.amazonaws.com/v0/dmps/{dmp_id+}"
   ValidateDmpEndpoint:
     Value: !Sub "POST https://${DmpHubRestApi}.execute-api.${AWS::Region}.amazonaws.com/v0/dmps/validate"
 

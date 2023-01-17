@@ -1,0 +1,30 @@
+template:
+  path: 'cognito-api.yaml'
+  type: 'file'
+
+dependencies:
+  - 'dev/dynamo.yaml'
+  - 'dev/route53.yaml'
+  - 'dev/sqs.yaml'
+
+parameters:
+  HostedZoneId: !stack_attr sceptre_user_data.hosted_zone_id
+
+  Domain: !stack_attr sceptre_user_data.domain
+  # TODO: Remove this once the new HostedZone is in place
+  Subdomain: !stack_attr sceptre_user_data.subdomain
+  # Subdomain: 'auth'
+  Env: !stack_attr sceptre_user_data.env
+
+  CertificateArn: !stack_output dev/cert.yaml::CognitoCertificateArn
+
+  SsmPath: !stack_attr sceptre_user_data.ssm_path
+
+  UserPoolClientName: 'dmptool'
+  UserPoolCallbackUri: 'https://dmptool-dev.cdlib.org/callback'
+
+hooks:
+  after_create:
+    # Once the Cognito UserPools have been created, we can deploy our Lambdas and the API Gateway
+    # which are managed by AWS SAM and located in the src/sam/ directory.
+    - !sam_deploy location=src/sam config=dev

@@ -1,0 +1,158 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Description: 'Cognito resources for accessing the API'
+
+Parameters:
+  HostedZoneId:
+    Type: 'String'
+
+  CertificateArn:
+    Type: 'String'
+
+  Domain:
+    Type: 'String'
+
+  # TODO: Swap out the references below and uncomment the UserPoolDomain resource
+  Subdomain:
+    Type: 'String'
+
+  UserPoolClientName:
+    Type: 'String'
+
+  OnlyAllowAdminsToCreateUsers:
+    Type: 'String'
+    Default: 'false'
+    AllowedValues:
+      - 'true'
+      - 'false'
+
+  DaysBeforeUnusedNewAccountExpires:
+    Type: 'Number'
+    Default: 14
+
+  MinimumPasswordLength:
+    Type: 'Number'
+    Default: 8
+
+Resources:
+  # This file contains instructions for creating the UserPool that will be used by the UI to manage
+  # user accounts.
+
+  # See the following for example of hooking an ALB up to Cognito
+  #   https://www.kdgregory.com/index.php?page=aws.albCognito
+  #   https://www.kdgregory.com/misc/aws.albCognito/examples/template.yml
+
+  # -----------------------------------------------------------
+  # Cognito resources
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_Cognito.html
+  # -----------------------------------------------------------
+  UserPool:
+    Type: 'AWS::Cognito::UserPool'
+    Properties:
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: !Ref OnlyAllowAdminsToCreateUsers
+        UnusedAccountValidityDays: !Ref UnusedAccountValidityDays
+      AutoVerifiedAttributes:
+        - 'email'
+      EmailConfiguration:
+        # TODO: Consider switching this if we setup SES
+        EmailSendingAccount: 'COGNITO_DEFAULT'
+      MfaConfiguration: 'OFF'
+      Policies:
+        PasswordPolicy:
+          MinimumLength: !Ref MinimumPasswordLength
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+      Schema:
+        - Name: 'first_name'
+          Required: true
+          Mutable: true
+          DeveloperOnlyAttribute: false
+          AttributeDataType: 'String'
+          StringAttributeConstraints:
+            MinLength: 2
+            MaxLength: 64
+        - Name: 'last_name'
+          Required: true
+          Mutable: true
+          DeveloperOnlyAttribute: false
+          AttributeDataType: 'String'
+          StringAttributeConstraints:
+            MinLength: 2
+            MaxLength: 64
+        - Name: 'email'
+          Required: true
+          Mutable: true
+          DeveloperOnlyAttribute: false
+          AttributeDataType: 'String'
+          StringAttributeConstraints:
+            MinLength: 3
+            MaxLength: 2048
+        - Name: 'email_verified'
+          Required: false
+          Mutable: true
+          DeveloperOnlyAttribute: false
+          AttributeDataType: 'Boolean'
+      UsernameAttributes:
+        - 'email'
+      UserPoolTags:
+        Program: 'uc3'
+        Service: 'dmp'
+        Subservice: 'hub'
+        Environment: !Ref Env
+
+  # Add the UI User Pool's default client
+  UserPoolClient:
+    Type: 'AWS::Cognito::UserPoolClient'
+    Properties:
+      AllowedOAuthFlows:
+        - 'code'
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthScopes:
+        - 'openid'
+        - 'email'
+      CallbackURLs:
+        - !Sub "https://${Subdomain}-auth.${Domain}/oauth2/idpresponse"
+        # - !Sub "https://ui.${Subdomain}.${Domain}/oauth2/idpresponse"
+      ClientName: !Ref UserPoolClientName
+      DefaultRedirectURI: !Sub "https://${Subdomain}-auth.${Domain}/oauth2/idpresponse"
+      # DefaultRedirectURI: !Sub "https://ui.${Subdomain}.${Domain}/oauth2/idpresponse"
+      GenerateSecret: true
+      SupportedIdentityProviders:
+        - 'COGNITO'
+      TokenValidityUnits:
+        AccessToken: 'hours'
+        IdToken: 'hours'
+        RefreshToken: 'days'
+      # The token issued after the user signs in
+      AccessTokenValidity: 10
+      # The length (minutes) that a session token for each API request in an authentication flow lasts
+      AuthSessionValidity: 3
+      # The token used during user authentication
+      IdTokenValidity: 7
+      # The length of time the user can refresh their token
+      RefreshTokenValidity: 7
+      UserPoolId: !Ref UserPool
+
+  # UserPoolDomain:
+  #   Type: 'AWS::Cognito::UserPoolDomain'
+  #   Properties:
+  #     CustomDomainConfig:
+  #       CertificateArn: !Ref CertificateArn
+  #     Domain: !Sub "ui.${Subdomain}.${Domain}"
+  #     UserPoolId: !Ref UserPool
+
+  # Setup ALB Listener to send traffic for `ui.${Subdomain}.${Domain}` to this UserPoolDomain!
+
+Outputs:
+  UserPoolId:
+    Value: !Ref UserPool
+  UserPoolArn:
+    Value: !GetAtt UserPool.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-UserPoolArn'
+  # UserPoolDomain:
+  #   Value: !Ref UserPoolDomain

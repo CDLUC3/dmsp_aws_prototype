@@ -1,0 +1,167 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Description: 'Cloudfront for the React web pages and serving DMP PDFs'
+
+Parameters:
+  S3PrivateBucketId:
+    Type: 'String'
+
+  S3PublicBucketId:
+    Type: 'String'
+
+  S3PublicBucketArn:
+    Type: 'String'
+
+  CertificateArn:
+    Type: 'String'
+
+  WafArn:
+    Type: 'String'
+
+Resources:
+  # ---------------------------------------------------------------------
+  # CloudFront Distribution that serves React pages and PDF documents
+  # See:  https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_CloudFront.html
+  # ---------------------------------------------------------------------
+  CloudfrontCachePolicy:
+    Type: 'AWS::CloudFront::CachePolicy'
+    Properties:
+      CachePolicyConfig:
+        Comment: !Sub "${AWS::StackName} CloudFront cache policy"
+        DefaultTTL: 86400 # 1 day
+        MaxTTL: 604800 # 1 week
+        MinTTL: 300 # 5 minutes
+        Name: !Sub "${AWS::StackName}-cache-policy"
+        ParametersInCacheKeyAndForwardedToOrigin:
+          CookiesConfig:
+            CookieBehavior: 'none'
+          EnableAcceptEncodingBrotli: true
+          EnableAcceptEncodingGzip: true
+          HeadersConfig:
+            HeaderBehavior: 'none'
+          QueryStringsConfig:
+            QueryStringBehavior: 'none'
+
+  # TODO: Set this up to pass specific headers through
+  # CloudfrontOriginRequestPolicy:
+
+  CloudfrontOrginAccessControl:
+    Type: 'AWS::CloudFront::OriginAccessControl'
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub "${AWS::StackName}-oac"
+        Description: !Sub "${AWS::StackName} Cloudfront to S3 OAC"
+        OriginAccessControlOriginType: 's3'
+        SigningBehavior: 'always'
+        SigningProtocol: 'sigv4'
+
+  CloudfrontOriginAccessIdentity:
+    Type: 'AWS::CloudFront::CloudFrontOriginAccessIdentity'
+    Properties:
+      CloudFrontOriginAccessIdentityConfig:
+        Comment: !Sub "${AWS::StackName} Cloudfront user with access to S3 ${S3PublicBucketId}"
+
+  CloudfrontDistro:
+    Type: 'AWS::CloudFront::Distribution'
+    Properties:
+      DistributionConfig:
+        # Aliases:
+        #   - String
+        # CacheBehaviors:
+          # Requests for PDF
+          # - AllowedMethods:
+          #     - 'GET'
+          #     - 'HEAD'
+          #   CachedMethods:
+          #     - 'GET'
+          #     - 'HEAD'
+          #   CachePolicyId: !Ref CloudfrontCachePolicy
+          #   Compress: true
+          #   PathPattern: 'dmps/*.pdf'
+          #   # RealtimeLogConfigArn:
+          #   # Warning, this Id must match the Id specified in the Origins section
+          #   TargetOriginId: !Sub "${AWS::StackName}-s3-origin"
+          #   # TODO: We may need this for presigned PDF URLs
+          #   # TrustedKeyGroups:
+          #   #   - 'Foo'
+          #   ViewerProtocolPolicy: 'redirect-to-https'
+        Comment: !Sub "${AWS::StackName} cloudfront distro"
+        # ContinuousDeploymentPolicyId: String
+        # TODO: Consider enabling this to server up better errors
+        # CustomErrorResponses:
+        #   - ErrorCachingMinTTL: Double
+        #     ErrorCode: Integer
+        #     ResponseCode: Integer
+        #     ResponsePagePath: String
+        DefaultCacheBehavior:
+          # AllowedMethods:
+          #   - 'GET'
+          #   - 'HEAD'
+          # CachedMethods:
+          #   - 'GET'
+          #   - 'HEAD'
+          CachePolicyId: !Ref CloudfrontCachePolicy
+          # Compress: true
+          # RealtimeLogConfigArn:
+          TargetOriginId: !Sub "${AWS::StackName}-s3-origin"
+          ViewerProtocolPolicy: 'redirect-to-https'
+        Enabled: true
+        # IPV6Enabled: false
+        # Logging:
+        #   Bucket: !Sub "${S3PrivateBucketId}.s3.${AWS::Region}.amazonaws.com"
+        #   IncludeCookies: false
+        #   Prefix: 'cloudfront/'
+        Origins:
+          - Id: !Sub "${AWS::StackName}-s3-origin"
+            S3OriginConfig:
+              OriginAccessIdentity: !Sub 'origin-access-identity/cloudfront/${CloudfrontOriginAccessIdentity}'
+            DomainName: !Sub "${S3PublicBucketId}.s3.${AWS::Region}.amazonaws.com"
+            OriginAccessControlId: !GetAtt CloudfrontOrginAccessControl.Id
+            OriginPath: '/dmps'
+        PriceClass: 'PriceClass_All'
+        Staging: false
+        # ViewerCertificate:
+        #   AcmCertificateArn: !Ref CertificateArn
+        #   # CloudFrontDefaultCertificate: false
+        #   MinimumProtocolVersion: 'TLSv1'
+        #   SslSupportMethod: 'sni-only'
+        # WebACLId: !Ref WafArn
+
+  # ----------------------------------------------------
+  # Managed IAM Policy for allowing CloudFront Distribution to access our S3 Bucket
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-iam-managedpolicy.html
+  # ----------------------------------------------------
+  # CloudfrontS3BucketPolicy:
+  #   Type: 'AWS::IAM::ManagedPolicy'
+  #   Properties:
+  #     Description: !Sub "${AWS::StackName} - Policy to allow Cloudfront to access S3 bucket"
+  #     ManagedPolicyName: !Sub "${AWS::StackName}-oac-policy"
+  #     PolicyDocument:
+  #       Version: '2012-10-17'
+  #       Statement:
+  #         Sid: 'AllowCloudFrontServicePrincipalReadOnly'
+  #         Effect: 'Allow'
+  #         Principal:
+  #           Service: 'cloudfront.amazonaws.com'
+  #         Action": 's3:GetObject'
+  #         Resource": !Ref S3PublicBucketArn
+  #         Condition:
+  #           StringEquals:
+  #             "AWS:SourceArn": !Sub "arn:aws:cloudfront::111122223333:distribution/${CloudfrontDistro}"
+
+Outputs:
+  # CloudfrontDistroId:
+  #   Value: !Ref CloudfrontDistro
+
+  # CloudfrontDistroDomainName:
+  #   Value: !GetAtt CloudfrontDistro.DomainName
+
+  CloudfrontOriginAccessControlId:
+    Value: !GetAtt CloudfrontOrginAccessControl.Id
+
+  CloudfrontOriginAccessIdentityId:
+    Value: !Ref CloudfrontOriginAccessIdentity
+
+  # CloudfrontS3PolicyArn:
+  #   Value: !Ref CloudfrontS3BucketPolicy

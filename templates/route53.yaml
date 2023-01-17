@@ -9,11 +9,10 @@ Parameters:
 
   Domain:
     Type: 'String'
-  Subdomain:
-    Type: 'String'
 
   AlbDnsName:
     Type: 'String'
+
   AlbHostedZoneId:
     Type: 'String'
 
@@ -26,29 +25,7 @@ Resources:
     Type: 'AWS::Route53::RecordSet'
     Properties:
       HostedZoneId: !Ref HostedZoneId
-      Name: !Sub "${Subdomain}.${Domain}"
-      Type: 'A'
-      AliasTarget:
-        DNSName: !Ref AlbDnsName
-        HostedZoneId: !Ref AlbHostedZoneId
-        # EvaluateTargetHealth: true
-
-  ApiAlias:
-    Type: 'AWS::Route53::RecordSet'
-    Properties:
-      HostedZoneId: !Ref HostedZoneId
-      Name: !Sub "${Subdomain}-api.${Domain}"
-      Type: 'A'
-      AliasTarget:
-        DNSName: !Ref AlbDnsName
-        HostedZoneId: !Ref AlbHostedZoneId
-        # EvaluateTargetHealth: true
-
-  AuthAlias:
-    Type: 'AWS::Route53::RecordSet'
-    Properties:
-      HostedZoneId: !Ref HostedZoneId
-      Name: !Sub "${Subdomain}-auth.${Domain}"
+      Name: !Ref Domain
       Type: 'A'
       AliasTarget:
         DNSName: !Ref AlbDnsName
@@ -58,7 +35,3 @@ Resources:
 Outputs:
   DomainName:
     Value: !Ref AlbAlias
-  # ApiEndpoint:
-  #   Value: !Ref ApiAlias
-  # AuthEndpoint:
-  #   Value: !Ref AuthAlias

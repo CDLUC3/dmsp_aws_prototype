@@ -9,8 +9,6 @@ Parameters:
 
   Domain:
     Type: 'String'
-  Subdomain:
-    Type: 'String'
 
 Resources:
   # --------------------------------------------------------------------------
@@ -21,34 +19,12 @@ Resources:
   Certificate:
     Type: 'AWS::CertificateManager::Certificate'
     Properties:
-      DomainName: !Sub "${Subdomain}.${Domain}"
+      DomainName: !Ref Domain
       DomainValidationOptions:
-        - DomainName: !Sub "${Subdomain}.${Domain}"
-          HostedZoneId: !Ref HostedZoneId
-      ValidationMethod: 'DNS'
-
-  ApiCertificate:
-    Type: 'AWS::CertificateManager::Certificate'
-    Properties:
-      DomainName: !Sub "${Subdomain}-api.${Domain}"
-      DomainValidationOptions:
-        - DomainName: !Sub "${Subdomain}-api.${Domain}"
-          HostedZoneId: !Ref HostedZoneId
-      ValidationMethod: 'DNS'
-
-  AuthCertificate:
-    Type: 'AWS::CertificateManager::Certificate'
-    Properties:
-      DomainName: !Sub "${Subdomain}-auth.${Domain}"
-      DomainValidationOptions:
-        - DomainName: !Sub "${Subdomain}-auth.${Domain}"
+        - DomainName: !Ref Domain
           HostedZoneId: !Ref HostedZoneId
       ValidationMethod: 'DNS'
 
 Outputs:
   CertificateArn:
     Value: !Ref Certificate
-  ApiCertificateArn:
-    Value: !Ref ApiCertificate
-  CognitoCertificateArn:
-    Value: !Ref AuthCertificate
