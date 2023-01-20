@@ -1,0 +1,7 @@
+# We need to override the default us-west-2 region here for CloudFront which must reside in us-east-1
+region: 'us-east-1'
+
+# Define reusable variables that can be referenced in template specific config files via:
+#   my_variable: !stack_attr sceptre_user_data.[variable]
+sceptre_user_data:
+  domain: 'dmphub-dev.cdlib.org'

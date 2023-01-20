@@ -1,7 +1,3 @@
-# Sceptre will create an S3 bucket to store your CloudFormation templates. Define the name here or
-# provide the name of an existing bucket.
-template_bucket_name: uc3-dmp-hub-cf-bucket
-
 # Stack tags are attached to every AWS resource created by these CloudFormation templates
 # with the exception of the Lambda functions and layers which are managed by AWS SAM.
 stack_tags:
@@ -11,24 +7,3 @@ stack_tags:
   Environment: 'dev'
   CodeRepo: 'https://github.com/CDLUC3/dmp-hub-cfn'
   Contact: 'briley'
-
-# Define reusable variables that can be referenced in template specific config files via:
-#   my_variable: !stack_attr sceptre_user_data.[variable]
-sceptre_user_data:
-  vpc_id: !stack_output_external cdl-uc3-dev-vpc-stack::vpc
-  public_subnets:
-    - !stack_output_external cdl-uc3-dev-defaultsubnet-stack::defaultsubnet2a
-    - !stack_output_external cdl-uc3-dev-defaultsubnet-stack::defaultsubnet2b
-    - !stack_output_external cdl-uc3-dev-defaultsubnet-stack::defaultsubnet2c
-  private_subnets:
-    - !stack_output_external cdl-uc3-dev-privatesubnet-stack::privatesubnet2a
-    - !stack_output_external cdl-uc3-dev-privatesubnet-stack::privatesubnet2b
-    - !stack_output_external cdl-uc3-dev-privatesubnet-stack::privatesubnet2c
-
-  # TODO: Swap these out once the HostedZone is in place (need to update the stack name!)
-  hosted_zone_id: !stack_output_external uc3-ops-dmphub-dev-route53::HostedZoneId
-  domain: 'dmptool-dev.cdlib.org'
-
-  # Some resources like the Cognito UserPool don't get the normal Sceptre stack name
-  env: 'dev'
-  ssm_path: '/uc3/dmp/hub/dev/'

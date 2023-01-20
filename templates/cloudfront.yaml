@@ -4,7 +4,10 @@ Transform: AWS::Serverless-2016-10-31
 Description: 'Cloudfront for the React web pages and serving DMP PDFs'
 
 Parameters:
-  S3PrivateBucketId:
+  Domain:
+    Type: 'String'
+
+  S3LogBucketId:
     Type: 'String'
 
   S3PublicBucketId:
@@ -56,112 +59,92 @@ Resources:
         SigningBehavior: 'always'
         SigningProtocol: 'sigv4'
 
-  CloudfrontOriginAccessIdentity:
-    Type: 'AWS::CloudFront::CloudFrontOriginAccessIdentity'
-    Properties:
-      CloudFrontOriginAccessIdentityConfig:
-        Comment: !Sub "${AWS::StackName} Cloudfront user with access to S3 ${S3PublicBucketId}"
-
   CloudfrontDistro:
     Type: 'AWS::CloudFront::Distribution'
     Properties:
       DistributionConfig:
-        # Aliases:
-        #   - String
-        # CacheBehaviors:
-          # Requests for PDF
-          # - AllowedMethods:
-          #     - 'GET'
-          #     - 'HEAD'
-          #   CachedMethods:
-          #     - 'GET'
-          #     - 'HEAD'
-          #   CachePolicyId: !Ref CloudfrontCachePolicy
-          #   Compress: true
-          #   PathPattern: 'dmps/*.pdf'
-          #   # RealtimeLogConfigArn:
-          #   # Warning, this Id must match the Id specified in the Origins section
-          #   TargetOriginId: !Sub "${AWS::StackName}-s3-origin"
-          #   # TODO: We may need this for presigned PDF URLs
-          #   # TrustedKeyGroups:
-          #   #   - 'Foo'
-          #   ViewerProtocolPolicy: 'redirect-to-https'
-        Comment: !Sub "${AWS::StackName} cloudfront distro"
-        # ContinuousDeploymentPolicyId: String
-        # TODO: Consider enabling this to server up better errors
-        # CustomErrorResponses:
-        #   - ErrorCachingMinTTL: Double
-        #     ErrorCode: Integer
-        #     ResponseCode: Integer
-        #     ResponsePagePath: String
-        DefaultCacheBehavior:
-          # AllowedMethods:
-          #   - 'GET'
-          #   - 'HEAD'
-          # CachedMethods:
-          #   - 'GET'
-          #   - 'HEAD'
-          CachePolicyId: !Ref CloudfrontCachePolicy
-          # Compress: true
-          # RealtimeLogConfigArn:
-          TargetOriginId: !Sub "${AWS::StackName}-s3-origin"
-          ViewerProtocolPolicy: 'redirect-to-https'
-        Enabled: true
-        # IPV6Enabled: false
-        # Logging:
-        #   Bucket: !Sub "${S3PrivateBucketId}.s3.${AWS::Region}.amazonaws.com"
-        #   IncludeCookies: false
-        #   Prefix: 'cloudfront/'
         Origins:
-          - Id: !Sub "${AWS::StackName}-s3-origin"
+          - DomainName: !Sub "${S3PublicBucketId}.s3.amazonaws.com"
+            #DomainName: !Sub "${S3PublicBucketId}.s3.${AWS::Region}.amazonaws.com"
+            Id: !Sub "${AWS::StackName}-CloudFrontS3Origin"
+            OriginAccessControlId: !Ref CloudfrontOrginAccessControl
             S3OriginConfig:
-              OriginAccessIdentity: !Sub 'origin-access-identity/cloudfront/${CloudfrontOriginAccessIdentity}'
-            DomainName: !Sub "${S3PublicBucketId}.s3.${AWS::Region}.amazonaws.com"
-            OriginAccessControlId: !GetAtt CloudfrontOrginAccessControl.Id
-            OriginPath: '/dmps'
+              OriginAccessIdentity: !Ref AWS::NoValue
+              # OriginAccessIdentity: !Sub 'origin-access-identity/cloudfront/${CloudfrontOriginAccessIdentity}'
+        Enabled: 'true'
+        Comment: !Sub "${AWS::StackName} CloudFront Distribution"
+        DefaultRootObject: 'index.html'
+        Logging:
+          IncludeCookies: 'false'
+          Bucket: !Sub "${S3LogBucketId}.s3.amazonaws.com"
+          Prefix: 'cloudfront'
+        Aliases:
+          - 'dmphub-dev.cdlib.org'
+        DefaultCacheBehavior:
+          AllowedMethods:
+          - 'GET'
+          - 'HEAD'
+          - 'OPTIONS'
+          TargetOriginId: !Sub "${AWS::StackName}-CloudFrontS3Origin"
+          ForwardedValues:
+            QueryString: 'false'
+            Cookies:
+              Forward: 'none'
+          ViewerProtocolPolicy: 'redirect-to-https'
+        # Using Price Class ALL to support our large South American user base
+        #   See: https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/PriceClass.html
         PriceClass: 'PriceClass_All'
-        Staging: false
-        # ViewerCertificate:
-        #   AcmCertificateArn: !Ref CertificateArn
-        #   # CloudFrontDefaultCertificate: false
-        #   MinimumProtocolVersion: 'TLSv1'
-        #   SslSupportMethod: 'sni-only'
-        # WebACLId: !Ref WafArn
+        Restrictions:
+          GeoRestriction:
+            RestrictionType: 'none'
+        Staging: 'false'
+        ViewerCertificate:
+          AcmCertificateArn: !Ref CertificateArn
+          MinimumProtocolVersion: 'TLSv1'
+          SslSupportMethod: 'sni-only'
+        WebACLId: !Ref WafArn
 
   # ----------------------------------------------------
   # Managed IAM Policy for allowing CloudFront Distribution to access our S3 Bucket
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-iam-managedpolicy.html
   # ----------------------------------------------------
-  # CloudfrontS3BucketPolicy:
-  #   Type: 'AWS::IAM::ManagedPolicy'
-  #   Properties:
-  #     Description: !Sub "${AWS::StackName} - Policy to allow Cloudfront to access S3 bucket"
-  #     ManagedPolicyName: !Sub "${AWS::StackName}-oac-policy"
-  #     PolicyDocument:
-  #       Version: '2012-10-17'
-  #       Statement:
-  #         Sid: 'AllowCloudFrontServicePrincipalReadOnly'
-  #         Effect: 'Allow'
-  #         Principal:
-  #           Service: 'cloudfront.amazonaws.com'
-  #         Action": 's3:GetObject'
-  #         Resource": !Ref S3PublicBucketArn
-  #         Condition:
-  #           StringEquals:
-  #             "AWS:SourceArn": !Sub "arn:aws:cloudfront::111122223333:distribution/${CloudfrontDistro}"
+  CloudfrontS3BucketPolicy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      ManagedPolicyName: !Sub "${AWS::StackName}-oac-policy"
+      Description: !Sub "${AWS::StackName} - Policy to allow Cloudfront to access S3 bucket"
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          # Sid: 'PolicyForCloudFrontPrivateContent'
+          # Sid: 'AllowCloudFrontServicePrincipalReadWrite'
+          Sid: 'AllowCloudFrontServicePrincipalReadOnly'
+          # Sid: 'AllowCloudFrontServicePrincipal'
+          Effect: 'Allow'
+          # Principal:
+          #   Service: 'cloudfront.amazonaws.com'
+          Action: 's3:GetObject'
+          #Resource: !Ref S3PublicBucketArn
+          Resource: !Sub "${S3PublicBucketArn}/*"
+          Condition:
+            StringEquals:
+              "AWS:SourceArn": !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudfrontDistro}"
 
 Outputs:
-  # CloudfrontDistroId:
-  #   Value: !Ref CloudfrontDistro
+  CloudfrontDistroId:
+    Value: !Ref CloudfrontDistro
 
-  # CloudfrontDistroDomainName:
-  #   Value: !GetAtt CloudfrontDistro.DomainName
+  CloudfrontDistroDomainName:
+    Value: !GetAtt CloudfrontDistro.DomainName
 
   CloudfrontOriginAccessControlId:
     Value: !GetAtt CloudfrontOrginAccessControl.Id
 
-  CloudfrontOriginAccessIdentityId:
-    Value: !Ref CloudfrontOriginAccessIdentity
+  CloudfrontCachePolicyId:
+    Value: !Ref CloudfrontCachePolicy
 
-  # CloudfrontS3PolicyArn:
-  #   Value: !Ref CloudfrontS3BucketPolicy
+  CloudfrontS3PolicyArn:
+    Value: !Ref CloudfrontS3BucketPolicy
+
+  CloudfrontSseKmsPolicyArn:
+    Value: !Ref CloudfrontSseKmsPolicy

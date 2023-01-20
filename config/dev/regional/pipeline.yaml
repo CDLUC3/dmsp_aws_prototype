@@ -31,5 +31,5 @@ parameters:
   # EcrRepositoryUri: !stack_output dev/ecr.yaml::EcrRepositoryUri
   # EcrRepositoryName: !stack_output dev/ecr.yaml::EcrRepositoryName
 
-  S3ArtifactBucketId: !stack_output dev/s3.yaml::S3PrivateBucketId
-  S3LogBucketId: !stack_output dev/s3.yaml::S3LogBucketId
+  S3ArtifactBucketId: !stack_output dev/regional/s3.yaml::S3PrivateBucketId
+  S3LogBucketId: !stack_output dev/regional/s3.yaml::S3LogBucketId

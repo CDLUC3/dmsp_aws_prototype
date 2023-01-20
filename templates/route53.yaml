@@ -10,10 +10,14 @@ Parameters:
   Domain:
     Type: 'String'
 
-  AlbDnsName:
+  RecordType:
+    Type: 'String'
+    Default: 'A'
+
+  TargetName:
     Type: 'String'
 
-  AlbHostedZoneId:
+  TargetHostedZoneId:
     Type: 'String'
 
 Resources:
@@ -21,17 +25,17 @@ Resources:
   # Route53 - DNS configuration
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_Route53.html
   # -----------------------------------------------------------
-  AlbAlias:
+  RecordSet:
     Type: 'AWS::Route53::RecordSet'
     Properties:
       HostedZoneId: !Ref HostedZoneId
       Name: !Ref Domain
-      Type: 'A'
+      Type: !Ref RecordType
       AliasTarget:
-        DNSName: !Ref AlbDnsName
-        HostedZoneId: !Ref AlbHostedZoneId
+        DNSName: !Ref TargetName
+        HostedZoneId: !Ref TargetHostedZoneId
         # EvaluateTargetHealth: true
 
 Outputs:
   DomainName:
-    Value: !Ref AlbAlias
+    Value: !Ref RecordSet

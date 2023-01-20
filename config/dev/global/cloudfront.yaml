@@ -1,0 +1,18 @@
+template:
+  path: 'cloudfront.yaml'
+  type: 'file'
+
+dependencies:
+  - 'dev/regional/s3.yaml'
+
+parameters:
+  Domain: 'dmphub-dev.cdlib.org'
+
+  CertificateArn: !stack_output dev/global/cert.yaml::CertificateArn
+
+  WafArn: !stack_output dev/global/waf.yaml::WafArn
+
+  S3LogBucketId: !stack_output dev/regional/s3.yaml::S3LogBucketId
+
+  S3PublicBucketId: !stack_output dev/regional/s3.yaml::S3PublicBucketId
+  S3PublicBucketArn: !stack_output dev/regional/s3.yaml::S3PublicBucketArn

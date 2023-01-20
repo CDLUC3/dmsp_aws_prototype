@@ -49,6 +49,7 @@ Resources:
   # -----------------------------------------------------------
   UserPool:
     Type: 'AWS::Cognito::UserPool'
+    DeletionPolicy: Retain
     Properties:
       AdminCreateUserConfig:
         AllowAdminCreateUserOnly: !Ref OnlyAllowAdminsToCreateUsers

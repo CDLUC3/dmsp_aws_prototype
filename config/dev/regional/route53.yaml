@@ -7,5 +7,5 @@ parameters:
 
   Domain: !stack_attr sceptre_user_data.domain
 
-  AlbDnsName: !stack_output dev/alb.yaml::AlbDnsName
-  AlbHostedZoneId: !stack_output dev/alb.yaml::AlbHostedZoneId
+  AlbDnsName: !stack_output dev/regional/alb.yaml::AlbDnsName
+  AlbHostedZoneId: !stack_output dev/regional/alb.yaml::AlbHostedZoneId

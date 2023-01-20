@@ -33,6 +33,7 @@ Resources:
   WafRegional:
     Type: 'AWS::WAFv2::WebACL'
     Properties:
+      Name: !Sub "${AWS::StackName}-Cloudfront-WAF"
       DefaultAction:
         Allow: {}
       Scope: !Ref Scope

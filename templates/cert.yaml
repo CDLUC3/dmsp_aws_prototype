@@ -22,6 +22,9 @@ Resources:
       DomainName: !Ref Domain
       DomainValidationOptions:
         - DomainName: !Ref Domain
+          # HostedZoneId: Fn::ImportValue
+          #   'HostedZoneId'
+            # 'Fn::Sub': '${HostedZoneStackName}-SubnetID'
           HostedZoneId: !Ref HostedZoneId
       ValidationMethod: 'DNS'
 
