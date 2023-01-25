@@ -103,7 +103,7 @@ Would result in a BucketName of `my-project-dev-s3-ExampleBucket-3487y23t8` whic
      |          |         |
      |          |          --------- Resource name from template templates/s3.yaml in this case
      |          |
-     |           ------------ config file directory + name config/dev.s3.yaml in this case
+     |           ------------ config file directory + name config/dev/s3.yaml in this case
      |
       -------------- derived from the project's root directory name
 ```

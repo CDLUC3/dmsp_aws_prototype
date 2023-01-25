@@ -7,13 +7,28 @@ Parameters:
   AlbListenerHttpsId:
     Type: 'String'
 
-  CognitoUserPoolArn:
+  UiUserPoolArn:
     Type: 'String'
 
-  CognitoUserPoolClientId:
+  UiUserPoolClientId:
     Type: 'String'
 
-  CognitoUserPoolDomain:
+  UiUserPoolDomain:
+    Type: 'String'
+
+  ApiUserPoolArn:
+    Type: 'String'
+
+  ApiUserPoolClientId:
+    Type: 'String'
+
+  ApiUserPoolDomain:
+    Type: 'String'
+
+  ApiGatewayArn:
+    Type: 'String'
+
+  ApiGatewayId:
     Type: 'String'
 
 Resources:

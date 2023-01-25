@@ -2,19 +2,16 @@ template:
   path: 'cognito.yaml'
   type: 'file'
 
-dependencies:
-  - 'dev/regional/route53.yaml'
-
 parameters:
   HostedZoneId: !stack_attr sceptre_user_data.hosted_zone_id
 
   Domain: !stack_attr sceptre_user_data.domain
-  # TODO: Remove this once the new HostedZone is in place
-  Subdomain: !stack_attr sceptre_user_data.subdomain
+  Subdomain: 'auth'
+  Env: !stack_attr sceptre_user_data.env
 
-  CertificateArn: !stack_output dev/regional/cert.yaml::CognitoCertificateArn
+  SsmPath: !stack_attr sceptre_user_data.ssm_path
 
-  UserPoolClientName: 'default'
+  CertificateArn: !stack_output dev/global/cert.yaml::CertificateArn
 
   OnlyAllowAdminsToCreateUsers: 'false'
   UnusedAccountValidityDays: '14'

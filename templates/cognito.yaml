@@ -13,11 +13,13 @@ Parameters:
   Domain:
     Type: 'String'
 
-  # TODO: Swap out the references below and uncomment the UserPoolDomain resource
   Subdomain:
     Type: 'String'
 
-  UserPoolClientName:
+  Env:
+    Type: 'String'
+
+  SsmPath:
     Type: 'String'
 
   OnlyAllowAdminsToCreateUsers:
@@ -27,7 +29,7 @@ Parameters:
       - 'true'
       - 'false'
 
-  DaysBeforeUnusedNewAccountExpires:
+  UnusedAccountValidityDays:
     Type: 'Number'
     Default: 14
 
@@ -49,8 +51,9 @@ Resources:
   # -----------------------------------------------------------
   UserPool:
     Type: 'AWS::Cognito::UserPool'
-    DeletionPolicy: Retain
+    # DeletionPolicy: Retain
     Properties:
+      UserPoolName: !Sub "${AWS::StackName}-user-pool"
       AdminCreateUserConfig:
         AllowAdminCreateUserOnly: !Ref OnlyAllowAdminsToCreateUsers
         UnusedAccountValidityDays: !Ref UnusedAccountValidityDays
@@ -69,7 +72,7 @@ Resources:
           RequireSymbols: true
       Schema:
         - Name: 'first_name'
-          Required: true
+          Required: false
           Mutable: true
           DeveloperOnlyAttribute: false
           AttributeDataType: 'String'
@@ -77,7 +80,7 @@ Resources:
             MinLength: 2
             MaxLength: 64
         - Name: 'last_name'
-          Required: true
+          Required: false
           Mutable: true
           DeveloperOnlyAttribute: false
           AttributeDataType: 'String'
@@ -99,61 +102,67 @@ Resources:
           AttributeDataType: 'Boolean'
       UsernameAttributes:
         - 'email'
-      UserPoolTags:
-        Program: 'uc3'
-        Service: 'dmp'
-        Subservice: 'hub'
-        Environment: !Ref Env
 
-  # Add the UI User Pool's default client
-  UserPoolClient:
-    Type: 'AWS::Cognito::UserPoolClient'
+  UserPoolResourceServer:
+    Type: 'AWS::Cognito::UserPoolResourceServer'
     Properties:
-      AllowedOAuthFlows:
-        - 'code'
-      AllowedOAuthFlowsUserPoolClient: true
-      AllowedOAuthScopes:
-        - 'openid'
-        - 'email'
-      CallbackURLs:
-        - !Sub "https://${Subdomain}-auth.${Domain}/oauth2/idpresponse"
-        # - !Sub "https://ui.${Subdomain}.${Domain}/oauth2/idpresponse"
-      ClientName: !Ref UserPoolClientName
-      DefaultRedirectURI: !Sub "https://${Subdomain}-auth.${Domain}/oauth2/idpresponse"
-      # DefaultRedirectURI: !Sub "https://ui.${Subdomain}.${Domain}/oauth2/idpresponse"
-      GenerateSecret: true
-      SupportedIdentityProviders:
-        - 'COGNITO'
-      TokenValidityUnits:
-        AccessToken: 'hours'
-        IdToken: 'hours'
-        RefreshToken: 'days'
-      # The token issued after the user signs in
-      AccessTokenValidity: 10
-      # The length (minutes) that a session token for each API request in an authentication flow lasts
-      AuthSessionValidity: 3
-      # The token used during user authentication
-      IdTokenValidity: 7
-      # The length of time the user can refresh their token
-      RefreshTokenValidity: 7
+      Name: !Sub '${AWS::StackName}-UserPoolResourceServer'
+      Identifier: !Sub 'https://${Subdomain}.${Domain}'
+      # Identifier: !Sub "https://${Subdomain}.${Domain}"
+      UserPoolId: !Ref UserPool
+      Scopes:
+        - ScopeName: !Sub '${Env}.read'
+          ScopeDescription: 'Allows access to the GET api endpoints (default) (e.g. getDmp, getDmps)'
+        - ScopeName: !Sub '${Env}.write'
+          ScopeDescription: 'Allows access to POST, PUT and DELETE for DMPs (e.g. postDmp, putDmp, deleteDmp)'
+
+  UserPoolDomain:
+    Type: 'AWS::Cognito::UserPoolDomain'
+    Properties:
+      CustomDomainConfig:
+        CertificateArn: !Ref CertificateArn
+      Domain: !Sub "${Subdomain}.${Domain}"
       UserPoolId: !Ref UserPool
 
-  # UserPoolDomain:
-  #   Type: 'AWS::Cognito::UserPoolDomain'
-  #   Properties:
-  #     CustomDomainConfig:
-  #       CertificateArn: !Ref CertificateArn
-  #     Domain: !Sub "ui.${Subdomain}.${Domain}"
-  #     UserPoolId: !Ref UserPool
+  # ----------------------------------------------
+  # SSM Parameter Store
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-ssm-parameter.html
+  # ----------------------------------------------
+  # Add the Systems UserPool ARN to SSM so that our Lambdas can access it
+  UserPoolArnParameter:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: !Sub "${AWS::StackName} Cognito UserPool"
+      Name: !Sub "${SsmPath}UserPoolArn"
+      # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
+      Type: 'String'
+      Value: !GetAtt UserPool.Arn
 
-  # Setup ALB Listener to send traffic for `ui.${Subdomain}.${Domain}` to this UserPoolDomain!
+  # -----------------------------------------------------------
+  # Route53 - DNS configuration
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_Route53.html
+  # -----------------------------------------------------------
+  RecordSet:
+    Type: 'AWS::Route53::RecordSet'
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Sub "${Subdomain}.${Domain}"
+      Type: 'A'
+      AliasTarget:
+        DNSName: !GetAtt UserPoolDomain.CloudFrontDistribution
+        HostedZoneId: 'Z2FDTNDATAQYW2' # !Ref HostedZoneId
 
 Outputs:
+  UserPoolDomain:
+    Value: !Sub "${Subdomain}.${Domain}"
+
   UserPoolId:
     Value: !Ref UserPool
+
+  UserPoolResourceServerId:
+    Value: !Ref UserPoolResourceServer
+
   UserPoolArn:
     Value: !GetAtt UserPool.Arn
     Export:
       Name: !Sub '${AWS::StackName}-UserPoolArn'
-  # UserPoolDomain:
-  #   Value: !Ref UserPoolDomain

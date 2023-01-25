@@ -5,6 +5,6 @@ template:
 parameters:
   AlbListenerHttpsId: !stack_output dev/regional/alb.yaml::AlbListenerHttpsId
 
-  CognitoUserPoolArn: !stack_output dev/regional/cognito-api.yaml::UserPoolArn
-  CognitoUserPoolClientId: !stack_output dev/regional/cognito-api.yaml::UserPoolId
-  CognitoUserPoolDomain: !stack_output dev/regional/cognito-api.yaml::UserPoolDomain
+  CognitoUserPoolArn: !stack_output dev/regional/cognito.yaml::UserPoolArn
+  CognitoUserPoolClientId: !stack_output dev/regional/cognito.yaml::UserPoolId
+  CognitoUserPoolDomain: !stack_output dev/regional/cognito.yaml::UserPoolDomain

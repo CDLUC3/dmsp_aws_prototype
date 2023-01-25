@@ -6,7 +6,6 @@ parameters:
   HostedZoneId: !ssm_parameter /uc3/dmp/hub/dev/HostedZoneId
 
   Domain: !stack_attr sceptre_user_data.domain
-  # RecordType: 'CNAME'
   RecordType: 'A'
 
   TargetName: !stack_output dev/global/cloudfront.yaml::CloudfrontDistroDomainName

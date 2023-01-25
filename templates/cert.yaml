@@ -19,14 +19,13 @@ Resources:
   Certificate:
     Type: 'AWS::CertificateManager::Certificate'
     Properties:
-      DomainName: !Ref Domain
+      DomainName: !Sub "*.${Domain}"
       DomainValidationOptions:
-        - DomainName: !Ref Domain
-          # HostedZoneId: Fn::ImportValue
-          #   'HostedZoneId'
-            # 'Fn::Sub': '${HostedZoneStackName}-SubnetID'
+        - DomainName: !Sub "*.${Domain}"
           HostedZoneId: !Ref HostedZoneId
       ValidationMethod: 'DNS'
+      SubjectAlternativeNames:
+        - !Ref Domain
 
 Outputs:
   CertificateArn:

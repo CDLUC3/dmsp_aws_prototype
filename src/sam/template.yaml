@@ -170,14 +170,14 @@ Resources:
 
       # TODO: Setup the cert and route53 record in the dmp-hub-cf repo and then ref
       #       the exported variables here
-      # Domain:
-      #   DomainName: !Sub "api.${domain name}"
-      #   CertificateArn: [cert-arn]
-      #   EndpointConfiguration: 'EDGE'
-      #   Route53:
-      #     HostedZoneId: [hosted zone id]
-      #     BasePath:
-      #       - /
+      Domain:
+        DomainName: !Sub "api.${domain name}"
+        CertificateArn: [cert-arn]
+        EndpointConfiguration: 'EDGE'
+        Route53:
+          HostedZoneId: [hosted zone id]
+          BasePath:
+            - /
 
       StageName: 'v0'
       TracingEnabled: true
