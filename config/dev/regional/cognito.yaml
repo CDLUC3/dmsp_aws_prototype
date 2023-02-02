@@ -16,3 +16,16 @@ parameters:
   OnlyAllowAdminsToCreateUsers: 'false'
   UnusedAccountValidityDays: '14'
   MinimumPasswordLength: '8'
+
+# NOTES:
+# ----------------------------------------
+#
+# For ORCID integration via openID, check out:
+#     https://info.orcid.org/orcid-openid-connect-and-implicit-authentication/
+# the issuer URL can be found here:
+#     https://orcid.org/.well-known/openid-configuration
+#
+# For Shibboleth integration, Mahjabeen said to reference this SAML file:
+#     https://samlproxy.ucop.edu/simplesaml/saml2/idp/metadata.php
+# but apparently Cognito does not like it so instead an online tool called
+# samltool and use the info from the above URL to build it.
