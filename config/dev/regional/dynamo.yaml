@@ -13,3 +13,9 @@ parameters:
   DynamoBillingMode: 'PROVISIONED'
   DynamoReadCapacityUnits: '16'
   DynamoWriteCapacityUnits: '60'
+
+hooks:
+  after_create:
+    # Once the Dynamo table has been created, we can deploy our Lambdas and
+    # the API Gateway which are managed by AWS SAM.
+    - !sam_deploy location=src/sam config=dev
