@@ -12,7 +12,7 @@ fi
 
 if [ -f "$FILE" ]; then
   if [ -f "$HTML" ]; then
-    echo "Searching $2 for S3 buckets with tags: $1"
+    echo "Searching for S3 buckets with name like: *$1*"
 
     for bucket in `aws resource-groups search-resources --resource-query file://$FILE | jq .ResourceIdentifiers[].ResourceArn`; do
       if [[ "$bucket" == *"$1"* ]]; then
@@ -20,10 +20,10 @@ if [ -f "$FILE" ]; then
         echo "Detected S3 Bucket: $name"
 
         aws s3 cp $HTML $name
-        exit 1  
+        exit 0
       fi
     done
-    
+
     echo "No S3 buckets matched the name you provided: $1"
   else
     echo "Expecting to find an index.html in this directory!"
@@ -31,4 +31,3 @@ if [ -f "$FILE" ]; then
 else
   echo "Expecting to find a JSON query file, $FILE, for AWS CLI command `resource-groups` query~"
 fi
-

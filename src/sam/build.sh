@@ -13,15 +13,12 @@ echo "Fetching resource ARNs needed for SAM template.yaml"
 
 if [ -f "$FILE" ]; then
   if [ -f "$HTML" ]; then
-    echo "Searching $2 for S3 buckets with tags: $1"
-
+    echo "Searching for S3 buckets with name like: *dmp-hub-$1*"
     for bucket in `aws resource-groups search-resources --resource-query file://$FILE | jq .ResourceIdentifiers[].ResourceArn`; do
-      if [[ "$bucket" == *"$1"* ]]; then
+      if [[ "$bucket" == *"cloudfront"* ]]; then
         name="s3://$(echo $bucket | sed -e "s/\"//g" | sed -e "s/$ARN_PREFIX//")"
-        echo "Detected S3 Bucket: $name"
-
-        aws s3 cp $HTML $name
-        exit 1
+        CF_S3_BUCKET=$name
+        break
       fi
     done
 
