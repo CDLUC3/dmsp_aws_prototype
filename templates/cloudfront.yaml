@@ -10,10 +10,10 @@ Parameters:
   S3LogBucketId:
     Type: 'String'
 
-  S3PublicBucketId:
+  S3CloudFrontBucketId:
     Type: 'String'
 
-  S3PublicBucketArn:
+  S3CloudFrontBucketArn:
     Type: 'String'
 
   CertificateArn:
@@ -64,8 +64,8 @@ Resources:
     Properties:
       DistributionConfig:
         Origins:
-          - DomainName: !Sub "${S3PublicBucketId}.s3.amazonaws.com"
-            #DomainName: !Sub "${S3PublicBucketId}.s3.${AWS::Region}.amazonaws.com"
+          - DomainName: !Sub "${S3CloudFrontBucketId}.s3.amazonaws.com"
+            #DomainName: !Sub "${S3CloudFrontBucketId}.s3.${AWS::Region}.amazonaws.com"
             Id: !Sub "${AWS::StackName}-CloudFrontS3Origin"
             OriginAccessControlId: !Ref CloudfrontOrginAccessControl
             S3OriginConfig:
@@ -109,26 +109,25 @@ Resources:
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-iam-managedpolicy.html
   # ----------------------------------------------------
   CloudfrontS3BucketPolicy:
-    Type: 'AWS::IAM::ManagedPolicy'
+    Type: 'AWS::S3::BucketPolicy'
+    DependsOn:
+      - CloudfrontDistro
     Properties:
-      ManagedPolicyName: !Sub "${AWS::StackName}-oac-policy"
-      Description: !Sub "${AWS::StackName} - Policy to allow Cloudfront to access S3 bucket"
+      Bucket: !Ref S3CloudFrontBucketId
       PolicyDocument:
+        # Version: '2008-10-27'
         Version: '2012-10-17'
         Statement:
-          # Sid: 'PolicyForCloudFrontPrivateContent'
-          # Sid: 'AllowCloudFrontServicePrincipalReadWrite'
-          Sid: 'AllowCloudFrontServicePrincipalReadOnly'
           # Sid: 'AllowCloudFrontServicePrincipal'
+          Sid: 'AllowCloudFrontServicePrincipalReadOnly'
           Effect: 'Allow'
-          # Principal:
-          #   Service: 'cloudfront.amazonaws.com'
+          Principal:
+            Service: 'cloudfront.amazonaws.com'
           Action: 's3:GetObject'
-          #Resource: !Ref S3PublicBucketArn
-          Resource: !Sub "${S3PublicBucketArn}/*"
+          Resource: !Sub "${S3CloudFrontBucketArn}/*"
           Condition:
             StringEquals:
-              "AWS:SourceArn": !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudfrontDistro}"
+              "AWS:SourceArn": !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/#{CloudfrontDistro}"
 
 Outputs:
   CloudfrontDistroId:

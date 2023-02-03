@@ -14,5 +14,11 @@ parameters:
 
   S3LogBucketId: !stack_output dev/regional/s3.yaml::S3LogBucketId
 
-  S3PublicBucketId: !stack_output dev/regional/s3.yaml::S3PublicBucketId
-  S3PublicBucketArn: !stack_output dev/regional/s3.yaml::S3PublicBucketArn
+  S3CloudFrontBucketId: !stack_output dev/regional/s3.yaml::S3CloudFrontBucketId
+  S3CloudFrontBucketArn: !stack_output dev/regional/s3.yaml::S3CloudFrontBucketArn
+
+hooks:
+  after_create:
+    # Call the Bash script that will upload the default HTML page to CloudFront's
+    # S3 bucket
+    - !cmd 'cd src/cloudfront && ./upload.sh cloudfront'
