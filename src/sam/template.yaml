@@ -14,41 +14,44 @@ Globals:
     TracingEnabled: True
 
 Parameters:
+  HostedZoneId:
+    Type: 'AWS::SSM::Parameter::Value<String>'
+    Default: '/uc3/dmp/hub/dev/HostedZoneId'
+
+  CertificateArn:
+    Type: 'AWS::SSM::Parameter::Value<String>'
+    Default: '/uc3/dmp/hub/dev/GlobalCertArn'
+
   Env:
     Type: 'String'
     Default: 'dev'
 
-  CognitoSystemsPoolArn:
-    Type: 'AWS::SSM::Parameter::Value<String>'
-    Default: '/SsmKeyFor/CognitoSystemsPoolArn/ShouldBeSpecifiedIn/SamConigToml'
+  CognitoUSerPoolArn:
+    Type: 'String'
 
-  CognitoDomain:
-    Type: 'AWS::SSM::Parameter::Value<String>'
-    Default: '/SsmKeyFor/CognitoDomain/ShouldBeSpecifiedIn/SamConigToml'
+  DomainName:
+    Type: 'String'
 
   DynamoTableArn:
-    Type: 'AWS::SSM::Parameter::Value<String>'
-    Default: '/SsmKeyFor/DynamoTableArn/ShouldBeSpecifiedIn/SamConigToml'
+    Type: 'String'
 
-  S3PublicBucketArn:
-    Type: 'AWS::SSM::Parameter::Value<String>'
-    Default: '/SsmKeyFor/S3PublicBucketArn/ShouldBeSpecifiedIn/SamConigToml'
+  S3CloudFrontBucketArn:
+    Type: 'String'
+
+  SnsEmailTopicArn:
+    Type: 'String'
 
   SnsDownloadTopicArn:
-    Type: 'AWS::SSM::Parameter::Value<String>'
-    Default: '/SsmKeyFor/SnsDownloadTopicArn/ShouldBeSpecifiedIn/SamConigToml'
+    Type: 'String'
 
   SnsNotifyTopicArn:
-    Type: 'AWS::SSM::Parameter::Value<String>'
-    Default: '/SsmKeyFor/SnsNotifyTopicArn/ShouldBeSpecifiedIn/SamConigToml'
+    Type: 'String'
 
   SnsPublishTopicArn:
-    Type: 'AWS::SSM::Parameter::Value<String>'
-    Default: '/SsmKeyFor/SnsPublishTopicArn/ShouldBeSpecifiedIn/SamConigToml'
+    Type: 'String'
 
   SqsQueueArn:
-    Type: 'AWS::SSM::Parameter::Value<String>'
-    Default: '/SsmKeyFor/SqsQueueArn/ShouldBeSpecifiedIn/SamConigToml'
+    Type: 'String'
 
   LogRetentionDays:
     Type: 'Number'
@@ -123,7 +126,7 @@ Resources:
           Action:
             - 's3:*'
             - 's3-object-lambda:*'
-          Resource: !Ref S3PublicBucketArn
+          Resource: !Ref S3CloudFrontBucketArn
 
   SqsQueuePolicy:
     Type: 'AWS::IAM::ManagedPolicy'
@@ -171,11 +174,11 @@ Resources:
       # TODO: Setup the cert and route53 record in the dmp-hub-cf repo and then ref
       #       the exported variables here
       Domain:
-        DomainName: !Sub "api.${domain name}"
-        CertificateArn: [cert-arn]
+        DomainName: !Sub "api.${DomainName}"
+        CertificateArn: !Ref CertificateArn
         EndpointConfiguration: 'EDGE'
         Route53:
-          HostedZoneId: [hosted zone id]
+          HostedZoneId: !Ref HostedZoneId
           BasePath:
             - /
 
@@ -184,14 +187,14 @@ Resources:
       Auth:
         Authorizers:
           DmpHubCognitoAuthorizer:
-            UserPoolArn: !Ref CognitoSystemsPoolArn
+            UserPoolArn: !Ref CognitoUserPoolArn
             AuthType: 'COGNITO_USER_POOLS'
             Identity:
               Header: 'Authorization'
             AuthorizationScopes:
-              - !Sub 'https://${CognitoDomain}/${Env}.read'
-              - !Sub 'https://${CognitoDomain}/${Env}.search'
-              - !Sub 'https:/${CognitoDomain}/${Env}.write'
+              - !Sub 'https://auth.${DomainName}/${Env}.read'
+              - !Sub 'https://auth.${DomainName}/${Env}.search'
+              - !Sub 'https:/auth.${DomainName}/${Env}.write'
         DefaultAuthorizer: DmpHubCognitoAuthorizer
 
   # ----------------------------------------------------
@@ -245,7 +248,7 @@ Resources:
             # Auth:
             #   Authorizer: 'NONE'
               # AuthorizationScopes:
-              #   - !Sub 'https://${CognitoDomain}/${Env}.write'
+              #   - !Sub 'https://auth.${Domain}/${Env}.write'
 
   # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
   GetDmpFunction:
@@ -310,7 +313,7 @@ Resources:
             Auth:
               Authorizer: 'NONE'
             #   AuthorizationScopes:
-            #     - !Sub 'https://${CognitoDomain}/${Env}.write'
+            #     - !Sub 'https://auth.${Domain}/${Env}.write'
 
   PutDmpFunction:
     Type: 'AWS::Serverless::Function'
@@ -345,7 +348,7 @@ Resources:
             Auth:
               Authorizer: 'NONE'
             #   AuthorizationScopes:
-            #     - !Sub 'https://${CognitoDomain}/${Env}.write'
+            #     - !Sub 'https://auth.${Domain}/${Env}.write'
 
   ValidateDmpFunction:
     Type: 'AWS::Serverless::Function'

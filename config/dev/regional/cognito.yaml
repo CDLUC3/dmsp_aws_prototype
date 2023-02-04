@@ -13,9 +13,25 @@ parameters:
 
   CertificateArn: !stack_output dev/global/cert.yaml::CertificateArn
 
+  TagProgram: !stack_attr stack_tags.Program
+  TagService: !stack_attr stack_tags.Service
+  TagSubservice: !stack_attr stack_tags.Subservice
+  TagCodeRepo: !stack_attr stack_tags.CodeRepo
+  TagContact: !stack_attr stack_tags.Contact
+
+  DmptoolClientName: 'dmptool'
+
+  DmptoolCallbackUri: 'https://dmptool-dev.cdlib.org/callback'
+
   OnlyAllowAdminsToCreateUsers: 'false'
   UnusedAccountValidityDays: '14'
   MinimumPasswordLength: '8'
+
+  TokenValidityUnits: 'minutes'
+  AccessTokenValidity: '10'
+  AuthSessionValidatyMinutes: '3'
+  IdTokenValidity: '7'
+  RefreshTokenValidity: '10080'
 
 # NOTES:
 # ----------------------------------------

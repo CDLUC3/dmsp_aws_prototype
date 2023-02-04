@@ -21,4 +21,4 @@ hooks:
   after_create:
     # Call the Bash script that will upload the default HTML page to CloudFront's
     # S3 bucket
-    - !cmd 'cd src/cloudfront && ./upload.sh cloudfront'
+    - !cmd './src/cloudfront/upload.sh s3cloudfrontbucket'

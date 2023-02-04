@@ -1,4 +1,0 @@
-{
-    "Type": "TAG_FILTERS_1_0",
-    "Query": "{\"ResourceTypeFilters\":[\"AWS::S3::Bucket\"],\"TagFilters\":[{\"Key\":\"Service\", \"Values\":[\"dmp\"]},{\"Key\":\"Subservice\", \"Values\":[\"hub\"]}]}"
-}

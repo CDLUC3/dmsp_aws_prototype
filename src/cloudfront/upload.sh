@@ -1,7 +1,7 @@
 #!/bin/bash
 
-FILE=s3_bucket_query.json
-HTML=index.html
+TAG_QUERY=aws_tag_query.json
+HTML=src/cloudfront/index.html
 
 ARN_PREFIX=arn:aws:s3:::
 
@@ -14,7 +14,7 @@ if [ -f "$FILE" ]; then
   if [ -f "$HTML" ]; then
     echo "Searching for S3 buckets with name like: *$1*"
 
-    for bucket in `aws resource-groups search-resources --resource-query file://$FILE | jq .ResourceIdentifiers[].ResourceArn`; do
+    for bucket in `aws resource-groups search-resources --resource-query file://$TAG_QUERY | jq .ResourceIdentifiers[].ResourceArn`; do
       if [[ "$bucket" == *"$1"* ]]; then
         name="s3://$(echo $bucket | sed -e "s/\"//g" | sed -e "s/$ARN_PREFIX//")"
         echo "Detected S3 Bucket: $name"
