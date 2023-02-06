@@ -218,6 +218,46 @@ Resources:
       # The length of time the user can refresh their token
       RefreshTokenValidity: !Ref RefreshTokenValidity
 
+  # Add the client for the DMPTool
+  UiUserPoolClient:
+    Type: 'AWS::Cognito::UserPoolClient'
+    DeletionPolicy: Retain
+    Properties:
+      ClientName: 'dmphub'
+      UserPoolId: !Ref UserPool
+      ExplicitAuthFlows:
+        - 'ALLOW_ADMIN_USER_PASSWORD_AUTH'
+        - 'ALLOW_CUSTOM_AUTH'
+        - 'ALLOW_USER_SRP_AUTH'
+        - 'ALLOW_REFRESH_TOKEN_AUTH'
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthFlows:
+        - 'client_credentials'
+      AllowedOAuthScopes:
+        - !Sub 'https://${Subdomain}.${Domain}/${Env}.read'
+        - !Sub 'https://${Subdomain}.${Domain}/${Env}.write'
+      EnableTokenRevocation: true
+      PreventUserExistenceErrors: 'ENABLED'
+      GenerateSecret: true
+      SupportedIdentityProviders:
+        - 'COGNITO'
+      # The CF docs indicate that this is not required but I am unable to get a token from Cognito without it
+      CallbackURLs:
+        - 'http://localhost:3000/callback'
+        - !Sub "https://${UserPoolDomain}/oauth2/idpresponse"
+      TokenValidityUnits:
+        AccessToken: !Ref TokenValidityUnits
+        IdToken: !Ref TokenValidityUnits
+        RefreshToken: !Ref TokenValidityUnits
+      # The token issued after the user signs in
+      AccessTokenValidity: !Ref AccessTokenValidity
+      # The length (minutes) that a session token for each API request in an authentication flow lasts
+      AuthSessionValidity: !Ref AuthSessionValidatyMinutes
+      # The token used during user authentication
+      IdTokenValidity: !Ref IdTokenValidity
+      # The length of time the user can refresh their token
+      RefreshTokenValidity: !Ref RefreshTokenValidity
+
   # ----------------------------------------------
   # SSM Parameter Store
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-ssm-parameter.html

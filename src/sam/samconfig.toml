@@ -2,9 +2,9 @@ version = 0.1
 [dev]
 [dev.deploy]
 [dev.deploy.parameters]
-stack_name = "uc3-dmp-hub-dev-lambdas"
-s3_bucket = "uc3-dmp-hub-dev-s3-s3privatebucket-8woucoiq4qou"
-s3_prefix = "uc3-dmp-hub-dev-lambdas"
+stack_name = "uc3-dmp-hub-dev-regional-lambdas"
+s3_bucket = ""
+s3_prefix = "uc3-dmp-hub-dev-regional-lambdas"
 region = "us-west-2"
 confirm_changeset = true
 capabilities = "CAPABILITY_NAMED_IAM"

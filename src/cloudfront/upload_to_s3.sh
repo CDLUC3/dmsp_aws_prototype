@@ -10,11 +10,13 @@ if [ $# -ne 1 ]; then
   exit 2
 fi
 
-if [ -f "$FILE" ]; then
+if [ -f "$TAG_QUERY" ]; then
   if [ -f "$HTML" ]; then
     echo "Searching for S3 buckets with name like: *$1*"
 
     for bucket in `aws resource-groups search-resources --resource-query file://$TAG_QUERY | jq .ResourceIdentifiers[].ResourceArn`; do
+      # echo $bucket
+
       if [[ "$bucket" == *"$1"* ]]; then
         name="s3://$(echo $bucket | sed -e "s/\"//g" | sed -e "s/$ARN_PREFIX//")"
         echo "Detected S3 Bucket: $name"

@@ -18,15 +18,14 @@ Parameters:
     Type: 'AWS::SSM::Parameter::Value<String>'
     Default: '/uc3/dmp/hub/dev/HostedZoneId'
 
-  CertificateArn:
-    Type: 'AWS::SSM::Parameter::Value<String>'
-    Default: '/uc3/dmp/hub/dev/GlobalCertArn'
-
   Env:
     Type: 'String'
     Default: 'dev'
 
-  CognitoUSerPoolArn:
+  CertificateArn:
+    Type: 'String'
+
+  CognitoUserPoolArn:
     Type: 'String'
 
   DomainName:
@@ -177,7 +176,9 @@ Resources:
         DomainName: !Sub "api.${DomainName}"
         CertificateArn: !Ref CertificateArn
         EndpointConfiguration: 'EDGE'
+        NormalizeBasePath: true
         Route53:
+          EvaluateTargetHealth: true
           HostedZoneId: !Ref HostedZoneId
           BasePath:
             - /

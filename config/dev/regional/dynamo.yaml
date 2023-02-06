@@ -2,6 +2,9 @@ template:
   path: dynamo.yaml
   type: file
 
+dependencies:
+  - dev/regional/sqs.yaml
+
 parameters:
   SsmPath: !stack_attr sceptre_user_data.ssm_path
 
@@ -18,4 +21,4 @@ hooks:
   after_create:
     # Once the Dynamo table has been created, we can deploy our Lambdas and
     # the API Gateway which are managed by AWS SAM.
-    - !sam_deploy location=src/sam config=dev
+    - !cmd './src/sam/sam_build_deploy.sh dev dmphub-dev.cdlib.org'

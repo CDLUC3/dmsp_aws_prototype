@@ -21,23 +21,33 @@ The entire build process is managed by Sceptre. Sceptre has a hook that will bui
 
 Directory structure:
 ```
+     resources-ls.sh                  # Script that will show all existing AWS resources for this project
+     |
      config
      |  |
-     |   ----- [env]          # Sceptre configs by Environment (each config corresponds to a template)
+     |   ----- [env]                  # Sceptre configs by Environment (each config corresponds to a template)
+     |            |
+     |             ----- global       # Resources that will be created in the us-east-1 region
+     |            |
+     |             ----- regional     # Resources that will be created in the us-east-1 region
      |
-     docs                     # Diagrams and documentation
+     docs                             # Diagrams and documentation
      |
-     src                      # The SAM managed code
+     src
      |  |
-     |   ----- functions      # The lambda functions
+     |   ----- cloudfront             # The default index.html that gets uploaded to the S3 bucket
      |  |
-     |   ----- layers         # The lambda layers
-     |  |
-     |   ----- spec           # Tests for the functions and layers
-     |  |
-     |   ----- template.yaml  # The SAM Cloud Formation template
+     |   ----- sam                    # The SAM managed code
+     |           |
+     |            ----- functions     # The lambda functions
+     |           |
+     |            ----- layers        # The lambda layers
+     |           |
+     |            ----- spec          # Tests for the functions and layers
+     |           |
+     |            ----- template.yaml # The SAM Cloud Formation template
      |
-     templates                # The Cloud Formation templates (each template corresponds to a config)
+     templates                        # The Cloud Formation templates (each template corresponds to a config)
 ```
 
 ## Installation and Setup

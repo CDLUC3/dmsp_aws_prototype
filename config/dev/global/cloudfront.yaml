@@ -5,6 +5,9 @@ template:
 dependencies:
   - 'dev/regional/s3.yaml'
 
+# NOTE: CloudFront can be slow to finish the creation/update process. The Distribution will go into
+#       a pending status and then can take some time before it is deployed. If your sceptre command
+#       appears to be stuck, this is most likely why, and you should let it complete.
 parameters:
   Domain: 'dmphub-dev.cdlib.org'
 
@@ -21,4 +24,4 @@ hooks:
   after_create:
     # Call the Bash script that will upload the default HTML page to CloudFront's
     # S3 bucket
-    - !cmd './src/cloudfront/upload.sh s3cloudfrontbucket'
+    - !cmd './src/cloudfront/upload_to_s3.sh s3cloudfrontbucket'
