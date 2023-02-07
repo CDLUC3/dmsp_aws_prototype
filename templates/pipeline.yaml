@@ -9,22 +9,35 @@ Parameters:
   Subnets:
     Type: 'List<AWS::EC2::Subnet::Id>'
 
-  DomainName:
-    Type: 'String'
-  Subdomain:
-    Type: 'String'
   Env:
     Type: 'String'
     Default: 'dev'
 
-  Program:
+  ProgramTag:
     Type: 'String'
-  Service:
+  ServiceTag:
     Type: 'String'
-  Subservice:
+  SubserviceTag:
+    Type: 'String'
+  CodeRepoTag:
+    Type: 'String'
+  ContactTag:
     Type: 'String'
 
-  ApiLogRetentionDays:
+  CodeStarConnectionArn:
+    Type: 'String'
+
+  S3CloudFrontBucketId:
+    Type: 'String'
+  CloudFrontDistroId:
+    Type: 'String'
+
+  S3ArtifactBucketId:
+    Type: 'String'
+  S3LogBucketId:
+    Type: 'String'
+
+  LogRetentionDays:
     Type: 'Number'
     Default: 7
 
@@ -34,7 +47,7 @@ Parameters:
   CodeBuildEnvironmentComputeType:
     Type: 'String'
     Default: 'BUILD_GENERAL1_SMALL'
-  CodeBuidlEnvironmentImage:
+  CodeBuildEnvironmentImage:
     Type: 'String'
     Default: 'aws/codebuild/amazonlinux2-x86_64-standard:4.0'
   CodeBuildArtifactType:
@@ -64,53 +77,6 @@ Parameters:
   CodePipelineBuildArtifactFileName:
     Type: 'String'
     Default: 'imagedefinitions.json'
-
-  CodeStarConnectionArn:
-    Type: 'String'
-
-  EcsClusterName:
-    Type: 'String'
-  EcsServiceName:
-    Type: 'String'
-
-  EcrRepositoryUri:
-    Type: 'String'
-  EcrRepositoryName:
-    Type: 'String'
-
-  S3ArtifactBucketId:
-    Type: 'String'
-  S3LogBucketId:
-    Type: 'String'
-
-  RailsEnv:
-    Type: 'String'
-  RailsMasterKey:
-    Type: 'String'
-  RailsLogLevel:
-    Type: 'String'
-    Default: 'warn'
-    AllowedValues:
-      - 'debug'
-      - 'warn'
-      - 'error'
-  RailsPort:
-    Type: 'String'
-    Default: '80'
-
-  RdsSnapshot:
-    Type: 'String'
-    Default: 'none'
-  RdsAddress:
-    Type: 'String'
-  RdsPort:
-    Type: 'String'
-  RdsName:
-    Type: 'String'
-  RdsUsername:
-    Type: 'String'
-  RdsPassword:
-    Type: 'String'
 
 Resources:
   # -----------------------------------------------------------
@@ -143,7 +109,7 @@ Resources:
               ]
             }
       ManagedPolicyArns:
-        - 'arn:aws:iam::aws:policy/AWSCodePipelineFullAccess'
+        - 'arn:aws:iam::aws:policy/AWSCodePipeline_FullAccess'
         - 'arn:aws:iam::aws:policy/AmazonS3FullAccess'
         - 'arn:aws:iam::aws:policy/AWSCodeBuildDeveloperAccess'
         - 'arn:aws:iam::aws:policy/AmazonECS_FullAccess'
@@ -178,7 +144,7 @@ Resources:
                     "logs:AssociateKmsKey"
                   ],
                   "Resource": [
-                    "${LogGroupArn}"
+                    "${PipelineLogGroup.Arn}"
                   ]
                 },
                 {
@@ -211,6 +177,15 @@ Resources:
                   "Effect": "Allow",
                   "Action": ["codestar-connections:UseConnection"],
                   "Resource": "${CodeStarConnectionArn}"
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "cloudfront:UpdateDistribution",
+                    "cloudfront:DeleteDistribution",
+                    "cloudfront:CreateInvalidation"
+                  ],
+                  "Resource": "arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistroId}"
                 }
               ]
             }
@@ -235,16 +210,22 @@ Resources:
       GroupDescription: !Sub '${AWS::StackName} CodeBuild SecurityGroup'
       VpcId: !Ref VpcId
       Tags:
+        # This tag is required so that the SecurityGroup does not trigger alerts after the
+        # CodeBuild process finishes and deprovisions the EC2 instance.
         - Key: 'ConfigExclude'
           Value: 'Security-group-attached-to-ENI'
         - Key: 'Program'
-          Value: !Ref Program
+          Value: !Ref ProgramTag
         - Key: 'Service'
-          Value: !Ref Service
+          Value: !Ref ServiceTag
         - Key: 'Subservice'
-          Value: !Ref Subservice
+          Value: !Ref SubserviceTag
         - Key: 'Environment'
           Value: !Ref Env
+        - Key: 'CodeRepo'
+          Value: !Ref CodeRepoTag
+        - Key: 'Contact'
+          Value: !Ref ContactTag
 
   CodeBuildProject:
     Type: 'AWS::CodeBuild::Project'
@@ -266,39 +247,10 @@ Resources:
         # This is required in order for the Docker daemon to work!
         PrivilegedMode: true
         EnvironmentVariables:
-          - Name: 'RAILS_ENV'
-            Value: !Ref RailsEnv
-          - Name: 'RAILS_LOG_LEVEL'
-            Value: !Ref RailsLogLevel
-          - Name: 'RAILS_LOG_TO_STDOUT'
-            Value: true
-          - Name: 'RAILS_MASTER_KEY'
-            Value: !Ref RailsMasterKey
-
-          - Name: 'RAILS_APP_NAME'
-            Value: !Ref Subdomain
-          - Name: 'RAILS_HOST'
-            Value: !Sub "${Subdomain}.${DomainName}"
-          - Name: 'RAILS_PORT'
-            Value: !Ref RailsPort
-
-          - Name: 'DB_SNAPSHOT'
-            Value: !Ref RdsSnapshot
-          - Name: 'DB_HOST'
-            Value: !Ref RdsAddress
-          - Name: 'DB_PORT'
-            Value: !Ref RdsPort
-          - Name: 'DB_NAME'
-            Value: !Ref RdsName
-          - Name: 'DB_USERNAME'
-            Value: !Ref RdsUsername
-          - Name: 'DB_PASSWORD'
-            Value: !Ref RdsPassword
-
-          - Name: ECR_REPOSITORY_URI
-            Value: !Ref EcrRepositoryUri
-          - Name: ECR_REPOSITORY_NAME
-            Value: !Ref EcrRepositoryName
+          - Name: 'S3_BUCKET'
+            Value: !Ref S3CloudFrontBucketId
+          - Name: 'CLOUDFRONT_DISTRO_ID'
+            Value: !Ref CloudFrontDistroId
       Source:
         Type: !Ref CodeBuildArtifactType
       TimeoutInMinutes: !Ref CodeBuildTimeout
@@ -331,7 +283,7 @@ Resources:
           Actions:
             # This action is triggered when the development branch of DMPRoadmap has a new commit
             # it's output is the commit hash
-            - Name: 'DmpHubEcsRepo'
+            - Name: 'DmpHubUi'
               RunOrder: 1
               ActionTypeId:
                 Category: 'Source'
@@ -346,14 +298,14 @@ Resources:
                 BranchName: !Ref CodePipelineBranchToMonitor
                 OutputArtifactFormat: !Ref CodePipelineSourceOutputArtifactFormat
               OutputArtifacts:
-                - Name: !Sub "${AWS::StackName}-commit"
+                - Name: !Sub "${AWS::StackName}-code"
 
         - Name: 'DockerBuildPublish'
           Actions:
             # This action is triggered by either the DMPRoadmapPush or DockerPush actions. This
             # action uses the DMPRoadmapPush commit hash to the latest DockerPush zip to build
             # the Docker image
-            - Name: 'DmpHubEcsBuild'
+            - Name: 'DmpHubBuildDeploy'
               RunOrder: 2
               ActionTypeId:
                 Category: 'Build'
@@ -363,28 +315,11 @@ Resources:
               # RoleArn: !GetAtt IamCodeBuildRole.Arn
               Configuration:
                 ProjectName: !Ref CodeBuildProject
-                PrimarySource: !Sub "${AWS::StackName}-commit"
+                PrimarySource: !Sub "${AWS::StackName}-code"
               InputArtifacts:
-                - Name: !Sub "${AWS::StackName}-commit"
+                - Name: !Sub "${AWS::StackName}-code"
               OutputArtifacts:
-                - Name: !Sub "${AWS::StackName}-image"
-
-        - Name: 'EcsDeploy'
-          Actions:
-            - Name: 'DMpHubEcsDeploy'
-              RunOrder: 3
-              ActionTypeId:
-                Category: 'Deploy'
-                Owner: 'AWS'
-                Provider: 'ECS'
-                Version: '1'
-              Configuration:
-                ClusterName: !Ref EcsClusterName
-                ServiceName: !Ref EcsServiceName
-                FileName: !Ref CodePipelineBuildArtifactFileName
-                DeploymentTimeout: !Ref CodePipelineDeploymentTimeout
-              InputArtifacts:
-                - Name: !Sub "${AWS::StackName}-image"
+                - Name: !Sub "${AWS::StackName}-build"
 
 Outputs:
   PipelineRoleId:

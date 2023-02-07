@@ -9,24 +9,28 @@ parameters:
   VpcId: !stack_attr sceptre_user_data.vpc_id
   Subnets: !stack_attr sceptre_user_data.private_subnets
 
-  DomainName: !stack_attr sceptre_user_data.domain
-  Subdomain: !stack_attr sceptre_user_data.subdomain
   Env: !stack_attr sceptre_user_data.env
 
   # We need to add a special tag to the CodeBuild SecGroup so that it does not
   # generate an alarm after the EC2 instance used by CodeBuild is removed.
   # So, we need to pass in our normal tags here so that the SecGroup will have all of them
-  Program: !stack_attr stack_tags.Program
-  Service: !stack_attr stack_tags.Service
-  Subservice: !stack_attr stack_tags.Subservice
+  ProgramTag: !stack_attr stack_tags.Program
+  ServiceTag: !stack_attr stack_tags.Service
+  SubserviceTag: !stack_attr stack_tags.Subservice
+  CodeRepoTag: !stack_attr stack_tags.CodeRepo
+  ContactTag: !stack_attr stack_tags.Contact
 
   LogRetentionDays: '14'
 
   # The repository branch the CodePipeline should monitor for changes.
-  CodePipelineRepositoryName: 'CDLUC3/dmp-hub-ecs'
+  CodePipelineRepositoryName: 'CDLUC3/dmp-hub-ui'
   CodePipelineBranchToMonitor: 'main'
+  CodePipelineSourceOutputArtifactFormat: 'CODE_ZIP'
 
   CodeStarConnectionArn: !ssm_parameter /uc3/CodeStarConnectionArn
+
+  S3CloudFrontBucketId: !stack_output dev/regional/s3.yaml::S3CloudFrontBucketId
+  CloudFrontDistroId: !stack_output dev/global/cloudfront.yaml::CloudfrontDistroId
 
   S3ArtifactBucketId: !stack_output dev/regional/s3.yaml::S3PrivateBucketId
   S3LogBucketId: !stack_output dev/regional/s3.yaml::S3LogBucketId

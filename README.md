@@ -13,6 +13,8 @@ It is designed specifically for the Amazon Web Services (AWS) ecosystem. Please 
 
 <img src="docs/architecture.png?raw=true">
 
+You can run `./resources-ls.sh` to see what AWS resources have been created by these CloudFormation templates.
+
 ## Directory layout
 
 This repository uses the [AWS Serverless Application Model (SAM)](https://aws.amazon.com/serverless/sam/) to manage the AWS API Gateway, Lambda functions and other related resources (e.g. IAM policies). It uses [Sceptre](https://github.com/Sceptre/sceptre) to manage the remaining resources (e.g. CloudFront, DynamoDB, etc.) via [AWS CloudFormation](https://aws.amazon.com/cloudformation/).
