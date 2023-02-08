@@ -168,7 +168,7 @@ Resources:
         Format: '{"requestId":"$context.requestId","ip": "$context.identity.sourceIp","caller":"$context.identity.caller","user":"$context.identity.user","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath","status":"$context.status","protocol":"$context.protocol","responseLength":"$context.responseLength"}'
   #     CacheClusterEnabled: true
       # TODO: Enable this once we have the Route53 setup
-      #  DisableExecuteApiEndpoint: true
+      # DisableExecuteApiEndpoint: true
 
       # TODO: Setup the cert and route53 record in the dmp-hub-cf repo and then ref
       #       the exported variables here
@@ -232,12 +232,12 @@ Resources:
         - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
         - 'arn:aws:iam::aws:policy/AmazonSQSFullAccess'
         - !Ref DmpHubDynamoTableWritePolicy
-        # - !Ref SqsQueuePolicy
+        - !Ref SqsQueuePolicy
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env
       Events:
-        PostDmps:
+        DeleteDmps:
           # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
           Type: 'Api'
           Properties:
@@ -246,10 +246,10 @@ Resources:
             Method: 'delete'
             RequestParameters:
               - 'method.request.header.Authorization'
-            # Auth:
-            #   Authorizer: 'NONE'
-              # AuthorizationScopes:
-              #   - !Sub 'https://auth.${Domain}/${Env}.write'
+            Auth:
+              Authorizer: 'DmpHubCognitoAuthorizer'
+              AuthorizationScopes:
+                - !Sub 'https://auth.${DomainName}/${Env}.write'
 
   # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
   GetDmpFunction:
@@ -267,6 +267,7 @@ Resources:
         - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
         - !Ref DmpHubDynamoTableReadPolicy
         - !Ref S3BucketPolicy
+        - !Ref SqsQueuePolicy
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env
@@ -297,7 +298,7 @@ Resources:
         - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
         - 'arn:aws:iam::aws:policy/AmazonSQSFullAccess'
         - !Ref DmpHubDynamoTableWritePolicy
-        # - !Ref SqsQueuePolicy
+        - !Ref SqsQueuePolicy
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env
@@ -312,9 +313,9 @@ Resources:
             RequestParameters:
               - 'method.request.header.Authorization'
             Auth:
-              Authorizer: 'NONE'
-            #   AuthorizationScopes:
-            #     - !Sub 'https://auth.${Domain}/${Env}.write'
+              Authorizer: 'DmpHubCognitoAuthorizer'
+              AuthorizationScopes:
+                - !Sub 'https://auth.${DomainName}/${Env}.write'
 
   PutDmpFunction:
     Type: 'AWS::Serverless::Function'
@@ -332,7 +333,7 @@ Resources:
         - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
         - 'arn:aws:iam::aws:policy/AmazonSQSFullAccess'
         - !Ref DmpHubDynamoTableWritePolicy
-        # - !Ref SqsQueuePolicy
+        - !Ref SqsQueuePolicy
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env
@@ -347,9 +348,9 @@ Resources:
             RequestParameters:
               - 'method.request.header.Authorization'
             Auth:
-              Authorizer: 'NONE'
-            #   AuthorizationScopes:
-            #     - !Sub 'https://auth.${Domain}/${Env}.write'
+              Authorizer: 'DmpHubCognitoAuthorizer'
+              AuthorizationScopes:
+                - !Sub 'https://auth.${DomainName}/${Env}.write'
 
   ValidateDmpFunction:
     Type: 'AWS::Serverless::Function'
@@ -364,6 +365,7 @@ Resources:
         - !Ref LambdaLayer
       Policies:
         - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
+        - !Ref SqsQueuePolicy
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env
@@ -399,7 +401,7 @@ Resources:
         - 'arn:aws:iam::aws:policy/AmazonSQSFullAccess'
         - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
         - !Ref DmpHubDynamoTableWritePolicy
-        # - !Ref SqsQueuePolicy
+        - !Ref SqsQueuePolicy
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env
@@ -434,8 +436,8 @@ Resources:
         - 'arn:aws:iam::aws:policy/AmazonS3FullAccess'
         - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
         - !Ref DmpHubDynamoTableWritePolicy
-        # - !Ref SqsQueuePolicy
-        # - !Ref S3BucketPolicy
+        - !Ref SqsQueuePolicy
+        - !Ref S3BucketPolicy
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env
@@ -470,7 +472,7 @@ Resources:
         - 'arn:aws:iam::aws:policy/AmazonSQSFullAccess'
         - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
         - !Ref DmpHubDynamoTableWritePolicy
-        # - !Ref SqsQueuePolicy
+        - !Ref SqsQueuePolicy
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env
