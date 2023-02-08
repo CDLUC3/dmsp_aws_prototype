@@ -1,0 +1,18 @@
+template:
+  path: sqs.yaml
+  type: file
+
+dependencies:
+  - 'stg/regional/s3.yaml'
+
+parameters:
+  SsmPath: !stack_attr sceptre_user_data.ssm_path
+  AdminEmail: !ssm_parameter /uc3/dmp/hub/stg/AdminEmail
+
+  # SQS settings
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-sqs-queue.html
+  MessageRetentionSeconds: '7200' # 2 hours
+  # Delay to allow underlying Lambdas to scale if necessary
+  DelaySeconds: '5'
+  # The number of times a message is delivered to the queue before being sent to dead-letter queue
+  MaxReceiveCount: '5'

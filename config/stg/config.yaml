@@ -1,0 +1,9 @@
+# Stack tags are attached to every AWS resource created by these CloudFormation templates
+# with the exception of the Lambda functions and layers which are managed by AWS SAM.
+stack_tags:
+  Program: 'uc3'
+  Service: 'dmp'
+  Subservice: 'hub'
+  Environment: 'stg'
+  CodeRepo: 'https://github.com/CDLUC3/dmp-hub-cfn'
+  Contact: 'briley'

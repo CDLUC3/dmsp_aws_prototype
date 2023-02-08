@@ -1,0 +1,25 @@
+template:
+  path: dynamo.yaml
+  type: file
+
+parameters:
+  SsmPath: !stack_attr sceptre_user_data.ssm_path
+
+  # Dynamo settings
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html
+  DynamoTableClass: 'STANDARD'
+  DynamoEnableContributorInsights: 'true'
+  DynamoEnablePointInTimeRecovery: 'false'
+  DynamoBillingMode: 'PROVISIONED'
+  DynamoReadCapacityUnits: '16'
+  DynamoWriteCapacityUnits: '60'
+
+hooks:
+  after_create:
+    # Add Provenance items to the Dynamo Table
+    - !cmd './seed_dynamo.sh stg DMPTool dmptool-stg.cdlib.org'
+    - !cmd './seed_dynamo.sh stg DMPHub dmphub-stg.cdlib.org'
+
+    # Once the Dynamo table has been created, we can deploy our Lambdas and
+    # the API Gateway which are managed by AWS SAM.
+    - !cmd './src/sam/sam_build_deploy.sh stg dmphub-stg.cdlib.org'
