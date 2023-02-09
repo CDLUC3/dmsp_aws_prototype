@@ -26,13 +26,7 @@ class SsmReader
   PROVENANCE_API_CLIENT_ID = '/uc3/dmp/hub/%{env}/%{provenance}/client_id'
   PROVENANCE_API_CLIENT_SECRET = '/uc3/dmp/hub/%{env}/%{provenance}/client_secret'
 
-  S3_BUCKET = '/uc3/dmp/hub/%{env}/S3BucketUri'
-  S3_BUCKET_URL = '/uc3/dmp/hub/%{env}/S3BucketUrl'
-
-  SNS_DOWNLOAD_TOPIC = '/uc3/dmp/hub/%{env}/SnsDownloadTopicArn'
-  SNS_FATAL_ERROR_TOPIC = '/uc3/dmp/hub/%{env}/SnsFatalErrorTopicArn'
-  SNS_NOTIFY_TOPIC = '/uc3/dmp/hub/%{env}/SnsNotifyTopicArn'
-  SNS_PUBLISH_TOPIC = '/uc3/dmp/hub/%{env}/SnsPublishTopicArn'
+  S3_BUCKET_URL = '/uc3/dmp/hub/%{env}/S3CloudFrontBucketUrl'
 
   TABLE_NAME = '/uc3/dmp/hub/%{env}/DynamoTableName'
 

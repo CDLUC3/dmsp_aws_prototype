@@ -55,25 +55,6 @@ Resources:
   # SSM Parameter Store
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-ssm-parameter.html
   # ----------------------------------------------
-  # S3 Bucket Ids
-  S3CloudFrontBucketIdParameter:
-    Type: 'AWS::SSM::Parameter'
-    Properties:
-      Description: !Sub "${AWS::StackName} S3 Public Bucket ID"
-      Name: !Sub "${SsmPath}S3CloudFrontBucketId"
-      # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
-      Type: 'String'
-      Value: !Ref S3CloudFrontBucket
-
-  S3PrivateBucketIdParameter:
-    Type: 'AWS::SSM::Parameter'
-    Properties:
-      Description: !Sub "${AWS::StackName} S3 Private Bucket ID"
-      Name: !Sub "${SsmPath}S3PrivateBucketId"
-      # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
-      Type: 'String'
-      Value: !Ref S3PrivateBucket
-
   # S3 Bucket Urls
   S3CloudFrontBucketUrlParameter:
     Type: 'AWS::SSM::Parameter'
@@ -83,34 +64,6 @@ Resources:
       # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
       Type: 'String'
       Value: !GetAtt S3CloudFrontBucket.WebsiteURL
-
-  S3PrivateBucketUrlParameter:
-    Type: 'AWS::SSM::Parameter'
-    Properties:
-      Description: !Sub "${AWS::StackName} S3 Private Bucket URL"
-      Name: !Sub "${SsmPath}S3PrivateBucketUrl"
-      # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
-      Type: 'String'
-      Value: !GetAtt S3PrivateBucket.WebsiteURL
-
-  # S3 Bucket Arns
-  S3CloudFrontBucketArnParameter:
-    Type: 'AWS::SSM::Parameter'
-    Properties:
-      Description: !Sub "${AWS::StackName} Public S3 Bucket ARN"
-      Name: !Sub "${SsmPath}S3CloudFrontBucketArn"
-      # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
-      Type: 'String'
-      Value: !GetAtt S3CloudFrontBucket.Arn
-
-  S3PrivateBucketArnParameter:
-    Type: 'AWS::SSM::Parameter'
-    Properties:
-      Description: !Sub "${AWS::StackName} Private S3 Bucket ARN"
-      Name: !Sub "${SsmPath}S3PrivateBucketArn"
-      # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
-      Type: 'String'
-      Value: !GetAtt S3PrivateBucket.Arn
 
 Outputs:
   S3LogBucketId:

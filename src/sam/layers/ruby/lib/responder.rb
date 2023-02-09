@@ -116,7 +116,7 @@ class Responder
                   Please do not reply to this message."
 
       Aws::SNS::Client.new.publish(
-        topic_arn: SsmReader.get_ssm_value(key: SsmReader::SNS_FATAL_ERROR_TOPIC),
+        topic_arn: ENV['SNS_FATAL_ERROR_TOPIC'],
         subject: "DMPHub - fatal error in - #{source}",
         message: payload
       )

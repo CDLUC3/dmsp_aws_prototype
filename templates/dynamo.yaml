@@ -154,16 +154,6 @@ Resources:
       Type: 'String'
       Value: !Select [1, !Split ['/', !GetAtt DynamoTable.Arn]]
 
-  # Add the Table name to SSM so that our Lambdas can access it
-  TableArnParameter:
-    Type: 'AWS::SSM::Parameter'
-    Properties:
-      Description: !Sub "${AWS::StackName} DynamoTable"
-      Name: !Sub "${SsmPath}DynamoTableArn"
-      # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
-      Type: 'String'
-      Value: !GetAtt DynamoTable.Arn
-
 Outputs:
   DynamoTableName:
     Value: !Select [1, !Split ['/', !GetAtt DynamoTable.Arn]]

@@ -247,6 +247,8 @@ Resources:
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env
+          SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
+          SNS_PUBLISH_TOPIC: !Ref SnsPublishTopicArn
       Events:
         DeleteDmps:
           # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
@@ -282,6 +284,7 @@ Resources:
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env
+          SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
       Events:
         GetDmp:
           # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
@@ -314,6 +317,9 @@ Resources:
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env
+          SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
+          SNS_PUBLISH_TOPIC: !Ref SnsPublishTopicArn
+          SNS_DOWNLOAD_TOPIC: !Ref SnsDownloadTopicArn
       Events:
         PostDmps:
           # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
@@ -350,6 +356,9 @@ Resources:
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env
+          SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
+          SNS_PUBLISH_TOPIC: !Ref SnsPublishTopicArn
+          SNS_DOWNLOAD_TOPIC: !Ref SnsDownloadTopicArn
       Events:
         PutDmps:
           # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
@@ -382,6 +391,7 @@ Resources:
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env
+          SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
       Events:
         ValidateDmp:
           # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
@@ -418,6 +428,7 @@ Resources:
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env
+          SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
       Events:
         PublishTopicEvent:
           Type: 'SNS'
@@ -454,6 +465,8 @@ Resources:
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env
+          SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
+          S3_BUCKET: !Ref S3CloudFrontBucketArn
       Events:
         DownloadTopicEvent:
           Type: 'SNS'
@@ -489,6 +502,7 @@ Resources:
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env
+          SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
       Events:
         NortifyTopicEvent:
           Type: 'SNS'

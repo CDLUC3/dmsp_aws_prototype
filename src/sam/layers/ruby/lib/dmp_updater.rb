@@ -186,7 +186,7 @@ class DmpUpdater
 
     unless provenance.fetch('seedingWithLiveDmpIds', 'false').to_s.downcase == 'true'
       Aws::SNS::Client.new.publish(
-        topic_arn: SsmReader.get_ssm_value(key: SsmReader::SNS_PUBLISH_TOPIC),
+        topic_arn: ENV['SNS_PUBLISH_TOPIC'],
         subject: "DmpUpdater - update DMP ID - #{p_key}",
         message: { action: 'update', provenance: @provenance['PK'], dmp: p_key }.to_json
       )
@@ -203,7 +203,7 @@ class DmpUpdater
     return true if dmp_urls.empty?
 
     Aws::SNS::Client.new.publish(
-      topic_arn: SsmReader.get_ssm_value(key: SsmReader::SNS_DOWNLOAD_TOPIC),
+      topic_arn: ENV['SNS_DOWNLOAD_TOPIC'],
       subject: "DmpUpdater - fetch DMP document - #{p_key}",
       message: { provenance: provenance['PK'], dmp: p_key, location: dmp_urls.first['identifier'] }.to_json
     )

@@ -191,14 +191,14 @@ module Functions
       # Save the DMP document in the S3 bucket
       # --------------------------------------------------------------------------------
       def save_document(document:, dmp_pk:)
-        return nil if document.to_s.strip.empty? || dmp_pk.nil?
+        return nil if document.to_s.strip.empty? || dmp_pk.nil? || ENV['S3_BUCKET'].nil?
 
         s3_client = Aws::S3::Client.new(region: ENV.fetch('AWS_REGION', nil))
         key = "dmps/#{SecureRandom.hex(8)}.pdf"
 
         resp = s3_client.put_object({
                                       body: document,
-                                      bucket: SsmReader.get_ssm_value(key: SsmReader::S3_BUCKET),
+                                      bucket: ENV['S3_BUCKET'],
                                       key: key,
                                       tagging: "DMP_ID=#{CGI.escape(KeyHelper.remove_pk_prefix(dmp: dmp_pk))}"
                                     })

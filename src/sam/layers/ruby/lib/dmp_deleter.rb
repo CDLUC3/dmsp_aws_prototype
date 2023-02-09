@@ -76,7 +76,7 @@ class DmpDeleter
     return false if p_key.nil? || p_key.to_s.strip.empty?
 
     Aws::SNS::Client.new.publish(
-      topic_arn: SsmReader.get_ssm_value(key: SsmReader::SNS_PUBLISH_TOPIC),
+      topic_arn: SENV['SNS_PUBLISH_TOPIC'],
       subject: "DmpDeleter - tombstone DMP ID - #{p_key}",
       message: { action: 'tombstone', provenance: @provenance['PK'], dmp: p_key }.to_json
     )
