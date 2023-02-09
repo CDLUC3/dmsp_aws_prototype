@@ -113,6 +113,19 @@ Resources:
             - !Ref DynamoTableArn
             - !Sub '${DynamoTableArn}/index/*'
 
+  CognitoPolicy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      Description: 'DMPHub - Access to the Cognito User Pool Client'
+      ManagedPolicyName: 'DmpHubCognitoPolicy'
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          Effect: 'Allow'
+          Action:
+            - 'cognito-idp:DescribeUserPoolClient'
+          Resource: !Ref CognitoUserPoolArn
+
   S3BucketPolicy:
     Type: 'AWS::IAM::ManagedPolicy'
     Properties:
@@ -162,16 +175,11 @@ Resources:
   DmpHubRestApi:
     Type: 'AWS::Serverless::Api'
     Properties:
-      # TODO: Set this up!
       AccessLogSetting:
         DestinationArn: !GetAtt ApiAccessLogGroup.Arn
         Format: '{"requestId":"$context.requestId","ip": "$context.identity.sourceIp","caller":"$context.identity.caller","user":"$context.identity.user","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath","status":"$context.status","protocol":"$context.protocol","responseLength":"$context.responseLength"}'
   #     CacheClusterEnabled: true
-      # TODO: Enable this once we have the Route53 setup
-      # DisableExecuteApiEndpoint: true
-
-      # TODO: Setup the cert and route53 record in the dmp-hub-cf repo and then ref
-      #       the exported variables here
+      DisableExecuteApiEndpoint: true
       Domain:
         DomainName: !Sub "api.${DomainName}"
         CertificateArn: !Ref CertificateArn
@@ -182,7 +190,6 @@ Resources:
           HostedZoneId: !Ref HostedZoneId
           BasePath:
             - /
-
       StageName: 'v0'
       TracingEnabled: true
       Auth:
@@ -207,10 +214,13 @@ Resources:
     Properties:
       LayerName: !Sub '${AWS::StackName}-lambda-layer'
       Description: !Sub 'Core Lambda Layer for DMPHub ${Env}'
-      ContentUri: layers/uc3-dmp-hub-lambda-layer.zip
+      ContentUri: 'layers/uc3-dmp-hub-lambda-layer.zip'
       CompatibleRuntimes:
-        - ruby2.7
-      RetentionPolicy: Delete
+        - 'ruby2.7'
+      RetentionPolicy: 'Delete'
+    # Metadata:
+      # BuildMethod: 'ruby2.7'
+      # BuildMethod: makefile
 
   # ----------------------------------------------------
   # API Lambdas
@@ -233,6 +243,7 @@ Resources:
         - 'arn:aws:iam::aws:policy/AmazonSQSFullAccess'
         - !Ref DmpHubDynamoTableWritePolicy
         - !Ref SqsQueuePolicy
+        - !Ref CognitoPolicy
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env
@@ -299,6 +310,7 @@ Resources:
         - 'arn:aws:iam::aws:policy/AmazonSQSFullAccess'
         - !Ref DmpHubDynamoTableWritePolicy
         - !Ref SqsQueuePolicy
+        - !Ref CognitoPolicy
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env
@@ -334,6 +346,7 @@ Resources:
         - 'arn:aws:iam::aws:policy/AmazonSQSFullAccess'
         - !Ref DmpHubDynamoTableWritePolicy
         - !Ref SqsQueuePolicy
+        - !Ref CognitoPolicy
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env

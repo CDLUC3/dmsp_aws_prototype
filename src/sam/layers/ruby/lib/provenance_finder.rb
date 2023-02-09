@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'aws-sdk-dynamodb'
+require 'aws-sdk-cognitoidentityprovider'
 
 require 'key_helper'
 require 'messages'
@@ -23,32 +24,34 @@ class ProvenanceFinder
 
   # Get the Provenance item for the Lambda :event
   #
-  # Expecting the :identity hash from the :event. It should look like this:
-  #  "identity": {
-  #    "cognitoIdentityPoolId": "foo",
-  #    "cognitoIdentityId": "bar",
-  #    "apiKey": "12345",
-  #    "principalOrgId": "1111",
-  #    "cognitoAuthenticationType": "test",
-  #    "userArn": "arn:ergqegq345g",
-  #    "apiKeyId": "00000",
-  #    "userAgent": "aws-internal/3 aws-sdk-java/1.12.239 ...",
-  #    "accountId": "12345667890",
-  #    "caller": "abcd1234",
-  #    "sourceIp": "10.0.0.1",
-  #    "accessKey": "abcdefg12345",
-  #    "cognitoAuthenticationProvider": "foo",
-  #    "user": "abcd1234",
-  #    "domainName": "example.com",
-  #    "apiId": "abcdefghijk9090"
+  # Expecting the :claims hash from the requestContext[:authorizer] portion of the :event.
+  # It should look something like this:
+  #  "requestContext": {
+  #    "authorizer": {
+  #      "claims": {
+  #        "sub": "abcdefghijklmnopqrstuvwxyz",
+  #        "token_use": "access",
+  #        "scope": "https://auth.dmphub-dev.cdlib.org/dev.write",
+  #        "auth_time": "1675895546",
+  #        "iss": "https://cognito-idp.us-west-2.amazonaws.com/us-west-A_123456",
+  #        "exp": "Wed Feb 08 22:42:26 UTC 2023",
+  #        "iat": "Wed Feb 08 22:32:26 UTC 2023",
+  #        "version": "2",
+  #        "jti": "5d3be8a7-c595-1111-yyyy-xxxxxxxxxx",
+  #        "client_id": "abcdefghijklmnopqrstuvwxyz"
+  #      }
+  #    }
   #  }
   # -------------------------------------------------------------------------------------------
   # rubocop:disable Metrics/AbcSize
   def provenance_from_lambda_cotext(identity:)
     return { status: 403, error: Messages::MSG_DMP_FORBIDDEN } unless identity.is_a?(Hash) &&
-                                                                      !identity['cognitoIdentityId'].nil?
+                                                                      !identity['iss'].nil? &&
+                                                                      !identity['client_id'].nil?
 
-    p_key = "#{KeyHelper::PK_PROVENANCE_PREFIX}#{identity['cognitoIdentityId']}"
+
+    client_name = client_id_to_name(claim: identity)
+    p_key = "#{KeyHelper::PK_PROVENANCE_PREFIX}#{client_name}"
     response = @client.get_item(
       {
         table_name: @table,
@@ -94,5 +97,22 @@ class ProvenanceFinder
       message: e.message, details: e.backtrace
     )
     { status: 500, error: Messages::MSG_SERVER_ERROR }
+  end
+
+  # Method to fetch the client's name from the Cognito UserPool based on the client_id
+  def client_id_to_name(claim:)
+    return nil if claim.nil? || !claim.is_a?(Hash) || claim['iss'].nil? || claim['client_id'].nil?
+
+    user_pool_id = claim['iss'].split('/').last
+    client_id = claim['client_id']
+    client = Aws::CognitoIdentityProvider::Client.new(region: ENV.fetch('AWS_REGION', nil))
+    resp = client.describe_user_pool_client({ user_pool_id: user_pool_id, client_id: client_id })
+    resp&.user_pool_client&.client_name&.downcase
+  rescue Aws::Errors::ServiceError => e
+    Responder.log_error(
+      source: "LambdaLayer - ProvenanceHelper.client_id_to_name - looking for #{client_id} in #{user_pool_id}",
+      message: e.message, details: e.backtrace
+    )
+    nil
   end
 end

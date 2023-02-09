@@ -9,7 +9,7 @@ dependencies:
 #       a pending status and then can take some time before it is deployed. If your sceptre command
 #       appears to be stuck, this is most likely why, and you should let it complete.
 parameters:
-  Domain: 'dmphub-dev.cdlib.org'
+  Domain: !stack_attr sceptre_user_data.domain
 
   CertificateArn: !stack_output dev/global/cert.yaml::CertificateArn
 

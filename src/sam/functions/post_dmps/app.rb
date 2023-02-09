@@ -6,6 +6,7 @@
 my_gem_path = Dir['/opt/ruby/gems/**/lib/']
 $LOAD_PATH.unshift(*my_gem_path)
 
+require 'aws-sdk-cognitoidentityprovider'
 require 'aws-sdk-dynamodb'
 require 'aws-sdk-sns'
 
@@ -68,16 +69,9 @@ module Functions
 
       # Fail if the Provenance could not be loaded
       p_finder = ProvenanceFinder.new(client: client, table_name: table, debug_mode: debug)
-      resp = p_finder.provenance_from_lambda_cotext(identity: event.fetch('requestContext', {}))
+      claim = event.fetch('requestContext', {}).fetch('authorizer', {})['claims']
+      resp = p_finder.provenance_from_lambda_cotext(identity: claim)
       provenance = resp[:items].first if resp[:status] == 200
-
-      # TODO: Remove this stub once Cognito is setup. We will need to see how the Cognito info is passed
-      #       in and how we can fetch the provenance record.
-      if provenance.nil?
-        provenance = JSON.parse({ PK: "#{KeyHelper::PK_PROVENANCE_PREFIX}dmptool",
-                                  seedingWithLiveDmpIds: true }.to_json)
-      end
-
       return Responder.respond(status: 403, errors: Messages::MSG_DMP_FORBIDDEN, event: event) if provenance.nil?
 
       # Get the DMP

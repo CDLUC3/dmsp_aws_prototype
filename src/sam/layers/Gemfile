@@ -10,6 +10,7 @@ group :test do
   gem "rspec"
   gem "rubocop"
   gem "rubocop-rspec"
+  gem "aws-sdk-cognitoidentityprovider"
   gem "aws-sdk-dynamodb"
   gem "aws-sdk-s3"
   gem "aws-sdk-sns"
