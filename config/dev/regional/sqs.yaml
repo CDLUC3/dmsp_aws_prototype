@@ -12,6 +12,9 @@ parameters:
   # SQS settings
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-sqs-queue.html
   MessageRetentionSeconds: '7200' # 2 hours
+
+  DeadLetterRetentionSeconds: '259200' # 3 days
+
   # Delay to allow underlying Lambdas to scale if necessary
   DelaySeconds: '5'
   # The number of times a message is delivered to the queue before being sent to dead-letter queue

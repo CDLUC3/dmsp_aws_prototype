@@ -15,8 +15,10 @@ Globals:
 
 Parameters:
   HostedZoneId:
-    Type: 'AWS::SSM::Parameter::Value<String>'
-    Default: '/uc3/dmp/hub/dev/HostedZoneId'
+    Type: 'String'
+
+  EventBusArn:
+    Type: 'String'
 
   Env:
     Type: 'String'
@@ -40,21 +42,12 @@ Parameters:
   SnsEmailTopicArn:
     Type: 'String'
 
-  SnsDownloadTopicArn:
-    Type: 'String'
-
-  SnsNotifyTopicArn:
-    Type: 'String'
-
-  SnsPublishTopicArn:
-    Type: 'String'
-
-  SqsQueueArn:
+  DeadLetterQueueArn:
     Type: 'String'
 
   LogRetentionDays:
     Type: 'Number'
-    Default: 14
+    Default: 7
 
 Resources:
   # -----------------------------------------------------------
@@ -113,6 +106,19 @@ Resources:
             - !Ref DynamoTableArn
             - !Sub '${DynamoTableArn}/index/*'
 
+  EventBusPolicy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      Description: 'DMPHub - Access to the EventBus'
+      ManagedPolicyName: 'DmpHubEventBusPolicy'
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          Effect: 'Allow'
+          Action:
+            - 'events:PutEvents'
+          Resource: !Ref EventBusArn
+
   CognitoPolicy:
     Type: 'AWS::IAM::ManagedPolicy'
     Properties:
@@ -139,25 +145,6 @@ Resources:
             - 's3:*'
             - 's3-object-lambda:*'
           Resource: !Ref S3CloudFrontBucketArn
-
-  SqsQueuePolicy:
-    Type: 'AWS::IAM::ManagedPolicy'
-    Properties:
-      Description: 'DMPHub - Access to the SQS Queue'
-      ManagedPolicyName: 'DmpHubSQSQueuePolicy'
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          Effect: 'Allow'
-          Action:
-            - 'sqs:DeleteMessage'
-            - 'sqs:ReceiveMessage'
-            - 'sqs:SendMessage'
-            - 'sqs:GetQueueAttributes'
-            - 'sqs:GetQueueUrl'
-            - 'sqs:ListDeadLetterSourceQueues'
-            - 'sqs:ListQueues'
-          Resource: !Ref SqsQueueArn
 
   # ----------------------------------------------------
   # CloudWatch LogGroup
@@ -205,6 +192,19 @@ Resources:
               - !Sub 'https:/auth.${DomainName}/${Env}.write'
         DefaultAuthorizer: DmpHubCognitoAuthorizer
 
+  # TODO: Add the actual API domain name to SSM so it can be referenced in the Lambdas!
+  #       figure out how to pass in the Env!
+  # Add the API domain name to SSM so that our Lambdas can build pagination links
+  ApiBaseUrlParameter:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: !Sub "DMPHub-${Env} API Base Domain"
+      Name: !Sub "/uc3/dmp/hub/${Env}/ApiBaseUrl"
+      # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
+      Type: 'String'
+      Value: !Sub "https://api.${DomainName}"
+
+
   # ----------------------------------------------------
   # Lambda Layers
   #   See: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-resource-layerversion.html
@@ -218,9 +218,6 @@ Resources:
       CompatibleRuntimes:
         - 'ruby2.7'
       RetentionPolicy: 'Delete'
-    # Metadata:
-      # BuildMethod: 'ruby2.7'
-      # BuildMethod: makefile
 
   # ----------------------------------------------------
   # API Lambdas
@@ -242,13 +239,14 @@ Resources:
         - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
         - 'arn:aws:iam::aws:policy/AmazonSQSFullAccess'
         - !Ref DmpHubDynamoTableWritePolicy
-        - !Ref SqsQueuePolicy
+        - !Ref EventBusPolicy
         - !Ref CognitoPolicy
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env
+          DOMAIN: !Ref DomainName
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
-          SNS_PUBLISH_TOPIC: !Ref SnsPublishTopicArn
+          EVENT_BUS_NAME: !Ref EventBusArn
       Events:
         DeleteDmps:
           # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
@@ -280,7 +278,6 @@ Resources:
         - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
         - !Ref DmpHubDynamoTableReadPolicy
         - !Ref S3BucketPolicy
-        - !Ref SqsQueuePolicy
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env
@@ -312,14 +309,14 @@ Resources:
         - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
         - 'arn:aws:iam::aws:policy/AmazonSQSFullAccess'
         - !Ref DmpHubDynamoTableWritePolicy
-        - !Ref SqsQueuePolicy
+        - !Ref EventBusPolicy
         - !Ref CognitoPolicy
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env
+          DOMAIN: !Ref DomainName
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
-          SNS_PUBLISH_TOPIC: !Ref SnsPublishTopicArn
-          SNS_DOWNLOAD_TOPIC: !Ref SnsDownloadTopicArn
+          EVENT_BUS_NAME: !Ref EventBusArn
       Events:
         PostDmps:
           # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
@@ -351,14 +348,14 @@ Resources:
         - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
         - 'arn:aws:iam::aws:policy/AmazonSQSFullAccess'
         - !Ref DmpHubDynamoTableWritePolicy
-        - !Ref SqsQueuePolicy
+        - !Ref EventBusPolicy
         - !Ref CognitoPolicy
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env
+          DOMAIN: !Ref DomainName
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
-          SNS_PUBLISH_TOPIC: !Ref SnsPublishTopicArn
-          SNS_DOWNLOAD_TOPIC: !Ref SnsDownloadTopicArn
+          EVENT_BUS_NAME: !Ref EventBusArn
       Events:
         PutDmps:
           # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
@@ -387,7 +384,6 @@ Resources:
         - !Ref LambdaLayer
       Policies:
         - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
-        - !Ref SqsQueuePolicy
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env
@@ -404,9 +400,51 @@ Resources:
               Authorizer: 'NONE'
 
   # ----------------------------------------------------
-  # SNS Lambdas
+  # EventBridge Lambdas
   #   See: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-property-function-sns.html
   # ----------------------------------------------------
+  # Lambda that keeps track of which DMP IDs belong to which organizations
+  ListOrganizerFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      CodeUri: 'functions/list_organizer/'
+      Handler: 'app.Functions::ListOrganizer.process'
+      Runtime: 'ruby2.7'
+      Timeout: 30
+      Architectures:
+        - 'x86_64'
+      Layers:
+        - !Ref LambdaLayer
+      Policies:
+        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
+        - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
+        - !Ref DmpHubDynamoTableWritePolicy
+      Environment:
+        Variables:
+          LAMBDA_ENV: !Ref Env
+          DOMAIN: !Ref DomainName
+          SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
+      Events:
+        ListOrganizerEvent:
+          Type: 'EventBridgeRule'
+          Properties:
+            EventBusName: !Ref EventBusArn
+            DeadLetterConfig:
+              Arn: !Ref DeadLetterQueueArn
+            Pattern: !Sub >
+              {
+                "source": ["#{DomainName}:lambda:event_publisher"],
+                "detail-type": ["DMP change"],
+                "detail": {
+                  "SK": ["VERSION#latest"]
+                }
+              }
+            RetryPolicy:
+              MaximumEventAgeInSeconds: 60
+              MaximumRetryAttempts: 2
+            State: 'ENABLED'  # 'DISABLED'
+
+  # Lambda responsible for communications with EZID
   EzidPublisherFunction:
     Type: 'AWS::Serverless::Function'
     Properties:
@@ -424,16 +462,38 @@ Resources:
         - 'arn:aws:iam::aws:policy/AmazonSQSFullAccess'
         - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
         - !Ref DmpHubDynamoTableWritePolicy
-        - !Ref SqsQueuePolicy
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env
+          DOMAIN: !Ref DomainName
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
       Events:
-        PublishTopicEvent:
-          Type: 'SNS'
+        EzidPublishEvent:
+          Type: 'EventBridgeRule'
           Properties:
-            Topic: !Ref SnsPublishTopicArn
+            DeadLetterConfig:
+              Arn: !Ref DeadLetterQueueArn
+            EventBusName: !Ref EventBusArn
+            Pattern: !Sub >
+              {
+                "source": ["${DomainName}:lambda:event_publisher"],
+                "detail-type": ["DMP change"],
+                "detail": {
+                  "SK": ["VERSION#latest"]
+                }
+              }
+            RetryPolicy:
+              MaximumEventAgeInSeconds: 180
+              MaximumRetryAttempts: 3
+            State: 'ENABLED'  # 'DISABLED'
+
+  EzidPublisherPermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      FunctionName: !Ref EzidPublisherFunction
+      Action: 'lambda:InvokeFunction'
+      Principal: 'events.amazonaws.com'
+      # SourceArn: !GetAtt EzidPublisherEventRule.Arn
 
   # Annoyingly, SAM does not auto-generate LogGroup for a non-API tiggered lambda
   EzidPublisherFunctionLogGroup:
@@ -442,6 +502,7 @@ Resources:
       LogGroupName: !Sub "/aws/lambda/${EzidPublisherFunction}"
       RetentionInDays: 14
 
+  # Lambda responsible for fetching PDFs from the provenance systems (e.g. DMPTool)
   PdfDownloaderFunction:
     Type: 'AWS::Serverless::Function'
     Properties:
@@ -460,18 +521,35 @@ Resources:
         - 'arn:aws:iam::aws:policy/AmazonS3FullAccess'
         - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
         - !Ref DmpHubDynamoTableWritePolicy
-        - !Ref SqsQueuePolicy
         - !Ref S3BucketPolicy
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env
+          DOMAIN: !Ref DomainName
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
           S3_BUCKET: !Ref S3CloudFrontBucketArn
       Events:
-        DownloadTopicEvent:
-          Type: 'SNS'
+        PdfDownloadEvent:
+          Type: 'EventBridgeRule'
           Properties:
-            Topic: !Ref SnsDownloadTopicArn
+            DeadLetterConfig:
+              Arn: !Ref DeadLetterQueueArn
+            EventBusName: !Ref EventBusArn
+            Pattern: !Sub >
+              {
+                "source": ["${DomainName}:lambda:event_publisher"],
+                "detail-type": ["DMP change"],
+                "detail": {
+                  "SK": ["VERSION#latest"],
+                  "dmproadmap_links": {
+                    "download": [ { "exists": true } ]
+                  }
+                }
+              }
+            RetryPolicy:
+              MaximumEventAgeInSeconds: 360
+              MaximumRetryAttempts: 2
+            State: 'ENABLED'  # 'DISABLED'
 
   # Annoyingly, SAM does not auto-generate LogGroup for a non-API tiggered lambda and
   # it expects a specific name :/
@@ -481,6 +559,8 @@ Resources:
       LogGroupName: !Sub "/aws/lambda/${PdfDownloaderFunction}"
       RetentionInDays: 14
 
+  # Lambda responsible for letting the provenance system (owner of the DMP ID) know when another
+  # system has modified one of their DMP IDs
   ProvenanceNotifierFunction:
     Type: 'AWS::Serverless::Function'
     Properties:
@@ -498,16 +578,31 @@ Resources:
         - 'arn:aws:iam::aws:policy/AmazonSQSFullAccess'
         - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
         - !Ref DmpHubDynamoTableWritePolicy
-        - !Ref SqsQueuePolicy
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env
+          DOMAIN: !Ref DomainName
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
       Events:
-        NortifyTopicEvent:
-          Type: 'SNS'
+        ProvenanceNotifyEvent:
+          Type: 'EventBridgeRule'
           Properties:
-            Topic: !Ref SnsNotifyTopicArn
+            DeadLetterConfig:
+              Arn: !Ref DeadLetterQueueArn
+            EventBusName: !Ref EventBusArn
+            Pattern: !Sub >
+              {
+                "source": ["${DomainName}:lambda:event_publisher"],
+                "detail-type": ["DMP change"],
+                "detail": {
+                  "SK": ["VERSION#latest"],
+                  "updater_not_provenance": [true]
+                }
+              }
+            RetryPolicy:
+              MaximumEventAgeInSeconds: 180
+              MaximumRetryAttempts: 3
+            State: 'ENABLED'  # 'DISABLED'
 
   # Annoyingly, SAM does not auto-generate LogGroup for a non-API tiggered lambda
   ProvenanceNotifierFunctionLogGroup:
@@ -516,23 +611,6 @@ Resources:
       LogGroupName: !Sub "/aws/lambda/${ProvenanceNotifierFunction}"
       RetentionInDays: 14
 
-  # TODO: Add the actual API domain name to SSM so it can be referenced in the Lambdas!
-  #       figure out how to pass in the Env!
-  # Add the API domain name to SSM so that our Lambdas can build pagination links
-  ApiBaseUrlParameter:
-    Type: 'AWS::SSM::Parameter'
-    Properties:
-      Description: !Sub "DMPHub-${Env} API Base Domain"
-      Name: !Sub "/uc3/dmp/hub/${Env}/ApiBaseUrl"
-      # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
-      Type: 'String'
-      Value: !Sub "https://${DmpHubRestApi}.execute-api.${AWS::Region}.amazonaws.com/v0/"
-
-
-# TODO: When setting up the pipeline for this be sure to set a tag as:
-#           ConfigExclude: 'Security-group-attached-to-ENI'
-#
-
 Outputs:
   DmpHubDynamoTableReadPolicyArn:
     Value: !Ref DmpHubDynamoTableReadPolicy
@@ -540,8 +618,6 @@ Outputs:
     Value: !Ref DmpHubDynamoTableWritePolicy
   S3BucketPolicyArn:
     Value: !Ref S3BucketPolicy
-  SqsQueuePolicyArn:
-    Value: !Ref SqsQueuePolicy
 
   DeleteDmpFunctionArn:
     Value: !GetAtt DeleteDmpFunction.Arn
@@ -570,6 +646,8 @@ Outputs:
     Value: !GetAtt PdfDownloaderFunction.Arn
   ProvenanceNotifierFunctionArn:
     Value: !GetAtt ProvenanceNotifierFunction.Arn
+  ListOrganizerFunctionArn:
+    Value: !GetAtt ListOrganizerFunction.Arn
 
   # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
   # Find out more about other implicit resources you can reference within SAM

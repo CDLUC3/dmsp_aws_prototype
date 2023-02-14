@@ -3,6 +3,7 @@
 require 'aws-sdk-dynamodb'
 
 require 'dmp_helper'
+require 'event_publisher'
 require 'key_helper'
 require 'messages'
 require 'responder'
@@ -65,15 +66,15 @@ class DmpUpdater
     # Add the DMPHub specific attributes and then save it
     json = DmpHelper.annotate_dmp(provenance: @provenance, json: json, p_key: p_key)
 
-    p 'JSON BEFORE SPLICING:' if @debug
-    pp json if @debug
+    # p 'JSON BEFORE SPLICING:' if @debug
+    # pp json if @debug
 
     json = _process_update(
       updater: @provenance['PK'], original_version: old_version, new_version: json
     )
 
-    p 'JSON AFTER SPLICING:' if @debug
-    pp json if @debug
+    # p 'JSON AFTER SPLICING:' if @debug
+    # pp json if @debug
 
     # Since the PK and SK are the same as the original record, this will just replace eveything
     response = @client.put_item({ table_name: @table, item: json, return_consumed_capacity: @debug ? 'TOTAL' : 'NONE' })
@@ -87,7 +88,8 @@ class DmpUpdater
     return response unless response[:status] == 200
 
     # Send the updates to EZID, notify the provenance and download the PDF if applicable
-    _post_process(provenance: provenance, p_key: p_key, json: json)
+    p 'POST PROCESSING' if debug
+    _post_process(provenance: provenance, p_key: p_key, json: dmp)
 
     { status: 200, items: response[:items] }
   rescue Aws::DynamoDB::Errors::DuplicateItemException
@@ -184,29 +186,8 @@ class DmpUpdater
   def _post_process(provenance:, p_key:, json:)
     return false if p_key.nil? || p_key.to_s.strip.empty?
 
-    unless provenance.fetch('seedingWithLiveDmpIds', 'false').to_s.downcase == 'true'
-      Aws::SNS::Client.new.publish(
-        topic_arn: ENV['SNS_PUBLISH_TOPIC'],
-        subject: "DmpUpdater - update DMP ID - #{p_key}",
-        message: { action: 'update', provenance: @provenance['PK'], dmp: p_key }.to_json
-      )
-    end
-
-    # Notify the Provenance system of changes if the provenance allows it
-    # @provenance != json['dmphub_provenance_id'] &&
-    #   !dmp_owner_provenance['callback_uri'].nil? # (needs to be fetched from Dynamo)
-    return true unless json.is_a?(Hash) && json.fetch('dmproadmap_related_identifiers', []).any?
-
-    dmp_urls = json['dmproadmap_related_identifiers'].select do |identifier|
-      identifier['work_type'] == 'output_management_plan' && identifier['descriptor'] == 'is_metadata_for'
-    end
-    return true if dmp_urls.empty?
-
-    Aws::SNS::Client.new.publish(
-      topic_arn: ENV['SNS_DOWNLOAD_TOPIC'],
-      subject: "DmpUpdater - fetch DMP document - #{p_key}",
-      message: { provenance: provenance['PK'], dmp: p_key, location: dmp_urls.first['identifier'] }.to_json
-    )
+    # Publish the change to the EventBridge
+    EventPublisher.publish(source: 'DmpUpdater', dmp: json)
     true
   end
   # rubocop:enable Metrics/AbcSize

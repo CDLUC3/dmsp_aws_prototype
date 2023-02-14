@@ -8,11 +8,13 @@ $LOAD_PATH.unshift(*my_gem_path)
 
 require 'aws-sdk-cognitoidentityprovider'
 require 'aws-sdk-dynamodb'
+require 'aws-sdk-eventbridge'
 require 'aws-sdk-sns'
 
 require 'dmp_finder'
 require 'dmp_helper'
 require 'dmp_updater'
+require 'event_publisher'
 require 'key_helper'
 require 'messages'
 require 'provenance_finder'

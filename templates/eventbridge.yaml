@@ -1,0 +1,163 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+
+Description: 'EventBridge for the DMPHub'
+
+Parameters:
+  SsmPath:
+    Type: 'String'
+
+  DomainName:
+    Type: 'String'
+
+  LogRetentionDays:
+    Type: 'Number'
+    Default: 7
+
+  ArchiveRetentionDays:
+    Type: 'Number'
+    Default: 14
+
+Resources:
+  # -------------------------------------------------------
+  # EventBridge for the DMPHub System that will handle/manage 3 events. Each event can trigger multiple
+  # target tasks
+  #
+  #   1. DMP creation
+  #        - Publish initial metadata record for the DMP ID with EZID (EzidPublisher Lambda)
+  #        - Fetch the PDF version of the DMP and store it in S3 (PdfDownloader Lambda)
+  #        - Add the DMP ID to the Dyanmo FUNDER#[funder_id] and INSTITUTION#[org_id] lists (Organizer Lambda)
+  #
+  #   2. DMP modification
+  #        - Publish updated metadata record for the DMP ID with EZID (EzidPublisher Lambda)
+  #        - Fetch the PDF version of the DMP and store it in S3 (PdfDownloader Lambda)
+  #        - Notify the provenance system of the changes (Notifier Lambda)
+  #        - Verify the DMP ID is on the correct Dynamo FUNDER#[funder_id] and INSTITUTION#[org_id] lists (Organizer Lambda)
+  #
+  #   3. DMP tombstoned
+  #        - Tomstone the metadata record for the DMP ID with EZID (EzidPublisher Lambda)
+  #        - Remove the DMP ID from the Dynamo FUNDER#[funder_id] and INSTITUTION#[org_id] lists (Organizer Lambda)
+  #
+  # EventBus Rules are defined in the src/sam/template.yaml along with the Lambda Functions
+
+  # NOTE: This template cannot be deleted until the SAM managed Lambdas have been deleted since
+  #       several of the Lambdas have EventBus Rules
+
+  #   When the EzidPublisher Lambda detects that the /uc3/dmp/hub/%{env}/EzidPaused SSM Variable is true
+  #   it will add an event to the EventBusArchive that can be processed later
+  #      OR
+  #   send the event to the DeadLetterQueue - a scheduled event calls Lambda that checks the SSM variable
+  #   which trigger the EzidPublisher directly
+
+  # -------------------------------------------------------
+  # The Event Bus for the DMPHub System
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_Events.html
+  # -------------------------------------------------------
+  EventBus:
+    Type: 'AWS::Events::EventBus'
+    Properties:
+      Name: !Sub "${AWS::StackName}-eventbridge"
+
+  # Policy that allows EventBus to create events
+  EventBusPolicy:
+    Type: 'AWS::Events::EventBusPolicy'
+    Properties:
+      EventBusName: !Ref EventBus
+      StatementId: !Sub "${AWS::StackName}-eventbus-policy"
+      Statement:
+        Effect: 'Allow'
+        Principal: '*'
+        Action: 'events:PutEvents'
+        Resource: !GetAtt EventBus.Arn
+        Condition:
+            StringEquals:
+                "aws:PrincipalOrgID": !Ref AWS::AccountId
+
+  # Archive used to stash DMP ID updates to EZID
+  EventBusArchive:
+    Type: AWS::Events::Archive
+    Properties:
+      EventPattern:
+        source:
+          - "org.cdlib.dmphub-dev:lambda:event_publisher"
+      RetentionDays: !Ref ArchiveRetentionDays
+      SourceArn: !GetAtt EventBus.Arn
+
+  # Add the EventBus ARN to SSM so that our Lambdas can access it (EventBus doesn't have tags :/)
+  EventBusArnParameter:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: !Sub "${AWS::StackName} EventBus ARN"
+      Name: !Sub "${SsmPath}EventBusArn"
+      # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
+      Type: 'String'
+      Value: !GetAtt EventBus.Arn
+
+  # LogGroup used in conjunction with the CloudWatchRule below for testing/debugging
+  EventBridgeLogGroup:
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      RetentionInDays: !Ref LogRetentionDays
+
+  # Rule that can be used for debuggging/testing. All events will get stuffed into the LogGroup
+  # Set the 'State' to 'DISABLED' when you're not debugging
+  CloudWatchLogRule:
+    Type: 'AWS::Events::Rule'
+    Properties:
+      # Description: !Sub "${AWS::StackName} CloudWatch Log to monitor/debug EventBridge"
+      EventBusName: !GetAtt EventBus.Arn
+      EventPattern: !Sub >
+        {
+          "source": ["${DomainName}:lambda:event_publisher"]
+        }
+      Name: !Sub "${AWS::StackName}-logs"
+      State: 'ENABLED'
+      Targets:
+        # !GetAtt EventBridgeLogGroup.Arn
+        - Arn: !GetAtt EventBridgeLogGroup.Arn
+          Id: !Sub "${AWS::StackName}-logs"
+
+  # Policy that allows EventBridge LogGroup Rule to write to the LogGroup
+  EventBusCloudWatchPolicy:
+    Type: 'AWS::Logs::ResourcePolicy'
+    Properties:
+      PolicyName: !Sub "${AWS::StackName}-logs"
+      PolicyDocument: !Sub >
+        {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Action": [
+                "logs:CreateLogStream",
+                "logs:PutLogEvents"
+              ],
+              "Effect": "Allow",
+              "Principal": {
+                "Service": [
+                  "events.amazonaws.com",
+                  "delivery.logs.amazonaws.com"
+                ]
+              },
+              "Resource": "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:${AWS::StackName}*:*"
+            }
+          ]
+        }
+
+Outputs:
+  EventBusName:
+    Value: !Ref EventBus
+  EventBusArn:
+    Value: !GetAtt EventBus.Arn
+
+  EventBusPolicy:
+    Value: !Ref EventBusPolicy
+
+  EventBusArchiveId:
+    Value: !Ref EventBusArchive
+  EventBusArchiveName:
+    Value: !GetAtt EventBusArchive.ArchiveName
+  EventBusArchiveArn:
+    Value: !GetAtt EventBusArchive.Arn
+
+  EventBridgeLogGroupArn:
+    Value: !GetAtt EventBridgeLogGroup.Arn

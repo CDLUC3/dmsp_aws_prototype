@@ -7,6 +7,7 @@ my_gem_path = Dir['/opt/ruby/gems/**/lib/']
 $LOAD_PATH.unshift(*my_gem_path)
 
 require 'aws-sdk-dynamodb'
+require 'aws-sdk-eventbridge'
 require 'aws-sdk-sns'
 require 'httparty'
 require 'logger'
@@ -94,6 +95,10 @@ module Functions
       # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
       # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
       def process(event:, context:)
+
+        pp "EVENT: #{event}" if debug
+        pp "CONTEXT: #{context.inspect}" if debug
+
         msg = event.fetch('Records', []).first&.fetch('Sns', {})&.fetch('Message', '')
         json = msg.is_a?(Hash) ? msg : JSON.parse(msg)
         action = json['action']
@@ -101,8 +106,8 @@ module Functions
         dmp_pk = json['dmp']
 
         # Check the SSM Variable that will disable interaction with EZID (specifically used for
-        # tests in production ... do not use this to pause comms with EZID, instead disable
-        # the lambda's trigger in the AWS console)
+        # tests in production ... do not use this to pause comms with EZID, instead use the EZID_PAUSED
+        # SSM Variable
         skip_ezid = SsmReader.get_ssm_value(key: SsmReader::DMP_ID_DEBUG_MODE).to_s.downcase == 'true'
 
         # Debug, output the incoming Event and Context

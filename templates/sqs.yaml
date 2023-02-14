@@ -12,7 +12,11 @@ Parameters:
 
   MessageRetentionSeconds:
     Type: 'Number'
-    Default: 7200
+    Default: 7200 # 2 hours
+
+  DeadLetterRetentionSeconds:
+    Type: 'Number'
+    Default: 7200 # 2 hours
 
   DelaySeconds:
     Type: 'Number'
@@ -29,12 +33,14 @@ Resources:
   # ----------------------------------------------
   DeadLetterQueue:
     Type: 'AWS::SQS::Queue'
+    Properties:
+      MessageRetentionPeriod: !Ref DeadLetterRetentionSeconds
 
   SqsQueue:
     Type: 'AWS::SQS::Queue'
     Properties:
       # MaximumMessageSize: 128000 # bytes == 128 KB
-      MessageRetentionPeriod: !Ref MessageRetentionSeconds # seconds == 7 days
+      MessageRetentionPeriod: !Ref MessageRetentionSeconds
       DelaySeconds: !Ref DelaySeconds # Delay to allow Lambda to scale if necessary
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt DeadLetterQueue.Arn
@@ -63,64 +69,6 @@ Resources:
   # Simple Notification Service (SNS) topics
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-sqs-queue.html
   # ----------------------------------------------
-  SnsTopicDownload:
-    Type: 'AWS::SNS::Topic'
-    Properties:
-      # For some reason AWS doesn't recognize this attribute even though its in the docs
-      # ContentBasedDeduplication: true
-      DisplayName: 'DmpHubDownload'
-      Subscription:
-        - Protocol: 'sqs'
-          Endpoint: !GetAtt SqsQueue.Arn
-
-  # Add the Topic name to SSM so that our Lambdas can access it
-  SnsTopicDownloadParameter:
-    Type: 'AWS::SSM::Parameter'
-    Properties:
-      Description: !Sub "${AWS::StackName} Download Topic"
-      Name: !Sub "${SsmPath}SnsDownloadTopicArn"
-      # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
-      Type: 'String'
-      Value: !Ref SnsTopicDownload
-
-  SnsTopicNotification:
-    Type: 'AWS::SNS::Topic'
-    Properties:
-      # ContentBasedDeduplication: true
-      DisplayName: 'DmpHubPublish'
-      Subscription:
-        - Protocol: 'sqs'
-          Endpoint: !GetAtt SqsQueue.Arn
-
-  # Add the Topic name to SSM so that our Lambdas can access it
-  SnsTopicNotificationParameter:
-    Type: 'AWS::SSM::Parameter'
-    Properties:
-      Description: !Sub "${AWS::StackName} Notification Topic"
-      Name: !Sub "${SsmPath}SnsNotifyTopicArn"
-      # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
-      Type: 'String'
-      Value: !Ref SnsTopicNotification
-
-  SnsTopicPublication:
-    Type: 'AWS::SNS::Topic'
-    Properties:
-      # ContentBasedDeduplication: true
-      DisplayName: 'DmpHubNotify'
-      Subscription:
-        - Protocol: 'sqs'
-          Endpoint: !GetAtt SqsQueue.Arn
-
-  # Add the Topic name to SSM so that our Lambdas can access it
-  SnsTopicPublicationParameter:
-    Type: 'AWS::SSM::Parameter'
-    Properties:
-      Description: !Sub "${AWS::StackName} Publication Topic"
-      Name: !Sub "${SsmPath}SnsPublishTopicArn"
-      # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
-      Type: 'String'
-      Value: !Ref SnsTopicPublication
-
   SnsTopicEmail:
     Type: 'AWS::SNS::Topic'
     Properties:
