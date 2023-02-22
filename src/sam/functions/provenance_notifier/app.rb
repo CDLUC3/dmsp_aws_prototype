@@ -16,8 +16,8 @@ require 'ssm_reader'
 module Functions
   # The handler for POST /dmps/validate
   class ProvenanceNotifier
-    SOURCE = 'SNS Topic - Notification'
-
+    SOURCE = 'EventBridge - Notify Provenance'
+    NO_NOTIFICATION = 'Provenance system was the updater. No need to notify.'
     # Parameters
     # ----------
     # event: Hash, required
@@ -37,7 +37,7 @@ module Functions
     #           "dmproadmap_links": {
     #             "download": "https://example.com/api/dmps/12345.pdf",
     #           },
-    #           "updater_is_provenance": false
+    #           "dmphub_updater_is_provenance": false
     #         }
     #       }
     #
@@ -60,7 +60,9 @@ module Functions
         detail = event.fetch('detail', {})
         json = detail.is_a?(Hash) ? detail : JSON.parse(detail)
         provenance_pk = json['dmphub_provenance_id']
+        should_notify = json.fetch('dmphub_updater_is_provenance', 'true').downcase != 'true'
         dmp_pk = json['PK']
+        return Responder.respond(status: 200, errors: NO_NOTIFICATION, event: event)
 
         # Debug, output the incoming Event and Context
         debug = SsmReader.debug_mode?

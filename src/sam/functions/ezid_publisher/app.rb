@@ -23,7 +23,7 @@ module Functions
   # Lambda function that is invoked by SNS and communicates with EZID to register/update DMP IDs
   # rubocop:disable Metrics/ClassLength
   class EzidPublisher
-    SOURCE = 'SNS Topic - Publish'
+    SOURCE = 'EventBridge - Publish EZID'
 
     APPLICATION_NAME = 'DmpHub'
     DEFAULT_CONTRIBUTOR_ROLE = 'ProjectLeader'
@@ -63,7 +63,7 @@ module Functions
     #           "dmproadmap_links": {
     #             "download": "https://example.com/api/dmps/12345.pdf",
     #           },
-    #           "updater_is_provenance": false
+    #           "dmphub_updater_is_provenance": false
     #         }
     #       }
     #

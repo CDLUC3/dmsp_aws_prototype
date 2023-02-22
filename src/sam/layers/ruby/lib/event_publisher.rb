@@ -29,12 +29,6 @@ class EventPublisher
         }]
       }
       resp = client.put_events(message)
-
-p "EVENTBRIDGE MESSAGE:"
-p message
-p "RESPONSE:"
-p resp
-
       return true unless resp.failed_entry_count.nil? || resp.failed_entry_count > 0
 
       # The EventBridge returned errors, so log the error
@@ -51,13 +45,12 @@ p resp
     private
 
     def generate_detail(dmp:)
-      # TODO: Figure out the minimum parts of the DMP json we need and just send that.
       {
         PK: dmp['PK'],
-        SK: 'VERSION#latest', # dmp['SK'],
+        SK: KeyHelper::DMP_LATEST_VERSION,
         dmphub_provenance_id: dmp.fetch('dmphub_provenance_id', nil),
         dmproadmap_links: dmp.fetch('dmproadmap_links', {}),
-        updater_is_provenance: dmp.fetch('updater_is_provenance', false)
+        dmphub_updater_is_provenance: dmp.fetch('dmphub_updater_is_provenance', false)
       }
     end
 

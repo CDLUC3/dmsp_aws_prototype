@@ -186,7 +186,7 @@ class DmpUpdater
     return false if p_key.nil? || p_key.to_s.strip.empty?
 
     # Indicate whether or not the updater is the provenance system
-    json['updater_is_provenance'] = provenance['PK'] == json['dmphub_provenance_id']
+    json['dmphub_updater_is_provenance'] = provenance['PK'] == json['dmphub_provenance_id']
     # Publish the change to the EventBridge
     EventPublisher.publish(source: 'DmpUpdater', dmp: json)
     true

@@ -20,7 +20,7 @@ require 'ssm_reader'
 module Functions
   # The handler for POST /dmps/validate
   class PdfDownloader
-    SOURCE = 'SNS Topic - Download'
+    SOURCE = 'EventBridge - Download PDF'
 
     # Parameters
     # ----------
@@ -41,7 +41,7 @@ module Functions
     #           "dmproadmap_links": {
     #             "download": "https://example.com/api/dmps/12345.pdf"
     #           },
-    #           "updater_is_provenance": false
+    #           "dmphub_updater_is_provenance": false
     #         }
     #       }
     #
