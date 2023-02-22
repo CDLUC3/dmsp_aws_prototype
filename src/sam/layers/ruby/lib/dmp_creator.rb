@@ -4,6 +4,7 @@ require 'aws-sdk-dynamodb'
 require 'securerandom'
 
 require 'dmp_helper'
+require 'event_publisher'
 require 'key_helper'
 require 'messages'
 require 'responder'
@@ -64,7 +65,7 @@ class DmpCreator
     return response unless response[:status] == 200
 
     # Send SNS notifications for post processing tasks
-    _post_process(provenance: provenance, p_key: p_key, json: json)
+    _post_process(json: json)
 
     { status: 201, items: response[:items] }
   rescue Aws::DynamoDB::Errors::DuplicateItemException
@@ -111,31 +112,13 @@ class DmpCreator
   # PDF if applicable
   # -------------------------------------------------------------------------
   # rubocop:disable Metrics/AbcSize
-  def _post_process(provenance:, p_key:, json:)
-    return false if p_key.nil? || p_key.to_s.strip.empty?
+  def _post_process(json:)
+    return false if json.nil?
 
-    # Register the DMP ID with EZID if the provenance is not seeding with live DMP IDs
-    unless provenance.fetch('seedingWithLiveDmpIds', 'false').to_s.downcase == 'true'
-      Aws::SNS::Client.new.publish(
-        topic_arn: ENV['SNS_PUBLISH_TOPIC'],
-        subject: "DmpCreator - register DMP ID - #{p_key}",
-        message: { action: 'create', provenance: @provenance['PK'], dmp: p_key }.to_json
-      )
-    end
-    return true unless json.is_a?(Hash) && json.fetch('dmproadmap_related_identifiers', []).any?
-    # If the privacy setting is not 'public', then do not download the PDF
-    return true unless json.fetch('dmproadmap_privacy', 'private').to_s.downcase.strip == 'public'
-
-    dmp_urls = json['dmproadmap_related_identifiers'].select do |identifier|
-      identifier['work_type'] == 'output_management_plan' && identifier['descriptor'] == 'is_metadata_for'
-    end
-    return true if dmp_urls.empty?
-
-    Aws::SNS::Client.new.publish(
-      topic_arn: ENV['SNS_DOWNLOAD_TOPIC'],
-      subject: "DmpCreator - fetch DMP document - #{p_key}",
-      message: { provenance: @provenance['PK'], dmp: p_key, location: dmp_urls.first['identifier'] }.to_json
-    )
+    # We are creating, so this is always true
+    json['dmphub_updater_is_provenance'] = true
+    # Publish the change to the EventBridge
+    EventPublisher.publish(source: 'DmpCreator', dmp: json)
     true
   end
   # rubocop:enable Metrics/AbcSize

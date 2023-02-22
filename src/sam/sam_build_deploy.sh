@@ -73,8 +73,7 @@ if [ $FAIL == 1 ]; then exit 1; fi
 # There is probably a much more efficient way to do this with arrays in bash
 P1="$KEY=Env,$VAL=$1"
 P2="$KEY=S3CloudFrontBucketArn,$VAL=$S3_BUCKET_ARN"
-# P3="$KEY=CognitoUserPoolArn,$VAL=$COGNITO_USER_POOL_ARN"
-P3="$KEY=CognitoUserPoolArn,$VAL=arn:aws:cognito-idp:us-west-2:671846987296:userpool/us-west-2_c2lN7xMeS"
+P3="$KEY=CognitoUserPoolArn,$VAL=$COGNITO_USER_POOL_ARN"
 P4="$KEY=DomainName,$VAL=$2"
 P5="$KEY=DynamoTableArn,$VAL=$DYNAMO_TABLE_ARN"
 P6="$KEY=SqsQueueArn,$VAL=$SQS_QUEUE_ARN"

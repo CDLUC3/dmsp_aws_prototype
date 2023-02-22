@@ -3,6 +3,7 @@
 require 'aws-sdk-dynamodb'
 
 require 'key_helper'
+require 'event_publisher'
 require 'messages'
 require 'responder'
 require 'ssm_reader'
@@ -58,7 +59,7 @@ class DmpDeleter
                                    })
 
     # Notify EZID about the removal
-    _post_process(p_key: dmp['PK'])
+    _post_process(json: dmp)
 
     # We should abort here if we can determine that it did not succeed
     { status: 200, items: [JSON.parse({ dmp: dmp }.to_json)] } if response.successful?
@@ -72,13 +73,13 @@ class DmpDeleter
   # Once the DMP has been created, we need to register it's DMP ID and download any
   # PDF if applicable
   # -------------------------------------------------------------------------
-  def _post_process(p_key:)
-    return false if p_key.nil? || p_key.to_s.strip.empty?
+  def _post_process(json:)
+    return false if json.nil?
 
-    Aws::SNS::Client.new.publish(
-      topic_arn: SENV['SNS_PUBLISH_TOPIC'],
-      subject: "DmpDeleter - tombstone DMP ID - #{p_key}",
-      message: { action: 'tombstone', provenance: @provenance['PK'], dmp: p_key }.to_json
-    )
+    # Indicate whether or not the updater is the provenance system
+    json['dmphub_updater_is_provenance'] = @provenance['PK'] == json['dmphub_provenance_id']
+    # Publish the change to the EventBridge
+    EventPublisher.publish(source: 'DmpDeleter', dmp: json)
+    true
   end
 end
