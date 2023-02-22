@@ -2,7 +2,6 @@ source "https://rubygems.org"
 
 # No need to include any AWS SDK gems here since the Lambda functions have access
 # to them by default
-
 gem "httparty"
 gem "json-schema"
 
@@ -17,7 +16,7 @@ group :test do
   gem "aws-sdk-cognitoidentityprovider"
   gem "aws-sdk-dynamodb"
   gem "aws-sdk-eventbridge"
-  gem "aws-sdk-s3"
+  # gem "aws-sdk-s3"
   gem "aws-sdk-sns"
   gem "aws-sdk-ssm"
 end

@@ -88,7 +88,6 @@ class DmpUpdater
     return response unless response[:status] == 200
 
     # Send the updates to EZID, notify the provenance and download the PDF if applicable
-    p 'POST PROCESSING' if debug
     _post_process(provenance: provenance, p_key: p_key, json: dmp)
 
     { status: 200, items: response[:items] }
@@ -186,6 +185,8 @@ class DmpUpdater
   def _post_process(provenance:, p_key:, json:)
     return false if p_key.nil? || p_key.to_s.strip.empty?
 
+    # Indicate whether or not the updater is the provenance system
+    json['updater_is_provenance'] = provenance['PK'] == json['dmphub_provenance_id']
     # Publish the change to the EventBridge
     EventPublisher.publish(source: 'DmpUpdater', dmp: json)
     true

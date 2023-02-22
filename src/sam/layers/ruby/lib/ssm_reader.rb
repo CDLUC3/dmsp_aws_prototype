@@ -17,16 +17,18 @@ class SsmReader
 
   DMP_ID_API_URL = '/uc3/dmp/hub/%{env}/EzidApiUrl'
   DMP_ID_BASE_URL = '/uc3/dmp/hub/%{env}/EzidBaseUrl'
-  DMP_ID_DEBUG_MODE = '/uc3/dmp/hub/%{env}/EzidDebugMode'
-  DMP_ID_CLIENT_NAME = '/uc3/dmp/hub/%{env}/EzidHostingInstitution'
   DMP_ID_CLIENT_ID = '/uc3/dmp/hub/%{env}/EzidUsername'
-  DMP_ID_SHOULDER = '/uc3/dmp/hub/%{env}/EzidShoulder'
+  DMP_ID_CLIENT_NAME = '/uc3/dmp/hub/%{env}/EzidHostingInstitution'
   DMP_ID_CLIENT_SECRET = '/uc3/dmp/hub/%{env}/EzidPassword'
+  DMP_ID_DEBUG_MODE = '/uc3/dmp/hub/%{env}/EzidDebugMode'
+  DMP_ID_PAUSED = '/uc3/dmp/hub/%{env}/EzidPaused'
+  DMP_ID_SHOULDER = '/uc3/dmp/hub/%{env}/EzidShoulder'
 
   PROVENANCE_API_CLIENT_ID = '/uc3/dmp/hub/%{env}/%{provenance}/client_id'
   PROVENANCE_API_CLIENT_SECRET = '/uc3/dmp/hub/%{env}/%{provenance}/client_secret'
 
   S3_BUCKET_URL = '/uc3/dmp/hub/%{env}/S3CloudFrontBucketUrl'
+  S3_ACCESS_POINT = '/uc3/dmp/hub/%{env}/S3CloudFrontBucketAccessPoint'
 
   TABLE_NAME = '/uc3/dmp/hub/%{env}/DynamoTableName'
 

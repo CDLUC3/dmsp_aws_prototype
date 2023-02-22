@@ -59,7 +59,7 @@ Resources:
   S3CloudFrontBucketUrlParameter:
     Type: 'AWS::SSM::Parameter'
     Properties:
-      Description: !Sub "${AWS::StackName} S3 Public Bucket URL"
+      Description: !Sub "${AWS::StackName} S3 CloudFront Bucket URL"
       Name: !Sub "${SsmPath}S3CloudFrontBucketUrl"
       # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
       Type: 'String'

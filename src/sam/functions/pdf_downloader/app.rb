@@ -25,40 +25,26 @@ module Functions
     # Parameters
     # ----------
     # event: Hash, required
-    #     API Gateway Lambda Proxy Input Format
-    #     Event doc: https://docs.aws.amazon.com/apigateway/latest/developerguide/set-up-lambda-proxy-integrations.html#api-gateway-simple-proxy-for-lambda-input-format
-    #     {
-    #       Records: [
-    #         {
-    #           "EventSource": "aws:sns",
-    #           "EventVersion": "1.0",
-    #           "EventSubscriptionArn": "arn:aws:sns:us-west-2:blah-blah-blah",
-    #           "Sns": {
-    #             "Type": "Notification",
-    #             "MessageId": "a7ba6aaf-0d52-5d94-968e-311e0661231f",
-    #             "TopicArn": "arn:aws:sns:us-west-2:yadda-yadda-yadda",
-    #             "Subject": "DmpCreator - register DMP ID - DMP#doi.org/10.80030/D1.51C5D8E2",
-    #             "Message": "{\"dmp\":\"DMP#doi.org/10.80030/D1.51C5D8E2\",
-    #                          \"provenance\":\"PROVENANCE#example\",
-    #                          \"location\":\"https://example.com/dmps/12345.pdf\"}",
-    #             "Timestamp": "2022-09-30T15:19:15.182Z",
-    #             "SignatureVersion":"1",
-    #             "Signature":"Jeh4PdtFzpNtnRpLrNYhO9C5JYfjGPiLQIoW+0RykbVroSIetNILviPLlUNLGXlbbm...==",
-    #             "SigningCertUrl": "https://sns.us-west-2.amazonaws.com/SimpleNotificationService-foo.pem",
-    #             "UnsubscribeUrl": "https://sns.us-west-2.amazonaws.com/?Action=Unsubscribe...",
-    #             "MessageAttributes": {}
-    #           }
+    #     EventBridge Event input:
+    #       {
+    #         "version": "0",
+    #         "id": "5c9a3747-293c-59d7-dcee-a2210ac034fc",
+    #         "detail-type": "DMP change",
+    #         "source": "dmphub-dev.cdlib.org:lambda:event_publisher",
+    #         "account": "1234567890",
+    #         "time": "2023-02-14T16:42:06Z",
+    #         "region": "us-west-2",
+    #         "resources": [],
+    #         "detail": {
+    #           "PK": "DMP#doi.org/10.12345/ABC123",
+    #           "SK": "VERSION#latest",
+    #           "dmproadmap_links": {
+    #             "download": "https://example.com/api/dmps/12345.pdf"
+    #           },
+    #           "updater_is_provenance": false
     #         }
-    #       ]
-    #     }"
+    #       }
     #
-    #    Message should contain a parseable JSON string that contains:
-    #      {
-    #        "provenance": "PROVENANCE#example",
-    #        "dmp": "DMP#doi.org/10.80030/D1.51C5D8E2",
-    #        "location": "https://example.com/dmps/12345.pdf"
-    #      }
-
     # context: object, required
     #     Lambda Context runtime methods and attributes
     #     Context doc: https://docs.aws.amazon.com/lambda/latest/dg/ruby-context.html
@@ -76,11 +62,11 @@ module Functions
       # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
       # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
       def process(event:, context:)
-        msg = event.fetch('Records', []).first&.fetch('Sns', {})&.fetch('Message', '')
-        json = msg.is_a?(Hash) ? msg : JSON.parse(msg)
-        location = json['location']
-        provenance_pk = json['provenance']
-        dmp_pk = json['dmp']
+        detail = event.fetch('detail', {})
+        json = detail.is_a?(Hash) ? detail : JSON.parse(detail)
+        provenance_pk = json['dmphub_provenance_id']
+        dmp_pk = json['PK']
+        location = json.fetch('dmproadmap_links', {})['download']
 
         # Debug, output the incoming Event and Context
         debug = SsmReader.debug_mode?
@@ -193,12 +179,12 @@ module Functions
       def save_document(document:, dmp_pk:)
         return nil if document.to_s.strip.empty? || dmp_pk.nil? || ENV['S3_BUCKET'].nil?
 
-        s3_client = Aws::S3::Client.new(region: ENV.fetch('AWS_REGION', nil))
+        # CloudFront S3 bucket is in the Global us-east-1 region!
+        s3_client = Aws::S3::Client.new(region: ENV['AWS_REGION'])
         key = "dmps/#{SecureRandom.hex(8)}.pdf"
-
         resp = s3_client.put_object({
                                       body: document,
-                                      bucket: ENV['S3_BUCKET'],
+                                      bucket: ENV['S3_BUCKET'].gsub('arn:aws:s3:::', ''),
                                       key: key,
                                       tagging: "DMP_ID=#{CGI.escape(KeyHelper.remove_pk_prefix(dmp: dmp_pk))}"
                                     })

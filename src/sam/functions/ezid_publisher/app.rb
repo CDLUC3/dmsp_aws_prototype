@@ -41,43 +41,32 @@ module Functions
     }.freeze
 
     TAB = '  '
+    BREAK = '\n'
 
     # Parameters
     # ----------
     # event: Hash, required
-    #     API Gateway Lambda Proxy Input Format
-    #     Event doc: https://docs.aws.amazon.com/apigateway/latest/developerguide/set-up-lambda-proxy-integrations.html#api-gateway-simple-proxy-for-lambda-input-format
-    #     {
-    #       Records: [
-    #         {
-    #           "EventSource": "aws:sns",
-    #           "EventVersion": "1.0",
-    #           "EventSubscriptionArn": "arn:aws:sns:us-west-2:blah-blah-blah",
-    #           "Sns": {
-    #             "Type": "Notification",
-    #             "MessageId": "a7ba6aaf-0d52-5d94-968e-311e0661231f",
-    #             "TopicArn": "arn:aws:sns:us-west-2:yadda-yadda-yadda",
-    #             "Subject": "DmpCreator - register DMP ID - DMP#doi.org/10.80030/D1.51C5D8E2",
-    #             "Message": "{\"action\":\"create\",\"provenance\":\"PROVENANCE#example\",
-    #                          \"dmp\":\"DMP#doi.org/10.80030/D1.51C5D8E2\"}",
-    #             "Timestamp": "2022-09-30T15:19:15.182Z",
-    #             "SignatureVersion":"1",
-    #             "Signature":"Jeh4PdtFzpNtnRpLrNYhO9C5JYfjGPiLQIoW+0RykbVroSIetNILviPLlUNLGXlbbm...==",
-    #             "SigningCertUrl": "https://sns.us-west-2.amazonaws.com/SimpleNotificationService-foo.pem",
-    #             "UnsubscribeUrl": "https://sns.us-west-2.amazonaws.com/?Action=Unsubscribe...",
-    #             "MessageAttributes": {}
-    #           }
+    #     EventBridge Event input:
+    #       {
+    #         "version": "0",
+    #         "id": "5c9a3747-293c-59d7-dcee-a2210ac034fc",
+    #         "detail-type": "DMP change",
+    #         "source": "dmphub-dev.cdlib.org:lambda:event_publisher",
+    #         "account": "1234567890",
+    #         "time": "2023-02-14T16:42:06Z",
+    #         "region": "us-west-2",
+    #         "resources": [],
+    #         "detail": {
+    #           "PK": "DMP#doi.org/10.12345/ABC123",
+    #           "SK": "VERSION#latest",
+    #           "dmphub_provenance_id": "PROVENANCE#example",
+    #           "dmproadmap_links": {
+    #             "download": "https://example.com/api/dmps/12345.pdf",
+    #           },
+    #           "updater_is_provenance": false
     #         }
-    #       ]
-    #     }"
+    #       }
     #
-    #    Message should contain a parseable JSON string that contains:
-    #      {
-    #        "action": "create|update|tombstone",
-    #        "provenance": "PROVENANCE#example",
-    #        "dmp": "DMP#doi.org/10.80030/D1.51C5D8E2"
-    #      }
-
     # context: object, required
     #     Lambda Context runtime methods and attributes
     #     Context doc: https://docs.aws.amazon.com/lambda/latest/dg/ruby-context.html
@@ -95,28 +84,27 @@ module Functions
       # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
       # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
       def process(event:, context:)
-
-        pp "EVENT: #{event}" if debug
-        pp "CONTEXT: #{context.inspect}" if debug
-
-        msg = event.fetch('Records', []).first&.fetch('Sns', {})&.fetch('Message', '')
-        json = msg.is_a?(Hash) ? msg : JSON.parse(msg)
-        action = json['action']
-        provenance_pk = json['provenance']
-        dmp_pk = json['dmp']
+        # No need to validate the source and detail-type because that is done by the EventRule
+        detail = event.fetch('detail', {})
+        json = detail.is_a?(Hash) ? detail : JSON.parse(detail)
+        provenance_pk = json['dmphub_provenance_id']
+        dmp_pk = json['PK']
 
         # Check the SSM Variable that will disable interaction with EZID (specifically used for
-        # tests in production ... do not use this to pause comms with EZID, instead use the EZID_PAUSED
-        # SSM Variable
+        # tests in production to verify that we are sending a valid payload to EZID)
         skip_ezid = SsmReader.get_ssm_value(key: SsmReader::DMP_ID_DEBUG_MODE).to_s.downcase == 'true'
+
+        # Check the SSM Variable that will pause interaction with EZID (specifically used for
+        # periods when EZID will be down for an extended period)
+        paused = SsmReader.get_ssm_value(key: SsmReader::DMP_ID_PAUSED).to_s.downcase == 'true'
 
         # Debug, output the incoming Event and Context
         debug = SsmReader.debug_mode?
         pp "EVENT: #{event}" if debug
         pp "CONTEXT: #{context.inspect}" if debug
 
-        if provenance_pk.nil? || dmp_pk.nil? || action.nil?
-          p "#{Messages::MSG_INVALID_ARGS} - provenance: #{provenance_pk}, dmp: #{dmp_pk}, action: #{action}"
+        if provenance_pk.nil? || dmp_pk.nil?
+          p "#{Messages::MSG_INVALID_ARGS} - provenance: #{provenance_pk}, dmp: #{dmp_pk}"
           return Responder.respond(status: 400, errors: Messages::MSG_INVALID_ARGS,
                                    event: event)
         end
@@ -135,7 +123,7 @@ module Functions
         url = "#{SsmReader.get_ssm_value(key: SsmReader::DMP_ID_API_URL)}/id/doi:#{dmp_id}?update_if_exists=yes"
         landing_page_url = "#{SsmReader.get_ssm_value(key: SsmReader::BASE_URL)}/dmps/#{dmp_id}"
 
-        datacite_xml = dmp_to_datacite_xml(dmp_id: dmp_id, dmp: dmp) # .gsub(/[\r\n]/, ' ')
+        datacite_xml = dmp_to_datacite_xml(dmp_id: dmp_id, dmp: dmp).gsub(/[\r\n]/, ' ')
 
         payload = <<~TEXT
           _target: #{landing_page_url}
@@ -237,9 +225,22 @@ module Functions
 
         # The EZID ANVL parser is really whiny about the alignment/layout and the whitespace
         # in general of the Datacite XML bit. Be extremely careful when editing the file
+        #
+        # DataCite is expecting (see: https://ezid.cdlib.org/doc/apidoc.html#profile-datacite):
+        #
+        #  <?xml version="1.0"?>
+        #  <resource xmlns="http://datacite.org/schema/kernel-4"
+        #            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        #            xsi:schemaLocation="...">
+        #    <identifier identifierType="DOI">(:tba)</identifier>
+        #    ...
+        #  </resource>
+        #
         xml = <<~XML
           <?xml version="1.0" encoding="UTF-8"?>
-          #{TAB}<resource xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://datacite.org/schema/kernel-4" xsi:schemaLocation="http://datacite.org/schema/kernel-4 http://schema.datacite.org/meta/kernel-4.4/metadata.xsd">
+          #{TAB}<resource xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          #{TAB * 4}  xmlns="http://datacite.org/schema/kernel-4"
+          #{TAB * 4}  xsi:schemaLocation="http://datacite.org/schema/kernel-4 http://schema.datacite.org/meta/kernel-4.4/metadata.xsd">
           #{TAB * 2}<identifier identifierType="DOI">#{dmp_id.match(KeyHelper::DOI_REGEX)}</identifier>
           #{TAB * 2}<creators>
           #{person_to_xml(json: dmp['contact'], tab_count: 3)}#{TAB * 2}</creators>
@@ -473,7 +474,12 @@ module Functions
       # EZID's ANVL parser requires percent encoding, so encode specific characters
       # --------------------------------------------------------------------------------
       def percent_encode(val:)
-        val.to_s.gsub(/[\r\n]/, '%0A').gsub('%', '%25').gsub('<', '%3C').gsub('>', '%3E')
+        val = val.to_s.gsub(/<(?:"[^"]*"['"]*|'[^']*'['"]*|[^'">])+>/, '')
+                .gsub('\u00A0', ' ').gsub('%', '%25')
+        until !val.include?('  ') do
+          val = val.gsub('  ', ' ')
+        end
+        val.strip
       end
 
       # Convert a NISO credit URI into a DataCite Contributor Role

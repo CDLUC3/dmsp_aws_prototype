@@ -5,8 +5,10 @@ ARN_PREFIX=arn:aws:s3:::
 KEY=ParameterKey
 VAL=ParameterValue
 
-if [ $# -ne 2 ]; then
-  echo 'Wrong number of arguments. Expecting 2: The `env` for your samconfig.toml and the Domain name.'
+if [ $# -ne 3 ]; then
+  echo 'Wrong number of arguments. Expecting 3:'
+  echo 'The `env` for your samconfig.toml, the Domain name and whether or not to do the LambdaLayer build.'
+  echo '  For example: `./src/sam/sam_build_deploy.sh dev example.com true)`'
   exit 1
 fi
 
@@ -83,11 +85,16 @@ P10="$KEY=WafArn,$VAL=$WAF_ARN"
 P11="$KEY=EventBusArn,$VAL=$EVENT_BRIDGE_ARN"
 P12="$KEY=HostedZoneId,$VAL=$HOSTED_ZONE_ID"
 
-cd ./src/sam/layers
-echo "Building Lambda Layers from $(pwd)..."
-./build.sh
+# Build the LambdaLayer if applicable
+if [ "$3" == "true" ]; then
+  cd ./src/sam/layers
+  echo "Building Lambda Layers from $(pwd)..."
+  ./build.sh
+  cd ..
+else
+  cd ./src/sam
+fi
 
-cd ..
 echo "Building Lambda Functions from $(pwd)..."
 sam build
 

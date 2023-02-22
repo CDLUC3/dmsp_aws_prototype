@@ -142,9 +142,16 @@ Resources:
         Statement:
           Effect: 'Allow'
           Action:
-            - 's3:*'
+            - 's3:DeleteObject'
+            - 's3:GetObject'
+            - 's3:GetObjectAttributes'
+            - 's3:GetObjectTagging'
+            - 's3:ListBucket'
+            - 's3:PutObject'
             - 's3-object-lambda:*'
-          Resource: !Ref S3CloudFrontBucketArn
+          Resource:
+            - !Ref S3CloudFrontBucketArn
+            - !Sub "${S3CloudFrontBucketArn}/*"
 
   # ----------------------------------------------------
   # CloudWatch LogGroup
@@ -403,47 +410,6 @@ Resources:
   # EventBridge Lambdas
   #   See: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-property-function-sns.html
   # ----------------------------------------------------
-  # Lambda that keeps track of which DMP IDs belong to which organizations
-  ListOrganizerFunction:
-    Type: 'AWS::Serverless::Function'
-    Properties:
-      CodeUri: 'functions/list_organizer/'
-      Handler: 'app.Functions::ListOrganizer.process'
-      Runtime: 'ruby2.7'
-      Timeout: 30
-      Architectures:
-        - 'x86_64'
-      Layers:
-        - !Ref LambdaLayer
-      Policies:
-        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
-        - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
-        - !Ref DmpHubDynamoTableWritePolicy
-      Environment:
-        Variables:
-          LAMBDA_ENV: !Ref Env
-          DOMAIN: !Ref DomainName
-          SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
-      Events:
-        ListOrganizerEvent:
-          Type: 'EventBridgeRule'
-          Properties:
-            EventBusName: !Ref EventBusArn
-            DeadLetterConfig:
-              Arn: !Ref DeadLetterQueueArn
-            Pattern: !Sub >
-              {
-                "source": ["#{DomainName}:lambda:event_publisher"],
-                "detail-type": ["DMP change"],
-                "detail": {
-                  "SK": ["VERSION#latest"]
-                }
-              }
-            RetryPolicy:
-              MaximumEventAgeInSeconds: 60
-              MaximumRetryAttempts: 2
-            State: 'ENABLED'  # 'DISABLED'
-
   # Lambda responsible for communications with EZID
   EzidPublisherFunction:
     Type: 'AWS::Serverless::Function'
@@ -526,6 +492,7 @@ Resources:
         Variables:
           LAMBDA_ENV: !Ref Env
           DOMAIN: !Ref DomainName
+          # ACCOUNT_ID: !Ref AWS::AccountId
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
           S3_BUCKET: !Ref S3CloudFrontBucketArn
       Events:
@@ -646,8 +613,6 @@ Outputs:
     Value: !GetAtt PdfDownloaderFunction.Arn
   ProvenanceNotifierFunctionArn:
     Value: !GetAtt ProvenanceNotifierFunction.Arn
-  ListOrganizerFunctionArn:
-    Value: !GetAtt ListOrganizerFunction.Arn
 
   # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
   # Find out more about other implicit resources you can reference within SAM

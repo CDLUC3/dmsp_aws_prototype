@@ -4,6 +4,9 @@ Transform: 'AWS::Serverless-2016-10-31'
 Description: 'DynamoDB that backs the API dmp-hub-sam'
 
 Parameters:
+  Domain:
+    Type: 'String'
+
   SsmPath:
     Type: 'String'
 
@@ -143,6 +146,18 @@ Resources:
       # Determine cost before enabling
       PointInTimeRecoverySpecification:
         PointInTimeRecoveryEnabled: !Ref DynamoEnablePointInTimeRecovery
+
+  # ----------------------------------------------
+  # SSM Parameter Store
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-ssm-parameter.html
+  # ----------------------------------------------
+  BaseUrlParameter:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: !Sub "${AWS::StackName} Domain"
+      Name: !Sub "${SsmPath}BaseUrl"
+      Type: 'String'
+      Value: !Sub "https://${Domain}"
 
   # Add the Table name to SSM so that our Lambdas can access it
   TableNameParameter:

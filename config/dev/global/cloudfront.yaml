@@ -19,3 +19,9 @@ parameters:
 
   S3CloudFrontBucketId: !stack_output dev/regional/s3.yaml::S3CloudFrontBucketId
   S3CloudFrontBucketArn: !stack_output dev/regional/s3.yaml::S3CloudFrontBucketArn
+
+  # In development set the cache TTL to very low thresholds so that updates via CodeBuild are not
+  # masked by a copy of the file in the Cache
+  CacheDefaultTtlSeconds: '60'
+  CacheMinTtlSeconds: '30'
+  CacheMaxTtlSeconds: '300' # 5 minutes

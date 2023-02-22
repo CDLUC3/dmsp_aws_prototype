@@ -8,15 +8,18 @@ $LOAD_PATH.unshift(*my_gem_path)
 
 require 'aws-sdk-dynamodb'
 require 'aws-sdk-sns'
-require 'httparty'
+require 'logger'
 
+require 'key_helper'
+require 'messages'
 require 'responder'
 require 'ssm_reader'
 
 module Functions
-  # The handler for POST /dmps/validate
-  class ProvenanceNotifier
-    SOURCE = 'SNS Topic - Notification'
+  # Lambda function that is invoked by SNS and communicates with EZID to register/update DMP IDs
+  # rubocop:disable Metrics/ClassLength
+  class ListOrganizer
+    SOURCE = 'EventBridge'
 
     # Parameters
     # ----------
@@ -56,68 +59,36 @@ module Functions
     #
     class << self
       # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
+      # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
       def process(event:, context:)
         detail = event.fetch('detail', {})
         json = detail.is_a?(Hash) ? detail : JSON.parse(detail)
         provenance_pk = json['dmphub_provenance_id']
         dmp_pk = json['PK']
 
-        # Debug, output the incoming Event and Context
         debug = SsmReader.debug_mode?
         pp "EVENT: #{event}" if debug
         pp "CONTEXT: #{context.inspect}" if debug
 
-        if provenance_pk.nil? || dmp_pk.nil?
-          return Responder.respond(status: 400, errors: Messages::MSG_INVALID_ARGS, event: event)
-        end
+        Responder.log_error(source: SOURCE, message: "Just Testing this Event")
 
-        # Load the Provenance info
-
-        # Verify that the Provenance has a callback URL defined
-
-        # Load the DMP metadata
-        table = SsmReader.get_ssm_value(key: SsmReader::TABLE_NAME)
-        client = Aws::DynamoDB::Client.new(region: ENV.fetch('AWS_REGION', nil))
-        p "TABLE: #{table}, CLIENT: #{client}"
-
-        # Send the latest DMP metadata to the Prvenance system's calllback URL
-
-        Responder.respond(status: 200, errors: Messages::MSG_SUCCESS, event: event)
       rescue JSON::ParserError
-        p "#{Messages::MSG_INVALID_JSON} - MESSAGE: #{msg}"
+        p "#{Messages::MSG_INVALID_JSON} - #{msg}"
         Responder.respond(status: 500, errors: Messages::MSG_INVALID_JSON, event: event)
       rescue Aws::Errors::ServiceError => e
-        p "#{e.message} - PROVENANCE: #{provenance_pk}, DMP: #{dmp_pk}"
-        p e.backtrace
-        Responder.respond(status: 500, errors: Messages::MSG_SERVER_ERROR, event: event)
+        Responder.respond(status: 500, errors: "#{Messages::MSG_SERVER_ERROR} - #{e.message}", event: event)
       rescue StandardError => e
         # Just do a print here (ends up in CloudWatch) in case it was the responder.rb that failed
-        p "FATAL: #{e.message} - PROVENANCE: #{provenance_pk}, DMP: #{dmp_pk}"
+        p "FATAL -- MESSAGE: #{e.message}"
         p e.backtrace
         { statusCode: 500, body: { errors: [Messages::MSG_SERVER_ERROR] }.to_json }
       end
       # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
+      # rubocop:enable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
       private
 
-      # Fetch the DMP JSON from the DyanamoDB Table
-      # --------------------------------------------------------------------------------
-      # rubocop:disable Metrics/AbcSize
-      def load_dmp(provenance_pk:, dmp_pk:, table:, client:, debug: false)
-        return nil if table.nil? || client.nil? || provenance_pk.nil? || dmp_pk.nil?
-
-        # Fetch the Provenance first
-        prov_finder = ProvenanceFinder.new(table_name: table, client: client, debug_mode: debug)
-        response = prov_finder.provenance_from_pk(p_key: provenance_pk)
-        return nil unless response[:status] == 200
-
-        # Fetch the DMP
-        provenance = response[:items].first
-        dmp_finder = DmpFinder.new(provenance: provenance, table_name: table, client: client, debug_mode: debug)
-        response = dmp_finder.find_dmp_by_pk(p_key: dmp_pk, s_key: KeyHelper::DMP_LATEST_VERSION)
-        response[:status] == 200 ? response[:items].first['dmp'] : nil
-      end
-      # rubocop:enable Metrics/AbcSize
     end
   end
+  # rubocop:enable Metrics/ClassLength
 end
