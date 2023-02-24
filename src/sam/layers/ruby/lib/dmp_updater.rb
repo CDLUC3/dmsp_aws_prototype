@@ -31,12 +31,14 @@ class DmpUpdater
   # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
   # -------------------------------------------------------------------------
   def update_dmp(p_key:, json: {})
+    source = "DmpUpdater.update_dmp - PK #{p_key}"
     json = Validator.parse_json(json: json)&.fetch('dmp', {})
     return { status: 400, error: Messages::MSG_INVALID_ARGS } if json.nil? || p_key.nil?
 
     # Fail if the provenance is not defined
     return { status: 403, error: Messages::MSG_DMP_FORBIDDEN } if !@provenance.is_a?(Hash) ||
                                                                   @provenance['PK'].nil?
+
     # Verify that the JSON is for the same DMP in the PK
     dmp_id = json.fetch('dmp_id', {})
     return { status: 403, error: Messages::MSG_DMP_FORBIDDEN } unless KeyHelper.dmp_id_to_pk(json: dmp_id) == p_key
@@ -59,12 +61,15 @@ class DmpUpdater
     )
     return result unless result[:status] == 200
 
-    p 'JSON AFTER VERSIONING:' if @debug
-    p result[:items].first if @debug
+    log_message(source: source, message: 'Updating DMP', details: result[:items].first) if @debug
 
     # Since the PK and SK are the same as the original record, this will just replace eveything
-    response = @client.put_item({
-      table_name: @table, item: result[:items].first, return_consumed_capacity: @debug ? 'TOTAL' : 'NONE' }
+    response = @client.put_item(
+      {
+        table_name: @table,
+        item: result[:items].first,
+        return_consumed_capacity: @debug ? 'TOTAL' : 'NONE'
+      }
     )
     return { status: 500, error: Messages::MSG_SERVER_ERROR } unless response.successful?
 
@@ -79,7 +84,7 @@ class DmpUpdater
   rescue Aws::DynamoDB::Errors::DuplicateItemException
     { status: 405, error: Messages::MSG_DMP_EXISTS }
   rescue Aws::Errors::ServiceError => e
-    Responder.log_error(source: "DmpUpdater.update_dmp - PK #{p_key}", message: e.message,
+    Responder.log_error(source: source, message: e.message,
                         details: ([@provenance, json.inspect] << e.backtrace).flatten)
     { status: 500, error: Messages::MSG_SERVER_ERROR }
   end
@@ -93,15 +98,13 @@ class DmpUpdater
   # Once the DMP has been updated, we need to register it's DMP ID and download any
   # PDF if applicable
   # -------------------------------------------------------------------------
-  # rubocop:disable Metrics/AbcSize
   def _post_process(json:)
     return false if json.nil?
 
     # Indicate whether or not the updater is the provenance system
     json['dmphub_updater_is_provenance'] = @provenance['PK'] == json['dmphub_provenance_id']
     # Publish the change to the EventBridge
-    EventPublisher.publish(source: 'DmpUpdater', dmp: json)
+    EventPublisher.publish(source: 'DmpUpdater', dmp: json, debug: @debug)
     true
   end
-  # rubocop:enable Metrics/AbcSize
 end

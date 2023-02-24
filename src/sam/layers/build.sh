@@ -1,3 +1,8 @@
+#!/bin/bash
+
+# You can specify test when running this script to get Bundler to install all of the test
+# dependencies. e.g. `./build.sh test`
+
 ZIP_NAME="uc3-dmp-hub-lambda-layer.zip"
 
 RUBY_VERSION=2.7.0
@@ -15,7 +20,14 @@ if [ -d $SAM_GEM_DIR/$RUBY_VERSION ]; then rm -rf $SAM_GEM_DIR/$RUBY_VERSION/**;
 
 # Run bundler
 if [ -d $BUNDLER_BUILD_DIR ]; then bundle clean; fi
-bundle install --without test
+
+# If 'test' was passed as an argument then bundle with all of the test dependencies
+if [ "$1" == 'test' ]; then
+  bundle install --with test
+else
+  bundle install --without test
+fi
+
 cp -r $BUNDLER_GEM_DIR/** $SAM_GEM_DIR/$RUBY_VERSION
 rm -rf $BUNDLER_BUILD_DIR
 

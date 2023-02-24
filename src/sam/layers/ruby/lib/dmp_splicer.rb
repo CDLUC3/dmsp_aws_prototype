@@ -9,10 +9,12 @@ require 'key_helper'
 # -------------------------------------------------------------------------------------
 class DmpSplicer
   class << self
-      # Splice changes from other systems onto the system of provenance's updated record
+    # Splice changes from other systems onto the system of provenance's updated record
     # --------------------------------------------------------------
-    # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
-    def splice_for_owner(owner:, updater:, base:, mods:)
+    # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
+    # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+    def splice_for_owner(owner:, updater:, base:, mods:, debug: false)
+      source = 'DmpSplicer.splice_for_owner'
       return base if owner.nil? || updater.nil? || mods.nil?
       return mods if base.nil?
 
@@ -41,14 +43,20 @@ class DmpSplicer
       other_relateds = spliced['dmproadmap_related_identifiers'].reject { |id| id['dmphub_provenance_id'].nil? }
       spliced['dmproadmap_related_identifiers'] = mod_relateds
       spliced['dmproadmap_related_identifiers'] << other_relateds if other_relateds.any?
+
+      if debug
+        log_message(source: source, message: 'JSON after splicing in changes from provenance', details: spliced)
+      end
       spliced
     end
-    # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+    # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
+    # rubocop:enable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
     # Splice changes from the other system onto the system of provenance and other system's changes
     # --------------------------------------------------------------
     # rubocop:disable Metrics/AbcSize
-    def splice_for_others(owner:, updater:, base:, mods:)
+    def splice_for_others(owner:, updater:, base:, mods:, debug: false)
+      source = 'DmpSplicer.splice_for_others'
       return base if owner.nil? || updater.nil? || base.nil? || mods.nil?
 
       spliced = DmpHelper.deep_copy_dmp(obj: base)
@@ -68,11 +76,16 @@ class DmpSplicer
       spliced['dmproadmap_related_identifiers'] = _update_related_identifiers(
         updater: updater, base: base_relateds, mods: mod_relateds
       )
+      if debug
+        log_message(source: source, message: 'JSON after splicing in changes from non-provenance',
+                    details: spliced)
+      end
       spliced
     end
     # rubocop:enable Metrics/AbcSize
 
     private
+
     # These Splicing operations could probably be refined or genericized to traverse the Hash
     # and apply to each object
 

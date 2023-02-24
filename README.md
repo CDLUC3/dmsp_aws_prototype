@@ -62,6 +62,14 @@ This repository uses [Sceptre](https://docs.sceptre-project.org/3.2.0/) to orche
 
 For instructions on installing and setting up the system, please refer to [our installation wiki](https://github.com/CDLUC3/dmp-hub-cfn/wiki/installation-and-setup)
 
+## Testing
+
+Sceptre allows you to test your templates and config prior to building the CloudFormation stacks. You can do this by running `sceptre validate config/[env]/[dir]/[config_file].yaml`.
+
+Note that Sceptre always shows you the change set and asks you to confirm before it will make any changes to your AWS environment.
+
+To test the Lambda functions and Lambda Layer, you can run `./src/sam/test.sh`. This will build the Lambda Layer (The Lambda functions require the layer code to be zipped up) and then execute Rubocop checks followed by the RSpec tests for both the layer and the functions.
+
 ## Database
 
 For details about the structure of DynamoDB items and DMP versioning logic, please refer to [our database documentation wiki page](https://github.com/CDLUC3/dmp-hub-cfn/wiki/database)

@@ -37,6 +37,7 @@ class DmpCreator
   # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
   # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
   def create_dmp(json: {})
+    source = 'DmpCreator.create_dmp'
     json = Validator.parse_json(json: json)&.fetch('dmp', {})
     return { status: 400, error: Messages::MSG_INVALID_ARGS } if json.nil?
 
@@ -56,6 +57,7 @@ class DmpCreator
     # Add the DMPHub specific attributes and then save
     json = DmpHelper.annotate_dmp(provenance: @provenance, json: json, p_key: p_key)
 
+    log_message(source: source, message: 'Creating DMP', details: json) if @debug
     # Create the item
     @client.put_item({ table_name: @table, item: json, return_consumed_capacity: @debug ? 'TOTAL' : 'NONE' })
     # Should probably abort here if it fails ... not sure what that looks like yet
@@ -71,7 +73,7 @@ class DmpCreator
   rescue Aws::DynamoDB::Errors::DuplicateItemException
     { status: 405, error: Messages::MSG_DMP_EXISTS }
   rescue Aws::Errors::ServiceError => e
-    Responder.log_error(source: 'DmpCreator.create_dmp', message: e.message,
+    Responder.log_error(source: source, message: e.message,
                         details: ([@provenance, json.inspect] << e.backtrace).flatten)
     { status: 500, error: Messages::MSG_SERVER_ERROR }
   end
@@ -86,6 +88,7 @@ class DmpCreator
   # -------------------------------------------------------------------------
   # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
   def _preregister_dmp_id(finder:, json:)
+    source = 'DmpCreator._preregister_dmp_id'
     # Use the specified DMP ID if the provenance has permission
     existing = json.fetch('dmp_id', {})
     id = existing['identifier'].gsub(%r{https?://}, KeyHelper::PK_DMP_PREFIX) unless existing.nil? ||
@@ -103,6 +106,7 @@ class DmpCreator
     # Something went wrong and it was unable to identify a unique id
     return nil if counter >= 10
 
+    log_message(source: source, message: "Preregistering DMP ID: #{dmp_id}") if @debug
     url = @dmp_id_base_url.gsub(%r{https?://}, '')
     "#{KeyHelper::PK_DMP_PREFIX}#{url.end_with?('/') ? url : "#{url}/"}#{dmp_id}"
   end
@@ -111,17 +115,15 @@ class DmpCreator
   # Once the DMP has been created, we need to register it's DMP ID and download any
   # PDF if applicable
   # -------------------------------------------------------------------------
-  # rubocop:disable Metrics/AbcSize
   def _post_process(json:)
     return false if json.nil?
 
     # We are creating, so this is always true
     json['dmphub_updater_is_provenance'] = true
     # Publish the change to the EventBridge
-    EventPublisher.publish(source: 'DmpCreator', dmp: json)
+    EventPublisher.publish(source: 'DmpCreator', dmp: json, debug: @debug)
     true
   end
-  # rubocop:enable Metrics/AbcSize
 
   # See if the DMP Id exists
   # -------------------------------------------------------------------------

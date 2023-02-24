@@ -297,10 +297,12 @@ RSpec.describe 'Functions::PdfDownloader' do
       it 'returns an empty Hash if :provenance is nil' do
         expect(described_class.send(:authenticate, provenance: nil)).to eql({})
       end
+
       it 'returns an empty Hash if :provenance has no :tokenUri' do
         prov.delete('tokenUri')
         expect(described_class.send(:authenticate, provenance: prov)).to eql({})
       end
+
       it 'returns an empty Hash if :provenance has no :client_id or :client_secret' do
         prov['tokenUri'] = 'http://localhost:3000/api/v2/dmps'
         expect(described_class.send(:authenticate, provenance: prov)).to eql({})
@@ -310,6 +312,7 @@ RSpec.describe 'Functions::PdfDownloader' do
         prov['client_secret'] = '346hy35h356h563h'
         expect(described_class.send(:authenticate, provenance: prov)).to eql({})
       end
+
       it 'returns an empty Hash if the :provenance system did not return an HTTP 200 status' do
         prov['tokenUri'] = 'http://localhost:3000/api/v2/dmps'
         prov['client_id'] = '39ty247ty42yt'
@@ -317,6 +320,7 @@ RSpec.describe 'Functions::PdfDownloader' do
         mock_httparty(code: 403, body: 'Unauthorized')
         expect(described_class.send(:authenticate, provenance: prov)).to eql({})
       end
+
       it 'returns the access token as an HTTP header' do
         prov['tokenUri'] = 'http://localhost:3000/api/v2/dmps'
         prov['client_id'] = '39ty247ty42yt'
@@ -325,6 +329,7 @@ RSpec.describe 'Functions::PdfDownloader' do
         result = described_class.send(:authenticate, provenance: prov)
         expect(result[:Authorization]).to eql('Foo 12345')
       end
+
       it 'handles a JSON parser error' do
         prov['tokenUri'] = 'http://localhost:3000/api/v2/dmps'
         prov['client_id'] = '39ty247ty42yt'
@@ -333,6 +338,7 @@ RSpec.describe 'Functions::PdfDownloader' do
         expect(described_class.send(:authenticate, provenance: prov)).to eql({})
         expect(Responder).to have_received(:log_error).once
       end
+
       it 'handles all other errors' do
         prov['tokenUri'] = 'http://localhost:3000/api/v2/dmps'
         prov['client_id'] = '39ty247ty42yt'

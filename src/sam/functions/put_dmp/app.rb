@@ -90,7 +90,8 @@ module Functions
       # Update the DMP
       updater = DmpUpdater.new(provenance: provenance, client: client, table_name: table, debug_mode: debug)
       resp = updater.update_dmp(p_key: p_key, json: body)
-      Responder.respond(status: resp[:status], errors: resp[:error], items: resp[:items], event: event)
+      items = resp[:items].map { |item| finder.append_versions(p_key: p_key, dmp: item) }
+      Responder.respond(status: resp[:status], errors: resp[:error], items: items, event: event)
     rescue Aws::Errors::ServiceError => e
       Responder.log_error(source: SOURCE, message: e.message, details: e.backtrace)
       { statusCode: 500, body: { status: 500, errors: [Messages::MSG_SERVER_ERROR] } }

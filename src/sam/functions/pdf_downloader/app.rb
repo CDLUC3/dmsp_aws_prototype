@@ -180,7 +180,7 @@ module Functions
         return nil if document.to_s.strip.empty? || dmp_pk.nil? || ENV['S3_BUCKET'].nil?
 
         # CloudFront S3 bucket is in the Global us-east-1 region!
-        s3_client = Aws::S3::Client.new(region: ENV['AWS_REGION'])
+        s3_client = Aws::S3::Client.new(region: ENV.fetch('AWS_REGION', nil))
         key = "dmps/#{SecureRandom.hex(8)}.pdf"
         resp = s3_client.put_object({
                                       body: document,

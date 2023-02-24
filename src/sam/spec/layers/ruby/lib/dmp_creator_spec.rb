@@ -18,6 +18,7 @@ RSpec.describe 'DmpCreator' do
   before do
     mock_ssm(value: 'foo')
     allow(Responder).to receive(:log_error).and_return(true)
+    allow(Responder).to receive(:log_message).and_return(true)
   end
 
   describe 'create_dmp(json: {}, **args)' do

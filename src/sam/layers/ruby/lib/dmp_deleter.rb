@@ -27,6 +27,7 @@ class DmpDeleter
   # rubocop:disable Metrics/MethodLength, Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
   # -------------------------------------------------------------------------
   def delete_dmp(p_key:)
+    source = "DmpDeleter.delete_dmp - PK #{p_key}"
     return { status: 400, error: Messages::MSG_INVALID_ARGS } if p_key.nil?
 
     # Fail if the provenance is not defined
@@ -48,6 +49,7 @@ class DmpDeleter
     dmp['SK'] = KeyHelper::DMP_TOMBSTONE_VERSION
     dmp['deletion_date'] = Time.now.iso8601
     dmp['title'] = "OBSOLETE: #{dmp['title']}"
+    log_message(source: source, message: 'Tombstoning DMP', details: dmp) if @debug
 
     # Create the Tombstone record
     response = @client.put_item({ table_name: @table, item: dmp, return_consumed_capacity: @debug ? 'TOTAL' : 'NONE' })
@@ -64,7 +66,7 @@ class DmpDeleter
     # We should abort here if we can determine that it did not succeed
     { status: 200, items: [JSON.parse({ dmp: dmp }.to_json)] } if response.successful?
   rescue Aws::Errors::ServiceError => e
-    Responder.log_error(source: "DmpDeleter.delete_dmp - PK #{p_key}", message: e.message,
+    Responder.log_error(source: source, message: e.message,
                         details: ([@provenance] << e.backtrace).flatten)
     { status: 500, error: Messages::MSG_SERVER_ERROR }
   end
@@ -79,7 +81,7 @@ class DmpDeleter
     # Indicate whether or not the updater is the provenance system
     json['dmphub_updater_is_provenance'] = @provenance['PK'] == json['dmphub_provenance_id']
     # Publish the change to the EventBridge
-    EventPublisher.publish(source: 'DmpDeleter', dmp: json)
+    EventPublisher.publish(source: 'DmpDeleter', dmp: json, debug: @debug)
     true
   end
 end

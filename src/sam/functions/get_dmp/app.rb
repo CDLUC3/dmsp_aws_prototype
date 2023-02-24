@@ -84,7 +84,8 @@ module Functions
       resp = finder.find_dmp_by_pk(p_key: p_key, s_key: s_key)
       return Responder.respond(status: resp[:status], errors: resp[:error], event: event) unless resp[:status] == 200
 
-      Responder.respond(status: 200, items: resp[:items], event: event)
+      items = resp[:items].map { |item| finder.append_versions(p_key: p_key, dmp: item) }
+      Responder.respond(status: 200, items: items, event: event)
     rescue Aws::Errors::ServiceError => e
       Responder.log_error(source: SOURCE, message: e.message, details: e.backtrace)
       { statusCode: 500, body: { status: 500, errors: [Messages::MSG_SERVER_ERROR] } }

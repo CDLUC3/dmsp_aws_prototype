@@ -155,6 +155,20 @@ RSpec.describe 'Responder' do
     end
   end
 
+  describe 'log_message(source:, message:, details: {})' do
+    it 'returns false is :source is nil' do
+      expect(described_class.log_message(source: nil, message: 'Lorem ipsum')).to be(false)
+    end
+
+    it 'returns false is :message is nil' do
+      expect(described_class.log_message(source: 'api/foos', message: nil)).to be(false)
+    end
+
+    it 'succeeds' do
+      expect(described_class.log_message(source: 'api/foo', message: 'Lorem ipsum')).to be(true)
+    end
+  end
+
   describe '_url_from_event(event:)' do
     before do
       allow(described_class).to receive(:log_error).and_return(true)

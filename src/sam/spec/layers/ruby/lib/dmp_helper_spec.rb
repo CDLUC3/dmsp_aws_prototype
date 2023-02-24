@@ -4,9 +4,13 @@ require 'spec_helper'
 
 RSpec.describe 'DmpHelper' do
   let!(:described_class) { DmpHelper }
-
+  let!(:base_url) { 'https://example.com' }
   let!(:minimal_dmp) { JSON.parse(File.read("#{Dir.pwd}/spec/support/json_mocks/minimal.json")) }
   let!(:complete_dmp) { JSON.parse(File.read("#{Dir.pwd}/spec/support/json_mocks/complete.json")) }
+
+  before do
+    mock_ssm(value: base_url)
+  end
 
   describe 'dmps_equal?(dmp_a:, dmp_b:)' do
     let!(:a) do
@@ -52,7 +56,7 @@ RSpec.describe 'DmpHelper' do
 
   describe 'annotate_dmp(provenance:, p_key:, json:)' do
     let!(:prov) { JSON.parse({ PK: "#{KeyHelper::PK_PROVENANCE_PREFIX}foo" }.to_json) }
-    let!(:pk) { "#{KeyHelper::PK_DMP_PREFIX}doi.org/99.88888/7777.66" }
+    let!(:pk) { "#{KeyHelper::PK_DMP_PREFIX}#{base_url}/99.88888/7777.66" }
     let!(:json) { minimal_dmp['author'] }
 
     describe 'for a new DMP' do
@@ -71,7 +75,7 @@ RSpec.describe 'DmpHelper' do
       end
 
       it 'sets the :dmp_id to the value of the :PK' do
-        expected = { type: 'doi', identifier: "https://#{pk.gsub(KeyHelper::PK_DMP_PREFIX, '')}" }
+        expected = { type: 'doi', identifier: pk.gsub(KeyHelper::PK_DMP_PREFIX, '') }
         expect(result['dmp_id']).to eql(expected)
       end
 
@@ -107,7 +111,7 @@ RSpec.describe 'DmpHelper' do
       end
 
       it 'sets the :dmp_id to the value of the :PK' do
-        expected = { type: 'doi', identifier: "https://#{pk.gsub(KeyHelper::PK_DMP_PREFIX, '')}" }
+        expected = { type: 'doi', identifier: pk.gsub(KeyHelper::PK_DMP_PREFIX, '') }
         expect(result['dmp_id']).to eql(expected)
       end
 

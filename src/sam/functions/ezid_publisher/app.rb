@@ -475,10 +475,8 @@ module Functions
       # --------------------------------------------------------------------------------
       def percent_encode(val:)
         val = val.to_s.gsub(/<(?:"[^"]*"['"]*|'[^']*'['"]*|[^'">])+>/, '')
-                .gsub('\u00A0', ' ').gsub('%', '%25')
-        until !val.include?('  ') do
-          val = val.gsub('  ', ' ')
-        end
+                 .gsub('\u00A0', ' ').gsub('%', '%25')
+        val = val.gsub('  ', ' ') while val.include?('  ')
         val.strip
       end
 

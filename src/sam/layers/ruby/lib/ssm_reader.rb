@@ -48,7 +48,7 @@ class SsmReader
       resp.nil? || resp.parameter.nil? ? nil : resp.parameter.value
     rescue Aws::Errors::ServiceError => e
       Responder.log_error(
-        source: "LambdaLayer - SsmReader.get_ssm-value - looking for #{key}",
+        source: "SsmReader.get_ssm-value - looking for #{key}",
         message: e.message, details: e.backtrace
       )
       nil

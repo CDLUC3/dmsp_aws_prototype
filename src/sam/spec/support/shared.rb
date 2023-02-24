@@ -20,6 +20,11 @@ DynamoItem = Struct.new('DynamoItem', :item)
 S3Client = Struct.new('S3Client', :put_object)
 S3Response = Struct.new('S3Response', :successful?)
 
+# Cognito Resources
+CognitoClient = Struct.new('CognitoClient', :describe_user_pool_client)
+CognitoResponse = Struct.new('CognitoResponse', :user_pool_client)
+CognitoUserPool = Struct.new('CognitoUserPool', :client_name)
+
 # Mock AWS Lambda Context
 AwsContext = Struct.new(
   'AwsContext', :function_name, :function_version, :invoked_function_arn,
@@ -74,6 +79,18 @@ def mock_sns(success: true)
   allow(sns_client).to receive(:publish).and_return(true) if success
   allow(sns_client).to receive(:publish).and_raise(aws_error) unless success
   sns_client
+end
+
+def mock_cognito(success: true)
+  cognito_client = CognitoClient.new
+
+  allow(Aws::CognitoIdentityProvider::Client).to receive(:new).and_return(cognito_client)
+  allow(cognito_client).to receive(:describe_user_pool_client).and_return(CognitoResponse.new) if success
+  allow(cognito_client).to receive(:describe_user_pool_client).and_raise(aws_error) unless success
+
+  allow_any_instance_of(CognitoResponse).to receive(:user_pool_client).and_return(CognitoUserPool.new)
+
+  cognito_client
 end
 
 # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
