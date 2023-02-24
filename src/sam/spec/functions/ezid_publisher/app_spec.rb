@@ -2,20 +2,21 @@
 
 require 'spec_helper'
 
+# NOTE!!!!!
+# ------------------------------------------------------------------------------
+# If you need to use :puts style debug in the code, you should comment out the
+# following line in the :before section:
+#     allow(described_class).to receive(:puts).and_return(true)
+
 RSpec.describe 'Functions::EzidPublisher' do
   let!(:dmp_id) { mock_dmp_id }
-  let!(:prov) { { PK: "#{KeyHelper::PK_PROVENANCE_PREFIX}foo" } }
   let!(:dmp) do
     json = JSON.parse(File.read("#{Dir.pwd}/spec/support/json_mocks/complete.json"))['dmp']
     p_key = KeyHelper.append_pk_prefix(dmp: dmp_id)
     DmpHelper.annotate_dmp(provenance: JSON.parse(prov.to_json), p_key: p_key, json: json)
   end
-  let!(:event) do
-    p_key = KeyHelper.append_pk_prefix(dmp: dmp_id)
-    ev = aws_sns_event
-    ev['Records'].first['Sns']['Message'] = JSON.parse({ action: 'create', provenance: prov[:PK], dmp: p_key }.to_json)
-    ev
-  end
+  let!(:event) { aws_event_bridge_event }
+  let!(:prov) { { PK: "#{KeyHelper::PK_PROVENANCE_PREFIX}foo" } }
   let!(:described_class) { Functions::EzidPublisher }
 
   before do
@@ -26,32 +27,26 @@ RSpec.describe 'Functions::EzidPublisher' do
     allow(SsmReader).to receive(:debug_mode?).and_return(false)
     allow(Responder).to receive(:log_error).and_return(true)
     allow(Responder).to receive(:respond)
-    resp = JSON.parse({ status: 200, items: prov }.to_json)
+    resp = { status: 200, items: [prov] }
     allow_any_instance_of(ProvenanceFinder).to receive(:provenance_from_lambda_cotext).and_return(resp)
+    allow(described_class).to receive(:puts).and_return(true)
   end
 
   describe 'process(event:, context:)' do
-    it 'returns a 400 when the AWS event did not contain a :message' do
-      event['Records'].first['Sns'].delete('Message')
-      described_class.process(event: event, context: aws_context)
-      event.delete('Message')
-      expect(Responder).to have_received(:respond).with(status: 500, errors: Messages::MSG_INVALID_JSON, event: event)
-    end
-
-    it 'returns a 400 when the :message did not contain an :action' do
-      event['Records'].first['Sns']['Message'] = { dmp: 'foo', provenance: 'bar' }.to_json
+    it 'returns a 400 when the event did not contain a :detail' do
+      event.delete('detail')
       described_class.process(event: event, context: aws_context)
       expect(Responder).to have_received(:respond).with(status: 400, errors: Messages::MSG_INVALID_ARGS, event: event)
     end
 
-    it 'returns a 400 when the :message did not contain a :provenance' do
-      event['Records'].first['Sns']['Message'] = { dmp: 'foo', action: 'bar' }.to_json
+    it 'returns a 400 when the event :detail did not contain a :PK' do
+      event['detail'].delete('PK')
       described_class.process(event: event, context: aws_context)
       expect(Responder).to have_received(:respond).with(status: 400, errors: Messages::MSG_INVALID_ARGS, event: event)
     end
 
-    it 'returns a 400 when the :message did not contain a :dmp' do
-      event['Records'].first['Sns']['Message'] = { action: 'foo', provenance: 'bar' }.to_json
+    it 'returns a 400 when the event :detail did not contain a :dmphub_provenance_id' do
+      event['detail'].delete('dmphub_provenance_id')
       described_class.process(event: event, context: aws_context)
       expect(Responder).to have_received(:respond).with(status: 400, errors: Messages::MSG_INVALID_ARGS, event: event)
     end
@@ -68,13 +63,6 @@ RSpec.describe 'Functions::EzidPublisher' do
       described_class.process(event: event, context: aws_context)
       expect(Responder).to have_received(:respond).with(status: 500, errors: "#{Messages::MSG_EZID_FAILURE} - 400",
                                                         event: event)
-    end
-
-    it 'returns a 200 when successful' do
-      allow(described_class).to receive(:load_dmp).and_return(dmp)
-      mock_httparty(code: 200)
-      described_class.process(event: event, context: aws_context)
-      expect(Responder).to have_received(:respond).with(status: 200, errors: Messages::MSG_SUCCESS, event: event)
     end
 
     it 'returns a 500 when the :message was not parseable JSON' do
@@ -96,6 +84,40 @@ RSpec.describe 'Functions::EzidPublisher' do
       described_class.process(event: event, context: aws_context)
       expect(Responder).to have_received(:respond).with(status: 500, errors: "#{Messages::MSG_SERVER_ERROR} - Testing",
                                                         event: event)
+    end
+
+    it 'skips the call to EZID if SSM Param for EzidDebugMode is true' do
+      allow(described_class).to receive(:load_dmp).and_return(dmp)
+      allow(SsmReader).to receive(:get_ssm_value).with(key: SsmReader::TABLE_NAME).and_return('bar')
+      allow(SsmReader).to receive(:get_ssm_value).with(key: SsmReader::DMP_ID_API_URL).and_return('api')
+      allow(SsmReader).to receive(:get_ssm_value).with(key: SsmReader::BASE_URL).and_return('url')
+      allow(SsmReader).to receive(:get_ssm_value).with(key: SsmReader::DMP_ID_DEBUG_MODE).and_return(true)
+      allow(SsmReader).to receive(:get_ssm_value).with(key: SsmReader::DMP_ID_PAUSED).and_return(false)
+      mock_httparty(code: 200)
+      described_class.process(event: event, context: aws_context)
+      expect(HTTParty).not_to have_received(:put)
+    end
+
+    it 'stashes the message in the DeadLetterQueue when the SSM Param for EzidPaused is true' do
+      allow(described_class).to receive(:load_dmp).and_return(dmp)
+      allow(SsmReader).to receive(:get_ssm_value).with(key: SsmReader::TABLE_NAME).and_return('bar')
+      allow(SsmReader).to receive(:get_ssm_value).with(key: SsmReader::DMP_ID_API_URL).and_return('api')
+      allow(SsmReader).to receive(:get_ssm_value).with(key: SsmReader::BASE_URL).and_return('url')
+      allow(SsmReader).to receive(:get_ssm_value).with(key: SsmReader::DMP_ID_DEBUG_MODE).and_return(false)
+      allow(SsmReader).to receive(:get_ssm_value).with(key: SsmReader::DMP_ID_PAUSED).and_return(true)
+      mock_httparty(code: 200)
+      described_class.process(event: event, context: aws_context)
+      expect(HTTParty).not_to have_received(:put)
+    end
+
+    it 'returns a 200 when successful' do
+      allow(described_class).to receive(:load_dmp).and_return(dmp)
+      allow(described_class).to receive(:skip_ezid).and_return(false)
+      allow(described_class).to receive(:paused).and_return(false)
+      mock_httparty(code: 200)
+      described_class.process(event: event, context: aws_context)
+      expect(HTTParty).to have_received(:put).once
+      expect(Responder).to have_received(:respond).with(status: 200, errors: Messages::MSG_SUCCESS, event: event)
     end
   end
 
@@ -151,7 +173,9 @@ RSpec.describe 'Functions::EzidPublisher' do
       let!(:xml_open) do
         <<~XML
           <?xml version="1.0" encoding="UTF-8"?>
-            <resource xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://datacite.org/schema/kernel-4" xsi:schemaLocation="http://datacite.org/schema/kernel-4 http://schema.datacite.org/meta/kernel-4.4/metadata.xsd">
+            <resource xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                    xmlns="http://datacite.org/schema/kernel-4"
+                    xsi:schemaLocation="http://datacite.org/schema/kernel-4 http://schema.datacite.org/meta/kernel-4.4/metadata.xsd">
               <identifier identifierType="DOI">#{dmp_id.match(KeyHelper::DOI_REGEX)}</identifier>
               <creators>
                 <creator>

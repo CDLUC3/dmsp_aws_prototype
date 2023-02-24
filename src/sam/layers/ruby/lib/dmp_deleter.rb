@@ -76,10 +76,10 @@ class DmpDeleter
   # PDF if applicable
   # -------------------------------------------------------------------------
   def _post_process(json:)
-    return false if json.nil?
+    return false unless json.is_a?(Hash)
 
     # Indicate whether or not the updater is the provenance system
-    json['dmphub_updater_is_provenance'] = @provenance['PK'] == json['dmphub_provenance_id']
+    json['dmphub_updater_is_provenance'] = true
     # Publish the change to the EventBridge
     EventPublisher.publish(source: 'DmpDeleter', dmp: json, debug: @debug)
     true

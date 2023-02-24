@@ -88,17 +88,17 @@ RSpec.describe 'ProvenanceFinder' do
 
   describe 'client_id_to_name(claim:)' do
     it 'returns nil if :claim is not a Hash' do
-      expect(described_class.client_id_to_name(claim: [])).to eql(nil)
+      expect(described_class.client_id_to_name(claim: [])).to be_nil
     end
 
     it 'returns nil if :claim[:iss] is not present' do
       identity.delete('iss')
-      expect(described_class.client_id_to_name(claim: identity)).to eql(nil)
+      expect(described_class.client_id_to_name(claim: identity)).to be_nil
     end
 
     it 'returns nil if :claim[:client_id] is not present' do
       identity.delete('client_id')
-      expect(described_class.client_id_to_name(claim: identity)).to eql(nil)
+      expect(described_class.client_id_to_name(claim: identity)).to be_nil
     end
 
     it 'logs an error and returns nil if Cognito throws an error' do

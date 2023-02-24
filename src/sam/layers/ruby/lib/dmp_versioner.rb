@@ -32,14 +32,15 @@ class DmpVersioner
   end
 
   # Create the new version in Dynamo and then return the DMP metadata with a reference to the old version
-  # rubocop:disable Metrics/AbcSize, Metrics/ParameterLists
+  # rubocop:disable Metrics/AbcSize
   # -------------------------------------------------------------------------
   def new_version(p_key:, dmp:)
     source = 'DmpVersioner.process'
     return nil if p_key.nil? || !_versionable?(dmp: dmp)
 
     latest = _fetch_latest(p_key: p_key)
-    return nil if latest.nil?
+    # Only continue if there was an existing record and its the latest version
+    return nil unless latest.is_a?(Hash) && latest['SK'] != KeyHelper::DMP_LATEST_VERSION
 
     owner = latest['dmphub_provenance_id']
     updater = @provenance['PK']
@@ -62,7 +63,7 @@ class DmpVersioner
                         details: ([@provenance, dmp.inspect] << e.backtrace).flatten)
     nil
   end
-  # rubocop:enable Metrics/AbcSize, Metrics/ParameterLists
+  # rubocop:enable Metrics/AbcSize
 
   # Create the version history as an array for the dmp. For example:
   #   "dmphub_versions": [
@@ -75,6 +76,7 @@ class DmpVersioner
   #       "url": "https://example.com/api/v0/dmps/10.12345/ABCDEFG?version=2022-01-28T17:52:14+00:00"
   #     }
   #   ]
+  # rubocop:disable Metrics/AbcSize
   def versions(p_key:, dmp:)
     source = "DmpVersioner.versions - PK: #{p_key}"
     return dmp if p_key.nil? || !dmp.is_a?(Hash)
@@ -101,6 +103,7 @@ class DmpVersioner
                         details: ([@provenance, dmp.inspect] << e.backtrace).flatten)
     dmp
   end
+  # rubocop:enable Metrics/AbcSize
 
   private
 

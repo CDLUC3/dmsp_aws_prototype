@@ -2,23 +2,23 @@
 
 require 'spec_helper'
 
+# NOTE!!!!!
+# ------------------------------------------------------------------------------
+# If you need to use :puts style debug in the code, you should comment out the
+# following line in the :before section:
+#     allow(described_class).to receive(:puts).and_return(true)
+
 RSpec.describe 'Functions::PdfDownloader' do
   let!(:dmp_id) { mock_dmp_id }
-  let!(:prov) do
-    JSON.parse({ PK: "#{KeyHelper::PK_PROVENANCE_PREFIX}foo",
-                 downloadUri: 'http://example.com/downloads/' }.to_json)
-  end
   let!(:dmp) do
     json = JSON.parse(File.read("#{Dir.pwd}/spec/support/json_mocks/complete.json"))['dmp']
     p_key = KeyHelper.append_pk_prefix(dmp: dmp_id)
     DmpHelper.annotate_dmp(provenance: JSON.parse(prov.to_json), p_key: p_key, json: json)
   end
-  let!(:event) do
-    p_key = KeyHelper.append_pk_prefix(dmp: dmp_id)
-    ev = aws_sns_event
-    ev['Records'].first['Sns']['Message'] = JSON.parse({ location: 'http://example.com/foo/55555.pdf',
-                                                         provenance: prov['PK'], dmp: p_key }.to_json)
-    ev
+  let!(:event) { aws_event_bridge_event }
+  let!(:prov) do
+    JSON.parse({ PK: "#{KeyHelper::PK_PROVENANCE_PREFIX}foo",
+                 downloadUri: 'http://example.com/downloads/' }.to_json)
   end
   let!(:described_class) { Functions::PdfDownloader }
 
@@ -29,33 +29,34 @@ RSpec.describe 'Functions::PdfDownloader' do
     allow(KeyHelper).to receive(:dmp_id_base_url).and_return(mock_url)
     allow(SsmReader).to receive(:debug_mode?).and_return(false)
     allow(Responder).to receive(:log_error).and_return(true)
+    allow(Responder).to receive(:log_message).and_return(true)
     allow(Responder).to receive(:respond)
-    resp = JSON.parse({ status: 200, items: prov }.to_json)
+    resp = { status: 200, items: [prov] }
     allow_any_instance_of(ProvenanceFinder).to receive(:provenance_from_pk).and_return(resp)
+    allow(described_class).to receive(:puts).and_return(true)
   end
 
   describe 'process(event:, context:)' do
-    it 'returns a 400 when the AWS event did not contain a :message' do
-      event['Records'].first['Sns'].delete('Message')
-      described_class.process(event: event, context: aws_context)
-      event.delete('Message')
-      expect(Responder).to have_received(:respond).with(status: 500, errors: Messages::MSG_INVALID_JSON, event: event)
-    end
-
-    it 'returns a 400 when the :message did not contain an :action' do
-      event['Records'].first['Sns']['Message'] = { dmp: 'foo', provenance: 'bar' }.to_json
+    it 'returns a 400 when the event did not contain a :detail' do
+      event.delete('detail')
       described_class.process(event: event, context: aws_context)
       expect(Responder).to have_received(:respond).with(status: 400, errors: Messages::MSG_INVALID_ARGS, event: event)
     end
 
-    it 'returns a 400 when the :message did not contain a :provenance' do
-      event['Records'].first['Sns']['Message'] = { dmp: 'foo', action: 'bar' }.to_json
+    it 'returns a 400 when the event :detail did not contain a :PK' do
+      event['detail'].delete('PK')
       described_class.process(event: event, context: aws_context)
       expect(Responder).to have_received(:respond).with(status: 400, errors: Messages::MSG_INVALID_ARGS, event: event)
     end
 
-    it 'returns a 400 when the :message did not contain a :dmp' do
-      event['Records'].first['Sns']['Message'] = { action: 'foo', provenance: 'bar' }.to_json
+    it 'returns a 400 when the event :detail did not contain a :dmphub_provenance_id' do
+      event['detail'].delete('dmphub_provenance_id')
+      described_class.process(event: event, context: aws_context)
+      expect(Responder).to have_received(:respond).with(status: 400, errors: Messages::MSG_INVALID_ARGS, event: event)
+    end
+
+    it 'returns a 400 when the event :detail did not contain a dmproadmap_links[:download]' do
+      event['detail']['dmproadmap_links'].delete('download')
       described_class.process(event: event, context: aws_context)
       expect(Responder).to have_received(:respond).with(status: 400, errors: Messages::MSG_INVALID_ARGS, event: event)
     end
@@ -88,11 +89,7 @@ RSpec.describe 'Functions::PdfDownloader' do
       allow(described_class).to receive(:download_dmp).and_return('Testing Foo')
       allow(described_class).to receive(:save_document).and_return('dmps/foo.pdf')
       allow(described_class).to receive(:update_document_url).and_return(false)
-      result = described_class.process(event: event, context: aws_context)
-
-      p 'RESULT'
-      pp result
-
+      described_class.process(event: event, context: aws_context)
       expect(Responder).to have_received(:respond).with(status: 500, errors: Messages::MSG_SERVER_ERROR,
                                                         event: event)
     end
@@ -106,7 +103,7 @@ RSpec.describe 'Functions::PdfDownloader' do
       expect(Responder).to have_received(:respond).with(status: 200, errors: Messages::MSG_SUCCESS, event: event)
     end
 
-    it 'returns a 500 when the :message was not parseable JSON' do
+    it 'returns a 500 when the :event was not parseable JSON' do
       allow(described_class).to receive(:load_dmp).and_raise(JSON::ParserError)
       described_class.process(event: event, context: aws_context)
       expect(Responder).to have_received(:respond).with(status: 500, errors: Messages::MSG_INVALID_JSON, event: event)
@@ -214,8 +211,15 @@ RSpec.describe 'Functions::PdfDownloader' do
         expect(result).to be_nil
       end
 
+      it 'returns nil if ENV["S3_BUCKET"] is nil' do
+        ENV.delete('S3_BUCKET')
+        result = described_class.send(:save_document, document: 'Foo testing', dmp_pk: nil)
+        expect(result).to be_nil
+      end
+
       it 'sends the :document to S3' do
         mock_s3(success: true)
+        ENV['S3_BUCKET'] = 'bar'
         result = described_class.send(:save_document, document: 'Foo testing', dmp_pk: dmp_pk)
         expect(result.start_with?('dmps/')).to be(true)
         expect(result.end_with?('.pdf')).to be(true)
@@ -223,6 +227,7 @@ RSpec.describe 'Functions::PdfDownloader' do
 
       it 'returns nil if the write to S3 was not successful' do
         client = mock_s3(success: false)
+        ENV['S3_BUCKET'] = 'bar'
         result = described_class.send(:save_document, document: 'Foo testing', dmp_pk: dmp_pk)
         expect(result).to be_nil
         expect(client).to have_received(:put_object).once
@@ -230,6 +235,7 @@ RSpec.describe 'Functions::PdfDownloader' do
 
       it 'handles an AWS Service Error' do
         client = mock_s3(success: false)
+        ENV['S3_BUCKET'] = 'bar'
         allow(client).to receive(:put_object).and_raise(aws_error)
         result = described_class.send(:save_document, document: 'Foo testing.', dmp_pk: dmp_pk)
         expect(result).to be_nil

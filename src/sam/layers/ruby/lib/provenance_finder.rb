@@ -41,7 +41,7 @@ class ProvenanceFinder
   # -------------------------------------------------------------------------------------------
   # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
   def provenance_from_lambda_cotext(identity:)
-    source = "ProvenanceHelper.provenance_from_lambda_cotext"
+    source = 'ProvenanceHelper.provenance_from_lambda_cotext'
     return { status: 403, error: Messages::MSG_DMP_FORBIDDEN } unless identity.is_a?(Hash) &&
                                                                       !identity['iss'].nil? &&
                                                                       !identity['client_id'].nil?

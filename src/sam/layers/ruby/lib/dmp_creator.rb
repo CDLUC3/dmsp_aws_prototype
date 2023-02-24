@@ -116,7 +116,7 @@ class DmpCreator
   # PDF if applicable
   # -------------------------------------------------------------------------
   def _post_process(json:)
-    return false if json.nil?
+    return false unless json.is_a?(Hash)
 
     # We are creating, so this is always true
     json['dmphub_updater_is_provenance'] = true

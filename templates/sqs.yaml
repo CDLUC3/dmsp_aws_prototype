@@ -88,25 +88,25 @@ Resources:
       Type: 'String'
       Value: !Ref SnsTopicEmail
 
-  # Topic used to send the results of the dmp-hub-ui CodeBuild to email addresses
-  SnsCodeBuildTopicEmail:
-    Type: 'AWS::SNS::Topic'
-    Properties:
-      # ContentBasedDeduplication: true
-      DisplayName: 'CodeBuildEmail'
-      Subscription:
-        - Protocol: 'sqs'
-          Endpoint: !GetAtt SqsQueue.Arn
+  # # Topic used to send the results of the dmp-hub-ui CodeBuild to email addresses
+  # SnsCodeBuildTopicEmail:
+  #   Type: 'AWS::SNS::Topic'
+  #   Properties:
+  #     # ContentBasedDeduplication: true
+  #     DisplayName: 'CodeBuildEmail'
+  #     Subscription:
+  #       - Protocol: 'sqs'
+  #         Endpoint: !GetAtt SqsQueue.Arn
 
-  # Add the Topic name to SSM so that our Lambdas can access it
-  SnsCodeBuildTopicEmailParameter:
-    Type: 'AWS::SSM::Parameter'
-    Properties:
-      Description: !Sub "${AWS::StackName} dmp-hub-ui CodeBuild Topic"
-      Name: !Sub "${SsmPath}SnsCodeBuildTopicArn"
-      # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
-      Type: 'String'
-      Value: !Ref CodeBuildEmail
+  # # Add the Topic name to SSM so that our Lambdas can access it
+  # SnsCodeBuildTopicEmailParameter:
+  #   Type: 'AWS::SSM::Parameter'
+  #   Properties:
+  #     Description: !Sub "${AWS::StackName} dmp-hub-ui CodeBuild Topic"
+  #     Name: !Sub "${SsmPath}SnsCodeBuildTopicArn"
+  #     # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
+  #     Type: 'String'
+  #     Value: !Ref CodeBuildEmail
 
   # You can only give one email address at a time. If you want to send a message to
   # multiple users, you have to create multiple subscriptions
@@ -131,19 +131,12 @@ Outputs:
   SqsQueueArn:
     Value: !GetAtt SqsQueue.Arn
 
-  SnsTopicDownloadArn:
-    Value: !Ref SnsTopicDownload
-  SnsTopicDownloadName:
-    Value: !GetAtt SnsTopicDownload.TopicName
-  SnsTopicNotificationArn:
-    Value: !Ref SnsTopicNotification
-  SnsTopicNotificationName:
-    Value: !GetAtt SnsTopicNotification.TopicName
-  SnsTopicPublicationArn:
-    Value: !Ref SnsTopicPublication
-  SnsTopicPublicationName:
-    Value: !GetAtt SnsTopicPublication.TopicName
   SnsTopicEmailArn:
     Value: !Ref SnsTopicEmail
   SnsTopicEmailName:
     Value: !GetAtt SnsTopicEmail.TopicName
+
+  # SnsCodeBuildTopicEmailArn:
+  #   Value: !Ref SnsCodeBuildTopicEmail
+  # SnsCodeBuildTopicEmailName:
+  #   Value: !GetAtt SnsCodeBuildTopicEmail.TopicName

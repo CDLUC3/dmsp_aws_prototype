@@ -259,6 +259,7 @@ RSpec.describe 'DmpFinder' do
       expect(described_class.append_versions(p_key: p_key, dmp: json)['dmphub_versions']).to eql(expected)
     end
 
+    # rubocop:disable RSpec/ExampleLength
     it 'returns the :dmphub_versions array if there are multiple versions' do
       prior = json.clone
       timestamp = '2020-01-01T01:02:03+00:00'
@@ -283,5 +284,6 @@ RSpec.describe 'DmpFinder' do
       ].to_json)
       expect(described_class.append_versions(p_key: p_key, dmp: json)['dmphub_versions']).to eql(expected)
     end
+    # rubocop:enable RSpec/ExampleLength
   end
 end

@@ -17,13 +17,15 @@ require 'validator'
 # Shared helper methods for Lambdas that interact with the DynamoDB Table
 # -------------------------------------------------------------------------
 class DmpUpdater
-  attr_accessor :provenance, :table, :client, :debug
+  attr_accessor :provenance, :table, :client, :debug, :versioner
 
   def initialize(**args)
     @provenance = args[:provenance] || {}
     @table = args.fetch(:table_name, SsmReader.get_ssm_value(key: SsmReader::TABLE_NAME))
     @client = args.fetch(:client, Aws::DynamoDB::Client.new(region: ENV.fetch('AWS_REGION', nil)))
     @debug = args.fetch(:debug_mode, false)
+
+    @versioner = DmpVersioner.new(provenance: @provenance, client: @client, table: @table, debug: @debug)
   end
 
   # Update a record in the table
@@ -42,32 +44,30 @@ class DmpUpdater
     # Verify that the JSON is for the same DMP in the PK
     dmp_id = json.fetch('dmp_id', {})
     return { status: 403, error: Messages::MSG_DMP_FORBIDDEN } unless KeyHelper.dmp_id_to_pk(json: dmp_id) == p_key
+    # Make sure they're not trying to update a historical copy of the DMP
+    return { status: 405, error: Messages::MSG_DMP_NO_HISTORICALS } if json['SK'] != KeyHelper::DMP_LATEST_VERSION
 
     # Add the DMPHub specific attributes
     dmp = DmpHelper.annotate_dmp(provenance: @provenance, json: json, p_key: p_key)
 
-    # Only allow this if the provenance is the owner of the DMP!
-    return { status: 403, error: Messages::MSG_DMP_FORBIDDEN } if dmp['dmphub_provenance_id'] != @provenance['PK']
-    # Make sure they're not trying to update a historical copy of the DMP
-    return { status: 405, error: Messages::MSG_DMP_NO_HISTORICALS } if dmp['SK'] != KeyHelper::DMP_LATEST_VERSION
-    # Don't allow tombstoned DMPs to be updated
-    return { status: 400, error: Messages::MSG_DMP_NOT_FOUND } if dmp['SK'] == KeyHelper::DMP_TOMBSTONE_VERSION
     # Don't continue if nothing has changed!
     return { status: 200, error: NO_CHANGE, items: [dmp] } if DmpHelper.dmps_equal?(dmp_a: dmp, dmp_b: json)
 
-    # Version the current 'latest' and update the new version with a reference to the prior
-    result = DmpVersioner.process(
-      p_key: p_key, dmp: json, provenance: @provenance, client: @client, table: @table, debug: @debug
-    )
-    return result unless result[:status] == 200
+    # Version the DMP. This involves:
+    #    - Cloning the existing `VERSION#latest` and setting it's `SK` to `VERSION=yyyy-mm-ddThh:mm:ss+zz:zz`
+    #    - Saving the new `VERSION=yyyy-mm-ddThh:mm:ss+zz:zz` item
+    #    - Splicing in the current changes onto the existing `VERSION#latest` item
+    #    - Returning the spliced `VERSION#latest` back to this method
+    new_version = versioner.new_version(p_key: p_key, dmp: json)
+    return { status: 404, error: Messages::MSG_DMP_UNABLE_TO_VERSION } if new_version.nil?
 
-    log_message(source: source, message: 'Updating DMP', details: result[:items].first) if @debug
+    log_message(source: source, message: 'Updating DMP', details: new_version) if @debug
 
-    # Since the PK and SK are the same as the original record, this will just replace eveything
+    # Save the changes
     response = @client.put_item(
       {
         table_name: @table,
-        item: result[:items].first,
+        item: new_version,
         return_consumed_capacity: @debug ? 'TOTAL' : 'NONE'
       }
     )
@@ -99,7 +99,7 @@ class DmpUpdater
   # PDF if applicable
   # -------------------------------------------------------------------------
   def _post_process(json:)
-    return false if json.nil?
+    return false unless json.is_a?(Hash)
 
     # Indicate whether or not the updater is the provenance system
     json['dmphub_updater_is_provenance'] = @provenance['PK'] == json['dmphub_provenance_id']

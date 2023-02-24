@@ -75,11 +75,13 @@ Resources:
 
   # Archive used to stash DMP ID updates to EZID
   EventBusArchive:
-    Type: AWS::Events::Archive
+    Type: 'AWS::Events::Archive'
     Properties:
       EventPattern:
         source:
-          - "org.cdlib.dmphub-dev:lambda:event_publisher"
+          - !Sub "${DomainName}:lambda:event_publisher"
+        detail-type:
+          - 'paused'
       RetentionDays: !Ref ArchiveRetentionDays
       SourceArn: !GetAtt EventBus.Arn
 
@@ -154,8 +156,8 @@ Outputs:
 
   EventBusArchiveId:
     Value: !Ref EventBusArchive
-  EventBusArchiveName:
-    Value: !GetAtt EventBusArchive.ArchiveName
+  # EventBusArchiveName:
+  #   Value: !GetAtt EventBusArchive.ArchiveName
   EventBusArchiveArn:
     Value: !GetAtt EventBusArchive.Arn
 

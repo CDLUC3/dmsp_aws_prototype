@@ -104,9 +104,17 @@ module Functions
         pp "CONTEXT: #{context.inspect}" if debug
 
         if provenance_pk.nil? || dmp_pk.nil?
-          p "#{Messages::MSG_INVALID_ARGS} - provenance: #{provenance_pk}, dmp: #{dmp_pk}"
           return Responder.respond(status: 400, errors: Messages::MSG_INVALID_ARGS,
                                    event: event)
+        end
+
+        # If submissions are paused, toss the event into the EventBridge archive where it can be
+        # replayed at a later time
+        if paused
+          puts "SUBMISSIONS PAUSED: Placing event #{event['id']} in the EventBridge archive."
+          puts "Event: #{payload}"
+          EventPublisher.publish(source: 'EzidPublisher', dmp: json, event_type: 'paused', debug: @debug)
+          return Responder.respond(status: 200, items: [], event: event)
         end
 
         # Load the DMP metadata
@@ -114,7 +122,6 @@ module Functions
         client = Aws::DynamoDB::Client.new(region: ENV.fetch('AWS_REGION', nil))
         dmp = load_dmp(provenance_pk: provenance_pk, dmp_pk: dmp_pk, table: table, client: client, debug: debug)
         if dmp.nil?
-          p "#{Messages::MSG_DMP_NOT_FOUND} - dmp: #{dmp_pk}"
           return Responder.respond(status: 404, errors: Messages::MSG_DMP_NOT_FOUND,
                                    event: event)
         end
@@ -131,8 +138,8 @@ module Functions
         TEXT
 
         if skip_ezid
-          p 'EZID IS IN DEBUG MODE:'
-          p "Payload: #{payload}"
+          puts 'EZID IS IN DEBUG MODE:'
+          puts "Payload: #{payload}"
           return Responder.respond(status: 200, items: [], event: event)
         end
 
@@ -158,14 +165,14 @@ module Functions
 
         Responder.respond(status: 200, errors: Messages::MSG_SUCCESS, event: event)
       rescue JSON::ParserError
-        p "#{Messages::MSG_INVALID_JSON} - #{msg}"
+        Responder.log_error(source: SOURCE, message: Messages::MSG_INVALID_JSON)
         Responder.respond(status: 500, errors: Messages::MSG_INVALID_JSON, event: event)
       rescue Aws::Errors::ServiceError => e
         Responder.respond(status: 500, errors: "#{Messages::MSG_SERVER_ERROR} - #{e.message}", event: event)
       rescue StandardError => e
         # Just do a print here (ends up in CloudWatch) in case it was the responder.rb that failed
-        p "FATAL -- DMP ID: #{dmp_id}, MESSAGE: #{e.message}"
-        p e.backtrace
+        puts "FATAL -- DMP ID: #{dmp_id}, MESSAGE: #{e.message}"
+        puts e.backtrace
         { statusCode: 500, body: { errors: [Messages::MSG_SERVER_ERROR] }.to_json }
       end
       # rubocop:enable Metrics/AbcSize, Metrics/MethodLength

@@ -12,7 +12,6 @@ RSpec.describe 'DmpCreator' do
       debug_mode: false
     )
   end
-  let!(:sns_client) { mock_sns(success: true) }
   let!(:finder) { DmpFinder.new(table: 'foo', client: nil, provenance: provenance) }
 
   before do
@@ -164,50 +163,20 @@ RSpec.describe 'DmpCreator' do
     end
   end
 
-  # rubocop:disable RSpec/MultipleMemoizedHelpers
-  describe '_post_process(provenance:, p_key:, json:)' do
-    let!(:json) do
-      JSON.parse({
-        dmproadmap_related_identifiers: [
-          { work_type: 'output_management_plan', descriptor: 'is_metadata_for', identifier: 'url' }
-        ]
-      }.to_json)
-    end
-    let!(:publish_subject) { 'DmpCreator - register DMP ID - BAR' }
-    let!(:publish_message) { { action: 'create', provenance: provenance['PK'], dmp: 'BAR' }.to_json }
-    let!(:download_subject) { 'DmpCreator - fetch DMP document - BAR' }
-    let!(:download_message) { { provenance: provenance['PK'], dmp: 'BAR', location: 'url' }.to_json }
-
-    it 'returns false if :p_key is nil' do
-      expect(described_class._post_process(provenance: provenance, p_key: nil, json: json)).to be(false)
+  describe '_post_process(json:)' do
+    it 'returns false if :json is not a Hash' do
+      expect(described_class._post_process(json: 'foo')).to be(false)
     end
 
-    xit 'skips EZID publication if :provenance is :seedingWithLiveDmpIds' do
-      # TODO: Implement this test
-    end
-
-    it 'returns false if :p_key is an empty string' do
-      expect(described_class._post_process(provenance: provenance, p_key: '', json: json)).to be(false)
-    end
-
-    it 'attempts to publish a message to the SNS_PUBLISH_TOPIC' do
-      json['dmproadmap_related_identifiers'].first['descriptor'] = 'version_of'
-      expect(described_class._post_process(provenance: provenance, p_key: 'BAR', json: json)).to be(true)
-      expect(sns_client).to have_received(:publish).with(topic_arn: 'foo', subject: publish_subject,
-                                                         message: publish_message).once
-      expect(sns_client).not_to have_received(:publish).with(topic_arn: 'foo', subject: download_subject,
-                                                             message: download_message)
-    end
-
-    it 'attempts to publish a message to the SNS_DOWNLOAD_TOPIC' do
-      expect(described_class._post_process(provenance: provenance, p_key: 'BAR', json: json)).to be(true)
-      expect(sns_client).to have_received(:publish).with(topic_arn: 'foo', subject: publish_subject,
-                                                         message: publish_message).once
-      expect(sns_client).to have_received(:publish).with(topic_arn: 'foo', subject: download_subject,
-                                                         message: download_message).once
+    it 'calls EventPublisher.publish' do
+      json = JSON.parse({ PK: 'foo', SK: 'bar' }.to_json)
+      dmp = json.clone
+      dmp['dmphub_updater_is_provenance'] = true
+      expected = { source: 'DmpCreator', dmp: dmp, debug: false }
+      allow(EventPublisher).to receive(:publish).with(expected)
+      expect(described_class._post_process(json: json)).to be(true)
     end
   end
-  # rubocop:enable RSpec/MultipleMemoizedHelpers
 
   describe 'dmp_id_exists?(finder:, hash:)' do
     it 'returns false if the :dmp_id is not a Hash' do

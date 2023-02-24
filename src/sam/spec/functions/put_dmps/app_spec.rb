@@ -2,6 +2,12 @@
 
 require 'spec_helper'
 
+# NOTE!!!!!
+# ------------------------------------------------------------------------------
+# If you need to use :puts style debug in the code, you should comment out the
+# following line in the :before section:
+#     allow(described_class).to receive(:puts).and_return(true)
+
 RSpec.describe 'PutDmp' do
   let!(:prov) { { PK: "#{KeyHelper::PK_PROVENANCE_PREFIX}foo" } }
   let!(:dmp_id) { mock_dmp_id }
@@ -17,6 +23,7 @@ RSpec.describe 'PutDmp' do
     changes
   end
   let!(:event) { aws_event(args: { pathParameters: { dmp_id: dmp_id }, body: changes }) }
+  let!(:described_class) { Functions::PutDmp }
 
   before do
     # Mock all of the calls to AWS resoures and Lambda Layer functions
@@ -26,12 +33,13 @@ RSpec.describe 'PutDmp' do
     allow(SsmReader).to receive(:debug_mode?).and_return(false)
     allow(Responder).to receive(:log_error).and_return(true)
     allow(Responder).to receive(:respond)
-    resp = JSON.parse({ status: 200, items: prov }.to_json)
+    resp = { status: 200, items: [prov] }
     allow_any_instance_of(ProvenanceFinder).to receive(:provenance_from_lambda_cotext).and_return(resp)
+    allow(described_class).to receive(:puts).and_return(true)
   end
 
   it 'returns a 400 when the :body is nil' do
-    Functions::PutDmp.process(event: aws_event, context: aws_context)
+    described_class.process(event: aws_event, context: aws_context)
     expect(Responder).to have_received(:respond).with(status: 400, event: aws_event,
                                                       errors: Messages::MSG_DMP_INVALID_DMP_ID).once
   end
@@ -39,28 +47,28 @@ RSpec.describe 'PutDmp' do
   it 'returns a 400 when the DMP ID is not a valid DOI' do
     allow(KeyHelper).to receive(:format_dmp_id).and_return(nil)
     allow(KeyHelper).to receive(:append_pk_prefix).and_return(nil)
-    Functions::PutDmp.process(event: event, context: aws_context)
+    described_class.process(event: event, context: aws_context)
     expect(Responder).to have_received(:respond).with(status: 400, event: event,
                                                       errors: Messages::MSG_DMP_INVALID_DMP_ID).once
   end
 
   it 'returns a 400 when the :body is an empty string' do
     event = aws_event(args: { body: '' })
-    Functions::PutDmp.process(event: event, context: aws_context)
+    described_class.process(event: event, context: aws_context)
     expect(Responder).to have_received(:respond).with(status: 400, event: event,
                                                       errors: Messages::MSG_DMP_INVALID_DMP_ID).once
   end
 
   it 'returns a 400 when the :body is not validated by the JSON schema' do
     allow(Validator).to receive(:validate).and_return({ valid: false, errors: ['foo'] })
-    Functions::PutDmp.process(event: event, context: aws_context)
+    described_class.process(event: event, context: aws_context)
     expect(Responder).to have_received(:respond).with(status: 400, errors: ['foo'], event: event).once
   end
 
   it 'returns the errors returned when trying to create the DMP record' do
     allow(Validator).to receive(:validate).and_return({ valid: true })
     allow_any_instance_of(DmpFinder).to receive(:find_dmp_by_pk).and_return({ status: 499, error: 'bar' })
-    Functions::PutDmp.process(event: event, context: aws_context)
+    described_class.process(event: event, context: aws_context)
     expect(Responder).to have_received(:respond).with(status: 499, errors: 'bar', event: event).once
   end
 
@@ -70,14 +78,14 @@ RSpec.describe 'PutDmp' do
     p_key = KeyHelper.append_pk_prefix(dmp: dmp_id)
     expected = DmpHelper.annotate_dmp(provenance: JSON.parse({ PK: 'foo ' }.to_json), p_key: p_key, json: changes)
     allow_any_instance_of(DmpUpdater).to receive(:update_dmp).and_return({ status: 200, items: [expected] })
-    Functions::PutDmp.process(event: event, context: aws_context)
+    described_class.process(event: event, context: aws_context)
     expect(Responder).to have_received(:respond).with(status: 200, items: [expected],
                                                       errors: nil, event: event).once
   end
 
   it 'returns a 500 when there is a server error' do
     allow(Validator).to receive(:validate).and_raise(aws_error)
-    Functions::PutDmp.process(event: event, context: aws_context)
+    described_class.process(event: event, context: aws_context)
     expect(Responder).to have_received(:log_error).once
   end
 end

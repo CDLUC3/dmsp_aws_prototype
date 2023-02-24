@@ -14,6 +14,7 @@ class Messages
   MSG_DMP_NO_DMP_ID = 'A DMP ID could not be registered at this time.'
   MSG_DMP_INVALID_DMP_ID = 'Invalid DMP ID format.'
   MSG_DMP_NO_HISTORICALS = 'You cannot modify a historical version of the DMP.'
+  MSG_DMP_UNABLE_TO_VERSION = 'Unable to version this DMP.'
 
   # Provenanace
   # ----------------------------------------

@@ -183,8 +183,6 @@ RSpec.describe 'DmpVersioner' do
   end
 
   describe '_fetch_latest(p_key:)' do
-    let!(:client) { mock_dynamodb(item_array: []) }
-
     it 'returns nil if the result from DmpFinder if the status is not 200' do
       allow_any_instance_of(DmpFinder).to receive(:find_dmp_by_pk).and_return({ status: 500 })
       expect(described_class.send(:_fetch_latest, { p_key: 'foo' })).to be_nil

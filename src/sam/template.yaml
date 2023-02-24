@@ -428,6 +428,7 @@ Resources:
         - 'arn:aws:iam::aws:policy/AmazonSQSFullAccess'
         - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
         - !Ref DmpHubDynamoTableWritePolicy
+        - !Ref EventBusPolicy
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env
@@ -443,7 +444,7 @@ Resources:
             Pattern: !Sub >
               {
                 "source": ["${DomainName}:lambda:event_publisher"],
-                "detail-type": ["DMP change"],
+                "detail-type": ["DMP change", "EZID Replay"],
                 "detail": {
                   "SK": ["VERSION#latest"]
                 }
@@ -464,6 +465,8 @@ Resources:
   # Annoyingly, SAM does not auto-generate LogGroup for a non-API tiggered lambda
   EzidPublisherFunctionLogGroup:
     Type: 'AWS::Logs::LogGroup'
+    DependsOn:
+      - EzidPublisherFunction
     Properties:
       LogGroupName: !Sub "/aws/lambda/${EzidPublisherFunction}"
       RetentionInDays: 14
@@ -522,6 +525,8 @@ Resources:
   # it expects a specific name :/
   PdfDownloaderFunctionLogGroup:
     Type: 'AWS::Logs::LogGroup'
+    DependsOn:
+      - PdfDownloaderFunction
     Properties:
       LogGroupName: !Sub "/aws/lambda/${PdfDownloaderFunction}"
       RetentionInDays: 14
@@ -574,6 +579,8 @@ Resources:
   # Annoyingly, SAM does not auto-generate LogGroup for a non-API tiggered lambda
   ProvenanceNotifierFunctionLogGroup:
     Type: 'AWS::Logs::LogGroup'
+    DependsOn:
+      - ProvenanceNotifierFunction
     Properties:
       LogGroupName: !Sub "/aws/lambda/${ProvenanceNotifierFunction}"
       RetentionInDays: 14
