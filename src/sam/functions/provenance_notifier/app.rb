@@ -59,9 +59,12 @@ module Functions
       def process(event:, context:)
         detail = event.fetch('detail', {})
         json = detail.is_a?(Hash) ? detail : JSON.parse(detail)
+
         provenance_pk = json['dmphub_provenance_id']
-        should_notify = json.fetch('dmphub_updater_is_provenance', 'true').downcase != 'true'
+        should_notify = json.fetch('dmphub_updater_is_provenance', 'true').to_s.downcase != 'true'
         dmp_pk = json['PK']
+
+        # We don't want to callback to the provenance if it was the one who made the change
         return Responder.respond(status: 200, errors: NO_NOTIFICATION, event: event) unless should_notify
 
         # Debug, output the incoming Event and Context
@@ -75,27 +78,31 @@ module Functions
 
         # Load the Provenance info
 
-        # Verify that the Provenance has a callback URL defined
-
         # Load the DMP metadata
         table = SsmReader.get_ssm_value(key: SsmReader::TABLE_NAME)
         client = Aws::DynamoDB::Client.new(region: ENV.fetch('AWS_REGION', nil))
-        p "TABLE: #{table}, CLIENT: #{client}"
+        dmp = load_dmp(provenance_pk: provenance_pk, dmp_pk: dmp_pk, table: table, client: client, debug: debug)
+        if dmp.nil?
+          return Responder.respond(status: 404, errors: Messages::MSG_DMP_NOT_FOUND,
+                                   event: event)
+        end
+
+        # Verify that the Provenance has a callback URL defined
 
         # Send the latest DMP metadata to the Prvenance system's calllback URL
 
         Responder.respond(status: 200, errors: Messages::MSG_SUCCESS, event: event)
       rescue JSON::ParserError
-        p "#{Messages::MSG_INVALID_JSON} - MESSAGE: #{msg}"
+        Responder.log_message(source: SOURCE, message: Messages::MSG_INVALID_JSON)
         Responder.respond(status: 500, errors: Messages::MSG_INVALID_JSON, event: event)
       rescue Aws::Errors::ServiceError => e
-        p "#{e.message} - PROVENANCE: #{provenance_pk}, DMP: #{dmp_pk}"
-        p e.backtrace
+        msg = "#{e.message} - PROVENANCE: #{provenance_pk}, DMP: #{dmp_pk}"
+        Responder.log_message(source: SOURCE, message: msg, details: e.backtrace)
         Responder.respond(status: 500, errors: Messages::MSG_SERVER_ERROR, event: event)
       rescue StandardError => e
         # Just do a print here (ends up in CloudWatch) in case it was the responder.rb that failed
-        p "FATAL: #{e.message} - PROVENANCE: #{provenance_pk}, DMP: #{dmp_pk}"
-        p e.backtrace
+        puts "#{SOURCE} FATAL: #{e.message} - PROVENANCE: #{provenance_pk}, DMP: #{dmp_pk}"
+        puts e.backtrace
         { statusCode: 500, body: { errors: [Messages::MSG_SERVER_ERROR] }.to_json }
       end
       # rubocop:enable Metrics/AbcSize, Metrics/MethodLength

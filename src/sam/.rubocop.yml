@@ -113,6 +113,8 @@ RSpec/NoExpectationExample:
   # respond.rb in the LambdaLayer as expected
   Exclude:
     - 'tests/spec/lambda_functions/**/*'
+RSpec/PendingWithoutReason:
+  Enabled: false
 
 # ------------
 # - SECURITY -

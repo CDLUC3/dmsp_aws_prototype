@@ -12,6 +12,7 @@ RSpec.describe 'ValidateDmp' do
   let!(:described_class) { Functions::ValidateDmp }
   let!(:dmp) do
     json = mock_dmp_item
+    allow(Responder).to receive(:_notify_administrator).and_return(true)
     p_key = KeyHelper.append_pk_prefix(dmp: mock_dmp_id)
     DmpHelper.annotate_dmp(provenance: JSON.parse({ PK: 'foo ' }.to_json), p_key: p_key, json: json)
   end
@@ -21,6 +22,7 @@ RSpec.describe 'ValidateDmp' do
     # Mock all of the calls to AWS resoures and Lambda Layer functions
     mock_ssm(value: 'foo')
     allow(Responder).to receive(:log_error).and_return(true)
+    allow(Responder).to receive(:log_message).and_return(true)
     allow(Responder).to receive(:respond)
     allow(described_class).to receive(:puts).and_return(true)
   end

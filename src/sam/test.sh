@@ -9,7 +9,8 @@ echo ""
 cd ..
 
 echo "Bundling with test dependencies ..."
-bundle install --with test
+bundle config set --local without ''
+bundle install
 echo ""
 echo ""
 
@@ -21,12 +22,13 @@ echo ""
 echo ""
 
 echo "Running RSpec tests ..."
-bundle exec rspec spec
+bundle exec rspec spec/
 echo ""
 echo ""
 
 echo "Re-bundling to remove test dependencies ..."
-bundle install --without test
+bundle config set --local without 'test'
+bundle install
 cd layers
 ./build.sh
 cd ../../..

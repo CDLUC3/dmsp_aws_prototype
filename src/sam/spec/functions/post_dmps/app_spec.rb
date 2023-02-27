@@ -19,7 +19,6 @@ RSpec.describe 'PostDmps' do
     # Mock all of the calls to AWS resoures and Lambda Layer functions
     mock_dynamodb(item_array: [])
     mock_ssm(value: 'foo')
-    allow(KeyHelper).to receive(:dmp_id_base_url).and_return('http://example.com/dmps')
     allow(SsmReader).to receive(:debug_mode?).and_return(false)
     allow(Responder).to receive(:log_error).and_return(true)
     allow(Responder).to receive(:respond)

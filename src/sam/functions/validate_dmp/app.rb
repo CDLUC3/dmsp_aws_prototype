@@ -16,6 +16,7 @@ module Functions
   class ValidateDmp
     SOURCE = 'POST /dmps/validate'
 
+    # rubocop:disable Metrics/AbcSize
     def self.process(event:, context:)
       # Sample pure Lambda function
 
@@ -59,6 +60,12 @@ module Functions
     rescue Aws::Errors::ServiceError => e
       Responder.log_error(source: SOURCE, message: e.message, details: e.backtrace)
       { statusCode: 500, body: { status: 500, errors: [Messages::MSG_SERVER_ERROR] } }
+    rescue StandardError => e
+      # Just do a print here (ends up in CloudWatch) in case it was the responder.rb that failed
+      puts "#{SOURCE} FATAL: #{e.message}"
+      puts e.backtrace
+      { statusCode: 500, body: { errors: [Messages::MSG_SERVER_ERROR] }.to_json }
     end
+    # rubocop:enable Metrics/AbcSize
   end
 end
