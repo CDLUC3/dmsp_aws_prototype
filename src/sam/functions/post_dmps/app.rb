@@ -6,7 +6,9 @@
 my_gem_path = Dir['/opt/ruby/gems/**/lib/']
 $LOAD_PATH.unshift(*my_gem_path)
 
+require 'aws-sdk-cognitoidentityprovider'
 require 'aws-sdk-dynamodb'
+require 'aws-sdk-eventbridge'
 require 'aws-sdk-sns'
 
 require 'dmp_creator'
@@ -68,16 +70,9 @@ module Functions
 
       # Fail if the Provenance could not be loaded
       p_finder = ProvenanceFinder.new(client: client, table_name: table, debug_mode: debug)
-      resp = p_finder.provenance_from_lambda_cotext(identity: event.fetch('requestContext', {}))
+      claim = event.fetch('requestContext', {}).fetch('authorizer', {})['claims']
+      resp = p_finder.provenance_from_lambda_cotext(identity: claim)
       provenance = resp[:items].first if resp[:status] == 200
-
-      # TODO: Remove this stub once Cognito is setup. We will need to see how the Cognito info is passed
-      #       in and how we can fetch the provenance record.
-      if provenance.nil?
-        provenance = JSON.parse({ PK: "#{KeyHelper::PK_PROVENANCE_PREFIX}dmptool",
-                                  seedingWithLiveDmpIds: true }.to_json)
-      end
-
       return Responder.respond(status: 403, errors: Messages::MSG_DMP_FORBIDDEN, event: event) if provenance.nil?
 
       # Get the DMP
@@ -85,10 +80,19 @@ module Functions
       resp = creator.create_dmp(json: body)
       return Responder.respond(status: resp[:status], errors: resp[:error], event: event) unless resp[:status] == 201
 
-      Responder.respond(status: 201, items: resp[:items], event: event)
+      # Append the dmphub_versions array to each item
+      finder = DmpFinder.new(client: client, table_name: table, debug_mode: debug)
+      items = resp[:items].map { |item| finder.append_versions(p_key: item['PK'], dmp: item) }
+
+      Responder.respond(status: 201, items: items, event: event)
     rescue Aws::Errors::ServiceError => e
       Responder.log_error(source: SOURCE, message: e.message, details: e.backtrace)
       { statusCode: 500, body: { status: 500, errors: [Messages::MSG_SERVER_ERROR] } }
+    rescue StandardError => e
+      # Just do a print here (ends up in CloudWatch) in case it was the responder.rb that failed
+      puts "#{SOURCE} FATAL: #{e.message}"
+      puts e.backtrace
+      { statusCode: 500, body: { errors: [Messages::MSG_SERVER_ERROR] }.to_json }
     end
     # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
   end

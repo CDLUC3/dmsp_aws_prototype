@@ -16,7 +16,7 @@ class KeyHelper
   SK_PROVENANCE_PREFIX = 'PROFILE'
 
   # TODO: Verify the assumed structure of the DOI is valid
-  DOI_REGEX = %r{[0-9]{2}\.[0-9]{5}/[a-zA-Z0-9/_.\-]+}.freeze
+  DOI_REGEX = %r{[0-9]{2}\.[0-9]{5}/[a-zA-Z0-9/_.-]+}.freeze
   URL_REGEX = %r{(https?://)?([a-zA-Z0-9\-_]\.)+[a-zA-Z0-9\-_]{2,3}(:[0-9]+)?/?}.freeze
 
   DMP_LATEST_VERSION = "#{SK_DMP_PREFIX}latest"

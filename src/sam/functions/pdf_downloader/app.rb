@@ -20,45 +20,32 @@ require 'ssm_reader'
 module Functions
   # The handler for POST /dmps/validate
   class PdfDownloader
-    SOURCE = 'SNS Topic - Download'
+    SOURCE = 'EventBridge - Download PDF'
 
     # Parameters
     # ----------
     # event: Hash, required
-    #     API Gateway Lambda Proxy Input Format
-    #     Event doc: https://docs.aws.amazon.com/apigateway/latest/developerguide/set-up-lambda-proxy-integrations.html#api-gateway-simple-proxy-for-lambda-input-format
-    #     {
-    #       Records: [
-    #         {
-    #           "EventSource": "aws:sns",
-    #           "EventVersion": "1.0",
-    #           "EventSubscriptionArn": "arn:aws:sns:us-west-2:blah-blah-blah",
-    #           "Sns": {
-    #             "Type": "Notification",
-    #             "MessageId": "a7ba6aaf-0d52-5d94-968e-311e0661231f",
-    #             "TopicArn": "arn:aws:sns:us-west-2:yadda-yadda-yadda",
-    #             "Subject": "DmpCreator - register DMP ID - DMP#doi.org/10.80030/D1.51C5D8E2",
-    #             "Message": "{\"dmp\":\"DMP#doi.org/10.80030/D1.51C5D8E2\",
-    #                          \"provenance\":\"PROVENANCE#example\",
-    #                          \"location\":\"https://example.com/dmps/12345.pdf\"}",
-    #             "Timestamp": "2022-09-30T15:19:15.182Z",
-    #             "SignatureVersion":"1",
-    #             "Signature":"Jeh4PdtFzpNtnRpLrNYhO9C5JYfjGPiLQIoW+0RykbVroSIetNILviPLlUNLGXlbbm...==",
-    #             "SigningCertUrl": "https://sns.us-west-2.amazonaws.com/SimpleNotificationService-foo.pem",
-    #             "UnsubscribeUrl": "https://sns.us-west-2.amazonaws.com/?Action=Unsubscribe...",
-    #             "MessageAttributes": {}
-    #           }
+    #     EventBridge Event input:
+    #       {
+    #         "version": "0",
+    #         "id": "5c9a3747-293c-59d7-dcee-a2210ac034fc",
+    #         "detail-type": "DMP change",
+    #         "source": "dmphub-dev.cdlib.org:lambda:event_publisher",
+    #         "account": "1234567890",
+    #         "time": "2023-02-14T16:42:06Z",
+    #         "region": "us-west-2",
+    #         "resources": [],
+    #         "detail": {
+    #           "PK": "DMP#doi.org/10.12345/ABC123",
+    #           "SK": "VERSION#latest",
+    #           "dmphub_provenance_id": "PROVENANCE#foo",
+    #           "dmproadmap_links": {
+    #             "download": "https://example.com/api/dmps/12345.pdf"
+    #           },
+    #           "dmphub_updater_is_provenance": false
     #         }
-    #       ]
-    #     }"
+    #       }
     #
-    #    Message should contain a parseable JSON string that contains:
-    #      {
-    #        "provenance": "PROVENANCE#example",
-    #        "dmp": "DMP#doi.org/10.80030/D1.51C5D8E2",
-    #        "location": "https://example.com/dmps/12345.pdf"
-    #      }
-
     # context: object, required
     #     Lambda Context runtime methods and attributes
     #     Context doc: https://docs.aws.amazon.com/lambda/latest/dg/ruby-context.html
@@ -76,11 +63,11 @@ module Functions
       # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
       # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
       def process(event:, context:)
-        msg = event.fetch('Records', []).first&.fetch('Sns', {})&.fetch('Message', '')
-        json = msg.is_a?(Hash) ? msg : JSON.parse(msg)
-        location = json['location']
-        provenance_pk = json['provenance']
-        dmp_pk = json['dmp']
+        detail = event.fetch('detail', {})
+        json = detail.is_a?(Hash) ? detail : JSON.parse(detail)
+        provenance_pk = json['dmphub_provenance_id']
+        dmp_pk = json['PK']
+        location = json.fetch('dmproadmap_links', {})['download']
 
         # Debug, output the incoming Event and Context
         debug = SsmReader.debug_mode?
@@ -88,7 +75,6 @@ module Functions
         pp "CONTEXT: #{context.inspect}" if debug
 
         if provenance_pk.nil? || dmp_pk.nil? || location.nil?
-          p "#{Messages::MSG_INVALID_ARGS} - prov: #{provenance_pk}, dmp: #{dmp_pk}, location: #{location}"
           return Responder.respond(status: 400, errors: Messages::MSG_INVALID_ARGS, event: event)
         end
 
@@ -103,7 +89,6 @@ module Functions
         # Load the DMP metadata
         dmp = load_dmp(provenance: provenance, dmp_pk: dmp_pk, table: table, client: client, debug: debug)
         if dmp.nil?
-          p "#{Messages::MSG_DMP_NOT_FOUND} - #{dmp_pk}"
           return Responder.respond(status: 404, errors: Messages::MSG_DMP_NOT_FOUND,
                                    event: event)
         end
@@ -126,12 +111,11 @@ module Functions
 
         Responder.respond(status: 200, errors: Messages::MSG_SUCCESS, event: event)
       rescue JSON::ParserError
-        p "#{Messages::MSG_INVALID_JSON} - MESSAGE: #{msg}"
         Responder.respond(status: 500, errors: Messages::MSG_INVALID_JSON, event: event)
       rescue StandardError => e
         # Just do a print here (ends up in CloudWatch) in case it was the responder.rb that failed
-        p "FATAL -- DMP ID: #{dmp_pk}, MESSAGE: #{e.message}"
-        p e.backtrace
+        puts "FATAL -- DMP ID: #{dmp_pk}, MESSAGE: #{e.message}"
+        puts e.backtrace
         { statusCode: 500, body: { errors: [Messages::MSG_SERVER_ERROR] }.to_json }
       end
       # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
@@ -152,14 +136,15 @@ module Functions
 
       # Validate the URI and tthen download the document
       # --------------------------------------------------------------------------------
-      # rubocop:disable Metrics/AbcSize
+      # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
       def download_dmp(provenance:, location:, debug: false)
         return nil if provenance.nil? || location.nil?
 
         # Verify that the location is a valid URL and it is owned by the Provenance!
         uri = URI(location.to_s)
         if provenance.nil? || provenance['downloadUri'].nil? || !uri.to_s.start_with?(provenance['downloadUri'])
-          p "Invalid download location, #{uri} for '#{provenance['PK']}' expecting: #{provenance['downloadUri']}"
+          msg = "Invalid download location, #{uri} for '#{provenance['PK']}' expecting: #{provenance['downloadUri']}"
+          Responder.log_error(source: SOURCE, message: msg)
           return nil
         end
 
@@ -171,7 +156,7 @@ module Functions
 
         resp = HTTParty.get(uri.to_s, opts)
         unless [200].include?(resp.code)
-          p "#{Messages::MSG_DOWNLOAD_FAILURE} - status: #{resp.code} - body #{resp.body}"
+          Responder.log_error(source: SOURCE, message: Messages::MSG_DOWNLOAD_FAILURE, details: resp.inspect)
 
           # TODO: move this retry logic out of the function and set it up in the queue logic
           # If we got a Proxy error, sleep for 10 seconds and then try again
@@ -183,22 +168,24 @@ module Functions
         end
         resp.body
       rescue URI::Error => e
-        p "DMP ID: #{dmp_pk} - Bad download location, not a valid URI: '#{location}' - #{e.message}"
+        msg = "DMP ID: #{dmp_pk} - Bad download location, not a valid URI: '#{location}' - #{e.message}"
+        Responder.log_error(source: SOURCE, message: msg)
         nil
       end
-      # rubocop:enable Metrics/AbcSize
+      # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
 
       # Save the DMP document in the S3 bucket
       # --------------------------------------------------------------------------------
+      # rubocop:disable Metrics/AbcSize
       def save_document(document:, dmp_pk:)
-        return nil if document.to_s.strip.empty? || dmp_pk.nil?
+        return nil if document.to_s.strip.empty? || dmp_pk.nil? || ENV['S3_BUCKET'].nil?
 
+        # CloudFront S3 bucket is in the Global us-east-1 region!
         s3_client = Aws::S3::Client.new(region: ENV.fetch('AWS_REGION', nil))
         key = "dmps/#{SecureRandom.hex(8)}.pdf"
-
         resp = s3_client.put_object({
                                       body: document,
-                                      bucket: SsmReader.get_ssm_value(key: SsmReader::S3_BUCKET),
+                                      bucket: ENV['S3_BUCKET'].gsub('arn:aws:s3:::', ''),
                                       key: key,
                                       tagging: "DMP_ID=#{CGI.escape(KeyHelper.remove_pk_prefix(dmp: dmp_pk))}"
                                     })
@@ -208,6 +195,7 @@ module Functions
                             details: e.backtrace)
         nil
       end
+      # rubocop:enable Metrics/AbcSize
 
       # Update the DMP record with the location of the downloaded document
       # --------------------------------------------------------------------------------
@@ -262,7 +250,8 @@ module Functions
         Responder.log_error(source: SOURCE, message: msg, details: [resp.inspect])
         {}
       rescue StandardError => e
-        p "PdfDownloader: Unable to authenticate at #{provenance['tokenUri']} - #{e.message}"
+        msg = "Fatal error when trying to authenticate with '#{provenance['tokenUri']}'."
+        Responder.log_error(source: SOURCE, message: "#{msg} - #{e.message}")
         {}
       end
       # rubocop:enable Metrics/AbcSize, Metrics/MethodLength

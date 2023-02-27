@@ -24,21 +24,21 @@ RSpec.describe 'SsmReader' do
 
     it 'looks for the environment version of the :key' do
       allow(ENV).to receive(:fetch).and_return('test')
-      name = format(described_class::S3_BUCKET, env: 'test')
-      described_class.get_ssm_value(key: described_class::S3_BUCKET)
+      name = format(described_class::S3_BUCKET_URL, env: 'test')
+      described_class.get_ssm_value(key: described_class::S3_BUCKET_URL)
       expect(ssm_client).to have_received(:get_parameter).with(name: name, with_decryption: true)
     end
 
     it 'returns nil if the SSM does not have a matching parameter' do
       allow(ENV).to receive(:fetch).and_return('test')
       mock_ssm(value: nil, success: false)
-      expect(described_class.get_ssm_value(key: described_class::S3_BUCKET)).to be_nil
+      expect(described_class.get_ssm_value(key: described_class::S3_BUCKET_URL)).to be_nil
     end
 
     it 'returns nil and logs an error if AWS throws an error' do
       allow(ENV).to receive(:fetch).and_return('test')
       mock_ssm(value: 'foo', success: false)
-      expect(described_class.get_ssm_value(key: described_class::S3_BUCKET)).to be_nil
+      expect(described_class.get_ssm_value(key: described_class::S3_BUCKET_URL)).to be_nil
       expect(Responder).to have_received(:log_error).once
     end
 

@@ -32,7 +32,7 @@ class Validator
       errors = JSON::Validator.fully_validate(schema, json)
       errors = errors.map { |err| err.gsub('The property \'#/\' ', '') }
       errors = ([Messages::MSG_INVALID_JSON] << errors).flatten.compact.uniq unless errors.empty?
-      { valid: errors.empty?, errors: errors.map { |err| err.gsub(/in schema [a-z0-9\-]+/, '').strip } }
+      { valid: errors.empty?, errors: errors.map { |err| err.gsub(/in schema [a-z0-9-]+/, '').strip } }
     rescue JSON::Schema::ValidationError => e
       { valid: false, errors: [format(Messages::MSG_BAD_JSON, msg: e.message)] }
     end

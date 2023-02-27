@@ -17,22 +17,18 @@ class SsmReader
 
   DMP_ID_API_URL = '/uc3/dmp/hub/%{env}/EzidApiUrl'
   DMP_ID_BASE_URL = '/uc3/dmp/hub/%{env}/EzidBaseUrl'
-  DMP_ID_DEBUG_MODE = '/uc3/dmp/hub/%{env}/EzidDebugMode'
-  DMP_ID_CLIENT_NAME = '/uc3/dmp/hub/%{env}/EzidHostingInstitution'
   DMP_ID_CLIENT_ID = '/uc3/dmp/hub/%{env}/EzidUsername'
-  DMP_ID_SHOULDER = '/uc3/dmp/hub/%{env}/EzidShoulder'
+  DMP_ID_CLIENT_NAME = '/uc3/dmp/hub/%{env}/EzidHostingInstitution'
   DMP_ID_CLIENT_SECRET = '/uc3/dmp/hub/%{env}/EzidPassword'
+  DMP_ID_DEBUG_MODE = '/uc3/dmp/hub/%{env}/EzidDebugMode'
+  DMP_ID_PAUSED = '/uc3/dmp/hub/%{env}/EzidPaused'
+  DMP_ID_SHOULDER = '/uc3/dmp/hub/%{env}/EzidShoulder'
 
   PROVENANCE_API_CLIENT_ID = '/uc3/dmp/hub/%{env}/%{provenance}/client_id'
   PROVENANCE_API_CLIENT_SECRET = '/uc3/dmp/hub/%{env}/%{provenance}/client_secret'
 
-  S3_BUCKET = '/uc3/dmp/hub/%{env}/S3BucketUri'
-  S3_BUCKET_URL = '/uc3/dmp/hub/%{env}/S3BucketUrl'
-
-  SNS_DOWNLOAD_TOPIC = '/uc3/dmp/hub/%{env}/SnsDownloadTopicArn'
-  SNS_FATAL_ERROR_TOPIC = '/uc3/dmp/hub/%{env}/SnsFatalErrorTopicArn'
-  SNS_NOTIFY_TOPIC = '/uc3/dmp/hub/%{env}/SnsNotifyTopicArn'
-  SNS_PUBLISH_TOPIC = '/uc3/dmp/hub/%{env}/SnsPublishTopicArn'
+  S3_BUCKET_URL = '/uc3/dmp/hub/%{env}/S3CloudFrontBucketUrl'
+  S3_ACCESS_POINT = '/uc3/dmp/hub/%{env}/S3CloudFrontBucketAccessPoint'
 
   TABLE_NAME = '/uc3/dmp/hub/%{env}/DynamoTableName'
 
@@ -52,7 +48,7 @@ class SsmReader
       resp.nil? || resp.parameter.nil? ? nil : resp.parameter.value
     rescue Aws::Errors::ServiceError => e
       Responder.log_error(
-        source: "LambdaLayer - SsmReader.get_ssm-value - looking for #{key}",
+        source: "SsmReader.get_ssm-value - looking for #{key}",
         message: e.message, details: e.backtrace
       )
       nil

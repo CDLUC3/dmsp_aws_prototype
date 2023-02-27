@@ -3,6 +3,8 @@ template:
   type: file
 
 parameters:
+  Domain: !stack_attr sceptre_user_data.domain
+
   SsmPath: !stack_attr sceptre_user_data.ssm_path
 
   # Dynamo settings
@@ -22,4 +24,4 @@ hooks:
 
     # Once the Dynamo table has been created, we can deploy our Lambdas and
     # the API Gateway which are managed by AWS SAM.
-    - !cmd './src/sam/sam_build_deploy.sh dev dmphub-dev.cdlib.org'
+    - !cmd './src/sam/sam_build_deploy.sh dev dmphub-dev.cdlib.org true'

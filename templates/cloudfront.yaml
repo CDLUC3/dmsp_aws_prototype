@@ -7,6 +7,9 @@ Parameters:
   Domain:
     Type: 'String'
 
+  SsmPath:
+    Type: 'String'
+
   S3LogBucketId:
     Type: 'String'
 
@@ -22,6 +25,18 @@ Parameters:
   WafArn:
     Type: 'String'
 
+  CacheDefaultTtlSeconds:
+    Type: 'Number'
+    Default: 7200 # 2 hours
+
+  CacheMinTtlSeconds:
+    Type: 'Number'
+    Default: 60 # 1 minute
+
+  CacheMaxTtlSeconds:
+    Type: 'Number'
+    Default: 86400 # 1 day
+
 Resources:
   # ---------------------------------------------------------------------
   # CloudFront Distribution that serves React pages and PDF documents
@@ -31,11 +46,11 @@ Resources:
     Type: 'AWS::CloudFront::CachePolicy'
     Properties:
       CachePolicyConfig:
-        Comment: !Sub "${AWS::StackName} CloudFront cache policy"
-        DefaultTTL: 86400 # 1 day
-        MaxTTL: 604800 # 1 week
-        MinTTL: 300 # 5 minutes
         Name: !Sub "${AWS::StackName}-cache-policy"
+        Comment: !Sub "${AWS::StackName} CloudFront cache policy"
+        DefaultTTL: !Ref CacheDefaultTtlSeconds
+        MaxTTL: !Ref CacheMaxTtlSeconds
+        MinTTL: !Ref CacheMinTtlSeconds
         ParametersInCacheKeyAndForwardedToOrigin:
           CookiesConfig:
             CookieBehavior: 'none'

@@ -9,7 +9,7 @@ dependencies:
 #       a pending status and then can take some time before it is deployed. If your sceptre command
 #       appears to be stuck, this is most likely why, and you should let it complete.
 parameters:
-  Domain: 'dmphub-dev.cdlib.org'
+  Domain: !stack_attr sceptre_user_data.domain
 
   CertificateArn: !stack_output dev/global/cert.yaml::CertificateArn
 
@@ -19,3 +19,9 @@ parameters:
 
   S3CloudFrontBucketId: !stack_output dev/regional/s3.yaml::S3CloudFrontBucketId
   S3CloudFrontBucketArn: !stack_output dev/regional/s3.yaml::S3CloudFrontBucketArn
+
+  # In development set the cache TTL to very low thresholds so that updates via CodeBuild are not
+  # masked by a copy of the file in the Cache
+  CacheDefaultTtlSeconds: '60'
+  CacheMinTtlSeconds: '30'
+  CacheMaxTtlSeconds: '300' # 5 minutes

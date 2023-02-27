@@ -19,20 +19,21 @@ Parameters:
   Env:
     Type: 'String'
 
-  SsmPath:
-    Type: 'String'
-
   TagProgram:
     Type: 'String'
     Default: 'uc3'
+
   TagService:
     Type: 'String'
     Default: 'dmp'
+
   TagSubservice:
     Type: 'String'
     Default: 'hub'
+
   TagCodeRepo:
     Type: 'String'
+
   TagContact:
     Type: 'String'
 
@@ -257,20 +258,6 @@ Resources:
       IdTokenValidity: !Ref IdTokenValidity
       # The length of time the user can refresh their token
       RefreshTokenValidity: !Ref RefreshTokenValidity
-
-  # ----------------------------------------------
-  # SSM Parameter Store
-  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-ssm-parameter.html
-  # ----------------------------------------------
-  # Add the Systems UserPool ARN to SSM so that our Lambdas can access it
-  UserPoolArnParameter:
-    Type: 'AWS::SSM::Parameter'
-    Properties:
-      Description: !Sub "${AWS::StackName} Cognito UserPool"
-      Name: !Sub "${SsmPath}UserPoolArn"
-      # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
-      Type: 'String'
-      Value: !GetAtt UserPool.Arn
 
   # -----------------------------------------------------------
   # Route53 - DNS configuration

@@ -4,6 +4,9 @@ Transform: 'AWS::Serverless-2016-10-31'
 Description: 'DynamoDB that backs the API dmp-hub-sam'
 
 Parameters:
+  Domain:
+    Type: 'String'
+
   SsmPath:
     Type: 'String'
 
@@ -144,6 +147,18 @@ Resources:
       PointInTimeRecoverySpecification:
         PointInTimeRecoveryEnabled: !Ref DynamoEnablePointInTimeRecovery
 
+  # ----------------------------------------------
+  # SSM Parameter Store
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-ssm-parameter.html
+  # ----------------------------------------------
+  BaseUrlParameter:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: !Sub "${AWS::StackName} Domain"
+      Name: !Sub "${SsmPath}BaseUrl"
+      Type: 'String'
+      Value: !Sub "https://${Domain}"
+
   # Add the Table name to SSM so that our Lambdas can access it
   TableNameParameter:
     Type: 'AWS::SSM::Parameter'
@@ -153,16 +168,6 @@ Resources:
       # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
       Type: 'String'
       Value: !Select [1, !Split ['/', !GetAtt DynamoTable.Arn]]
-
-  # Add the Table name to SSM so that our Lambdas can access it
-  TableArnParameter:
-    Type: 'AWS::SSM::Parameter'
-    Properties:
-      Description: !Sub "${AWS::StackName} DynamoTable"
-      Name: !Sub "${SsmPath}DynamoTableArn"
-      # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
-      Type: 'String'
-      Value: !GetAtt DynamoTable.Arn
 
 Outputs:
   DynamoTableName:

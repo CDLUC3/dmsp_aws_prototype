@@ -12,11 +12,11 @@ RSpec.describe 'DmpDeleter' do
       debug_mode: false
     )
   end
-  let!(:sns_client) { mock_sns(success: true) }
 
   before do
     mock_ssm(value: 'foo')
     allow(Responder).to receive(:log_error).and_return(true)
+    allow(Responder).to receive(:log_message).and_return(true)
   end
 
   describe 'delete_dmp(p_key:)' do
@@ -97,22 +97,18 @@ RSpec.describe 'DmpDeleter' do
     end
   end
 
-  describe '_post_process(p_key:)' do
-    let!(:publish_subject) { 'DmpDeleter - tombstone DMP ID - BAR' }
-    let!(:publish_message) { { action: 'tombstone', provenance: provenance['PK'], dmp: 'BAR' }.to_json }
-
-    it 'returns false if :p_key is nil' do
-      expect(described_class._post_process(p_key: nil)).to be(false)
+  describe '_post_process(json:)' do
+    it 'returns false if :json is not a Hash' do
+      expect(described_class._post_process(json: 'foo')).to be(false)
     end
 
-    it 'returns false if :p_key is an empty string' do
-      expect(described_class._post_process(p_key: '')).to be(false)
-    end
-
-    it 'attempts to publish a message to the SNS_PUBLISH_TOPIC' do
-      expect(described_class._post_process(p_key: 'BAR')).to be(true)
-      expect(sns_client).to have_received(:publish).with(topic_arn: 'foo', subject: publish_subject,
-                                                         message: publish_message).once
+    it 'calls EventPublisher.publish' do
+      json = JSON.parse({ PK: 'foo', SK: 'bar' }.to_json)
+      dmp = json.clone
+      dmp['dmphub_updater_is_provenance'] = true
+      expected = { source: 'DmpDeleter', dmp: dmp, debug: false }
+      allow(EventPublisher).to receive(:publish).with(expected)
+      expect(described_class._post_process(json: json)).to be(true)
     end
   end
 end

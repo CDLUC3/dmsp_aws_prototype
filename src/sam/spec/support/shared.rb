@@ -20,6 +20,11 @@ DynamoItem = Struct.new('DynamoItem', :item)
 S3Client = Struct.new('S3Client', :put_object)
 S3Response = Struct.new('S3Response', :successful?)
 
+# Cognito Resources
+CognitoClient = Struct.new('CognitoClient', :describe_user_pool_client)
+CognitoResponse = Struct.new('CognitoResponse', :user_pool_client)
+CognitoUserPool = Struct.new('CognitoUserPool', :client_name)
+
 # Mock AWS Lambda Context
 AwsContext = Struct.new(
   'AwsContext', :function_name, :function_version, :invoked_function_arn,
@@ -75,6 +80,20 @@ def mock_sns(success: true)
   allow(sns_client).to receive(:publish).and_raise(aws_error) unless success
   sns_client
 end
+
+# rubocop:disable Metrics/AbcSize
+def mock_cognito(success: true)
+  cognito_client = CognitoClient.new
+
+  allow(Aws::CognitoIdentityProvider::Client).to receive(:new).and_return(cognito_client)
+  allow(cognito_client).to receive(:describe_user_pool_client).and_return(CognitoResponse.new) if success
+  allow(cognito_client).to receive(:describe_user_pool_client).and_raise(aws_error) unless success
+
+  allow_any_instance_of(CognitoResponse).to receive(:user_pool_client).and_return(CognitoUserPool.new)
+
+  cognito_client
+end
+# rubocop:enable Metrics/AbcSize
 
 # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
 # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
@@ -183,26 +202,28 @@ def aws_event(args: {}, header_args: {}, request_context_args: {})
 end
 
 # rubocop:disable Metrics/MethodLength
-def aws_sns_event(args: {})
+def aws_event_bridge_event(args: {})
+  details = {
+    PK: 'DMP#doi.org/10.12345/ABC123',
+    SK: 'VERSION#latest',
+    dmphub_provenance_id: 'PROVENANCE#foo',
+    dmproadmap_links: {
+      download: 'https://example.com/api/dmps/12345.pdf'
+    },
+    dmphub_updater_is_provenance: false
+  }
+  details = details.merge(args['detail']) unless args['detail'].nil?
+
   event = {
-    Records: [{
-      EventSource: 'aws:sns',
-      EventVersion: '1.0',
-      EventSubscriptionArn: 'arn:aws:sns:us-west-2:blah-blah-blah',
-      Sns: {
-        Type: 'Notification',
-        MessageId: 'a7ba6aaf-0d52-5d94-968e-311e0661231f',
-        TopicArn: 'arn:aws:sns:us-west-2:yadda-yadda-yadda',
-        Subject: 'Test - register DMP ID',
-        Message: {},
-        Timestamp: '2022-09-30T15:19:15.182Z',
-        SignatureVersion: '1',
-        Signature: 'Jeh4PdtFzpNtnRpLrNYhO9C5JYfjGPiLQIoW+0RykbVroSIe==',
-        SigningCertUrl: 'https://sns.us-west-2.amazonaws.com/SimpleNotificationService-foo.pem',
-        UnsubscribeUrl: 'https://sns.us-west-2.amazonaws.com/?Action=Unsubscribe',
-        MessageAttributes: {}
-      }
-    }]
+    version: '0',
+    id: 'abcd123-xyz1234-gg33-lkjh-abcyyz123789',
+    'detail-type': args.fetch(:detail_type, 'DMP change'),
+    source: args.fetch(:source, 'dmphub-dev.cdlib.org:lambda:event_publisher'),
+    account: '1234567890',
+    time: Time.now.iso8601,
+    region: 'us-west-2',
+    resources: args.fetch(:resources, []),
+    detail: details
   }
   JSON.parse(event.merge(args).to_json)
 end

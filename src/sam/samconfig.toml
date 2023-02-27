@@ -10,3 +10,11 @@ confirm_changeset = true
 capabilities = "CAPABILITY_NAMED_IAM"
 disable_rollback = false
 image_repositories = []
+tags = [
+  "Program=uc3",
+  "Service=dmp",
+  "Subservice=hub",
+  "Environment=dev",
+  "CodeRepo=https://github.com/CDLUC3/dmp-hub-cfn",
+  "Contact=briley"
+]

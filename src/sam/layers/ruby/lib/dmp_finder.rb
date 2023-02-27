@@ -25,6 +25,9 @@ class DmpFinder
   # Fetch the DMPs for the provenance
   # -------------------------------------------------------------------------
   # rubocop:disable Metrics/AbcSize
+
+  # TODO: Replace this with ElasticSearch
+
   def dmps_for_provenance
     # Fail if the provenance is not defined
     return { status: 403, error: Messages::MSG_DMP_FORBIDDEN } if !@provenance.is_a?(Hash) ||
@@ -51,6 +54,9 @@ class DmpFinder
   # Search the DMPs based on the args
   # -------------------------------------------------------------------------
   # rubocop:disable Metrics/MethodLength
+
+  # TODO: Replace this with ElasticSearch
+
   def search_dmps(**_args)
     # TODO: Need to handle pagination here!!
     #       see: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Scan.html#Scan.Pagination
@@ -107,6 +113,7 @@ class DmpFinder
   # -------------------------------------------------------------------------
   # rubocop:disable Metrics/AbcSize
   def find_dmp_versions(p_key:)
+    source = "DmpFinder.find_dmp_versions - PK: #{p_key}"
     return { status: 400, error: "#{Messages::MSG_INVALID_ARGS} - versions" } if p_key.nil?
 
     response = @client.query(
@@ -118,6 +125,7 @@ class DmpFinder
         return_consumed_capacity: @debug ? 'TOTAL' : 'NONE'
       }
     )
+    log_message(source: source, message: 'Search for versions by PK', details: response.items) if @debug
     return { status: 404, error: Messages::MSG_DMP_NOT_FOUND } if response.items.nil?
 
     items = response.items.map { |item| JSON.parse({ dmp: item.item }.to_json) }.compact.uniq
@@ -125,7 +133,7 @@ class DmpFinder
 
     { status: 200, items: items }
   rescue Aws::Errors::ServiceError => e
-    Responder.log_error(source: "DmpFinder.find_dmp_versions - PK: #{p_key}", message: e.message,
+    Responder.log_error(source: source, message: e.message,
                         details: ([provenance] << e.backtrace).flatten)
     { status: 500, error: Messages::MSG_SERVER_ERROR }
   end
@@ -135,6 +143,7 @@ class DmpFinder
   # -------------------------------------------------------------------------
   # rubocop:disable Metrics/AbcSize
   def find_dmp_by_pk(p_key:, s_key: KeyHelper::DMP_LATEST_VERSION)
+    source = "DmpFinder.find_dmp_by_pk - PK: #{p_key}, SK: #{s_key}"
     return { status: 400, error: "#{Messages::MSG_INVALID_ARGS} - by pk" } if p_key.nil?
 
     s_key = KeyHelper::DMP_LATEST_VERSION if s_key.nil? || s_key.strip == ''
@@ -146,11 +155,12 @@ class DmpFinder
         return_consumed_capacity: @debug ? 'TOTAL' : 'NONE'
       }
     )
+    log_message(source: source, message: 'Search by PK', details: response.items) if @debug
     return { status: 404, error: Messages::MSG_DMP_NOT_FOUND } if response[:item].nil? || response[:item].empty?
 
     { status: 200, items: [JSON.parse({ dmp: response[:item] }.to_json)] }
   rescue Aws::Errors::ServiceError => e
-    Responder.log_error(source: "DmpFinder.find_dmp_by_pk - PK: #{p_key}, SK: #{s_key}", message: e.message,
+    Responder.log_error(source: source, message: e.message,
                         details: ([provenance] << e.backtrace).flatten)
     { status: 500, error: Messages::MSG_SERVER_ERROR }
   end
@@ -160,6 +170,7 @@ class DmpFinder
   # -------------------------------------------------------------------------
   # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
   def find_dmp_by_dmphub_provenance_identifier(json:)
+    source = 'DmpFinder.find_dmp_by_dmphub_provenance_identifier'
     return { status: 400, error: "#{Messages::MSG_INVALID_ARGS} - by prov" } if json.nil? ||
                                                                                 json.fetch('dmp_id',
                                                                                            {})['identifier'].nil?
@@ -179,6 +190,7 @@ class DmpFinder
         return_consumed_capacity: @debug ? 'TOTAL' : 'NONE'
       }
     )
+    log_message(source: source, message: 'Search by provenance identifier', details: response.items) if @debug
     return { status: 404, error: Messages::MSG_DMP_NOT_FOUND } if response.nil?
 
     items = response.items.map { |item| JSON.parse({ dmp: item.item }.to_json) }.compact.uniq
@@ -187,9 +199,28 @@ class DmpFinder
     # If we got a hit, fetch the DMP and return it.
     find_dmp_by_pk(p_key: items.first['dmp']['PK'], s_key: items.first['dmp']['SK'])
   rescue Aws::Errors::ServiceError => e
-    Responder.log_error(source: 'DmpFinder.find_dmp_by_dmphub_provenance_identifier', message: e.message,
+    Responder.log_error(source: source, message: e.message,
                         details: ([provenance, json.inspect] << e.backtrace).flatten)
     { status: 500, error: Messages::MSG_SERVER_ERROR }
   end
   # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
+
+  # Build the dmphub_versions array and attach it to the dmp
+  def append_versions(p_key:, dmp:)
+    return dmp if p_key.nil? || !dmp.is_a?(Hash)
+
+    result = find_dmp_versions(p_key: p_key)
+    return dmp unless result[:status] == 200 && result[:items].any?
+
+    versions = result[:items].map do |version|
+      timestamp = version['modified']
+
+      {
+        timestamp: timestamp,
+        url: "#{KeyHelper.api_base_url}dmps/#{KeyHelper.remove_pk_prefix(dmp: p_key)}?version=#{timestamp}"
+      }
+    end
+    dmp['dmphub_versions'] = JSON.parse(versions.to_json)
+    dmp
+  end
 end

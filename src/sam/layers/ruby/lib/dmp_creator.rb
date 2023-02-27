@@ -4,6 +4,7 @@ require 'aws-sdk-dynamodb'
 require 'securerandom'
 
 require 'dmp_helper'
+require 'event_publisher'
 require 'key_helper'
 require 'messages'
 require 'responder'
@@ -36,6 +37,7 @@ class DmpCreator
   # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
   # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
   def create_dmp(json: {})
+    source = 'DmpCreator.create_dmp'
     json = Validator.parse_json(json: json)&.fetch('dmp', {})
     return { status: 400, error: Messages::MSG_INVALID_ARGS } if json.nil?
 
@@ -55,6 +57,7 @@ class DmpCreator
     # Add the DMPHub specific attributes and then save
     json = DmpHelper.annotate_dmp(provenance: @provenance, json: json, p_key: p_key)
 
+    log_message(source: source, message: 'Creating DMP', details: json) if @debug
     # Create the item
     @client.put_item({ table_name: @table, item: json, return_consumed_capacity: @debug ? 'TOTAL' : 'NONE' })
     # Should probably abort here if it fails ... not sure what that looks like yet
@@ -64,13 +67,13 @@ class DmpCreator
     return response unless response[:status] == 200
 
     # Send SNS notifications for post processing tasks
-    _post_process(provenance: provenance, p_key: p_key, json: json)
+    _post_process(json: json)
 
     { status: 201, items: response[:items] }
   rescue Aws::DynamoDB::Errors::DuplicateItemException
     { status: 405, error: Messages::MSG_DMP_EXISTS }
   rescue Aws::Errors::ServiceError => e
-    Responder.log_error(source: 'DmpCreator.create_dmp', message: e.message,
+    Responder.log_error(source: source, message: e.message,
                         details: ([@provenance, json.inspect] << e.backtrace).flatten)
     { status: 500, error: Messages::MSG_SERVER_ERROR }
   end
@@ -85,6 +88,7 @@ class DmpCreator
   # -------------------------------------------------------------------------
   # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
   def _preregister_dmp_id(finder:, json:)
+    source = 'DmpCreator._preregister_dmp_id'
     # Use the specified DMP ID if the provenance has permission
     existing = json.fetch('dmp_id', {})
     id = existing['identifier'].gsub(%r{https?://}, KeyHelper::PK_DMP_PREFIX) unless existing.nil? ||
@@ -102,6 +106,7 @@ class DmpCreator
     # Something went wrong and it was unable to identify a unique id
     return nil if counter >= 10
 
+    log_message(source: source, message: "Preregistering DMP ID: #{dmp_id}") if @debug
     url = @dmp_id_base_url.gsub(%r{https?://}, '')
     "#{KeyHelper::PK_DMP_PREFIX}#{url.end_with?('/') ? url : "#{url}/"}#{dmp_id}"
   end
@@ -110,35 +115,15 @@ class DmpCreator
   # Once the DMP has been created, we need to register it's DMP ID and download any
   # PDF if applicable
   # -------------------------------------------------------------------------
-  # rubocop:disable Metrics/AbcSize
-  def _post_process(provenance:, p_key:, json:)
-    return false if p_key.nil? || p_key.to_s.strip.empty?
+  def _post_process(json:)
+    return false unless json.is_a?(Hash)
 
-    # Register the DMP ID with EZID if the provenance is not seeding with live DMP IDs
-    unless provenance.fetch('seedingWithLiveDmpIds', 'false').to_s.downcase == 'true'
-      Aws::SNS::Client.new.publish(
-        topic_arn: SsmReader.get_ssm_value(key: SsmReader::SNS_PUBLISH_TOPIC),
-        subject: "DmpCreator - register DMP ID - #{p_key}",
-        message: { action: 'create', provenance: @provenance['PK'], dmp: p_key }.to_json
-      )
-    end
-    return true unless json.is_a?(Hash) && json.fetch('dmproadmap_related_identifiers', []).any?
-    # If the privacy setting is not 'public', then do not download the PDF
-    return true unless json.fetch('dmproadmap_privacy', 'private').to_s.downcase.strip == 'public'
-
-    dmp_urls = json['dmproadmap_related_identifiers'].select do |identifier|
-      identifier['work_type'] == 'output_management_plan' && identifier['descriptor'] == 'is_metadata_for'
-    end
-    return true if dmp_urls.empty?
-
-    Aws::SNS::Client.new.publish(
-      topic_arn: SsmReader.get_ssm_value(key: SsmReader::SNS_DOWNLOAD_TOPIC),
-      subject: "DmpCreator - fetch DMP document - #{p_key}",
-      message: { provenance: @provenance['PK'], dmp: p_key, location: dmp_urls.first['identifier'] }.to_json
-    )
+    # We are creating, so this is always true
+    json['dmphub_updater_is_provenance'] = true
+    # Publish the change to the EventBridge
+    EventPublisher.publish(source: 'DmpCreator', dmp: json, debug: @debug)
     true
   end
-  # rubocop:enable Metrics/AbcSize
 
   # See if the DMP Id exists
   # -------------------------------------------------------------------------

@@ -16,6 +16,7 @@ RSpec.describe 'DmpFinder' do
   before do
     mock_ssm(value: 'foo')
     allow(Responder).to receive(:log_error).and_return(true)
+    allow(Responder).to receive(:log_message).and_return(true)
   end
 
   describe 'dmps_for_provenance' do
@@ -226,5 +227,63 @@ RSpec.describe 'DmpFinder' do
       expect(result[:items].length).to be(1)
       expect(result[:items].first).to eql(dmp)
     end
+  end
+
+  describe 'append_versions(p_key:, dmp:)' do
+    let!(:json) { dmp['dmp'] }
+    let!(:p_key) { json['PK'] }
+
+    it 'returns the :dmp as-is if :p_key is nil' do
+      expect(described_class.append_versions(p_key: nil, dmp: json)).to eql(json)
+    end
+
+    it 'returns the :dmp as-is if :dmp is not a Hash' do
+      expect(described_class.append_versions(p_key: p_key, dmp: 'foo')).to eql('foo')
+    end
+
+    it 'returns the :dmp as-is if :find_dmp_versions does not return a 200' do
+      allow(described_class).to receive(:find_dmp_versions).and_return({ status: 404 })
+      expect(described_class.append_versions(p_key: p_key, dmp: json)).to eql(json)
+    end
+
+    it 'returns the :dmphub_versions array if there is only one version' do
+      allow(described_class).to receive(:find_dmp_versions).and_return({ status: 200, items: [json] })
+      url = 'https://api.example.com/v0'
+      mock_ssm(value: url)
+      expected = JSON.parse([
+        {
+          timestamp: json['modified'],
+          url: "#{url}/dmps/#{p_key.gsub(KeyHelper::PK_DMP_PREFIX, '')}?version=#{json['modified']}"
+        }
+      ].to_json)
+      expect(described_class.append_versions(p_key: p_key, dmp: json)['dmphub_versions']).to eql(expected)
+    end
+
+    # rubocop:disable RSpec/ExampleLength
+    it 'returns the :dmphub_versions array if there are multiple versions' do
+      prior = json.clone
+      timestamp = '2020-01-01T01:02:03+00:00'
+      prior['SK'] = "#{KeyHelper::SK_DMP_PREFIX}#{timestamp}"
+      prior['modified'] = timestamp
+      prior['created'] = timestamp
+      prior['dmphub_updated_at'] = timestamp
+      prior['dmphub_modification_day'] = timestamp.split('T').first
+
+      allow(described_class).to receive(:find_dmp_versions).and_return({ status: 200, items: [json, prior] })
+      url = 'https://api.example.com/v0'
+      mock_ssm(value: url)
+      expected = JSON.parse([
+        {
+          timestamp: json['modified'],
+          url: "#{url}/dmps/#{p_key.gsub(KeyHelper::PK_DMP_PREFIX, '')}?version=#{json['modified']}"
+        },
+        {
+          timestamp: timestamp,
+          url: "#{url}/dmps/#{p_key.gsub(KeyHelper::PK_DMP_PREFIX, '')}?version=#{timestamp}"
+        }
+      ].to_json)
+      expect(described_class.append_versions(p_key: p_key, dmp: json)['dmphub_versions']).to eql(expected)
+    end
+    # rubocop:enable RSpec/ExampleLength
   end
 end

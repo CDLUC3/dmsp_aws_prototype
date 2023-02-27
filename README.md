@@ -23,33 +23,37 @@ The entire build process is managed by Sceptre. Sceptre has a hook that will bui
 
 Directory structure:
 ```
-     resources-ls.sh                  # Script that will show all existing AWS resources for this project
+     resources-ls.sh                         # A shell script that will show all existing AWS resources for this project
+     |
+     seed_dynamo.sh                          # A shell script that will seed provenance records in the DynamoDB Table (auto-run by dynamo.yaml config)
      |
      config
      |  |
-     |   ----- [env]                  # Sceptre configs by Environment (each config corresponds to a template)
+     |   ----- [env]                         # Sceptre configs by Environment (each config corresponds to a template)
      |            |
-     |             ----- global       # Resources that will be created in the us-east-1 region
+     |             ----- global              # Resources that will be created in the us-east-1 region
      |            |
-     |             ----- regional     # Resources that will be created in the us-east-1 region
+     |             ----- regional            # Resources that will be created in the us-east-1 region
      |
-     docs                             # Diagrams and documentation
+     docs                                    # Diagrams and documentation
      |
      src
      |  |
-     |   ----- cloudfront             # The default index.html that gets uploaded to the S3 bucket
-     |  |
-     |   ----- sam                    # The SAM managed code
+     |   ----- sam                           # The SAM managed code
      |           |
-     |            ----- functions     # The lambda functions
+     |            ----- functions            # The lambda functions
      |           |
-     |            ----- layers        # The lambda layers
+     |            ----- layers               # The lambda layers
      |           |
-     |            ----- spec          # Tests for the functions and layers
+     |            ----- spec                 # Tests for the functions and layers
      |           |
-     |            ----- template.yaml # The SAM Cloud Formation template
+     |            ----- samconfig.toml       # The SAM configuration file 
+     |           |
+     |            ----- template.yaml        # The SAM Cloud Formation template
+     |           |
+     |            ----- sam_build_deploy.sh  # A shell script that can be used to build and deploy your SAM resources (auto-run by dynamo.yaml config)
      |
-     templates                        # The Cloud Formation templates (each template corresponds to a config)
+     templates                               # The Cloud Formation templates (each template corresponds to a config)
 ```
 
 ## Installation and Setup
@@ -58,10 +62,29 @@ This repository uses [Sceptre](https://docs.sceptre-project.org/3.2.0/) to orche
 
 For instructions on installing and setting up the system, please refer to [our installation wiki](https://github.com/CDLUC3/dmp-hub-cfn/wiki/installation-and-setup)
 
+## Testing
+
+Sceptre allows you to test your templates and config prior to building the CloudFormation stacks. You can do this by running `sceptre validate config/[env]/[dir]/[config_file].yaml`.
+
+Note that Sceptre always shows you the change set and asks you to confirm before it will make any changes to your AWS environment.
+
+To test the Lambda functions and Lambda Layer, you can run `./src/sam/test.sh`. This will build the Lambda Layer (The Lambda functions require the layer code to be zipped up) and then execute Rubocop checks followed by the RSpec tests for both the layer and the functions.
+
 ## Database
 
 For details about the structure of DynamoDB items and DMP versioning logic, please refer to [our database documentation wiki page](https://github.com/CDLUC3/dmp-hub-cfn/wiki/database)
 
+
+## Notes about SAM
+
+You can update and deploy the AWS SAM managed Lambdas and the API Gateway independently. To do that please use the supplied shell script which will make AWS CLI calls to fetch the ARNs for various resources that were created/managed by Sceptre and CloudFormation.
+
+To run the script you must supply 3 arguments. For example: `./src/sam/sam_build_deploy.sh dev dmphub-dev.cdlib.org true` 
+- The 1st arg is the environment you wish to use. The environment must match a defined environment in the `src/sam/samconfig.toml` file.
+- The 2nd arg is the domain name. The API Gateway will automatically append the `api.` subdomain.
+- The 3rd arg is a boolean that indicates whether or not the LambdaLayer should be compiled. Set this to false if you are not updating the layer to speed things up. 
+
+Note that the there is an `after_create` Sceptre hook on the `config/[env]/regional/dynamo.yaml` that will execute this shell script.
 
 ## Notes about Sceptre
 
