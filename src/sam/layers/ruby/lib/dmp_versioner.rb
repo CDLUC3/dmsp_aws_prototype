@@ -118,12 +118,15 @@ class DmpVersioner
   end
 
   # Generate a version
-  # rubocop:disable Metrics/AbcSize
+  # rubocop:disable Metrics/AbcSize,  Metrics/CyclomaticComplexity,  Metrics/PerceivedComplexity
   def _generate_version(latest_version:, owner:, updater:)
     source = 'DmpVersioner._generate_version'
     # Only create a version if the Updater is not the Owner OR the changes have happened on a different day
-    mod_hour = Time.parse(latest_version['dmphub_modification_day']).strftime('%Y-%m-%dT%H')
-    same_hour = mod_hour == Time.now.strftime('%Y-%m-%dT%H')
+    mod_time = Time.parse(latest_version['dmphub_modification_day'])
+    now = Time.now
+    return latest_version if mod_time.nil? || !(now - mod_time).is_a?(Float)
+
+    same_hour = (now - mod_time).round <= 3600
     return latest_version if owner != updater || (owner == updater && same_hour)
 
     latest_version['SK'] = "#{KeyHelper::SK_DMP_PREFIX}#{latest_version['dmphub_updated_at'] || Time.now.iso8601}"
@@ -140,7 +143,7 @@ class DmpVersioner
                         details: ([@provenance, latest_version.inspect] << e.backtrace).flatten)
     nil
   end
-  # rubocop:enable Metrics/AbcSize
+  # rubocop:enable Metrics/AbcSize,  Metrics/CyclomaticComplexity,  Metrics/PerceivedComplexity
 
   # Fetch the latest version of the DMP
   def _fetch_latest(p_key:)
