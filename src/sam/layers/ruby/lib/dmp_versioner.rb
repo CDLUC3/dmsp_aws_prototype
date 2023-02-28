@@ -122,7 +122,7 @@ class DmpVersioner
   def _generate_version(latest_version:, owner:, updater:)
     source = 'DmpVersioner._generate_version'
     # Only create a version if the Updater is not the Owner OR the changes have happened on a different day
-    mod_time = Time.parse(latest_version['dmphub_modification_day'])
+    mod_time = Time.parse(latest_version.fetch('dmphub_updated_at', Time.now.iso8601))
     now = Time.now
     return latest_version if mod_time.nil? || !(now - mod_time).is_a?(Float)
 
