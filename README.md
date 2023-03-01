@@ -94,6 +94,8 @@ To run the script you must supply 3 arguments. For example: `./src/sam/sam_build
 
 Note that the there is an `after_create` Sceptre hook on the `config/[env]/regional/dynamo.yaml` that will execute this shell script.
 
+If you want to delete the entire Lambda and API Gateway stack you can run `cd src/sam && sam delete --config-env [env]`
+
 ## Notes about Sceptre
 
 AWS Resource names are auto-constructed by Sceptre using the "${directory-name}-${stack-name}-${resource-id}" format.
