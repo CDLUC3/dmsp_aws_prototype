@@ -47,7 +47,7 @@ Directory structure:
      |           |
      |            ----- spec                 # Tests for the functions and layers
      |           |
-     |            ----- samconfig.toml       # The SAM configuration file 
+     |            ----- samconfig.toml       # The SAM configuration file
      |           |
      |            ----- template.yaml        # The SAM Cloud Formation template
      |           |
@@ -61,6 +61,14 @@ Directory structure:
 This repository uses [Sceptre](https://docs.sceptre-project.org/3.2.0/) to orchestrate the creation, update and deletion of [AWS Cloud Formation](https://aws.amazon.com/cloudformation/) stacks. See below for notes about Sceptre if this is your first time using this technology.
 
 For instructions on installing and setting up the system, please refer to [our installation wiki](https://github.com/CDLUC3/dmp-hub-cfn/wiki/installation-and-setup)
+
+## Swagger
+
+Your CloudFront distribution will contain Swagger API documentation for your API at `https://your.domain.edu/api-docs`. If you modify you modify and redeploy your API Lambdas, you should also update your documentation. to do that run: `src/swagger/swagger_install.sh 4.16.1`
+
+Note that the above command is also how you would upgrade Swagger itself. The version number should match one of the [swagger-ui release](https://github.com/swagger-api/swagger-ui/releases) tags
+
+If CloudFront is not displaying the updated Swagger docs, you may need to forcibly clear it's cache. To do that run: `aws cloudfront create-invalidation --distribution-id $DISTO_ID --paths "/api-docs/*" --region $AWS_REGION`
 
 ## Testing
 
@@ -79,10 +87,10 @@ For details about the structure of DynamoDB items and DMP versioning logic, plea
 
 You can update and deploy the AWS SAM managed Lambdas and the API Gateway independently. To do that please use the supplied shell script which will make AWS CLI calls to fetch the ARNs for various resources that were created/managed by Sceptre and CloudFormation.
 
-To run the script you must supply 3 arguments. For example: `./src/sam/sam_build_deploy.sh dev dmphub-dev.cdlib.org true` 
+To run the script you must supply 3 arguments. For example: `./src/sam/sam_build_deploy.sh dev dmphub-dev.cdlib.org true`
 - The 1st arg is the environment you wish to use. The environment must match a defined environment in the `src/sam/samconfig.toml` file.
 - The 2nd arg is the domain name. The API Gateway will automatically append the `api.` subdomain.
-- The 3rd arg is a boolean that indicates whether or not the LambdaLayer should be compiled. Set this to false if you are not updating the layer to speed things up. 
+- The 3rd arg is a boolean that indicates whether or not the LambdaLayer should be compiled. Set this to false if you are not updating the layer to speed things up.
 
 Note that the there is an `after_create` Sceptre hook on the `config/[env]/regional/dynamo.yaml` that will execute this shell script.
 

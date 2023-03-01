@@ -15,6 +15,7 @@ fi
 echo "Fetching resource ARNs from SSM ..."
 EVENT_BRIDGE_ARN=$(aws ssm get-parameter --name "/uc3/dmp/hub/$1/EventBusArn" | jq .Parameter.Value | sed -e "s/\"//g")
 HOSTED_ZONE_ID=$(aws ssm get-parameter --name "/uc3/dmp/hub/$1/HostedZoneId" | jq .Parameter.Value | sed -e "s/\"//g")
+SWAGGER_UI_SPEC=$(aws ssm get-parameter --name "/uc3/dmp/hub/$1/SwaggerUiSpec" | jq .Parameter.Value | sed -e "s/\"//g")
 
 echo "Fetching resource ARNs needed for SAM template.yaml ..."
 # WARNING: This script relies heavily on Sceptre-CF naming conventions

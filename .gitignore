@@ -1,0 +1,2 @@
+# Ignore Swagger distributions
+src/swagger/swagger-ui*/

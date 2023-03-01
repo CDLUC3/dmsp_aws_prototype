@@ -624,6 +624,8 @@ Outputs:
   # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
   # Find out more about other implicit resources you can reference within SAM
   # https://github.com/awslabs/serverless-application-model/blob/master/docs/internals/generated_resources.rst#api
+  SwaggerUiEndpoint:
+    Value: !Sub "GET https://${DmpHubRestApi}.execute-api.${AWS::Region}.amazonaws.com/v0/api-docs/"
   DeleteDmpEndpoint:
     Value: !Sub "DELETE https://${DmpHubRestApi}.execute-api.${AWS::Region}.amazonaws.com/v0/dmps/{dmp_id+}"
   GetDmpEndpoint:
