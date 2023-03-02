@@ -1,0 +1,299 @@
+openapi: 3.1.0
+
+info:
+  version: 0.1.0
+  title: DMPHub v0
+  description: The DMPHub Rest API
+
+  contact:
+    name: DMPTool Support
+    email: dmptool@ucop.edu
+    url: https://dmptool.org/contact-us
+
+  license:
+    name: MIT License
+    url: https://spdx.org/licenses/MIT.html
+
+  servers:
+    - description: DMPHub development API
+      url: https://api.dmphub-dev.cdlib.org/v0
+    - description: DMPHub staging API
+      url: https://api.dmphub-stg.cdlib.org/v0
+    - description: DMPHub production API
+      url: https://api.dmphub.cdlib.org/v0
+
+externalDocs:
+  description: Overview documentation of the API and DMP metadata
+  url: https://github.com/CDLUC3/dmp-hub-cfn/wiki/API-Overview
+
+# Predefined components
+components:
+  callbacks:
+
+  examples:
+
+  headers:
+    # TODO: Define Authorization and Accept Content-Type headers
+
+  links:
+
+  parameters:
+    # TODO: Define dmp_id (maybe) and version parameters
+    - name: dmpId
+      in: path
+      description: The Dmp Id (e.g. 'doi.org/10.12345/ABC123' or '10.12345/ABC123')
+      required: true
+      schema:
+        type: string
+
+  pathItems:
+
+  responses:
+    NotFound:
+      description: DMP not found
+
+    IllegalInput:
+      descriptions: Invalid arguments
+
+    GeneralError:
+      description: Server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/GeneralError'
+
+  requestBodies:
+
+  schemas:
+    # Responses
+    # -------------------------------------
+    StandardError:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        message:
+          type: string
+
+    StandardResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          description: The status code (e.g. '200', '201', etc.)
+        requested:
+          type: string
+          description: The path that was called (e.g. '/dmps/10.12345/ABC123')
+        requested_at:
+          type: date-time
+          description: The ISO 8601 date and time the request was processed (e.g. 2023-02-08T18:49:45621UTC)
+        total_items:
+          type: integer
+          format: int32
+          description: The total number of returnable items (regardless of current pagination settings)
+        page:
+          type: integer
+          format: int32
+          description: The current page
+        per_page:
+          type: integer
+          format: int32
+          description: The number of items per page (min - 1, max - 250, default - 25)
+        items:
+          type: array
+          description: The DMPs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dmp'
+
+    # Models
+    # -------------------------------------
+    PersonIdentifier:
+      type: object
+      description: The person's unique ID (e.g. their ORCID URL)
+      required:
+        - identifier
+        - type
+      properties:
+        identifier:
+          type: string
+          description: The identifier value (e.g. https://orcid.org/0000-0000-0000-0000)
+        type:
+          type: string
+          enum: [orcid, isni, openid, other]
+          description: 'The identifier type. Allowed values: orcid, isni, openid, other'
+
+    AffiliationIdentifier:
+      type: object
+      description: The instituion's / organization's unique identifier (e.g. their ROR URL)
+      required:
+        - identifier
+        - type
+      properties:
+        identifier:
+          type: string
+          description: The identifier value (e.g. https://ror.org/03yrm5c26)
+        type:
+          type: string
+          enum: [doi, ror, url]
+          description: 'The identifier type. Allowed values: doi, ror, url'
+
+    Dmp:
+      type: object
+      description: A Data Management Plan (DMP)
+      properties:
+        title:
+          type: string
+          description: The title of the DMP (often the same as the research project)
+
+  securitySchemes:
+    access_token:
+      type: token
+      name: access_token
+      in: header
+
+    dmphub_auth:
+      type: oauth2
+      flows:
+        client_credentials:
+          authorizationUrl: https://auth.dmphub-dev.cdlib.org/oauth2/token
+          scopes:
+            'https://auth.dmphub-dev.cdlib.org/dev.read': Read DMPs
+            'https://auth.dmphub-dev.cdlib.org/dev.write': Create and modify DMPs
+
+# API routing
+paths:
+  /dmps:
+    post:
+      operationId: CreateDmp
+      description: Create a new DMP record
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Dmp'
+      security:
+        - dmphub_auth:
+          - 'https://auth.dmphub-dev.cdlib.org/dev.write'
+      responses:
+        '201':
+          description: The DMP metadata (including its DMP ID)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardResponse'
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardError'
+
+  /dmps/validate:
+    post:
+      operationId: ValidateDmp
+      description: Validate the DMP metadata payload
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Dmp'
+      responses:
+        '200':
+          description: The DMP metadata was valid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardResponse'
+        default:
+          description: A detailed list of validation errors
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardError'
+
+  /dmps/{dmp_id+}:
+    delete:
+      operationId: TombstoneDmp
+      description: Tombstone the DMP by the DMP ID (e.g. 'doi.org/10.12345/ABC123' or '10.12345/ABC123')
+      parameters:
+        - name: dmpId
+          in: path
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/parameters/DmpId'
+      security:
+        - dmphub_auth:
+          - 'https://auth.dmphub-dev.cdlib.org/dev.write'
+      responses:
+        '200':
+          description: The successfully tombstoned DMP (DMPs are not deleted, they become inaccessible)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardResponse'
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardError'
+
+    get:
+      operationId: GetDmp
+      description: Find the DMP by the DMP ID (e.g. 'doi.org/10.12345/ABC123' or '10.12345/ABC123')
+      parameters:
+        - name: dmpId
+          in: path
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/parameters/DmpId'
+      responses:
+        '200':
+          description: The DMP in a single item array
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardResponse'
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardError'
+
+    put:
+      operationId: UpdateDmp
+      description: Update the DMP by the DMP ID (e.g. 'doi.org/10.12345/ABC123' or '10.12345/ABC123')
+      parameters:
+        - name: dmpId
+          in: path
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/parameters/DmpId'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Dmp'
+      security:
+        - dmphub_auth:
+          - 'https://auth.dmphub-dev.cdlib.org/dev.write'
+      responses:
+        '200':
+          description: The successfully updated DMP
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardResponse'
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardError'

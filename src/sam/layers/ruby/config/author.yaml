@@ -1,0 +1,893 @@
+title: 'RDA DMP Common Standard Schema'
+description: 'JSON Schema for the RDA DMP Common Standard'
+type: 'object'
+properties:
+  dmp:
+    type: 'object'
+    title: 'The DMP Schema'
+    properties:
+      contact:
+        type: 'object'
+        title: 'The DMP Contact Schema'
+        properties:
+          contact_id:
+            type: 'object'
+            title: 'The Contact ID Schema'
+            properties:
+              identifier:
+                type: 'string'
+                title: 'The DMP Contact Identifier Schema'
+              type:
+                type: 'string'
+                enum:
+                  - 'orcid'
+                  - 'isni'
+                  - 'openid'
+                title: 'The DMP Contact Identifier Type Schema'
+                description: 'Identifier type. Allowed values: orcid, isni, openid, other'
+            required:
+              - 'identifier'
+              - 'type'
+          dmproadmap_affiliation:
+            type: 'object'
+            title: 'The contact's affiliation'
+            properties:
+              affiliation_id:
+                type: 'object'
+                title: 'The unique ID of the affiliation'
+                description: 'The affiliation's ROR, Crossref funder ID or URL'
+                properties:
+                  identifier:
+                    type: 'string'
+                    title: 'The affiliation ID'
+                    description: 'ROR ID, Crossref funder ID or URL. Recommended to use Research Organization Registry (ROR). See: https://ror.org'
+                  type:
+                    type: 'string'
+                    enum:
+                      - 'doi'
+                      - 'ror'
+                      - 'url'
+                    title: 'The affiliation ID type schema'
+                    description: 'Identifier type. Allowed values: doi, ror, url'
+                required:
+                  - 'identifier'
+                  - 'type'
+              name:
+                type: 'string'
+                title: 'Name of the instituion/organization'
+                description: 'Official institution/organization name'
+          mbox:
+            type: string
+            format: email
+            title: The Mailbox Schema
+            description: Contact Person's E-mail address
+          name:
+            type: string
+            title: The Name Schema
+            description: Name of the contact person as Last, First (e.g. "Doe PhD., Jane A." or "Doe, Jane")
+        required:
+          - 'contact_id'
+          - 'mbox'
+          - 'name'
+
+      contributor:
+        type: 'array'
+        title: 'The Contributor Schema'
+        items:
+          type: 'object'
+          title: 'The Contributor Items Schema'
+          properties:
+            contributor_id:
+              type: 'object'
+              title: 'The Contributor_id Schema'
+              properties:
+                identifier:
+                  type: 'string'
+                  title: 'The Contributor Identifier Schema'
+                  description: 'Identifier for a contact person'
+                type:
+                  type: 'string'
+                  enum:
+                    - 'orcid'
+                    - 'isni'
+                    - 'openid'
+                    - 'other'
+                  title: 'The Contributor Identifier Type Schema'
+                  description: 'Identifier type. Allowed values: orcid, isni, openid, other'
+              required:
+                - 'identifier'
+                - 'type'
+            dmproadmap_affiliation:
+              type: 'object'
+              title: 'The contributor's affiliation'
+              properties:
+                affiliation_id:
+                  type: 'object'
+                  title: 'The unique ID of the affiliation'
+                  description: 'The affiliation's ROR, Crossref funder ID or URL'
+                  properties:
+                    identifier:
+                      type: 'string'
+                      title: 'The affiliation ID'
+                      description: 'ROR ID, Crossref funder ID or URL. Recommended to use Research Organization Registry (ROR). See: https://ror.org'
+                    type:
+                      type: 'string'
+                      enum:
+                        - 'doi'
+                        - 'ror'
+                        - 'url'
+                      title: 'The affiliation ID type schema'
+                      description: 'Identifier type. Allowed values: doi, ror, url'
+                  required:
+                    - 'identifier'
+                    - 'type'
+                name:
+                  type: 'string'
+                  title: 'Name of the instituion/organization'
+                  description: 'Official institution/organization name'
+            mbox:
+              type: 'string'
+              title: 'The Contributor Mailbox Schema'
+              description: 'Contributor Mail address'
+              format: 'email'
+            name:
+              type: 'string'
+              title: 'The Name Schema'
+              description: 'Name of the contributor as Last, First (e.g. "Doe PhD., Jane A." or "Doe, Jane")'
+
+            role:
+              type: array
+              title: The Role Schema
+              description: Type of contributor
+              items:
+                type: string
+                title: The Contributor Role(s) Items Schema
+              uniqueItems: true
+          required:
+            - 'name'
+            - 'role'
+
+      cost:
+        type: 'array'
+        title: 'The Cost Schema'
+        items:
+          type: 'object'
+          title: 'The Cost Items Schema'
+          properties:
+            currency_code:
+              type: 'string'
+              enum: [
+                'AED', 'AFN', 'ALL', 'AMD', 'ANG', 'AOA', 'ARS', 'AUD', 'AWG', 'AZN',
+                'BAM', 'BBD', 'BDT', 'BGN', 'BHD', 'BIF', 'BMD', 'BND', 'BOB', 'BRL',
+                'BSD', 'BTN', 'BWP', 'BYN', 'BZD', 'CAD', 'CDF', 'CHF', 'CLP', 'CNY',
+                'COP', 'CRC', 'CUC', 'CUP', 'CVE', 'CZK', 'DJF', 'DKK', 'DOP', 'DZD',
+                'EGP', 'ERN', 'ETB', 'EUR', 'FJD', 'FKP', 'GBP', 'GEL', 'GGP', 'GHS',
+                'GIP', 'GMD', 'GNF', 'GTQ', 'GYD', 'HKD', 'HNL', 'HRK', 'HTG', 'HUF',
+                'IDR', 'ILS', 'IMP', 'INR', 'IQD', 'IRR', 'ISK', 'JEP', 'JMD', 'JOD',
+                'JPY', 'KES', 'KGS', 'KHR', 'KMF', 'KPW', 'KRW', 'KWD', 'KYD', 'KZT',
+                'LAK', 'LBP', 'LKR', 'LRD', 'LSL', 'LYD', 'MAD', 'MDL', 'MGA', 'MKD',
+                'MMK', 'MNT', 'MOP', 'MRU', 'MUR', 'MVR', 'MWK', 'MXN', 'MYR', 'MZN',
+                'NAD', 'NGN', 'NIO', 'NOK', 'NPR', 'NZD', 'OMR', 'PAB', 'PEN', 'PGK',
+                'PHP', 'PKR', 'PLN', 'PYG', 'QAR', 'RON', 'RSD', 'RUB', 'RWF', 'SAR',
+                'SBD', 'SCR', 'SDG', 'SEK', 'SGD', 'SHP', 'SLL', 'SOS', 'SPL*,SRD',
+                'STN', 'SVC', 'SYP', 'SZL', 'THB', 'TJS', 'TMT', 'TND,	TOP', 'TRY',
+                'TTD', 'TVD', 'TWD', 'TZS', 'UAH', 'UGX', 'USD', 'UYU', 'UZS', 'VEF',
+                'VND', 'VUV', 'WST', 'XAF', 'XCD', 'XDR', 'XOF', 'XPF', 'YER', 'ZAR',
+                'ZMW', 'ZWD'
+              ]
+              title: 'The Cost Currency Code Schema'
+              description: 'Allowed values defined by ISO 4217'
+            description:
+              type: 'string'
+              title: 'The Cost Description Schema'
+              description: 'Cost(s) Description'
+            title:
+              type: 'string'
+              title: 'The Cost Title Schema'
+              description: 'Title'
+            value:
+              type: 'number'
+              title: 'The Cost Value Schema'
+              description: 'Value'
+          required:
+            - 'title'
+
+      created:
+        type: 'string'
+        format: 'date-time'
+        title: 'The DMP Creation Schema'
+        description: 'Date and time of the first version of a DMP. Must not be changed in subsequent DMPs. Encoded using the relevant ISO 8601 Date and Time compliant string'
+
+      dataset:
+        type: 'array'
+        title: 'The Dataset Schema'
+        items:
+          type: 'object'
+          title: 'The Dataset Items Schema'
+          properties:
+            data_quality_assurance:
+              type: 'array'
+              title: 'The Data Quality Assurance Schema'
+              description: 'Data Quality Assurance'
+              items:
+                type: 'string'
+                title: 'The Data Quality Assurance Schema'
+            dataset_id:
+              type: 'object'
+              title: 'The Dataset ID Schema'
+              description: 'Dataset ID'
+              properties:
+                identifier:
+                  type: 'string'
+                  title: 'The Dataset Identifier Schema'
+                  description: 'Identifier for a dataset'
+                type:
+                  type: 'string'
+                  enum:
+                    - 'handle'
+                    - 'doi'
+                    - 'ark'
+                    - 'url'
+                    - 'other'
+                  title: 'The Dataset Identifier Type Schema'
+                  description: 'Dataset identifier type. Allowed values: handle, doi, ark, url, other'
+              required:
+                - 'identifier'
+                - 'type'
+            description:
+              type: 'string'
+              title: 'The Dataset Description Schema'
+              description: 'Description is a property in both Dataset and Distribution, in compliance with W3C DCAT. In some cases these might be identical, but in most cases the Dataset represents a more abstract concept, while the distribution can point to a specific file.'
+
+            distribution:
+              type: 'array'
+              title: 'The Dataset Distribution Schema'
+              description: 'To provide technical information on a specific instance of data.'
+              items:
+                type: 'object'
+                title: 'The Dataset Distribution Items Schema'
+                properties:
+                  access_url:
+                    type: 'string'
+                    format: 'uri'
+                    title: 'The Dataset Distribution Access URL Schema'
+                    description: 'A URL of the resource that gives access to a distribution of the dataset. e.g. landing page.'
+                  available_until:
+                    type: 'string'
+                    format: 'date'
+                    title: 'The Dataset Distribution Available Until Schema'
+                    description: 'Indicates how long this distribution will be/ should be available. Encoded using the relevant ISO 8601 Date and Time compliant string.'
+                  byte_size:
+                    type: 'integer'
+                    title: 'The Dataset Distribution Byte Size Schema'
+                    description: 'Size in bytes.'
+                  data_access:
+                    type: 'string'
+                    enum:
+                      - 'open'
+                      - 'shared'
+                      - 'closed'
+                    title: 'The Dataset Distribution Data Access Schema'
+                    description: 'Indicates access mode for data. Allowed values: open, shared, closed'
+                  description:
+                    type: 'string'
+                    title: 'The Dataset Distribution Description Schema'
+                    description: 'Description is a property in both Dataset and Distribution, in compliance with W3C DCAT. In some cases these might be identical, but in most cases the Dataset represents a more abstract concept, while the distribution can point to a specific file.'
+                  download_url:
+                    type: 'string'
+                    format: 'uri'
+                    title: 'The Dataset Distribution Download URL Schema'
+                    description: 'The URL of the downloadable file in a given format. E.g. CSV file or RDF file.'
+                  format:
+                    type: 'array'
+                    title: 'The Dataset Distribution Format Schema'
+                    description: 'Format according to: https://www.iana.org/assignments/media-types/media-types.xhtml if appropriate, otherwise use the common name for this format.'
+                    items:
+                      type: 'string'
+                      title: 'The Dataset Distribution Format Items Schema'
+
+                  host:
+                    type: 'object'
+                    title: 'The Dataset Distribution Host Schema'
+                    description: 'To provide information on quality of service provided by infrastructure (e.g. repository) where data is stored.'
+                    properties:
+                      availability:
+                        type: 'string'
+                        title: 'The Dataset Distribution Host Availability Schema'
+                        description: 'Availability'
+                      backup_frequency:
+                        type: 'string'
+                        title: 'The Dataset Distribution Host Backup Frequency Schema'
+                        description: 'Backup Frequency'
+                      backup_type:
+                        type: 'string'
+                        title: 'The Dataset Distribution Host Backup Type Schema'
+                        description: 'Backup Type'
+                      certified_with:
+                        type: 'string'
+                        enum: [
+                          'din31644', 'dini-zertifikat', 'dsa', 'iso16363', 'iso16919',
+                          'trac', 'wds', 'coretrustseal'
+                        ]
+                        title: 'The Dataset Distribution Host Certification Type Schema'
+                        description: 'Repository certified to a recognised standard. Allowed values: din31644, dini-zertifikat, dsa, iso16363, iso16919, trac, wds, coretrustseal'
+                      description:
+                        type: 'string'
+                        title: 'The Dataset Distribution Host Description Schema'
+                        description: 'Description'
+                      dmproadmap_host_id:
+                        type: 'object'
+                        title: 'The Host ID'
+                        description: 'The unique identifier or URL for the host'
+                        properties:
+                          identifier:
+                            type: 'string'
+                            title: 'The Host Identifier'
+                            description: 'The Host URL or identifier'
+                          type:
+                            type: 'string'
+                            enum:
+                              - 'handle'
+                              - 'doi'
+                              - 'ark'
+                              - 'url'
+                            title: 'The Host Identifier Type Schema'
+                            description: 'Host identifier type. Allowed values: handle, doi, ark, url'
+                        required:
+                          - 'identifier'
+                          - 'type'
+                      geo_location:
+                        type: 'string'
+                        enum: [
+                          AD, AE, AF, AG, AI, AL, AM, AO, AQ, AR, AS, AT, AU, AW, AX, AZ, BA
+                          BB, BD, BE, BF, BG, BH, BI, BJ, BL, BM, BN, BO, BQ, BR, BS, BT, BV
+                          BW, BY, BZ, CA, CC, CD, CF, CG, CH, CI, CK, CL, CM, CN, CO, CR, CU
+                          CV, CW, CX, CY, CZ, DE, DJ, DK, DM, DO, DZ, EC, EE, EG, EH, ER, ES
+                          ET, FI, FJ, FK, FM, FO, FR, GA, GB, GD, GE, GF, GG, GH, GI, GL, GM
+                          GN, GP, GQ, GR, GS, GT, GU, GW, GY, HK, HM, HN, HR, HT, HU, ID, IE
+                          IL, IM, IN, IO, IQ, IR, IS, IT, JE, JM, JO, JP, KE, KG, KH, KI, KM
+                          KN, KP, KR, KW, KY, KZ, LA, LB, LC, LI, LK, LR, LS, LT, LU, LV, LY
+                          MA, MC, MD, ME, MF, MG, MH, MK, ML, MM, MN, MO, MP, MQ, MR, MS, MT
+                          MU, MV, MW, MX, MY, MZ, NA, NC, NE, NF, NG, NI, NL, 'NO', NP, NR, NU
+                          NZ, OM, PA, PE, PF, PG, PH, PK, PL, PM, PN, PR, PS, PT, PW, PY, QA
+                          RE, RO, RS, RU, RW, SA, SB, SC, SD, SE, SG, SH, SI, SJ, SK, SL, SM
+                          SN, SO, SR, SS, ST, SV, SX, SY, SZ, TC, TD, TF, TG, TH, TJ, TK, TL
+                          TM, TN, TO, TR, TT, TV, TW, TZ, UA, UG, UM, US, UY, UZ, VA, VC, VE
+                          VG, VI, VN, VU, WF, WS, YE, YT, ZA, ZM, ZW
+                        ]
+                        title: 'The Dataset Distribution Host Geographical Location Schema'
+                        description: 'Physical location of the data expressed using ISO 3166-1 country code.'
+                      pid_system:
+                        type: 'array'
+                        title: 'The Dataset Distribution Host PID System Schema'
+                        description: 'PID system(s). Allowed values: ark, arxiv, bibcode, doi, ean13, eissn, handle, igsn, isbn, issn, istc, lissn, lsid, pmid, purl, upc, url, urn, other'
+                        items:
+                          type: 'string'
+                          title: 'The Dataset Distribution Host PID System Items Schema'
+                          enum: [
+                            ark, arxiv, bibcode, doi, ean13, eissn, handle, igsn, isbn, issn, istc,
+                            lissn, lsid, pmid, purl, upc, url, urn, other
+                          ]
+                      storage_type:
+                        type: 'string'
+                        title: 'The Dataset Distribution Host Storage Type Schema'
+                        description: 'The type of storage required'
+                      support_versioning:
+                        type: 'string'
+                        enum:
+                          - 'yes'
+                          - 'no'
+                          - 'unknown'
+                        title: 'The Dataset Distribution Host Support Versioning Schema'
+                        description: 'If host supports versioning. Allowed values: yes, no, unknown'
+                      title:
+                        type: 'string'
+                        title: 'The Dataset Distribution Host Title Schema'
+                        description: 'Title'
+                      url:
+                        type: 'string'
+                        format: 'uri'
+                        title: 'The Dataset Distribution Host Title Schema'
+                        description: 'The URL of the system hosting a distribution of a dataset'
+                    required:
+                      - 'title'
+                      - 'url'
+
+                  license:
+                    type: 'array'
+                    title: 'The Dataset Distribution License(s) Schema'
+                    description: 'To list all licenses applied to a specific distribution of data.'
+                    items:
+                      type: 'object'
+                      title: 'The Dataset Distribution License Items'
+                      properties:
+                        license_ref:
+                          type: 'string'
+                          format: 'uri'
+                          title: 'The Dataset Distribution License Reference Schema'
+                          description: 'Link to license document.'
+                        start_date:
+                          type: 'string'
+                          format: 'date'
+                          title: 'The Dataset Distribution License Start Date Schema'
+                          description: 'If date is set in the future, it indicates embargo period. Encoded using the relevant ISO 8601 Date and Time compliant string.'
+                      required:
+                        - 'license_ref'
+                        - 'start_date'
+                  title:
+                    type: 'string'
+                    title: 'The Dataset Distribution Title Schema'
+                    description: 'Title is a property in both Dataset and Distribution, in compliance with W3C DCAT. In some cases these might be identical, but in most cases the Dataset represents a more abstract concept, while the distribution can point to a specific file.'
+                required:
+                  - 'data_access'
+                  - 'title'
+
+            issued:
+              type: 'string'
+              format: 'date'
+              title: 'The Dataset Date of Issue Schema'
+              description: 'Issued. Encoded using the relevant ISO 8601 Date and Time compliant string.'
+            keyword:
+              type: 'array'
+              title: 'The Dataset Keyword(s) Schema'
+              description: 'Keywords'
+              items:
+                type: 'string'
+                title: 'The Dataset Keyword Items Schema'
+            language:
+              type: 'string'
+              enum: [
+                aar, abk, afr, aka, amh, ara, arg, asm, ava, ave, aym, aze, bak, bam, bel, ben, bih, bis, bod, bos
+                bre, bul, cat, ces, cha, che, chu, chv, cor, cos, cre, cym, dan, deu, div, dzo, ell, eng, epo, est
+                eus, ewe, fao, fas, fij, fin, fra, fry, ful, gla, gle, glg, glv, grn, guj, hat, hau, hbs, heb, her
+                hin, hmo, hrv, hun, hye, ibo, ido, iii, iku, ile, ina, ind, ipk, isl, ita, jav, jpn, kal, kan, kas
+                kat, kau, kaz, khm, kik, kin, kir, kom, kon, kor, kua, kur, lao, lat, lav, lim, lin, lit, ltz, lub
+                lug, mah, mal, mar, mkd, mlg, mlt, mon, mri, msa, mya, nau, nav, nbl, nde, ndo, nep, nld, nno, nob
+                nor, nya, oci, oji, ori, orm, oss, pan, pli, pol, por, pus, que, roh, ron, run, rus, sag, san, sin
+                slk, slv, sme, smo, sna, snd, som, sot, spa, sqi, srd, srp, ssw, sun, swa, swe, tah, tam, tat, tel
+                tgk, tgl, tha, tir, ton, tsn, tso, tuk, tur, twi, uig, ukr, urd, uzb, ven, vie, vol, wln, wol, xho
+                yid, yor, zha, zho, zul
+              ]
+              title: 'The Dataset Language Schema'
+              description: 'Language of the dataset expressed using ISO 639-3.'
+            metadata:
+              type: 'array'
+              title: 'The Dataset Metadata Schema'
+              description: 'To describe metadata standards used.'
+              items:
+                type: 'object'
+                title: 'The Dataset Metadata Items Schema'
+                properties:
+                  description:
+                    type: 'string'
+                    title: 'The Dataset Metadata Description Schema'
+                    description: 'Description'
+                  language:
+                    type: 'string'
+                    enum: [
+                      aar, abk, afr, aka, amh, ara, arg, asm, ava, ave, aym, aze, bak, bam, bel, ben, bih, bis, bod, bos
+                      bre, bul, cat, ces, cha, che, chu, chv, cor, cos, cre, cym, dan, deu, div, dzo, ell, eng, epo, est
+                      eus, ewe, fao, fas, fij, fin, fra, fry, ful, gla, gle, glg, glv, grn, guj, hat, hau, hbs, heb, her
+                      hin, hmo, hrv, hun, hye, ibo, ido, iii, iku, ile, ina, ind, ipk, isl, ita, jav, jpn, kal, kan, kas
+                      kat, kau, kaz, khm, kik, kin, kir, kom, kon, kor, kua, kur, lao, lat, lav, lim, lin, lit, ltz, lub
+                      lug, mah, mal, mar, mkd, mlg, mlt, mon, mri, msa, mya, nau, nav, nbl, nde, ndo, nep, nld, nno, nob
+                      nor, nya, oci, oji, ori, orm, oss, pan, pli, pol, por, pus, que, roh, ron, run, rus, sag, san, sin
+                      slk, slv, sme, smo, sna, snd, som, sot, spa, sqi, srd, srp, ssw, sun, swa, swe, tah, tam, tat, tel
+                      tgk, tgl, tha, tir, ton, tsn, tso, tuk, tur, twi, uig, ukr, urd, uzb, ven, vie, vol, wln, wol, xho
+                      yid, yor, zha, zho, zul
+                    ]
+                    title: 'The Dataset Metadata Language Schema'
+                    description: 'Language of the metadata expressed using ISO 639-3.'
+                  metadata_standard_id :
+                    type: 'object'
+                    title: 'The Dataset Metadata Standard ID Schema'
+                    properties:
+                      identifier:
+                        type: 'string'
+                        title: 'The Dataset Metadata Standard Identifier Value Schema'
+                        description: 'Identifier for the metadata standard used.'
+                      type:
+                        type: 'string'
+                        enum:
+                          - 'url'
+                          - 'other'
+                        title: 'The Dataset Metadata Standard Identifier Type Schema'
+                        description: 'Identifier type. Allowed values: url, other'
+                    required:
+                      - 'identifier'
+                      - 'type'
+                required:
+                  - 'metadata_standard_id'
+
+            personal_data:
+              type: 'string'
+              enum:
+                - 'yes'
+                - 'no'
+                - 'unknown'
+              title: 'The Dataset Personal Data Schema'
+              description: 'If any personal data is contained. Allowed values: yes, no, unknown'
+            preservation_statement:
+              type: 'string'
+              title: 'The Dataset Preservation Statement Schema'
+              description: 'Preservation Statement'
+            security_and_privacy:
+              type: 'array'
+              title: 'The Dataset Security and Policy Schema'
+              description: 'To list all issues and requirements related to security and privacy'
+              items:
+                type: 'object'
+                title: 'The Dataset Security & Policy Items Schema'
+                properties:
+                  description:
+                    type: 'string'
+                    title: 'The Dataset Security & Policy Description Schema'
+                    description: 'Description'
+                  title:
+                    type: 'string'
+                    title: 'The Dataset Security & Policy Title Schema'
+                    description: 'Title'
+                required:
+                  - 'title'
+            sensitive_data:
+              type: 'string'
+              enum:
+                - 'yes'
+                - 'no'
+                - 'unknown'
+              title: 'The Dataset Sensitive Data Schema'
+              description: 'If any sensitive data is contained. Allowed values: yes, no, unknown'
+            technical_resource:
+              type: 'array'
+              title: 'The Dataset Technical Resource Schema'
+              description: 'To list all technical resources needed to implement a DMP'
+              items:
+                type: 'object'
+                title: 'The Dataset Technical Resource Items Schema'
+                properties:
+                  description:
+                    type: 'string'
+                    title: 'The Dataset Technical Resource Description Schema'
+                    description: 'Description of the technical resource'
+                  dmproadmap_technical_resource_id :
+                    type: 'object'
+                    title: 'The Dataset Metadata Standard ID Schema'
+                    properties:
+                      identifier:
+                        type: 'string'
+                        title: 'The Technical Resource Identifier Value Schema'
+                        description: 'Identifier for the metadata standard used.'
+                      type:
+                        type: 'string'
+                        enum:
+                          - 'ark'
+                          - 'doi'
+                          - 'handle'
+                          - 'url'
+                          - 'other'
+                        title: 'The Technical Resource Identifier Type Schema'
+                        description: 'Identifier type. Allowed values: url, other'
+                  name:
+                    type: 'string'
+                    title: 'The Dataset Technical Resource Name Schema'
+                    description: 'Name of the technical resource'
+                required:
+                  - 'name'
+
+            title:
+              type: 'string'
+              title: 'The Dataset Title Schema'
+              description: 'Title is a property in both Dataset and Distribution, in compliance with W3C DCAT. In some cases these might be identical, but in most cases the Dataset represents a more abstract concept, while the distribution can point to a specific file.'
+            type:
+              type: 'string'
+              title: 'The Dataset Type Schema'
+              description: 'If appropriate, type according to: DataCite and/or COAR dictionary. Otherwise use the common name for the type, e.g. raw data, software, survey, etc. https://schema.datacite.org/meta/kernel-4.1/doc/DataCite-MetadataKernel_v4.1.pdf http://vocabularies.coar-repositories.org/pubby/resource_type.html'
+          required:
+            - 'title'
+
+      description:
+        type: 'string'
+        title: 'The DMP Description Schema'
+        description: 'To provide any free-form text information on a DMP'
+
+      dmp_id:
+        type: 'object'
+        title: 'The DMP Identifier Schema'
+        description: 'Identifier for the DMP itself'
+        properties:
+          identifier:
+            type: 'string'
+            title: 'The DMP Identifier Value Schema'
+            description: 'Identifier for a DMP'
+          type:
+            type: 'string'
+            enum:
+              - 'handle'
+              - 'doi'
+              - 'ark'
+              - 'url'
+              - 'other'
+            title: 'The DMP Identifier Type Schema'
+            description: 'The DMP Identifier Type. Allowed values: handle, doi, ark, url, other'
+        required:
+          - 'identifier'
+          - 'type'
+
+      dmphub_versions:
+        type: 'array'
+        title: 'Versions'
+        description: 'The versions of the DMP'
+        items:
+          type: 'object'
+          title: 'A version of the DMP'
+          properties:
+            timestamp:
+              type: 'string'
+              format: 'date-time'
+              title: 'Timestamp'
+              description: 'The date and time of the version as ISO 8601 Date and Time compliant string'
+            url:
+              type: 'string'
+              title: 'Version access URL'
+              format: 'uri'
+              description: 'A URL to access the version'
+          required:
+            - 'timestamp'
+            - 'url'
+
+      dmproadmap_research_facilities:
+        type: 'array'
+        title: 'Facilities'
+        description: 'Facilities (e.g. labs and research stations) that will be used to collect/process research data'
+        items:
+          type: 'object'
+          title: 'A research facility'
+          properties:
+            affiliation_id:
+              type: 'object'
+              title: 'The unique ID of the facility'
+              description: 'The facility's ROR, DOI or URL'
+              properties:
+                identifier:
+                  type: 'string'
+                  title: 'The facility ID'
+                  description: 'ROR ID, DOI or URL. Recommended to use Research Organization Registry (ROR) or DOI when available. See: https://ror.org'
+                type:
+                  type: 'string'
+                  enum:
+                    - 'doi'
+                    - 'ror'
+                    - 'url'
+                  title: 'The facility ID type schema'
+                  description: 'Identifier type. Allowed values: doi, ror, url'
+              required:
+                - 'identifier'
+                - 'type'
+            name:
+              type: 'string'
+              title: 'Name of the facility'
+              description: 'Official facility name'
+
+      dmproadmap_related_identifiers:
+        type: 'array'
+        title: 'Related identifiers for the DMP'
+        description: 'Identifiers for objects related to the DMP (e.g. datasets, publications, etc.)'
+        items:
+          type: 'object'
+          title: 'A related identifier'
+          properties:
+            descriptor:
+              type: 'string'
+              enum: [
+                'is_cited_by', 'cites', '', 'is_supplement_to', 'is_supplemented_by', 'is_described_by',
+                'describes', 'has_metadata', 'is_metadata_for', 'is_part_of', 'has_part', 'is_referenced_by',
+                'references', 'is_documented_by', 'documents', 'is_new_version_of', 'is_previous_version_of'
+              ]
+            identifier:
+              type: 'string'
+              title: 'A unique identifier for the item'
+              description: 'Identifier for a DMP'
+            type:
+              type: 'string'
+              enum:
+                - 'handle'
+                - 'doi'
+                - 'ark'
+                - 'url'
+                - 'other'
+            work_type:
+              type: 'string'
+              enum: [
+                'article', 'book', 'dataset', 'metadata_template', 'other', 'output_management_plan',
+                'paper', 'preprint', 'preregistration', 'protocol', 'software', 'supplemental_information'
+              ]
+          required:
+            - 'descriptor'
+            - 'identifier'
+            - 'type'
+            - 'work_type'
+
+      ethical_issues_description:
+        type: 'string'
+        title: 'The DMP Ethical Issues Description Schema'
+        description: 'To describe ethical issues directly in a DMP'
+
+      ethical_issues_exist:
+        type: 'string'
+        enum:
+          - 'yes'
+          - 'no'
+          - 'unknown'
+        title: 'The DMP Ethical Issues Exist Schema'
+        description: 'To indicate whether there are ethical issues related to data that this DMP describes. Allowed values: yes, no, unknown'
+
+      ethical_issues_report:
+        type: 'string'
+        format: 'uri'
+        title: 'The DMP Ethical Issues Report Schema'
+        description: 'To indicate where a protocol from a meeting with an ethical commitee can be found'
+
+      language:
+        type: 'string'
+        enum: [
+          aar, abk, afr, aka, amh, ara, arg, asm, ava, ave, aym, aze, bak, bam, bel, ben, bih, bis, bod, bos
+          bre, bul, cat, ces, cha, che, chu, chv, cor, cos, cre, cym, dan, deu, div, dzo, ell, eng, epo, est
+          eus, ewe, fao, fas, fij, fin, fra, fry, ful, gla, gle, glg, glv, grn, guj, hat, hau, hbs, heb, her
+          hin, hmo, hrv, hun, hye, ibo, ido, iii, iku, ile, ina, ind, ipk, isl, ita, jav, jpn, kal, kan, kas
+          kat, kau, kaz, khm, kik, kin, kir, kom, kon, kor, kua, kur, lao, lat, lav, lim, lin, lit, ltz, lub
+          lug, mah, mal, mar, mkd, mlg, mlt, mon, mri, msa, mya, nau, nav, nbl, nde, ndo, nep, nld, nno, nob
+          nor, nya, oci, oji, ori, orm, oss, pan, pli, pol, por, pus, que, roh, ron, run, rus, sag, san, sin
+          slk, slv, sme, smo, sna, snd, som, sot, spa, sqi, srd, srp, ssw, sun, swa, swe, tah, tam, tat, tel
+          tgk, tgl, tha, tir, ton, tsn, tso, tuk, tur, twi, uig, ukr, urd, uzb, ven, vie, vol, wln, wol, xho
+          yid, yor, zha, zho, zul
+        ]
+        title: 'The DMP Language Schema'
+        description: 'Language of the DMP expressed using ISO 639-3.'
+
+      modified:
+        type: 'string'
+        format: 'date-time'
+        title: 'The DMP Modification Schema'
+        description: 'Must be set each time DMP is modified. Indicates DMP version. Encoded using the relevant ISO 8601 Date and Time compliant string.'
+
+      project:
+        type: 'array'
+        title: 'The DMP Project Schema'
+        description: 'Project related to a DMP'
+        items:
+          type: 'object'
+          title: 'The DMP Project Items Schema'
+          properties:
+            description:
+              type: 'string'
+              title: 'The DMP Project Description Schema'
+              description: 'Project description'
+            end:
+              type: 'string'
+              format: 'date'
+              title: 'The DMP Project End Date Schema'
+              description: 'Project end date. Encoded using the relevant ISO 8601 Date and Time compliant string.'
+            funding:
+              type: 'array'
+              title: 'The DMP Project Funding Schema'
+              description: 'Funding related with a project'
+              items:
+                type: 'object'
+                title: 'The DMP Project Funding Items Schema'
+                properties:
+                  dmproadmap_funded_affiliations:
+                    type: 'array'
+                    title: 'Institutions named on the grant'
+                    description: 'The institutions who received the funding'
+                    items:
+                      type: 'object'
+                      title: 'An institution that received funding'
+                      properties:
+                        affiliation_id:
+                          type: 'object'
+                          title: 'The funded affiliation's ID'
+                          description: 'Affiliation ID of the associated project'
+                          properties:
+                            identifier:
+                              type: 'string'
+                              title: 'The affiliation ID'
+                              description: 'ROR ID or URL. Recommended to use Research Organization Registry (ROR). See: https://ror.org'
+                            type:
+                              type: 'string'
+                              enum:
+                                - 'doi'
+                                - 'ror'
+                                - 'url'
+                              title: 'The affiliation ID Type Schema'
+                              description: 'Identifier type. Allowed values: doi, ror, url'
+                          required:
+                            - 'identifier'
+                            - 'type'
+                        name:
+                          type: 'string'
+                          title: 'The name of the instituion / organization'
+                          description: 'Project title'
+                  funder_id:
+                    type: 'object'
+                    title: 'The Funder ID Schema'
+                    description: 'Funder ID of the associated project'
+                    properties:
+                      identifier:
+                        type: 'string'
+                        title: 'The Funder ID Value Schema'
+                        description: 'Funder ID, recommended to use CrossRef Funder Registry. See: https://www.crossref.org/services/funder-registry/'
+                      type:
+                        type: 'string'
+                        enum:
+                          - 'fundref'
+                          - 'ror'
+                          - 'url'
+                          - 'other'
+                        title: 'The Funder ID Type Schema'
+                        description: 'Identifier type. Allowed values: fundref, url, other'
+                    required:
+                      - 'identifier'
+                      - 'type'
+                  funding_status:
+                    type: 'string'
+                    enum:
+                      - 'planned'
+                      - 'applied'
+                      - 'granted'
+                      - 'rejected'
+                    title: 'The Funding Status Schema'
+                    description: 'To express different phases of project lifecycle. Allowed values: planned, applied, granted, rejected'
+                  grant_id:
+                    type: 'object'
+                    title: 'The Funding Grant ID Schema'
+                    description: 'Grant ID of the associated project'
+                    properties:
+                      identifier:
+                        type: 'string'
+                        title: 'The Funding Grant ID Value Schema'
+                        description: 'Grant ID'
+                      type:
+                        type: 'string'
+                        title: 'The Funding Grant ID Type Schema'
+                        enum:
+                          - 'doi'
+                          - 'url'
+                          - 'other'
+                        description: 'Identifier type. Allowed values: url, other'
+                    required:
+                      - 'identifier'
+                      - 'type'
+                  name:
+                    type: 'string'
+                    title: 'The name of the funding instituion / organization'
+                    description: 'Name'
+                required:
+                  - 'funding_status'
+                  - 'name'
+            start:
+              type: 'string'
+              format: 'date'
+              title: 'The DMP Project Start Date Schema'
+              description: 'Project start date. Encoded using the relevant ISO 8601 Date and Time compliant string.'
+            title:
+              type: 'string'
+              title: 'The DMP Project Title Schema'
+              description: 'Project title'
+          required:
+            - 'title'
+
+      title:
+        type: 'string'
+        title: 'The DMP Title Schema'
+        description: 'Title of a DMP'
+    required:
+      - 'contact'
+      - 'created'
+      - 'dataset'
+      - 'dmp_id'
+      - 'modified'
+      - 'project'
+      - 'title'
+additionalProperties: false
+required:
+  - 'dmp'

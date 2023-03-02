@@ -5,3 +5,4 @@ region: 'us-east-1'
 #   my_variable: !stack_attr sceptre_user_data.[variable]
 sceptre_user_data:
   domain: 'dmphub-dev.cdlib.org'
+  ssm_path: '/uc3/dmp/hub/dev/'

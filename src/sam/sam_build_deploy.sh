@@ -1,9 +1,16 @@
 #!/bin/bash
 
+echo ''
+echo '===================='
+echo 'SAM BUILD AND DEPLOY'
+echo '===================='
+echo ''
+
 TAG_QUERY=aws_tag_query.json
 ARN_PREFIX=arn:aws:s3:::
 KEY=ParameterKey
 VAL=ParameterValue
+SWAGGER_VERSION=4.16.1
 
 if [ $# -ne 3 ]; then
   echo 'Wrong number of arguments. Expecting 3:'
@@ -13,11 +20,12 @@ if [ $# -ne 3 ]; then
 fi
 
 echo "Fetching resource ARNs from SSM ..."
+echo "----------------------------------------------------------------------------"
 EVENT_BRIDGE_ARN=$(aws ssm get-parameter --name "/uc3/dmp/hub/$1/EventBusArn" | jq .Parameter.Value | sed -e "s/\"//g")
 HOSTED_ZONE_ID=$(aws ssm get-parameter --name "/uc3/dmp/hub/$1/HostedZoneId" | jq .Parameter.Value | sed -e "s/\"//g")
-SWAGGER_UI_SPEC=$(aws ssm get-parameter --name "/uc3/dmp/hub/$1/SwaggerUiSpec" | jq .Parameter.Value | sed -e "s/\"//g")
 
 echo "Fetching resource ARNs needed for SAM template.yaml ..."
+echo "----------------------------------------------------------------------------"
 # WARNING: This script relies heavily on Sceptre-CF naming conventions
 #          changes to resource names may invalidate this script!
 for resource in `aws resource-groups search-resources --resource-query file://$TAG_QUERY | jq .ResourceIdentifiers[].ResourceArn`; do
@@ -89,6 +97,7 @@ P12="$KEY=HostedZoneId,$VAL=$HOSTED_ZONE_ID"
 if [ "$3" == "true" ]; then
   cd ./src/sam/layers
   echo "Building Lambda Layers from $(pwd)..."
+  echo "----------------------------------------------------------------------------"
   ./build.sh
   cd ..
 else
@@ -96,14 +105,19 @@ else
 fi
 
 echo "Building Lambda Functions from $(pwd)..."
+echo "----------------------------------------------------------------------------"
 sam build
 
 echo "Deploying Lambdas and API Gateway ..."
-echo "    Using --config-env $1"
-echo "    Using --s3-bucket $S3_CF_BUCKET"
-echo "    Using --parameter-overrides: $P1 $P2 $P3 $P4 $P5 $P6 $P7 $P8 $P9 $P10 $P11 $P12"
-echo ""
+echo "----------------------------------------------------------------------------"
 sam deploy \
   --config-env $1 \
   --s3-bucket $S3_CF_BUCKET \
   --parameter-overrides "$P1 $P2 $P3 $P4 $P5 $P6 $P7 $P8 $P9 $P10 $P11 $P12"
+echo ""
+
+echo "Updating Swagger documentation hosted @ $2/api-docs ..."
+echo "----------------------------------------------------------------------------"
+cd ../../
+src/swagger/swagger_install.sh $1 $SWAGGER_VERSION
+echo ""

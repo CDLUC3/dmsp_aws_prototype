@@ -7,6 +7,9 @@ Parameters:
   Domain:
     Type: 'String'
 
+  SsmPath:
+    Type: 'String'
+
   S3LogBucketId:
     Type: 'String'
 
@@ -177,6 +180,18 @@ Resources:
           Condition:
             StringEquals:
               "AWS:SourceArn": !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudfrontDistro}"
+
+  # ----------------------------------------------
+  # SSM Parameter Store
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-ssm-parameter.html
+  # ----------------------------------------------
+  CloudFrontDistroIdParameter:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: !Sub "${AWS::StackName} CloudFront Distro Id"
+      Name: !Sub "${SsmPath}CloudFrontDistroId"
+      Type: 'String'
+      Value: !Ref CloudfrontDistro
 
 Outputs:
   CloudfrontDistroId:

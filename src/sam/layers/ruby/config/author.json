@@ -101,8 +101,8 @@
               "$id": "#/properties/dmp/properties/contact/properties/name",
               "type": "string",
               "title": "The Name Schema",
-              "description": "Name of the contact person",
-              "examples": ["Charlie Chaplin"]
+              "description": "Name of the contact person as Last, First (e.g. 'Doe PhD., Jane A.' or 'Doe, Jane')",
+              "examples": ["Doe, Jane"]
             }
           },
           "required": [
@@ -208,8 +208,8 @@
                 "$id": "#/properties/dmp/properties/contributor/items/properties/name",
                 "type": "string",
                 "title": "The Name Schema",
-                "description": "Name of the contributor",
-                "examples": ["John Smith"]
+                "description": "Name of the contributor as Last, First (e.g. 'Doe PhD., Jane A.' or 'Doe, Jane')",
+                "examples": ["Smith, John"]
               },
               "role": {
                 "$id": "#/properties/dmp/properties/contributor/items/properties/role",
