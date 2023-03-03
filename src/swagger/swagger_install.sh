@@ -62,27 +62,12 @@ else
 fi
 echo ""
 
-echo "Fetch API documentation from Rest API - $REST_API ..."
+# echo "Fetch API documentation from Rest API - $REST_API ..."
+echo "Setting up Swagger openapi specification ..."
 echo "----------------------------------------------------------------------------"
-echo "[" > "$SWAGGER_DIST_DIR/docs-list.json"
 mkdir "$SWAGGER_DIST_DIR/docs"
-aws apigateway get-rest-apis | jq -c -r '.items[]' | while read i;
-do
-  id=`echo $i | jq -r '.id'`
-  name=`echo $i | jq -r '.name'`
-
-  if [[ "$id" == "$REST_API" ]]; then
-    for stage in `aws apigateway get-stages --rest-api-id $REST_API | jq -r '.item[].stageName'`;
-    do
-      echo "    fetching location of docs for Stage: $stage"
-      aws apigateway get-export --rest-api-id $REST_API --stage-name "$stage" --export-type swagger "$SWAGGER_DIST_DIR/docs/${stage}-${name}.json"
-      echo "{\"url\": \"docs/"${stage}"-"${name}".json\", \"name\": \""${stage}"-"${name}"\"}," >> "$SWAGGER_DIST_DIR/docs-list.json"
-    done
-  fi
-done
-truncate -s-2  "$SWAGGER_DIST_DIR/docs-list.json"
-echo "]" >> "$SWAGGER_DIST_DIR/docs-list.json"
-echo ""
+cp src/swagger/v0-api-docs.json $SWAGGER_DIST_DIR/docs-list.json
+cp src/swagger/v0-openapi-spec.json $SWAGGER_DIST_DIR/docs
 
 echo "Syncing Swagger $2 distribution with $S3_CLOUDFRONT_BUCKET/api-docs/ ..."
 echo "----------------------------------------------------------------------------"

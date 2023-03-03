@@ -4,9 +4,9 @@
   <head>
     <meta charset="UTF-8">
     <title>DMPHub API Documentation</title>
-    <link rel="stylesheet" type="text/css" href="./swagger-ui.css" >
-    <link rel="icon" type="image/png" href="./favicon-32x32.png" sizes="32x32" />
-    <link rel="icon" type="image/png" href="./favicon-16x16.png" sizes="16x16" />
+    <link rel="stylesheet" type="text/css" href="./api-docs/swagger-ui.css" >
+    <link rel="icon" type="image/png" href="./api-docs/favicon-32x32.png" sizes="32x32" />
+    <link rel="icon" type="image/png" href="./api-docs/favicon-16x16.png" sizes="16x16" />
     <style>
       html
       {
@@ -31,24 +31,25 @@
   </head>
 
   <body>
+    <h1>DMPHub API Specification</h1>
+
     <div id="swagger-ui"></div>
 
-    <script src="./swagger-ui-bundle.js"> </script>
-    <script src="./swagger-ui-standalone-preset.js"> </script>
+    <div id="payload"></div>
+
+    <script src="./api-docs/swagger-ui-bundle.js"> </script>
+    <script src="./api-docs/swagger-ui-standalone-preset.js"> </script>
 
     <script>
       window.onload = function() {
-        console.log('Loaded');
-
         // Begin Swagger UI call region
         var allText;
+
+        console.log(`BEFORE: ${allText}`)
 
         function readTextFile(file){
           var rawFile = new XMLHttpRequest();
           rawFile.overrideMimeType("application/json");
-
-          console.log(`Trying to load ${file}`)
-
           rawFile.open("GET", file, false);
           rawFile.onreadystatechange = function ()
           {
@@ -60,10 +61,13 @@
               }
             }
           }
-          rawFile.send(null);
+          rawFile.send();
         }
 
-        readTextFile("./docs-list.json")
+        readTextFile("./api-docs/docs-list.json")
+
+        console.log(`AFTER: ${allText}`)
+        document.getElementById('payload').innerText = allText
 
         const ui = SwaggerUIBundle({
           urls:JSON.parse(allText),
