@@ -68,6 +68,7 @@ echo "--------------------------------------------------------------------------
 mkdir "$SWAGGER_DIST_DIR/docs"
 cp src/swagger/v0-api-docs.json $SWAGGER_DIST_DIR/docs-list.json
 cp src/swagger/v0-openapi-spec.json $SWAGGER_DIST_DIR/docs
+cp src/swagger/assets/*.* $SWAGGER_DIST_DIR
 
 echo "Syncing Swagger $2 distribution with $S3_CLOUDFRONT_BUCKET/api-docs/ ..."
 echo "----------------------------------------------------------------------------"

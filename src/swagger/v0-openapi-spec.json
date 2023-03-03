@@ -3,7 +3,7 @@
 
   "info": {
     "version": "0.1.0",
-    "title": "DMPHub v0",
+    "title": "DMPHub v0 API specification",
     "description": "The DMPHub Rest API",
     "contact": {
       "name": "DMPTool Support",
@@ -387,6 +387,12 @@
 
   "paths": {
     "/dmps": {
+      "servers": [
+        {
+          "description": "DMPHub development instance",
+          "url": "https://api.dmphub-dev.cdlib.org/v0"
+        }
+      ],
       "post": {
         "operationId": "CreateDmp",
         "description": "Create a new DMP record",
@@ -434,6 +440,12 @@
     },
 
     "/dmps/validate": {
+      "servers": [
+        {
+          "description": "DMPHub development instance",
+          "url": "https://api.dmphub-dev.cdlib.org/v0"
+        }
+      ],
       "post": {
         "operationId": "ValidateDmp",
         "description": "Validate the DMP metadata payload",
@@ -474,6 +486,13 @@
     },
 
     "/dmps/{dmpId}": {
+      "servers": [
+        {
+          "description": "DMPHub development instance",
+          "url": "https://api.dmphub-dev.cdlib.org/v0"
+        }
+      ],
+
       "delete": {
         "operationId": "TombstoneDmp",
         "description": "Tombstone the DMP by the DMP ID (e.g. 'doi.org/10.12345/ABC123' or '10.12345/ABC123')",

@@ -1,0 +1,11 @@
+body {
+  color: #105e8e;
+}
+
+.swagger-ui .topbar {
+  background-color: #fff;
+}
+
+.swagger-ui .topbar .download-url-wrapper .select-label {
+  color: #000;
+}
