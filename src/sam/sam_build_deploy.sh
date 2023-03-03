@@ -10,7 +10,6 @@ TAG_QUERY=aws_tag_query.json
 ARN_PREFIX=arn:aws:s3:::
 KEY=ParameterKey
 VAL=ParameterValue
-SWAGGER_VERSION=4.16.1
 
 if [ $# -ne 3 ]; then
   echo 'Wrong number of arguments. Expecting 3:'
@@ -116,8 +115,7 @@ sam deploy \
   --parameter-overrides "$P1 $P2 $P3 $P4 $P5 $P6 $P7 $P8 $P9 $P10 $P11 $P12"
 echo ""
 
-echo "Updating Swagger documentation hosted @ $2/api-docs ..."
+echo "PLEASE UPDATE YOUR SWAGGER DOCS IF THE API HAS BEEN CHANGED!!!!"
 echo "----------------------------------------------------------------------------"
-cd ../../
-src/swagger/swagger_install.sh $1 $SWAGGER_VERSION
+echo "  Swagger/OpenAPI specifications can be found in the src/swagger/ directory."
 echo ""

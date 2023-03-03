@@ -341,10 +341,6 @@ Resources:
             RestApiId: !Ref DmpHubRestApi
             Path: '/dmps'
             Method: 'post'
-            RequestModel:
-              Model: 'Dmp'
-              Required: true
-              ValidateBody: true
             RequestParameters:
               - 'method.request.header.Authorization'
             Auth:
@@ -387,10 +383,6 @@ Resources:
             RestApiId: !Ref DmpHubRestApi
             Path: '/dmps/{dmp_id+}'
             Method: 'put'
-            RequestModel:
-              Model: 'Dmp'
-              Required: true
-              ValidateBody: true
             RequestParameters:
               - 'method.request.header.Authorization'
             Auth:
@@ -607,33 +599,6 @@ Resources:
     Properties:
       LogGroupName: !Sub "/aws/lambda/${ProvenanceNotifierFunction}"
       RetentionInDays: 14
-
-  # ------------------------------------------------
-  # Api Documentation used for Swagger
-  # ------------------------------------------------
-  ApiDocsAuthorizer:
-    Type: 'AWS::ApiGateway::DocumentationPart'
-    Properties:
-      RestApiId: !Ref DmpHubRestApi
-      Location:
-        Name: 'Authorization'
-        Type: 'AUTHORIZER'
-      Properties: >
-        {
-          "description": "The authorizer"
-        }
-
-  ApiDocsAuthorizer:
-    Type: 'AWS::ApiGateway::DocumentationPart'
-    Properties:
-      RestApiId: !Ref DmpHubRestApi
-      Location:
-        Name: 'Authorization'
-        Type: 'AUTHORIZER'
-      Properties: >
-        {
-          "description": "The authorizer"
-        }
 
 Outputs:
   DmpHubDynamoTableReadPolicyArn:
