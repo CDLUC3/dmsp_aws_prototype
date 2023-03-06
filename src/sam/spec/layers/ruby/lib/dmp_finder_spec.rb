@@ -246,17 +246,11 @@ RSpec.describe 'DmpFinder' do
       expect(described_class.append_versions(p_key: p_key, dmp: json)).to eql(json)
     end
 
-    it 'returns the :dmphub_versions array if there is only one version' do
+    it 'does not return the :dmphub_versions array if there is only one version' do
       allow(described_class).to receive(:find_dmp_versions).and_return({ status: 200, items: [json] })
       url = 'https://api.example.com/v0'
       mock_ssm(value: url)
-      expected = JSON.parse([
-        {
-          timestamp: json['modified'],
-          url: "#{url}/dmps/#{p_key.gsub(KeyHelper::PK_DMP_PREFIX, '')}?version=#{json['modified']}"
-        }
-      ].to_json)
-      expect(described_class.append_versions(p_key: p_key, dmp: json)['dmphub_versions']).to eql(expected)
+      expect(described_class.append_versions(p_key: p_key, dmp: json)['dmphub_versions']).to be(nil)
     end
 
     # rubocop:disable RSpec/ExampleLength

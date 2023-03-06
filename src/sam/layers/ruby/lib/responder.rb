@@ -215,8 +215,9 @@ class Responder
       return json.map { |obj| _cleanse_dmp_json(json: obj) }.compact if json.is_a?(Array)
 
       cleansed = {}
+      allowable = %w[dmphub_versions]
       json.each_key do |key|
-        next if key.to_s.start_with?('dmphub') || %w[PK SK].include?(key.to_s)
+        next if (key.to_s.start_with?('dmphub') && !allowable.include?(key)) || %w[PK SK].include?(key.to_s)
 
         obj = json[key]
         # If this object is a Hash or Array then recursively cleanse it

@@ -390,7 +390,7 @@
       "servers": [
         {
           "description": "DMPHub development instance",
-          "url": "https://api.dmphub-dev.cdlib.org/v0"
+          "url": "https://api.dmphub-dev.cdlib.org"
         }
       ],
       "post": {
@@ -443,7 +443,7 @@
       "servers": [
         {
           "description": "DMPHub development instance",
-          "url": "https://api.dmphub-dev.cdlib.org/v0"
+          "url": "https://api.dmphub-dev.cdlib.org"
         }
       ],
       "post": {
@@ -489,7 +489,7 @@
       "servers": [
         {
           "description": "DMPHub development instance",
-          "url": "https://api.dmphub-dev.cdlib.org/v0"
+          "url": "https://api.dmphub-dev.cdlib.org"
         }
       ],
 
@@ -555,10 +555,9 @@
           },
           {
             "name": "version",
-            "description": "The specific version of the DMP (default to latest version). In ISO 8601 date and time format.",
+            "description": "A specific version of the DMP (returns latest version if left blank). In ISO 8601 date and time format.",
             "in": "query",
             "required": false,
-            "example": "2022-01-01T09:10:11+00:00",
             "allowReserved": true,
             "schema": {
               "type": "string"
