@@ -66,6 +66,8 @@ For instructions on installing and setting up the system, please refer to [our i
 
 Your CloudFront distribution will contain Swagger API documentation for your API at `https://your.domain.edu/api-docs`. If you modify you modify and redeploy your API Lambdas, you should also update your documentation. to do that run: `src/swagger/swagger_install.sh 4.16.1`
 
+This script is automatically run whenever you use the `src/sam/sam_build_deploy.sh` script to update your Lambdas and API.
+
 Note that the above command is also how you would upgrade Swagger itself. The version number should match one of the [swagger-ui release](https://github.com/swagger-api/swagger-ui/releases) tags
 
 If CloudFront is not displaying the updated Swagger docs, you may need to forcibly clear it's cache. To do that run: `aws cloudfront create-invalidation --distribution-id $DISTO_ID --paths "/api-docs/*" --region $AWS_REGION`
@@ -93,6 +95,8 @@ To run the script you must supply 3 arguments. For example: `./src/sam/sam_build
 - The 3rd arg is a boolean that indicates whether or not the LambdaLayer should be compiled. Set this to false if you are not updating the layer to speed things up.
 
 Note that the there is an `after_create` Sceptre hook on the `config/[env]/regional/dynamo.yaml` that will execute this shell script.
+
+If you want to delete the entire Lambda and API Gateway stack you can run `cd src/sam && sam delete --config-env [env]`
 
 ## Notes about Sceptre
 
