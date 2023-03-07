@@ -86,8 +86,9 @@
         "type": "object",
         "properties": {
           "status": {
-            "type": "string",
-            "description": "The status code (e.g. '200', '201', etc.)"
+            "type": "integer",
+            "format": "int32",
+            "description": "The status code (e.g. 200, 201, 404, etc.)"
           },
           "requested": {
             "type": "string",
@@ -123,23 +124,138 @@
         }
       },
 
-      "PersonIdentifier": {
+      "Dmp": {
         "type": "object",
-        "description": "The person's unique ID (e.g. their ORCID URL)",
+        "description": "A Data Management Plan (DMP)",
         "required": [
-          "identifier",
-          "type"
+          "contact",
+          "created",
+          "dataset",
+          "dmp_id",
+          "modified",
+          "project",
+          "title"
         ],
         "properties": {
-          "identifier": {
-            "type": "string",
-            "description": "The identifier value",
-            "example": "https://orcid.org/0000-0000-0000-0000"
+          "contact": {
+            "type": "object",
+            "description": "The primary contact for the DMP.",
+            "required": [
+              "name",
+              "contact_id",
+              "mbox"
+            ],
+            "properties": {
+              "contact_id": {
+                "$ref": "#/components/schemas/PersonIdentifier"
+              },
+              "dmproadmap_affiliation": {
+                "$ref": "#/components/schemas/Affiliation"
+              },
+              "name": {
+                "type": "string",
+                "description": "The name of the contact as 'Surname, Given Name'",
+                "example": "Doe PhD., Jane A."
+              },
+              "mbox": {
+                "type": "string",
+                "format": "email",
+                "description": "The contact's email address"
+              }
+            }
           },
-          "type": {
+          "contributor": {
+            "type": "array",
+            "description": "The contributors of the research project and/or DMP",
+            "items": {
+              "$ref": "#/components/schemas/Contributor"
+            }
+          },
+          "cost": {
+            "type": "array",
+            "description": "The costs associated research",
+            "items": {
+              "$ref": "#/components/schemas/Cost"
+            }
+          },
+          "created": {
             "type": "string",
-            "enum": ["orcid", "isni", "openid", "other"],
-            "description": "The identifier type. Allowed values: orcid, isni, openid, other"
+            "format": "date-time",
+            "description": "Date and time the DMP was created (initial version). Encoded using the relevant ISO 8601 Date and Time compliant string",
+            "example": "2023-01-01T14:13:12+00:00"
+          },
+          "dataset": {
+            "type": "array",
+            "description": "The list of anticipated research outputs",
+            "items": {
+              "type": "object",
+              "description": "A research output (e.g. dataset, software, audiovisual file, etc.)",
+              "properties": {
+                "title": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "description": {
+            "type": "string",
+            "description": "The DMP description (typically the same as the research project abstract)"
+          },
+          "dmp_id": {
+            "type": "object",
+            "description": "The DMP's unique identifier",
+            "required": [
+              "identifier",
+              "type"
+            ],
+            "properties": {
+              "identifier": {
+                "type": "string",
+                "description": "The identifier value"
+              },
+              "type": {
+                "type": "string",
+                "description": "The DMP identifier type. Allowed values: handle, doi, ark, url, other",
+                "enum": ["handle", "doi", "ark", "url", "other"]
+              }
+            }
+          },
+          "dmproadmap_research_facilities": {
+            "type": "array",
+            "description": "Facilities where the research will be conducted (e.g. labs, field stations, etc.)",
+            "items": {
+              "$ref": "#/components/schemas/Facility"
+            }
+          },
+          "dmproadmap_related_identifiers": {
+            "type": "array",
+            "description": "Facilities where the research will be conducted (e.g. labs, field stations, etc.)",
+            "items": {
+              "$ref": "#/components/schemas/RelatedIdentifier"
+            }
+          },
+          "modified": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Date and time the DMP was updated. Encoded using the relevant ISO 8601 Date and Time compliant string",
+            "example": "2023-01-01T14:13:12+00:00"
+          },
+          "project": {
+            "type": "array",
+            "description": "The list of associated research projects",
+            "items": {
+              "type": "object",
+              "description": "The research project",
+              "properties": {
+                "title": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "title": {
+            "type": "string",
+            "description": "The title of the DMP (often the same as the research project)"
           }
         }
       },
@@ -178,69 +294,108 @@
         }
       },
 
-      "Dmp": {
+      "Contributor": {
         "type": "object",
-        "description": "A Data Management Plan (DMP)",
         "required": [
-          "contact",
-          "created",
-          "dataset",
-          "dmp_id",
-          "modified",
-          "project",
+          "name",
+          "role"
+        ],
+        "properties": {
+          "contributor_id": {
+            "$ref": "#/components/schemas/PersonIdentifier"
+          },
+          "dmproadmap_affiliation": {
+            "$ref": "#/components/schemas/Affiliation"
+          },
+          "name": {
+            "type": "string",
+            "description": "The name of the contributor as 'Surname, Given Name'",
+            "example": "Doe PhD., Jane A."
+          },
+          "mbox": {
+            "type": "string",
+            "format": "email",
+            "description": "The contributor's email address"
+          },
+          "role": {
+            "type": "array",
+            "description": "The roles the contributor has on the research project",
+            "items": {
+              "type": "string",
+              "description": "The type of role (prefer the use of a controlled vocabulary like https://credit.niso.org)",
+              "example": "https://credit.niso.org/contributor-roles/investigation/",
+              "uniqueItems": true
+            }
+          }
+        }
+      },
+
+      "Cost": {
+        "type": "object",
+        "description": "A cost related to the production, distribution, preservation of the research",
+        "required": [
           "title"
         ],
         "properties": {
-          "created": {
+          "currency_code": {
             "type": "string",
-            "format": "date-time",
-            "description": "Date and time the DMP was created (initial version). Encoded using the relevant ISO 8601 Date and Time compliant string",
-            "example": "2023-01-01T14:13:12+00:00"
+            "description": "3 character code. Allowed values defined by ISO 4217",
+            "enum": [
+              "AED", "AFN", "ALL", "AMD", "ANG", "AOA", "ARS", "AUD", "AWG", "AZN",
+              "BAM", "BBD", "BDT", "BGN", "BHD", "BIF", "BMD", "BND", "BOB", "BRL",
+              "BSD", "BTN", "BWP", "BYN", "BZD", "CAD", "CDF", "CHF", "CLP", "CNY",
+              "COP", "CRC", "CUC", "CUP", "CVE", "CZK", "DJF", "DKK", "DOP", "DZD",
+              "EGP", "ERN", "ETB", "EUR", "FJD", "FKP", "GBP", "GEL", "GGP", "GHS",
+              "GIP", "GMD", "GNF", "GTQ", "GYD", "HKD", "HNL", "HRK", "HTG", "HUF",
+              "IDR", "ILS", "IMP", "INR", "IQD", "IRR", "ISK", "JEP", "JMD", "JOD",
+              "JPY", "KES", "KGS", "KHR", "KMF", "KPW", "KRW", "KWD", "KYD", "KZT",
+              "LAK", "LBP", "LKR", "LRD", "LSL", "LYD", "MAD", "MDL", "MGA", "MKD",
+              "MMK", "MNT", "MOP", "MRU", "MUR", "MVR", "MWK", "MXN", "MYR", "MZN",
+              "NAD", "NGN", "NIO", "NOK", "NPR", "NZD", "OMR", "PAB", "PEN", "PGK",
+              "PHP", "PKR", "PLN", "PYG", "QAR", "RON", "RSD", "RUB", "RWF", "SAR",
+              "SBD", "SCR", "SDG", "SEK", "SGD", "SHP", "SLL", "SOS", "SPL", "SRD",
+              "STN", "SVC", "SYP", "SZL", "THB", "TJS", "TMT", "TND", "TOP", "TRY",
+              "TTD", "TVD", "TWD", "TZS", "UAH", "UGX", "USD", "UYU", "UZS", "VEF",
+              "VND", "VUV", "WST", "XAF", "XCD", "XDR", "XOF", "XPF", "YER", "ZAR",
+              "ZMW", "ZWD"
+            ]
           },
-
-          "modified": {
+          "description": {
             "type": "string",
-            "format": "date-time",
-            "description": "Date and time the DMP was updated. Encoded using the relevant ISO 8601 Date and Time compliant string",
-            "example": "2023-01-01T14:13:12+00:00"
+            "description": "A detailed description of the cost"
           },
-
           "title": {
             "type": "string",
-            "description": "The title of the DMP (often the same as the research project)"
+            "description": "A title for the cost",
+            "example": "Annual storage"
           },
+          "value": {
+            "type": "number",
+            "description": "The amount of the cost"
+          }
+        }
+      },
 
-          "contact": {
-            "type": "object",
-            "description": "The primary contact for the DMP.",
-            "required": [
-              "name",
-              "contact_id",
-              "mbox"
-            ],
-            "properties": {
-              "contact_id": {
-                "$ref": "#/components/schemas/PersonIdentifier"
-              },
-              "dmproadmap_affiliation": {
-                "$ref": "#/components/schemas/Affiliation"
-              },
-              "name": {
-                "type": "string",
-                "description": "The name of the contact as 'Surname, Given Name'",
-                "example": "Doe PhD., Jane A."
-              },
-              "mbox": {
-                "type": "string",
-                "format": "email",
-                "description": "The contact's email address"
-              }
-            }
+      "Facility": {
+        "type": "object",
+        "description": "A facility where the research is conducted (e.g. a field station or laboratory)",
+        "required": [
+          "name",
+          "type"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The official name of the facility"
           },
-
-          "dmp_id": {
+          "type": {
+            "type": "string",
+            "description": "The type of facility",
+            "enum": ["field_station", "lab", "vessel"]
+          },
+          "facility_id": {
             "type": "object",
-            "description": "The DMP's unique identifier",
+            "description": "A unique identifier for the facility",
             "required": [
               "identifier",
               "type"
@@ -248,137 +403,71 @@
             "properties": {
               "identifier": {
                 "type": "string",
-                "description": "The identifier value"
+                "description": "The identifier value",
+                "example": "https://ror.org/03yrm5c26"
               },
               "type": {
                 "type": "string",
-                "description": "The DMP identifier type. Allowed values: handle, doi, ark, url, other",
-                "enum": ["handle", "doi", "ark", "url", "other"]
+                "enum": ["doi", "ror", "url"],
+                "description": "The identifier type. Allowed values: doi, ror, url"
               }
             }
-          },
+          }
+        }
+      },
 
-          "project": {
-            "type": "array",
-            "description": "The list of associated research projects",
-            "items": {
-              "type": "object",
-              "description": "The research project",
-              "properties": {
-                "title": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-
-          "dataset": {
-            "type": "array",
-            "description": "The list of anticipated research outputs",
-            "items": {
-              "type": "object",
-              "description": "A research output (e.g. dataset, software, audiovisual file, etc.)",
-              "properties": {
-                "title": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-
-          "contributor": {
-            "type": "array",
-            "description": "The contributors of the research project and/or DMP",
-            "items": {
-              "type": "object",
-              "required": [
-                "name",
-                "role"
-              ],
-              "properties": {
-                "contributor_id": {
-                  "$ref": "#/components/schemas/PersonIdentifier"
-                },
-                "dmproadmap_affiliation": {
-                  "$ref": "#/components/schemas/Affiliation"
-                },
-                "name": {
-                  "type": "string",
-                  "description": "The name of the contributor as 'Surname, Given Name'",
-                  "example": "Doe PhD., Jane A."
-                },
-                "mbox": {
-                  "type": "string",
-                  "format": "email",
-                  "description": "The contributor's email address"
-                },
-                "role": {
-                  "type": "array",
-                  "description": "The roles the contributor has on the research project",
-                  "items": {
-                    "type": "string",
-                    "description": "The type of role (prefer the use of a controlled vocabulary like https://credit.niso.org)",
-                    "example": "https://credit.niso.org/contributor-roles/investigation/",
-                    "uniqueItems": true
-                  }
-                }
-              }
-            }
-          },
-
-          "cost": {
-            "type": "array",
-            "description": "The costs associated research",
-            "items": {
-              "type": "object",
-              "description": "A cost related to the production, distribution, preservation, etc.",
-              "required": [
-                "title"
-              ],
-              "properties": {
-                "currency_code": {
-                  "type": "string",
-                  "description": "3 character code. Allowed values defined by ISO 4217",
-                  "enum": [
-                    "AED", "AFN", "ALL", "AMD", "ANG", "AOA", "ARS", "AUD", "AWG", "AZN",
-                    "BAM", "BBD", "BDT", "BGN", "BHD", "BIF", "BMD", "BND", "BOB", "BRL",
-                    "BSD", "BTN", "BWP", "BYN", "BZD", "CAD", "CDF", "CHF", "CLP", "CNY",
-                    "COP", "CRC", "CUC", "CUP", "CVE", "CZK", "DJF", "DKK", "DOP", "DZD",
-                    "EGP", "ERN", "ETB", "EUR", "FJD", "FKP", "GBP", "GEL", "GGP", "GHS",
-                    "GIP", "GMD", "GNF", "GTQ", "GYD", "HKD", "HNL", "HRK", "HTG", "HUF",
-                    "IDR", "ILS", "IMP", "INR", "IQD", "IRR", "ISK", "JEP", "JMD", "JOD",
-                    "JPY", "KES", "KGS", "KHR", "KMF", "KPW", "KRW", "KWD", "KYD", "KZT",
-                    "LAK", "LBP", "LKR", "LRD", "LSL", "LYD", "MAD", "MDL", "MGA", "MKD",
-                    "MMK", "MNT", "MOP", "MRU", "MUR", "MVR", "MWK", "MXN", "MYR", "MZN",
-                    "NAD", "NGN", "NIO", "NOK", "NPR", "NZD", "OMR", "PAB", "PEN", "PGK",
-                    "PHP", "PKR", "PLN", "PYG", "QAR", "RON", "RSD", "RUB", "RWF", "SAR",
-                    "SBD", "SCR", "SDG", "SEK", "SGD", "SHP", "SLL", "SOS", "SPL", "SRD",
-                    "STN", "SVC", "SYP", "SZL", "THB", "TJS", "TMT", "TND", "TOP", "TRY",
-                    "TTD", "TVD", "TWD", "TZS", "UAH", "UGX", "USD", "UYU", "UZS", "VEF",
-                    "VND", "VUV", "WST", "XAF", "XCD", "XDR", "XOF", "XPF", "YER", "ZAR",
-                    "ZMW", "ZWD"
-                  ]
-                },
-                "description": {
-                  "type": "string",
-                  "description": "A detailed description of the cost"
-                },
-                "title": {
-                  "type": "string",
-                  "description": "A title for the cost",
-                  "example": "Annual storage"
-                },
-                "value": {
-                  "type": "number",
-                  "description": "The amount of the cost"
-                }
-              }
-            }
-          },
-
-          "description": {
+      "PersonIdentifier": {
+        "type": "object",
+        "description": "The person's unique ID (e.g. their ORCID URL)",
+        "required": [
+          "identifier",
+          "type"
+        ],
+        "properties": {
+          "identifier": {
             "type": "string",
-            "description": "The DMP description (typically the same as the research project abstract)"
+            "description": "The identifier value",
+            "example": "https://orcid.org/0000-0000-0000-0000"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["orcid", "isni", "openid", "other"],
+            "description": "The identifier type. Allowed values: orcid, isni, openid, other"
+          }
+        }
+      },
+
+      "RelatedIdentifier": {
+        "type": "object",
+        "description": "A work related to the datamanagement plan (e.g. a Dataset, article, etc.)",
+        "required": [
+          "identifier",
+          "type",
+          "descriptor"
+        ],
+        "properties": {
+          "descriptor": {
+            "type": "string",
+            "description": "A description of how the DMP is related to the work",
+            "enum": ["is_cited_by", "cites", "is_supplement_to", "is_supplemented_by",
+                     "is_described_by", "describes", "has_metadata", "is_metadata_for",
+                     "is_part_of", "has_part", "is_referenced_by", "references",
+                     "is_documented_by", "documents"]
+          },
+          "work_type": {
+            "type": "string",
+            "enum": ["article", "book", "dataset", "metadata_template", "other", "output_management_plan",
+                     "paper", "preprint", "preregistration", "protocol", "software", "supplemental_information"]
+          },
+          "identifier": {
+            "type": "string",
+            "description": "The identifier value",
+            "examples": ["https://doi.org/10.1371/journal.pcbi.1006750"]
+          },
+          "type": {
+            "type": "string",
+            "description": "The identifier type. Allowed values: handle, doi, ark, url, other",
+            "enum": ["handle", "doi", "ark", "url", "other"]
           }
         }
       }
