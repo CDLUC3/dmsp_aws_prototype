@@ -48,7 +48,7 @@ class DmpVersioner
     return nil if prior.nil?
 
     args = { owner: owner, updater: updater, base: prior, mods: dmp, debug: debug }
-    log_message(source: source, message: 'JSON before splicing changes', details: dmp) if debug
+    Responder.log_message(source: source, message: 'JSON before splicing changes', details: dmp) if @debug
 
     # If the system of provenance is making the change then just use the
     # new version as the base and then splice in any mods made by others
@@ -136,7 +136,7 @@ class DmpVersioner
                                   return_consumed_capacity: @debug ? 'TOTAL' : 'NONE' })
     return nil unless response.successful?
 
-    log_message(source: source, message: 'Created new version', details: latest_version) if debug
+    Responder.log_message(source: source, message: 'Created new version', details: latest_version) if @debug
     latest_version
   rescue Aws::Errors::ServiceError => e
     Responder.log_error(source: source, message: e.message,

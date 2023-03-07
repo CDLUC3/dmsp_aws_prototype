@@ -128,7 +128,7 @@ class DmpFinder
         return_consumed_capacity: @debug ? 'TOTAL' : 'NONE'
       }
     )
-    log_message(source: source, message: 'Search for versions by PK', details: response.items) if @debug
+    Responder.log_message(source: source, message: 'Search for versions by PK', details: response.items) if @debug
     return { status: 404, error: Messages::MSG_DMP_NOT_FOUND } if response.items.nil? || response.items.empty?
 
     items = response.items.map { |item| JSON.parse({ dmp: item }.to_json) }.compact.uniq
@@ -156,7 +156,11 @@ class DmpFinder
         return_consumed_capacity: @debug ? 'TOTAL' : 'NONE'
       }
     )
-    log_message(source: source, message: 'Search by PK', details: response.items) if @debug
+
+    puts response.data
+    puts response[:item]
+
+    Responder.log_message(source: source, message: 'Search by PK', details: response[:item]) if @debug
     return { status: 404, error: Messages::MSG_DMP_NOT_FOUND } if response[:item].nil? || response[:item].empty?
 
     { status: 200, items: [JSON.parse({ dmp: response[:item] }.to_json)] }
@@ -191,7 +195,7 @@ class DmpFinder
         return_consumed_capacity: @debug ? 'TOTAL' : 'NONE'
       }
     )
-    log_message(source: source, message: 'Search by provenance identifier', details: response.items) if @debug
+    Responder.log_message(source: source, message: 'Search by provenance identifier', details: response.items) if @debug
     return { status: 404, error: Messages::MSG_DMP_NOT_FOUND } if response.nil?
 
     items = response.items.map { |item| JSON.parse({ dmp: item.item }.to_json) }.compact.uniq

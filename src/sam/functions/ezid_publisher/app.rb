@@ -9,6 +9,7 @@ $LOAD_PATH.unshift(*my_gem_path)
 require 'aws-sdk-dynamodb'
 require 'aws-sdk-eventbridge'
 require 'aws-sdk-sns'
+require 'cgi'
 require 'httparty'
 require 'logger'
 
@@ -481,8 +482,17 @@ module Functions
       # EZID's ANVL parser requires percent encoding, so encode specific characters
       # --------------------------------------------------------------------------------
       def percent_encode(val:)
+        # Ruby deprecated URI.escape, and CGI.escapeHTML doesn't do percent encoding which is
+        # what EZID uses, so we need to do some manual encoding :/
+        # 1st remove any HTML tags
         val = val.to_s.gsub(/<(?:"[^"]*"['"]*|'[^']*'['"]*|[^'">])+>/, '')
-                 .gsub('\u00A0', ' ').gsub('%', '%25')
+        # 2nd remove any newlines
+        val = val.gsub('\u00A0', ' ')
+        # 3rd percent encode any percent signs
+        val = val.gsub('%', '%25')
+        # 4th escape any HTML
+        val = CGI.escapeHTML(val)
+        # 5th remove unecessary whitespace
         val = val.gsub('  ', ' ') while val.include?('  ')
         val.strip
       end

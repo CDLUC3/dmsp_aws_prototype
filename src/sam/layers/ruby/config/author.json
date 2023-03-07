@@ -953,7 +953,7 @@
             "type": "object",
             "title": "A research facility",
             "properties": {
-              "affiliation_id": {
+              "facility_id": {
                 "$id": "#/properties/dmp/properties/dmproadmap_research_facilities/items/properties/facility_id",
                 "type": "object",
                 "title": "The unique ID of the facility",
@@ -990,8 +990,22 @@
                 "title": "Name of the facility",
                 "description": "Official facility name",
                 "examples": ["Example Research Lab"]
+              },
+              "type": {
+                "$id": "#/properties/dmp/properties/dmproadmap_research_facilities/items/properties/type",
+                "type": "string",
+                "enum": [
+                  "field_station",
+                  "lab"
+                ],
+                "title": "The type of facility",
+                "examples": ["field_station"]
               }
-            }
+            },
+            "required": [
+              "name",
+              "type"
+            ]
           }
         },
         "dmproadmap_related_identifiers": {
