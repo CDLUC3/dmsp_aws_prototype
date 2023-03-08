@@ -37,6 +37,11 @@ Parameters:
   S3LogBucketId:
     Type: 'String'
 
+  CodeBuildEmail:
+    Type: 'String'
+  SnsTopicEmailArn:
+    Type: 'String'
+
   LogRetentionDays:
     Type: 'Number'
     Default: 7
@@ -186,6 +191,13 @@ Resources:
                     "cloudfront:CreateInvalidation"
                   ],
                   "Resource": "arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistroId}"
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "sns:Publish"
+                  ],
+                  "Resource": "${SnsTopicEmailArn}"
                 }
               ]
             }
@@ -251,6 +263,8 @@ Resources:
             Value: !Ref S3CloudFrontBucketId
           - Name: 'CLOUDFRONT_DISTRO_ID'
             Value: !Ref CloudFrontDistroId
+          - Name: 'SNS_EMAIL_TOPIC'
+            Value: !Ref SnsTopicEmailArn
       Source:
         Type: !Ref CodeBuildArtifactType
       TimeoutInMinutes: !Ref CodeBuildTimeout

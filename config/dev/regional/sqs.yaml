@@ -8,6 +8,7 @@ dependencies:
 parameters:
   SsmPath: !stack_attr sceptre_user_data.ssm_path
   AdminEmail: !ssm_parameter /uc3/dmp/hub/dev/AdminEmail
+  CodeBuildEmail: !stack_attr sceptre_user_data.code_build_email
 
   # SQS settings
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-sqs-queue.html

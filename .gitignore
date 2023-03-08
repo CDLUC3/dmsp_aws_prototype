@@ -1,2 +1,5 @@
-# Ignore Swagger distributions
+# Ignore the pyenv version
+.python-version
+
+# Ignore the Swagger UI distribution
 src/swagger/swagger-ui*/
