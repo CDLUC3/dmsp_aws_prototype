@@ -209,7 +209,7 @@ module Functions
         end
         ids << JSON.parse({
           type: 'url', work_type: 'output_management_plan', descriptor: 'is_metadata_for',
-          identifier: "#{SsmReader.get_ssm_value(key: SsmReader::DMP_ID_BASE_URL)}/#{object_key}"
+          identifier: "#{SsmReader.get_ssm_value(key: SsmReader::API_BASE_URL)}/dmps/#{object_key}/narrative"
         }.to_json)
         dmp['dmproadmap_related_identifiers'] = ids
         dmp['dmphub_provenance_download_url'] = original_uri if dmp['dmphub_provenance_download_url'].nil?

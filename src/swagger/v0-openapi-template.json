@@ -1,0 +1,540 @@
+{
+  "openapi": "3.0.0",
+
+  "info": {
+    "version": "0.1.0",
+    "title": "DMPHub v0 API specification",
+    "description": "The DMPHub Rest API",
+    "contact": {
+      "name": "DMPTool Support",
+      "email": "dmptool@ucop.edu",
+      "url": "https://dmptool.org/contact-us"
+    },
+    "license": {
+      "name": "MIT License",
+      "url": "https://spdx.org/licenses/MIT.html"
+    }
+  },
+
+  "externalDocs": {
+    "description": "Overview documentation of the API and DMP metadata",
+    "url": "https://github.com/CDLUC3/dmp-hub-cfn/wiki/API-Overview"
+  },
+
+  "components": {
+    "responses": {
+      "Forbidden": {
+        "description": "Invalid access token"
+      },
+      "IllegalInput": {
+        "description": "Invalid arguments"
+      },
+      "NotFound": {
+        "description": "DMP not found"
+      },
+      "Success": {
+        "description": "Success",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/StandardResponse"
+            }
+          }
+        }
+      },
+      "GeneralError": {
+        "description": "Server error",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/StandardError"
+            }
+          }
+        }
+      }
+    },
+
+    "securitySchemes": {
+      "Authorizer": {
+        "type": "oauth2",
+        "flows": {
+          "clientCredentials": {
+            "tokenUrl": "https://auth.dmphub-dev.cdlib.org/oauth2/token",
+            "scopes": {
+              "https://auth.dmphub-dev.cdlib.org/dev.read": "Read a DMP",
+              "https://auth.dmphub-dev.cdlib.org/dev.write": "Create or modify a DMP"
+            }
+          }
+        }
+      }
+    },
+
+    "schemas": {
+      "StandardError": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "StandardResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The status code (e.g. 200, 201, 404, etc.)"
+          },
+          "requested": {
+            "type": "string",
+            "description": "The path that was called (e.g. '/dmps/10.12345/ABC123')"
+          },
+          "requested_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The ISO 8601 date and time the request was processed (e.g. 2023-02-08T18:49:45621UTC)"
+          },
+          "total_items": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The total number of returnable items (regardless of current pagination settings)"
+          },
+          "page": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The current page"
+          },
+          "per_page": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The number of items per page (min - 1, max - 250, default - 25)"
+          },
+          "items": {
+            "type": "array",
+            "description": "The DMPs",
+            "items": {
+              "$ref": "#/components/schemas/Dmp"
+            }
+          }
+        }
+      },
+
+      "Dmp": {},
+
+      "MeResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The status code (e.g. 200, 201, 404, etc.)"
+          },
+          "requested": {
+            "type": "string",
+            "description": "The path that was called (e.g. '/dmps/10.12345/ABC123')"
+          },
+          "requested_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The ISO 8601 date and time the request was processed (e.g. 2023-02-08T18:49:45621UTC)"
+          },
+          "total_items": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The total number of returnable items (regardless of current pagination settings)"
+          },
+          "page": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The current page"
+          },
+          "per_page": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The number of items per page (min - 1, max - 250, default - 25)"
+          },
+          "items": {
+            "type": "array",
+            "description": "The DMPs",
+            "items": {
+              "$ref": "#/components/schemas/User"
+            }
+          }
+        }
+      },
+
+      "User": {
+        "type": "object",
+        "title": "A DMPTool user",
+        "properties": {
+          "affiliation": {
+            "type": "object",
+            "title": "The user's affiliation",
+            "properties": {
+              "affiliation_id": {
+                "type": "object",
+                "title": "The unique ID of the affiliation",
+                "description": "The affiliation's ROR",
+                "properties": {
+                  "identifier": {
+                    "type": "string",
+                    "title": "The affiliation ID",
+                    "example": "https://ror.org/03yrm5c26"
+                  },
+                  "type":{
+                    "type": "string",
+                    "enum": ["doi", "ror", "url"],
+                    "title":" The affiliation ID type schema",
+                    "description": "Identifier type. Allowed values: doi, ror, url",
+                    "example": "ror"
+                  }
+                },
+                "required": ["identifier", "type"]
+              },
+              "name": {
+                "type": "string",
+                "title": "Name of the institution/organization",
+                "description": "Official institution/organization name",
+                "example": "Example University"
+              }
+            }
+          },
+          "mbox": {
+            "type": "string",
+            "format": "email",
+            "title": "The Mailbox Schema",
+            "description": "User's E-mail address",
+            "example": "cc@example.com"
+          },
+          "name": {
+            "type": "string",
+            "title": "The Name Schema",
+            "description": "Name of the user as Last, First (e.g. 'Doe PhD., Jane A.' or 'Doe, Jane')",
+            "example": "Doe, Jane"
+          },
+          "user_id": {
+            "type": "object",
+            "title": "The User ID Schema",
+            "properties": {
+              "identifier": {
+                "type": "string",
+                "title": "The User Identifier Schema",
+                "example": "https://orcid.org/0000-0003-0644-4174"
+              },
+              "type": {
+                "type": "string",
+                "enum": ["orcid", "isni", "openid", "other"],
+                "title": "The User Identifier Type Schema",
+                "description": "Identifier type. Allowed values: orcid, isni, openid, other",
+                "example": "orcid"
+              }
+            },
+            "required": ["identifier", "type"]
+          }
+        },
+        "required": ["user_id", "mbox", "name", "affiliation"]
+      }
+    }
+  },
+
+  "paths": {
+    "/me": {
+      "servers": [
+        {
+          "description": "DMPHub development instance",
+          "url": "https://api.dmphub-dev.cdlib.org"
+        }
+      ],
+      "get": {
+        "operationId": "GetMe",
+        "description": "Fetches the user info for the logged in user.",
+        "responses": {
+          "200": {
+            "description": "The user's name, email, affiliation and ORCID.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StandardError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/dmps": {
+      "servers": [
+        {
+          "description": "DMPHub development instance",
+          "url": "https://api.dmphub-dev.cdlib.org"
+        }
+      ],
+      "post": {
+        "operationId": "CreateDmp",
+        "description": "Create a new DMP record",
+        "requestBody": {
+          "description": "The DMP metadata",
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Dmp"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Authorizer": [
+              "https://auth.dmphub-dev.cdlib.org/dev.write"
+            ]
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "The DMP metadata (including its DMP ID)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StandardResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StandardError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "/dmps/validate": {
+      "servers": [
+        {
+          "description": "DMPHub development instance",
+          "url": "https://api.dmphub-dev.cdlib.org"
+        }
+      ],
+      "post": {
+        "operationId": "ValidateDmp",
+        "description": "Validate the DMP metadata payload",
+        "requestBody": {
+          "description": "The DMP metadata to validate",
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Dmp"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The DMP metadata was valid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StandardResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StandardError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "/dmps/{dmpId}": {
+      "servers": [
+        {
+          "description": "DMPHub development instance",
+          "url": "https://api.dmphub-dev.cdlib.org"
+        }
+      ],
+
+      "delete": {
+        "operationId": "TombstoneDmp",
+        "description": "Tombstone the DMP by the DMP ID (e.g. 'doi.org/10.12345/ABC123' or '10.12345/ABC123')",
+        "parameters": [
+          {
+            "name": "dmpId",
+            "in": "path",
+            "description": "The Dmp Id",
+            "example": "doi.org/10.12345/ABC123",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "Authorizer": [
+              "https://auth.dmphub-dev.cdlib.org/dev.write"
+            ]
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The successfully tombstoned DMP (DMPs are not deleted, they become inaccessible)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StandardResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StandardError"
+                }
+              }
+            }
+          }
+        }
+      },
+
+      "get": {
+        "operationId": "GetDmp",
+        "description": "Find the DMP by the DMP ID (e.g. '/dmps/doi.org/10.12345/ABC123' or '/dmps/10.12345/ABC123')",
+        "parameters": [
+          {
+            "name": "dmpId",
+            "in": "path",
+            "description": "The Dmp Id",
+            "example": "doi.org/10.12345/ABC123",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "version",
+            "description": "A specific version of the DMP (returns latest version if left blank). In ISO 8601 date and time format.",
+            "in": "query",
+            "required": false,
+            "allowReserved": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The DMP in a single item array",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StandardResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StandardError"
+                }
+              }
+            }
+          }
+        }
+      },
+
+      "put": {
+        "operationId": "UpdateDmp",
+        "description": "Update the DMP by the DMP ID (e.g. 'doi.org/10.12345/ABC123' or '10.12345/ABC123')",
+        "parameters": [
+          {
+            "name": "dmpId",
+            "in": "path",
+            "description": "The Dmp Id",
+            "example": "doi.org/10.12345/ABC123",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "The updated DMP metadata",
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Dmp"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Authorizer": [
+              "https://auth.dmphub-dev.cdlib.org/dev.write"
+            ]
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The successfully updated DMP",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StandardResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StandardError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -863,6 +863,7 @@
                             "ark",
                             "doi",
                             "handle",
+                            "rrid",
                             "url",
                             "other"
                           ],
@@ -931,10 +932,11 @@
                 "doi",
                 "ark",
                 "url",
-                "other"
+                "other",
+                "file"
               ],
               "title": "The DMP Identifier Type Schema",
-              "description": "The DMP Identifier Type. Allowed values: handle, doi, ark, url, other",
+              "description": "The DMP Identifier Type. Allowed values: handle, doi, ark, url, other, file (note: file is used by DMPHub to handle new PDF uploads)",
               "examples": ["doi"]
             }
           },
@@ -942,71 +944,6 @@
             "identifier",
             "type"
           ]
-        },
-        "dmproadmap_research_facilities": {
-          "$id": "#/properties/dmp/properties/dmproadmap_research_facilities",
-          "type": "array",
-          "title": "Facilities",
-          "description": "Facilities (e.g. labs and research stations) that will be used to collect/process research data",
-          "items": {
-            "$id": "#/properties/dmp/properties/dmproadmap_research_facilities/items",
-            "type": "object",
-            "title": "A research facility",
-            "properties": {
-              "facility_id": {
-                "$id": "#/properties/dmp/properties/dmproadmap_research_facilities/items/properties/facility_id",
-                "type": "object",
-                "title": "The unique ID of the facility",
-                "description": "The facility's ROR, DOI or URL",
-                "properties": {
-                  "identifier": {
-                    "$id": "#/properties/dmp/properties/dmproadmap_research_facilities/items/properties/facility_id/properties/identifier",
-                    "type": "string",
-                    "title": "The facility ID",
-                    "description": "ROR ID, DOI or URL. Recommended to use Research Organization Registry (ROR) or DOI when available. See: https://ror.org",
-                    "examples": ["https://ror.org/03yrm5c26", "http://doi.org/10.13039/100005595", "http://www.cdlib.org/"]
-                  },
-                  "type": {
-                    "$id": "#/properties/dmp/properties/dmproadmap_research_facilities/items/properties/facility_id/properties/type",
-                    "type": "string",
-                    "enum": [
-                      "doi",
-                      "ror",
-                      "url"
-                    ],
-                    "title": "The facility ID type schema",
-                    "description": "Identifier type. Allowed values: doi, ror, url",
-                    "examples": ["ror"]
-                  }
-                },
-                "required": [
-                  "identifier",
-                  "type"
-                ]
-              },
-              "name": {
-                "$id": "#/properties/dmp/properties/dmproadmap_research_facilities/items/properties/name",
-                "type": "string",
-                "title": "Name of the facility",
-                "description": "Official facility name",
-                "examples": ["Example Research Lab"]
-              },
-              "type": {
-                "$id": "#/properties/dmp/properties/dmproadmap_research_facilities/items/properties/type",
-                "type": "string",
-                "enum": [
-                  "field_station",
-                  "lab"
-                ],
-                "title": "The type of facility",
-                "examples": ["field_station"]
-              }
-            },
-            "required": [
-              "name",
-              "type"
-            ]
-          }
         },
         "dmproadmap_related_identifiers": {
           "$id": "#/properties/dmp/properties/dmproadmap_related_identifiers",
@@ -1082,6 +1019,71 @@
               "identifier",
               "type",
               "work_type"
+            ]
+          }
+        },
+        "dmproadmap_research_facilities": {
+          "$id": "#/properties/dmp/properties/dmproadmap_research_facilities",
+          "type": "array",
+          "title": "Facilities",
+          "description": "Facilities (e.g. labs and research stations) that will be used to collect/process research data",
+          "items": {
+            "$id": "#/properties/dmp/properties/dmproadmap_research_facilities/items",
+            "type": "object",
+            "title": "A research facility",
+            "properties": {
+              "facility_id": {
+                "$id": "#/properties/dmp/properties/dmproadmap_research_facilities/items/properties/facility_id",
+                "type": "object",
+                "title": "The unique ID of the facility",
+                "description": "The facility's ROR, DOI or URL",
+                "properties": {
+                  "identifier": {
+                    "$id": "#/properties/dmp/properties/dmproadmap_research_facilities/items/properties/facility_id/properties/identifier",
+                    "type": "string",
+                    "title": "The facility ID",
+                    "description": "ROR ID, DOI or URL. Recommended to use Research Organization Registry (ROR) or DOI when available. See: https://ror.org",
+                    "examples": ["https://ror.org/03yrm5c26", "http://doi.org/10.13039/100005595", "http://www.cdlib.org/"]
+                  },
+                  "type": {
+                    "$id": "#/properties/dmp/properties/dmproadmap_research_facilities/items/properties/facility_id/properties/type",
+                    "type": "string",
+                    "enum": [
+                      "doi",
+                      "ror",
+                      "url"
+                    ],
+                    "title": "The facility ID type schema",
+                    "description": "Identifier type. Allowed values: doi, ror, url",
+                    "examples": ["ror"]
+                  }
+                },
+                "required": [
+                  "identifier",
+                  "type"
+                ]
+              },
+              "name": {
+                "$id": "#/properties/dmp/properties/dmproadmap_research_facilities/items/properties/name",
+                "type": "string",
+                "title": "Name of the facility",
+                "description": "Official facility name",
+                "examples": ["Example Research Lab"]
+              },
+              "type": {
+                "$id": "#/properties/dmp/properties/dmproadmap_research_facilities/items/properties/type",
+                "type": "string",
+                "enum": [
+                  "field_station",
+                  "laboratory"
+                ],
+                "title": "The type of facility",
+                "examples": ["field_station"]
+              }
+            },
+            "required": [
+              "name",
+              "type"
             ]
           }
         },
@@ -1224,6 +1226,20 @@
                           }
                         }
                       }
+                    },
+                    "dmproadmap_opportunity_number": {
+                      "$id": "#/properties/dmp/properties/project/items/properties/funding/properties/dmproadmap_opportunity_number",
+                      "type": "string",
+                      "title": "The funder's opportunity / award number",
+                      "description": "The funder's number used to identify the award or call for submissions",
+                      "examples": ["Award-123"]
+                    },
+                    "dmproadmap_project_number": {
+                      "$id": "#/properties/dmp/properties/project/items/properties/funding/properties/dmproadmap_project_number",
+                      "type": "string",
+                      "title": "The funder's identifier for the research project",
+                      "description": "The funder's identifier used to identify the research project",
+                      "examples": ["prj-XYZ987-UCB"]
                     },
                     "funder_id": {
                       "$id": "#/properties/dmp/properties/project/items/properties/funding/properties/funder_id",

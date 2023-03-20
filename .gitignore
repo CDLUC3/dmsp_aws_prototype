@@ -2,4 +2,8 @@
 .python-version
 
 # Ignore the Swagger UI distribution
-src/swagger/swagger-ui*/
+src/swagger/swagger-ui-*/
+src/swagger.node_modules/
+
+# Ignore the Node Modules used to convert the JSON schema to OpenApi schema
+src/swagger/node_modules/

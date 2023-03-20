@@ -209,6 +209,20 @@
                             }
                           }
                         },
+                        "dmproadmap_opportunity_number": {
+                          "$id": "#/properties/dmp/properties/project/items/properties/funding/properties/dmproadmap_opportunity_number",
+                          "type": "string",
+                          "title": "The funder's opportunity / award number",
+                          "description": "The funder's number used to identify the award or call for submissions",
+                          "examples": ["Award-123"]
+                        },
+                        "dmproadmap_project_number": {
+                          "$id": "#/properties/dmp/properties/project/items/properties/funding/properties/dmproadmap_project_number",
+                          "type": "string",
+                          "title": "The funder's identifier for the research project",
+                          "description": "The funder's identifier used to identify the research project",
+                          "examples": ["prj-XYZ987-UCB"]
+                        },
                         "funder_id": {
                           "$id": "#/properties/dmp/properties/project/items/properties/funding/properties/funder_id",
                           "type": "object",
