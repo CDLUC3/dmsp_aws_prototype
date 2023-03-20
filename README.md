@@ -64,9 +64,11 @@ For instructions on installing and setting up the system, please refer to [our i
 
 ## Swagger
 
-Your CloudFront distribution will contain Swagger API documentation for your API at `https://your.domain.edu/api-docs`. If you modify you modify and redeploy your API Lambdas, you should also update your documentation. to do that run: `src/swagger/swagger_install.sh 4.16.1`
+Your CloudFront distribution will contain Swagger API documentation for your API at `https://your.domain.edu/api-docs`. If you modify and redeploy your API Lambdas, you should also update your documentation. to do that:
+- Update the `src/swagger/v0-openapi-template.json`
+- run: `cd src/swagger && ruby build_openapi_spec.rb dev 4.18.1` (where 4.18.1 is the version of Swagger UI you want to use)
 
-This script is automatically run whenever you use the `src/sam/sam_build_deploy.sh` script to update your Lambdas and API.
+The `"dmp": {}` portion of the `src/swagger/v0-openapi-template.json` file is auto-populated from the latest JSON schema document located in `src/sam/layers/ruby/config/author.json`
 
 Note that the above command is also how you would upgrade Swagger itself. The version number should match one of the [swagger-ui release](https://github.com/swagger-api/swagger-ui/releases) tags
 
