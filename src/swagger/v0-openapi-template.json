@@ -3,8 +3,8 @@
 
   "info": {
     "version": "0.1.0",
-    "title": "DMPHub v0 API specification",
-    "description": "The DMPHub Rest API",
+    "title": "DMPTool v3 API specification",
+    "description": "Please use the interface below to test the features of the DMPTool API.<br><br>Please note that the lock icon next to an endpoint indicates that you must provide an access token.<br>To acquire an access token, click on the green 'Authorize' button and enter your API credentials along with the scope(s) you have access to.<br><br>If you do not have credentials for the API, you can test any of the endpoints that do not display a lock icon.<br>If you would like API credentials, please contact us via the link below.",
     "contact": {
       "name": "DMPTool Support",
       "email": "dmptool@ucop.edu",
@@ -57,11 +57,14 @@
     "securitySchemes": {
       "Authorizer": {
         "type": "oauth2",
+        "description": "OAuth2 Client Credentials",
         "flows": {
           "clientCredentials": {
             "tokenUrl": "https://auth.dmphub-dev.cdlib.org/oauth2/token",
             "scopes": {
-              "https://auth.dmphub-dev.cdlib.org/dev.read": "Read a DMP",
+              "https://auth.dmphub-dev.cdlib.org/dev.delete": "Tombstone a DMP",
+              "https://auth.dmphub-dev.cdlib.org/dev.read": "Read or modify a DMP",
+              "https://auth.dmphub-dev.cdlib.org/dev.upload": "Create or modify a DMP",
               "https://auth.dmphub-dev.cdlib.org/dev.write": "Create or modify a DMP"
             }
           }
@@ -82,7 +85,8 @@
           }
         }
       },
-      "StandardResponse": {
+
+      "DmpResponse": {
         "type": "object",
         "properties": {
           "status": {
@@ -120,13 +124,21 @@
             "items": {
               "$ref": "#/components/schemas/Dmp"
             }
+          },
+          "errors": {
+            "type": "array",
+            "description": "Error messages",
+            "items": {
+              "type": "string",
+              "description": "An error message",
+              "example": "You are not authorized to perform this action"
+            }
           }
-        }
+        },
+        "required": ["status", "requested", "requested_at", "page", "per_page", "total_items"]
       },
 
-      "Dmp": {},
-
-      "MeResponse": {
+      "UserResponse": {
         "type": "object",
         "properties": {
           "status": {
@@ -160,13 +172,25 @@
           },
           "items": {
             "type": "array",
-            "description": "The DMPs",
+            "description": "The user",
             "items": {
               "$ref": "#/components/schemas/User"
             }
+          },
+          "errors": {
+            "type": "array",
+            "description": "Error messages",
+            "items": {
+              "type": "string",
+              "description": "An error message",
+              "example": "You are not authorized to perform this action"
+            }
           }
-        }
+        },
+        "required": ["status", "requested", "requested_at", "page", "per_page", "total_items"]
       },
+
+      "Dmp": {},
 
       "User": {
         "type": "object",
@@ -251,15 +275,25 @@
         }
       ],
       "get": {
+        "tags": [
+          "UI support operations"
+        ],
         "operationId": "GetMe",
-        "description": "Fetches the user info for the logged in user.",
+        "description": "Fetches the user info for the logged in user.<br><br><strong>Note:</strong> this endpoint currently returns stubbed data.",
+        "security": [
+          {
+            "Authorizer": [
+              "https://auth.dmphub-dev.cdlib.org/dev.read"
+            ]
+          }
+        ],
         "responses": {
           "200": {
             "description": "The user's name, email, affiliation and ORCID.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/MeResponse"
+                  "$ref": "#/components/schemas/UserResponse"
                 }
               }
             }
@@ -285,8 +319,11 @@
         }
       ],
       "post": {
+        "tags": [
+          "DMP operations"
+        ],
         "operationId": "CreateDmp",
-        "description": "Create a new DMP record",
+        "description": "Create a new DMP record. This will register a new DMP ID.<br><br><strong>NOTE:</strong> The API will use the 'dmp_id' supplied in the request to determine if the DMP metadata already exists! Be sure to change it to something unique if you are using the example.",
         "requestBody": {
           "description": "The DMP metadata",
           "required": true,
@@ -311,7 +348,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/StandardResponse"
+                  "$ref": "#/components/schemas/DmpResponse"
                 }
               }
             }
@@ -338,6 +375,9 @@
         }
       ],
       "post": {
+        "tags": [
+          "DMP operations"
+        ],
         "operationId": "ValidateDmp",
         "description": "Validate the DMP metadata payload",
         "requestBody": {
@@ -357,7 +397,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/StandardResponse"
+                  "$ref": "#/components/schemas/DmpResponse"
                 }
               }
             }
@@ -385,8 +425,11 @@
       ],
 
       "delete": {
+        "tags": [
+          "DMP operations"
+        ],
         "operationId": "TombstoneDmp",
-        "description": "Tombstone the DMP by the DMP ID (e.g. 'doi.org/10.12345/ABC123' or '10.12345/ABC123')",
+        "description": "Tombstone the DMP ID.<br><br><strong>Note:</strong> This endpoint has not yet been implemented.",
         "parameters": [
           {
             "name": "dmpId",
@@ -412,7 +455,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/StandardResponse"
+                  "$ref": "#/components/schemas/DmpResponse"
                 }
               }
             }
@@ -431,6 +474,9 @@
       },
 
       "get": {
+        "tags": [
+          "DMP operations"
+        ],
         "operationId": "GetDmp",
         "description": "Find the DMP by the DMP ID (e.g. '/dmps/doi.org/10.12345/ABC123' or '/dmps/10.12345/ABC123')",
         "parameters": [
@@ -461,7 +507,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/StandardResponse"
+                  "$ref": "#/components/schemas/DmpResponse"
                 }
               }
             }
@@ -480,6 +526,9 @@
       },
 
       "put": {
+        "tags": [
+          "DMP operations"
+        ],
         "operationId": "UpdateDmp",
         "description": "Update the DMP by the DMP ID (e.g. 'doi.org/10.12345/ABC123' or '10.12345/ABC123')",
         "parameters": [
@@ -518,7 +567,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/StandardResponse"
+                  "$ref": "#/components/schemas/DmpResponse"
                 }
               }
             }

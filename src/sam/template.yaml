@@ -10,8 +10,6 @@ Globals:
   Function:
     Timeout: 3
     Tracing: 'Active'
-  Api:
-    TracingEnabled: True
 
 Parameters:
   HostedZoneId:
@@ -48,6 +46,10 @@ Parameters:
   LogRetentionDays:
     Type: 'Number'
     Default: 7
+
+  CorsHeaders:
+    Type: 'String'
+    Default: 'Accept, Authorization, Content-Type, Origin, Referer, User-Agent'
 
 Resources:
   # -----------------------------------------------------------
@@ -172,7 +174,19 @@ Resources:
       AccessLogSetting:
         DestinationArn: !GetAtt ApiAccessLogGroup.Arn
         Format: '{"requestId":"$context.requestId","ip": "$context.identity.sourceIp","caller":"$context.identity.caller","user":"$context.identity.user","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath","status":"$context.status","protocol":"$context.protocol","responseLength":"$context.responseLength"}'
-  #     CacheClusterEnabled: true
+      # TODO: Consider enabling caching in prod
+      # Cache @ 0.5GB is $0.02 per hour! -> $0.48 per day -> roughly $15 per month
+      # CacheClusterEnabled: true
+      # CacheClusterSize: '0.5' # .5 GB
+
+      Cors:
+        # Values here need to be wrapped in single quotes, but the ENV variables passed into the
+        # Lambdas do not! For example, "'GET,PUT'" defined here should be "GET, PUT" when passed
+        # into the Lambdas as an ENV!
+        AllowOrigin: !Sub "'https://${DomainName}'"
+        AllowHeaders: !Sub "'${CorsHeaders}'"
+        AllowMethods: "'DELETE, GET, OPTIONS, PATCH, POST, PUT'"
+
       DisableExecuteApiEndpoint: true
       Domain:
         DomainName: !Sub "api.${DomainName}"
@@ -188,6 +202,7 @@ Resources:
       OpenApiVersion: '3.0.1'
       TracingEnabled: true
       Auth:
+        AddDefaultAuthorizerToCorsPreflight: false
         Authorizers:
           DmpHubCognitoAuthorizer:
             UserPoolArn: !Ref CognitoUserPoolArn
@@ -195,8 +210,9 @@ Resources:
             Identity:
               Header: 'Authorization'
             AuthorizationScopes:
+              - !Sub 'https://auth.${DomainName}/${Env}.delete'
               - !Sub 'https://auth.${DomainName}/${Env}.read'
-              - !Sub 'https://auth.${DomainName}/${Env}.search'
+              - !Sub 'https://auth.${DomainName}/${Env}.upload'
               - !Sub 'https:/auth.${DomainName}/${Env}.write'
         DefaultAuthorizer: DmpHubCognitoAuthorizer
 
@@ -257,6 +273,9 @@ Resources:
           DOMAIN: !Ref DomainName
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
           EVENT_BUS_NAME: !Ref EventBusArn
+          CORS_METHODS: 'DELETE'
+          CORS_HEADERS: !Ref CorsHeaders
+          CORS_ORIGIN: !Sub "https://${DomainName}"
       Events:
         DeleteDmps:
           # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
@@ -270,7 +289,7 @@ Resources:
             Auth:
               Authorizer: 'DmpHubCognitoAuthorizer'
               AuthorizationScopes:
-                - !Sub 'https://auth.${DomainName}/${Env}.write'
+                - !Sub 'https://auth.${DomainName}/${Env}.delete'
 
   # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
   GetDmpFunction:
@@ -295,6 +314,9 @@ Resources:
         Variables:
           LAMBDA_ENV: !Ref Env
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
+          CORS_METHODS: 'GET'
+          CORS_HEADERS: !Ref CorsHeaders
+          CORS_ORIGIN: !Sub "https://${DomainName}"
       Events:
         GetDmp:
           # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
@@ -321,6 +343,11 @@ Resources:
       DeadLetterQueue:
         Type: 'SQS'
         TargetArn: !Ref DeadLetterQueueArn
+      Environment:
+        Variables:
+          CORS_METHODS: 'GET'
+          CORS_HEADERS: !Ref CorsHeaders
+          CORS_ORIGIN: !Sub "https://${DomainName}"
       Events:
         GetDmp:
           # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
@@ -332,7 +359,7 @@ Resources:
             Auth:
               Authorizer: 'DmpHubCognitoAuthorizer'
               AuthorizationScopes:
-                - !Sub 'https://auth.${DomainName}/${Env}.write'
+                - !Sub 'https://auth.${DomainName}/${Env}.read'
 
   PostDmpsFunction:
     Type: 'AWS::Serverless::Function'
@@ -361,6 +388,9 @@ Resources:
           DOMAIN: !Ref DomainName
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
           EVENT_BUS_NAME: !Ref EventBusArn
+          CORS_METHODS: 'POST'
+          CORS_HEADERS: !Ref CorsHeaders
+          CORS_ORIGIN: !Sub "https://${DomainName}"
       Events:
         PostDmps:
           # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
@@ -403,6 +433,9 @@ Resources:
           DOMAIN: !Ref DomainName
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
           EVENT_BUS_NAME: !Ref EventBusArn
+          CORS_METHODS: 'PUT'
+          CORS_HEADERS: !Ref CorsHeaders
+          CORS_ORIGIN: !Sub "https://${DomainName}"
       Events:
         PutDmps:
           # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
@@ -438,6 +471,9 @@ Resources:
         Variables:
           LAMBDA_ENV: !Ref Env
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
+          CORS_METHODS: 'POST'
+          CORS_HEADERS: !Ref CorsHeaders
+          CORS_ORIGIN: !Sub "https://${DomainName}"
       Events:
         ValidateDmp:
           # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api

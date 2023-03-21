@@ -166,10 +166,14 @@ Resources:
       # Identifier: !Sub "https://${Subdomain}.${Domain}"
       UserPoolId: !Ref UserPool
       Scopes:
+        - ScopeName: !Sub '${Env}.delete'
+          ScopeDescription: 'Allows access to the DELETE DMP api endpoint'
         - ScopeName: !Sub '${Env}.read'
           ScopeDescription: 'Allows access to the GET api endpoints (default) (e.g. getDmp, getDmps)'
+        - ScopeName: !Sub '${Env}.upload'
+          ScopeDescription: 'Allows access to the POST api endpoint for uploading PDF narratives'
         - ScopeName: !Sub '${Env}.write'
-          ScopeDescription: 'Allows access to POST, PUT and DELETE for DMPs (e.g. postDmp, putDmp, deleteDmp)'
+          ScopeDescription: 'Allows access to POST, PUT for DMPs (e.g. postDmp, putDmp, deleteDmp)'
 
   UserPoolDomain:
     Type: 'AWS::Cognito::UserPoolDomain'
@@ -235,7 +239,9 @@ Resources:
       AllowedOAuthFlows:
         - 'client_credentials'
       AllowedOAuthScopes:
+        - !Sub 'https://${Subdomain}.${Domain}/${Env}.delete'
         - !Sub 'https://${Subdomain}.${Domain}/${Env}.read'
+        - !Sub 'https://${Subdomain}.${Domain}/${Env}.upload'
         - !Sub 'https://${Subdomain}.${Domain}/${Env}.write'
       EnableTokenRevocation: true
       PreventUserExistenceErrors: 'ENABLED'

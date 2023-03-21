@@ -1,7 +1,7 @@
 {
   "$id": "https://github.com/CDLUC3/dmp-hub-sam/layer/ruby/config/schemas/author.json",
-  "title": "RDA DMP Common Standard Schema",
-  "description": "JSON Schema for the RDA DMP Common Standard",
+  "title": "Data Management Plan (DMP)",
+  "description": "JSON Schema for a Data Management Plan (DMP)",
   "type": "object",
   "properties": {
     "dmp": {
@@ -23,7 +23,7 @@
                   "$id": "#/properties/dmp/properties/contact/properties/contact_id/properties/identifier",
                   "type": "string",
                   "title": "The DMP Contact Identifier Schema",
-                  "examples": ["https://orcid.org/0000-0003-0644-4174"]
+                  "examples": ["https://orcid.org/0000-0000-0000-0000"]
                 },
                 "type": {
                   "$id": "#/properties/dmp/properties/contact/properties/contact_id/properties/type",
@@ -297,7 +297,7 @@
           "format": "date-time",
           "title": "The DMP Creation Schema",
           "description": "Date and time of the first version of a DMP. Must not be changed in subsequent DMPs. Encoded using the relevant ISO 8601 Date and Time compliant string",
-          "examples": ["2019-03-13T13:13:00"]
+          "examples": ["2019-03-13T13:13:00+00:00"]
         },
         "dataset": {
           "$id": "#/properties/dmp/properties/dataset",
@@ -417,7 +417,7 @@
                       "format": "uri",
                       "title": "The Dataset Distribution Download URL Schema",
                       "description": "The URL of the downloadable file in a given format. E.g. CSV file or RDF file.",
-                      "examples": ["http://some.repo.../download/..."]
+                      "examples": ["http://example.com/download/abc123/download"]
                     },
                     "format": {
                       "$id": "#/properties/dmp/properties/dataset/items/properties/distribution/items/properties/format",
@@ -1139,7 +1139,7 @@
           "format": "date-time",
           "title": "The DMP Modification Schema",
           "description": "Must be set each time DMP is modified. Indicates DMP version. Encoded using the relevant ISO 8601 Date and Time compliant string.",
-          "examples": ["2020-03-14T10:53:49"]
+          "examples": ["2020-03-14T10:53:49+00:00"]
         },
         "project": {
           "$id": "#/properties/dmp/properties/project",
@@ -1322,12 +1322,12 @@
                       "title": "The name of the funding instituion / organization",
                       "description": "Name",
                       "examples": ["National Science Foundation"]
-                    },
-                    "required": [
-                      "funding_status",
-                      "name"
-                    ]
-                  }
+                    }
+                  },
+                  "required": [
+                    "funding_status",
+                    "name"
+                  ]
                 }
               },
               "start": {
