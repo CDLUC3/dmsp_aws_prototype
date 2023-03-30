@@ -29,4 +29,4 @@ hooks:
 
     # Build and deploy the Swagger UI (gets deployed to the CloudFront distro as https://[domain]/api-docs)
     # Args are: environment swagger-ui version
-    - !cmd './src/swagger/swagger_install.sh dev 4.16.1
+    - !cmd 'cd ./src/swagger && ruby build_openapi_spec.rb dev 4.18.1'
