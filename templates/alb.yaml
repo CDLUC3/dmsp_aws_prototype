@@ -1,0 +1,124 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+
+Description: 'Application load balancer for the DMPTool ECS instances'
+
+Parameters:
+  VpcId:
+    Type: 'AWS::EC2::VPC::Id'
+
+  Subnets:
+    Type: 'List<AWS::EC2::Subnet::Id>'
+
+  HostedZoneId:
+    Type: 'AWS::Route53::HostedZone::Id'
+
+  CertificateArn:
+    Type: 'String'
+
+  AppName:
+    Type: 'String'
+  Environment:
+    Type: String
+    Default: 'dev'
+
+  Domain:
+    Type: 'String'
+
+  Subdomain:
+    Type: 'String'
+
+Resources:
+  # -----------------------------------------------------------
+  # EC2 Security Groups for ECS containers (see their definitions in application.yaml)
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-security-group.html
+  # -----------------------------------------------------------
+  AlbSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: !Sub 'Fargate security group for ${AWS::StackName}'
+      GroupName: !Sub '${AWS::StackName}-alb-sec'
+      VpcId: !Ref VpcId
+
+  # Allow HTTP traffic to the ALB
+  AlbSecurityGroupIngress:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    DependsOn:
+      - AlbSecurityGroup
+    Properties:
+      IpProtocol: 'tcp'
+      FromPort: 80
+      ToPort: 80
+      CidrIp: 0.0.0.0/0
+      GroupId: !GetAtt AlbSecurityGroup.GroupId
+
+  # Allow HTTPS traffic to the ALB
+  AlbSecurityGroupIngress:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    DependsOn:
+      - AlbSecurityGroup
+    Properties:
+      IpProtocol: 'tcp'
+      FromPort: 443
+      ToPort: 443
+      CidrIp: 0.0.0.0/0
+      GroupId: !GetAtt AlbSecurityGroup.GroupId
+
+  # -----------------------------------------------------------
+  # Elastic Load Balancer (ELB) - Handles which container receives traffic
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_ElasticLoadBalancingV2.html
+  # -----------------------------------------------------------
+  AlbTargetGroup:
+    Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
+    Properties:
+      HealthCheckEnabled: true
+      HealthCheckIntervalSeconds: 300 # 5 minutes
+      HealthCheckPath: '/'
+      HealthCheckPort: 'traffic-port'
+      HealthCheckProtocol: 'HTTP'
+      HealthCheckTimeoutSeconds: 30
+      UnhealthyThresholdCount: 3
+      Matcher:
+        HttpCode: 200
+      VpcId: !Ref VpcId
+      Port: 80
+      Protocol: 'HTTP'
+      TargetGroupAttributes:
+        - Key: 'stickiness.enabled'
+          Value: true
+        - Key: 'stickiness.type'
+          Value: 'lb_cookie'
+        - Key: 'stickiness.lb_cookie.duration_seconds'
+          Value: 900 # 15 minutes
+      TargetType: 'ip'
+
+  Alb:
+    Type: 'AWS::ElasticLoadBalancingV2::LoadBalancer'
+    Properties:
+      Type: 'application'
+      Scheme: 'internet-facing'
+      SecurityGroups:
+        - !GetAtt AlbSecurityGroup.GroupId
+      Subnets: !Ref Subnets
+
+Outputs:
+  AlbTargetGroupArn:
+    Value: !Ref AlbTargetGroup
+
+  AlbTargetGroupFullName:
+    Value: !GetAtt AlbTargetGroup.TargetGroupFullName
+
+  AlbArn:
+    Value: !Ref Alb
+
+  AlbCanonicalHostedZoneId:
+    Value: !GetAtt Alb.CanonicalHostedZoneID
+
+  AlbFullName:
+    Value: !GetAtt Alb.LoadBalancerFullName
+
+  AlbDnsName:
+    Value: !GetAtt Alb.DNSName
+
+  AlbSecurityGroupId:
+    Value: !GetAtt AlbSecurityGroup.GroupId

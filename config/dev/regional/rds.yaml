@@ -1,0 +1,23 @@
+template:
+  path: 'rds.yaml'
+  type: 'file'
+
+parameters:
+  VpcId: !stack_attr sceptre_user_data.vpc_id
+  Subnets: !stack_attr sceptre_user_data.private_subnets
+
+  # If you have an existing RDS snapshot of your DB, you can include it here and CF will
+  # restore that snapshot. If not, just leave this commented out and Docker will initialize the DB
+  # DBSnapshot: 'arn:aws:rds:us-west-2:671846987296:snapshot:uc3-dmp-roadmap-initial'
+
+  DbInstanceType: 'db.t3.micro'
+  # Valid options are based on the DB engine.
+  #   See: at: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-rds-database-instance.html#cfn-rds-dbinstance-allocatedstorage
+  DbSizeGb: '20'
+  DbName: 'dmp'
+  DbEngine: 'MySQL'
+  # For valid MySQL versions see: https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/MySQL.Concepts.VersionMgmt.html
+  DbEngineVersion: '8.0.32'
+
+  DbUsername: !ssm_parameter /uc3/dmp/tool/dev/RdsDbaUsername
+  DbPassword: !ssm_parameter /uc3/dmp/tool/dev/RdsDbaPassword

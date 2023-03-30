@@ -1,0 +1,325 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+
+Description: 'Serverless architecture for the DMPTool system'
+
+Parameters:
+  VpcId:
+    Type: 'AWS::EC2::VPC::Id'
+
+  Subnets:
+    Type: 'List<AWS::EC2::Subnet::Id>'
+
+  DomainName:
+    Type: 'String'
+
+  AppName:
+    Type: 'String'
+
+  SsmPath:
+    Type: 'String'
+
+  EcsDesiredServiceCount:
+    Type: 'Number'
+    Default: 1
+
+  EcrRepositoryUri:
+    Type: 'String'
+
+  EcrRepositoryName:
+    Type: 'String'
+
+  S3CloudFrontBucketId:
+    Type: 'String'
+
+  AlbTargetGroupArn:
+    Type: 'String'
+
+  AlbDnsName:
+    Type: 'String'
+
+  AlbSecurityGroupId:
+    Type: 'String'
+
+  RailsMasterKey:
+    Type: 'String'
+
+  RailsServeStaticFiles:
+    Type: 'String'
+    Default: 'false'
+    AllowedValues:
+      - 'true'
+      - 'false'
+  RailsLogLevel:
+    Type: 'String'
+    Default: 'warn'
+    AllowedValues:
+      - 'debug'
+      - 'warn'
+      - 'error'
+
+  DbSecurityGroupId:
+    Type: 'String'
+  DbAdapter:
+    Type: 'String'
+    Default: 'mysql2'
+  DbAddress:
+    Type: 'String'
+  DbPort:
+    Type: 'String'
+  DbName:
+    Type: 'String'
+    Default: 'dmp'
+  DbUsername:
+    Type: 'String'
+  DbPassword:
+    Type: 'String'
+
+  DoNotReplyEmail:
+    Type: 'String'
+  HelpdeskEmail:
+    Type: 'String'
+  BlogRss:
+    Type: 'String'
+  EnableOrcidPublication:
+    Type: 'String'
+    Default: 'false'
+    AllowedValues:
+      - 'true'
+      - 'false'
+  EnableDmphub:
+    Type: 'String'
+    Default: 'false'
+    AllowedValues:
+      - 'true'
+      - 'false'
+  DmphubApiUrl:
+    Type: 'String'
+  DmphubLandingPageUrl:
+    Type: 'String'
+
+Resources:
+  # -----------------------------------------------------------
+  # Identitity and Access Management (IAM)
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_IAM.html
+  # -----------------------------------------------------------
+  # Role that grants the ECS container agent permission to make AWS API calls
+  EcsTaskExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service:
+                - 'ecs-tasks.amazonaws.com'
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy'
+        - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
+
+  # Role that grants containers in the task permission to call AWS APIs on your behalf
+  EcsTaskRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service:
+                - 'ecs-tasks.amazonaws.com'
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonRDSDataFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSESFullAccess'
+        - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
+
+  # -----------------------------------------------------------
+  # EC2 Security Groups for ECS containers (see their definitions in application.yaml)
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-security-group.html
+  # -----------------------------------------------------------
+  EcsSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: !Sub 'Fargate security group for ${AWS::StackName}'
+      GroupName: !Sub '${AWS::StackName}-ecs-sec'
+      VpcId: !Ref VpcId
+
+  # Allow traffic to the ECS instances from the ALB
+  EcsSecurityGroupIngressFromAlb:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    DependsOn:
+      - EcsSecurityGroup
+    Properties:
+      IpProtocol: 'tcp'
+      FromPort: 80
+      ToPort: 80
+      GroupId: !GetAtt EcsSecurityGroup.GroupId
+      SourceSecurityGroupId: !Ref AlbSecurityGroupId
+
+  # Allow the RDS instance(s) to receive traffic from the ECS instance(s)
+  DbSecurityGroupIngressFromEcs:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    DependsOn:
+      - EcsSecurityGroup
+    Properties:
+      IpProtocol: 'tcp'
+      FromPort: 3306
+      ToPort: 3306
+      GroupId: !Ref DbSecurityGroupId
+      SourceSecurityGroupId: !GetAtt EcsSecurityGroup.GroupId
+
+  # -----------------------------------------------------------
+  # Elastic Container Service (ECS) - Containers that host the application
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_ECS.html
+  # -----------------------------------------------------------
+  EcsCluster:
+    Type: 'AWS::ECS::Cluster'
+    Properties:
+      ClusterName: !Sub '${AWS::StackName}-fargate-clst'
+      CapacityProviders:
+        - 'FARGATE'
+      DefaultCapacityProviderStrategy:
+        - CapacityProvider: 'FARGATE'
+
+  # The Application/Task definition
+  EcsTaskDefinition:
+    Type: 'AWS::ECS::TaskDefinition'
+    DependsOn:
+      - EcsTaskExecutionRole
+      - EcsTaskRole
+    Properties:
+      Cpu: '2048' # 2 vCPU
+      Memory: '4096' # 4GB
+      ExecutionRoleArn: !GetAtt EcsTaskExecutionRole.Arn
+      TaskRoleArn: !GetAtt EcsTaskRole.Arn
+      Family: !Sub '${AWS::StackName}-fargate'
+      NetworkMode: 'awsvpc' # Required for Fargate!
+      RuntimePlatform:
+        CpuArchitecture: 'X86_64'
+        OperatingSystemFamily: 'LINUX'
+      RequiresCompatibilities:
+        - 'FARGATE'
+      ContainerDefinitions:
+        -
+          Image: !Ref EcrRepositoryUri
+          Cpu: 2
+          DisableNetworking: false
+          Essential: true
+          Interactive: true
+          Memory: 2000
+          Name: !Ref AppName
+          StartTimeout: 180
+          StopTimeout: 60
+          # TODO: Figure out why this is invalid for FARGATE
+          LogConfiguration:
+            LogDriver: 'awslogs'
+            Options:
+              awslogs-region: !Ref AWS::Region
+              awslogs-create-group: true
+              awslogs-group: !Sub '${AWS::StackName}-ecs'
+              awslogs-stream-prefix: !Ref AppName
+          PortMappings:
+            # SES port
+            - ContainerPort: 25
+              Protocol: 'tcp'
+            # ALB port
+            - ContainerPort: 80
+              Protocol: 'tcp'
+            # RDS port
+            - ContainerPort: 3306
+              Protocol: 'tcp'
+          Environment:
+            - Name: 'RAILS_MASTER_KEY'
+              Value: !Ref RailsMasterKey
+
+            - Name: 'RAILS_LOG_LEVEL'
+              Value: !Ref RailsLogLevel
+
+            - Name: 'RAILS_SERVE_STATIC_FILES'
+              Value: !Ref RailsServeStaticFiles
+
+            - Name: 'SSM_ROOT_PATH'
+              Value: !Ref SsmPath
+
+            - Name: DMPROADMAP_DRAGONFLY_URL_SCHEME
+              Value: true
+            - Name: DMPROADMAP_DRAGONFLY_BUCKET
+              Value: !Ref S3CloudFrontBucketId
+            - Name: DMPROADMAP_DRAGONFLY_ROOT_PATH
+              Value: 'assets/logos'
+
+            - Name: 'DMPROADMAP_SERVER_HOST'
+              Value: !Ref DomainName
+            - Name: 'DMPROADMAP_NAME'
+              Value: !Ref AppName
+            - Name: 'DMPROADMAP_DO_NOT_REPLY_EMAIL'
+              Value: !Ref DoNotReplyEmail
+            - Name: 'DMPROADMAP_HELPDESK_EMAIL'
+              Value: !Ref HelpdeskEmail
+            - Name: 'DMPROADMAP_BLOG_RSS'
+              Value: !Ref BlogRss
+
+            - Name: 'DMPROADMAP_ENABLE_ORCID_PUBLICATION'
+              Value: !Ref EnableOrcidPublication
+
+            - Name: 'DMPROADMAP_DMPHUB_ACTIVE'
+              Value: !Ref EnableDmphub
+            - Name: 'DMPROADMAP_DMPHUB_LANDING_PAGE_URL'
+              Value: !Ref DmphubLandingPageUrl
+            - Name: 'DMPROADMAP_DMPHUB_URL'
+              Value: !Ref DmphubApiUrl
+
+  # Container Service definition
+  EcsService:
+    Type: 'AWS::ECS::Service'
+    DependsOn:
+      - EcsTaskDefinition
+    Properties:
+      Cluster: !Ref EcsCluster
+      DesiredCount: !Ref EcsDesiredServiceCount
+      EnableECSManagedTags: true
+      HealthCheckGracePeriodSeconds: 300 # 5 minutes for app startup
+      LaunchType: 'FARGATE'
+      DeploymentConfiguration:
+        DeploymentCircuitBreaker:
+          Enable: true
+          Rollback: true
+      LoadBalancers:
+        - TargetGroupArn: !Ref AlbTargetGroupArn
+          ContainerPort: 80
+          ContainerName: !Ref AppName
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          SecurityGroups:
+            - !GetAtt EcsSecurityGroup.GroupId
+            - !Ref AlbSecurityGroupId
+            - !Ref DbSecurityGroupId
+            # - !Ref S3SecurityGroupID
+          AssignPublicIp: 'ENABLED'
+          Subnets: !Ref Subnets
+      PlatformVersion: 'LATEST'
+      PropagateTags: 'TASK_DEFINITION'
+      SchedulingStrategy: 'REPLICA'
+      TaskDefinition: !Ref EcsTaskDefinition
+
+Outputs:
+  EcsFargateClusterId:
+    Value: !Ref EcsCluster
+
+  EcsFargateClusterArn:
+    Value: !GetAtt EcsCluster.Arn
+
+  EcsServiceArn:
+    Value: !Ref EcsService
+
+  EcsServiceName:
+    Value: !GetAtt EcsService.Name
+
+  EcsTaskId:
+    Value: !Ref EcsTaskDefinition

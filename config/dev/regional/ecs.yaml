@@ -1,0 +1,46 @@
+template:
+  path: 'ecs.yaml'
+  type: 'file'
+
+parameters:
+  VpcId: !stack_attr sceptre_user_data.vpc_id
+  Subnets: !stack_attr sceptre_user_data.private_subnets
+
+  DomainName: !stack_attr sceptre_user_data.domain
+
+  SsmPath: !stack_attr sceptre_user_data.ssm_path
+
+  EcrRepositoryUri: !stack_output dev/regional/ecr.yaml::EcrRepositoryUri
+  EcrRepositoryName: !stack_output dev/regional/ecr.yaml::EcrRepositoryName
+
+  S3CloudFrontBucketId: !stack_output dev/regional/s3.yaml::S3CloudFrontBucketId
+
+  AlbTargetGroupArn: !stack_output dev/regional/alb.yaml::AlbTargetGroupArn
+  AlbDnsName: !stack_output dev/regional/alb.yaml::AlbDnsName
+  AlbSecurityGroupId: !stack_output dev/regional/alb.yaml::AlbSecurityGroupId
+
+  # ServiceCount should be greater than 1 for CodeDeploy rules!
+  EcsDesiredServiceCount: '2'
+
+  DbAdapter: 'mysql'
+  DbSecurityGroupId: !stack_output dev/regional/rds.yaml::DbSecurityGroupId
+  DbAddress: !stack_output dev/regional/rds.yaml::DbAddress
+  DbPort: !stack_output dev/regional/rds.yaml::DbPort
+  DbName: !stack_output dev/regional/rds.yaml::DbName
+  DbUsername: !ssm_parameter /uc3/dmp/tool/dev/RdsDbaUsername
+  DbPassword: !ssm_parameter /uc3/dmp/tool/dev/RdsDbaPassword
+
+  RailsMasterKey: !ssm_parameter /uc3/dmp/tool/dev/RailsMasterKey
+  RailsServeStaticFiles: 'false'
+  RailsLogLevel: 'debug'
+
+  AppName: 'dmptool-dev'
+  DoNotReplyEmail: 'do-not-reply-dmptool-dev@cdlib.org'
+  HelpdeskEmail: !ssm_parameter /uc3/dmp/hub/dev/AdminEmail
+  BlogRss: 'https://blog.dmptool.org/feed/'
+
+  EnableOrcidPublication: 'true'
+
+  EnableDmphub: 'true'
+  DmphubLandingPageUrl: 'https://dmphub-dev.cdlib.org/dmps/'
+  DmphubApiUrl: 'https://api.dmphub-dev.cdlib.org/'

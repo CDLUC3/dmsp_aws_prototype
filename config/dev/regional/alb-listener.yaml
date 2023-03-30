@@ -1,0 +1,10 @@
+template:
+  path: 'alb-listener.yaml'
+  type: 'file'
+
+parameters:
+  CertificateArn: !stack_output dev/global/cert.yaml::CertificateArn
+
+  AlbArn: !stack_output dev/regional/alb.yaml::AlbArn
+
+  AlbTargetGroupArn: !stack_output dev/regional/alb.yaml::AlbTargetGroupArn
