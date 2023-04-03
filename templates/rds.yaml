@@ -1,0 +1,149 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+
+Description: 'Persistent resources for the DMPRoadmap system'
+
+Parameters:
+  VpcId:
+    Type: 'AWS::EC2::VPC::Id'
+
+  Subnets:
+    Type: 'List<AWS::EC2::Subnet::Id>'
+
+  SsmPath:
+    Type: 'String'
+
+  DbSnapshot:
+    Type: 'String'
+    Default: 'none'
+
+  DbInstanceType:
+    Type: 'String'
+    Default: 'db.t3.small'
+
+  DbSizeGb:
+    Type: 'Number'
+    Default: 20
+
+  DbEngine:
+    Type: 'String'
+    Default: 'MySQL'
+
+  DbEngineVersion:
+    Type: 'String'
+
+  DbName:
+    Type: 'String'
+
+  DbUsername:
+    Type: 'String'
+
+  DbPassword:
+    Type: 'String'
+
+Conditions:
+  InitializeDb:
+    !Not [!Equals [!Ref DbSnapshot, 'none']]
+
+Resources:
+  # -----------------------------------------------------------
+  # Identitity and Access Management (IAM)
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_IAM.html
+  # -----------------------------------------------------------
+  DbMonitoringRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service:
+                - 'monitoring.rds.amazonaws.com'
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole'
+
+  # -----------------------------------------------------------
+  # EC2 Security Groups for use with RDS database and S3 Bucket
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-security-group.html
+  # -----------------------------------------------------------
+  DbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub 'RDS security group for ${AWS::StackName}'
+      GroupName: !Sub '${AWS::StackName}-rds-sec'
+      VpcId: !Ref VpcId
+
+  # -----------------------------------------------------------
+  # Relational Database Service (RDS) - DB for the application
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_RDS.html
+  # -----------------------------------------------------------
+  DbSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: !Sub 'Subnet group for ${AWS::StackName}'
+      SubnetIds:
+        !Ref Subnets
+
+  Database:
+    Type: 'AWS::RDS::DBInstance'
+    DeletionPolicy: Snapshot # Will create a snapshot before deleting
+    DependsOn:
+      - DbSubnetGroup
+      - DbSecurityGroup
+    Properties:
+      VPCSecurityGroups:
+        - !Ref DbSecurityGroup
+      DBSubnetGroupName: !Ref DbSubnetGroup
+
+      # If an RDS Snapshot was defined, then instruct CF to restore it
+      DBSnapshotIdentifier: !If
+        - InitializeDb
+        - !Ref DbSnapshot
+        - !Ref AWS::NoValue
+
+      PubliclyAccessible: false
+      AllowMajorVersionUpgrade: true
+      AutoMinorVersionUpgrade: true
+      BackupRetentionPeriod: 7 # days
+      CopyTagsToSnapshot: true
+      AllocatedStorage: !Ref DbSizeGb
+      Port: '3306'
+      Engine: !Ref DbEngine
+      EngineVersion: !Ref DbEngineVersion
+      MonitoringInterval: '60'
+      MonitoringRoleArn: !GetAtt DbMonitoringRole.Arn
+      DBName: !Ref DbName
+      DBInstanceClass: !Ref DbInstanceType
+      MasterUsername: !Ref DbUsername
+      MasterUserPassword: !Ref DbPassword
+
+  # ----------------------------------------------
+  # SSM Parameter Store
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-ssm-parameter.html
+  # ----------------------------------------------
+  RdsHostParameter:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: !Sub "${AWS::StackName} RDS Endpoint Address (Host)"
+      Name: !Sub "${SsmPath}RdsHost"
+      Type: 'String'
+      Value: !GetAtt Database.Endpoint.Address
+
+Outputs:
+  DbInstanceName:
+    Value: !Ref Database
+
+  DbAddress:
+    Value: !GetAtt Database.Endpoint.Address
+
+  DbPort:
+    Value: !GetAtt Database.Endpoint.Port
+
+  DbName:
+    Value: !Ref DbName
+
+  DbSecurityGroupId:
+    Value: !GetAtt DbSecurityGroup.GroupId

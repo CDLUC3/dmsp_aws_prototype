@@ -1,7 +1,32 @@
-# dmp-hub-sam
-DMPHub Lambdas orchestrated by AWS SAM
+# AWS Serverless Application Model (SAM) resources
 
-<img src="aws-sam-architecture.png?raw=true">
+This directory manages the API Gateway and all Lambda functions (whether they are accessed via the API Gateway, EventBridge or another method)
+
+The Lambda resources MUST be built on a linux machine in order for the mysql2 gem to be properly built for the Lambda environment.
+
+To ready your Cloud9 environment you will need to:
+- `sudo yum install jq` to install the JSON processor tool
+- `sudo yum install mariadb-devel.x86_64` to install the mysql developer tools needed
+- `rvm install 2.7.6 && rvm use 2.7.6` to install and use the correct Ruby version
+- `ssh-keygen -t rsa` if you do not have a key already
+- `cat ~/.ssh/id_rsa.pub` and copy the contents to GitHub so that you can read-write to this repo
+- `git clone git@github.com:CDLUC3/dmp-hub-cfn.git`
+
+Each time you login to your Cloud9 environment, you will need to establish your AWS credentials. To do that simply copy paste them into the Cloud9 terminal as you would on your developer machine.
+
+To build the SAM resources run the sam_build.sh script and pass in the environment, domain name, and whether or not you want to build the lambda layer. For example: `./src/sam/sam_build dev dmphub-dev.cdlib.org true`
+
+
+
+If you're already using Cloud9 for development, you can just do a normal bundle install.
+
+Using Cloud9 is probably the easiest approach. Open your Cloud9 dev environment and do the following:
+- `sudo yum install mariadb-devel.x86_64` to install the mysql developer tools needed
+- `rvm install 2.7.6 && rvm use 2.7.6` or whatever the appropriate ruby version is
+- `mkdir mysql2_gem && cd mysql2_gem`
+- `vi Gemfile` and paste in the gemfile contents found below
+- `bundle install`
+- Then download the contents of mysql2_gem/ruby/2.7.0/gems/mysql2-0.5.5 to your local dev machine
 
 ## Cloud Formation
 

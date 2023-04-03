@@ -43,6 +43,17 @@ Parameters:
   DeadLetterQueueArn:
     Type: 'String'
 
+  RdsHost:
+    Type: 'String'
+
+  RdsPort:
+    Type: 'String'
+    Default: '3306'
+
+  RdsDbName:
+    Type: 'String'
+    Default: 'dmp'
+
   LogRetentionDays:
     Type: 'Number'
     Default: 7
@@ -329,6 +340,42 @@ Resources:
               Authorizer: 'NONE'
 
   # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+  GetFundersFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      CodeUri: 'functions/get_funders/'
+      Handler: 'app.Functions::GetFunders.process'
+      Runtime: 'ruby2.7'
+      Timeout: 5
+      Architectures:
+        - 'x86_64'
+      Layers:
+        - !Ref LambdaLayer
+      DeadLetterQueue:
+        Type: 'SQS'
+        TargetArn: !Ref DeadLetterQueueArn
+      Environment:
+        Variables:
+          RDS_HOST: !Ref RdsHost
+          RDS_PORT: !Ref RdsPort
+          RDS_DB_NAME: !Ref RdsDbName
+          CORS_METHODS: 'GET'
+          CORS_HEADERS: !Ref CorsHeaders
+          CORS_ORIGIN: !Sub "https://${DomainName}"
+      Events:
+        GetFunders:
+          # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Type: 'Api'
+          Properties:
+            RestApiId: !Ref DmpHubRestApi
+            Path: '/funders'
+            Method: 'get'
+            Auth:
+              Authorizer: 'DmpHubCognitoAuthorizer'
+              AuthorizationScopes:
+                - !Sub 'https://auth.${DomainName}/${Env}.read'
+
+  # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
   GetMeFunction:
     Type: 'AWS::Serverless::Function'
     Properties:
@@ -349,7 +396,7 @@ Resources:
           CORS_HEADERS: !Ref CorsHeaders
           CORS_ORIGIN: !Sub "https://${DomainName}"
       Events:
-        GetDmp:
+        GetMe:
           # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
           Type: 'Api'
           Properties:
