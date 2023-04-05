@@ -12,7 +12,19 @@ Globals:
     Tracing: 'Active'
 
 Parameters:
+  VpcId:
+    Type: 'AWS::EC2::VPC::Id'
+  SubnetA:
+    Type: 'AWS::EC2::Subnet::Id'
+  SubnetB:
+    Type: 'AWS::EC2::Subnet::Id'
+  SubnetC:
+    Type: 'AWS::EC2::Subnet::Id'
+
   HostedZoneId:
+    Type: 'String'
+
+  DbSecGroupId:
     Type: 'String'
 
   EventBusArn:
@@ -165,6 +177,47 @@ Resources:
           Resource:
             - !Ref S3CloudFrontBucketArn
             - !Sub "${S3CloudFrontBucketArn}/*"
+
+  # -----------------------------------------------------------
+  # EC2 Security Groups for use with Lambdas that need to talk to the RDS database
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-security-group.html
+  # -----------------------------------------------------------
+  LambdaSecGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: !Sub 'RDS security group for Lambdas that will access RDS'
+      GroupName: !Sub "${DomainName}-lambda-sec-grp"
+      VpcId: !Ref VpcId
+
+  LambdaSecGroupIngress:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      Description: !Sub "${DomainName} Ingress rule to Lambda"
+      GroupId: !GetAtt LambdaSecGroup.GroupId
+      CidrIp: '0.0.0.0/0'
+      IpProtocol: 'tcp'
+      FromPort: '0'
+      ToPort: '65535'
+
+  LambdaSecGroupEgress:
+    Type: 'AWS::EC2::SecurityGroupEgress'
+    Properties:
+      Description: !Sub "${DomainName} Egress rule from Lambda to API Gateway"
+      GroupId: !GetAtt LambdaSecGroup.GroupId
+      CidrIp: '0.0.0.0/0'
+      IpProtocol: 'tcp'
+      FromPort: '0'
+      ToPort: '65535'
+
+  LambdaToRdsSecGroupIngress:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      Description: !Sub "${DomainName} Ingress rule to Lambda"
+      GroupId: !Ref DbSecGroupId
+      SourceSecurityGroupId: !GetAtt LambdaSecGroup.GroupId
+      IpProtocol: 'tcp'
+      FromPort: '3306'
+      ToPort: '3306'
 
   # ----------------------------------------------------
   # CloudWatch LogGroup
@@ -343,25 +396,32 @@ Resources:
   GetFundersFunction:
     Type: 'AWS::Serverless::Function'
     Properties:
-      CodeUri: 'functions/get_funders/'
-      Handler: 'app.Functions::GetFunders.process'
-      Runtime: 'ruby2.7'
-      Timeout: 5
+      PackageType: 'Image'
+      Timeout: 60
       Architectures:
         - 'x86_64'
-      Layers:
-        - !Ref LambdaLayer
+      Policies:
+        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonRDSDataFullAccess'
       DeadLetterQueue:
         Type: 'SQS'
         TargetArn: !Ref DeadLetterQueueArn
       Environment:
         Variables:
-          RDS_HOST: !Ref RdsHost
-          RDS_PORT: !Ref RdsPort
-          RDS_DB_NAME: !Ref RdsDbName
+          DATABASE_HOST: !Ref RdsHost
+          DATABASE_PORT: !Ref RdsPort
+          DATABASE_NAME: !Ref RdsDbName
           CORS_METHODS: 'GET'
           CORS_HEADERS: !Ref CorsHeaders
           CORS_ORIGIN: !Sub "https://${DomainName}"
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecGroup
+        SubnetIds:
+          - !Ref SubnetA
+          - !Ref SubnetB
+          - !Ref SubnetC
       Events:
         GetFunders:
           # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
@@ -374,6 +434,12 @@ Resources:
               Authorizer: 'DmpHubCognitoAuthorizer'
               AuthorizationScopes:
                 - !Sub 'https://auth.${DomainName}/${Env}.read'
+    Metadata:
+      DockerTag: 'getFunders-v0'
+      DockerContext: 'functions/get_funders/'
+      Dockerfile: 'Dockerfile'
+      DockerBuildArgs:
+        "--platform": 'linux/arm64/v8'
 
   # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
   GetMeFunction:
@@ -718,6 +784,9 @@ Outputs:
     Value: !Ref DmpHubDynamoTableWritePolicy
   S3BucketPolicyArn:
     Value: !Ref S3BucketPolicy
+
+  LambdaSecGroupId:
+    Value: !Ref LambdaSecGroup
 
   DeleteDmpFunctionArn:
     Value: !GetAtt DeleteDmpFunction.Arn

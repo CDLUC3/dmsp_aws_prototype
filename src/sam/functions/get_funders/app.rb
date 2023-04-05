@@ -7,17 +7,22 @@ my_gem_path = Dir['/opt/ruby/gems/**/lib/']
 $LOAD_PATH.unshift(*my_gem_path)
 
 require 'active_record'
-require 'funder'
-require 'messages'
+require 'active_record_simple_execute'
+require 'aws-sdk-sns'
+require 'aws-sdk-ssm'
 require 'mysql2'
-require 'responder'
-require 'ssm_reader'
+
+require_relative 'lib/messages'
+require_relative 'lib/responder'
+require_relative 'lib/ssm_reader'
 
 module Functions
   # The handler for POST /dmps/validate
   class GetFunders
     SOURCE = 'GET /funders?search=name'.freeze
     TABLE = 'registry_orgs'.freeze
+
+    FUNDREF_URI_PREFIX = 'https://doi.org/10.13039/'.freeze
 
     # Parameters
     # ----------
@@ -64,7 +69,7 @@ module Functions
         params = event.fetch('queryStringParameters', {})
         # Only process if there are 3 or more characters in the search
         continue = !params['search'].nil? || params['search'].length >= 3
-        Responder.respond(status: 400, errors: [MSG_INVALID_ARGS], event: event) if continue
+        return Responder.respond(status: 400, errors: [Messages::MSG_INVALID_ARGS], event: event) unless continue
 
         page = params.fetch('page', Responder::DEFAULT_PAGE)
         page = Responder::DEFAULT_PAGE if page <= 1
@@ -76,8 +81,14 @@ module Functions
         pp event if debug
         pp context if debug
 
-        items = Funder.search(params[:search]).map { |funder| funder.to_json }
-        Responder.respond(status: 200, items: [items], event: event)
+        rds_connect
+        # return Responder.respond(status: 500, errors: [Messages::MSG_SERVER_ERROR], event: event) if NOT CONNECTED
+
+        items = search(term: params['search'])
+        return Responder.respond(status: 200, items: [], event: event) unless !items.nil? && items.length.positive?
+
+        results = results_to_response(results: items)
+        Responder.respond(status: 200, items: results, event: event, page: page, per_page: per_page)
       rescue Aws::Errors::ServiceError => e
         Responder.log_error(source: SOURCE, message: e.message, details: e.backtrace)
         { statusCode: 500, body: { status: 500, errors: [Messages::MSG_SERVER_ERROR] } }
@@ -90,14 +101,48 @@ module Functions
 
       private
 
-      def db_client
+      # Run the search query against the DB and return the raw results
+      def search(term:)
+        sql_str = <<~SQL.squish
+          SELECT * FROM registry_orgs
+          WHERE registry_orgs.fundref_id IS NOT NULL AND
+            (registry_orgs.name LIKE :term OR registry_orgs.home_page LIKE :term
+              OR registry_orgs.acronyms LIKE :quoted_term OR registry_orgs.aliases LIKE :quoted_term)
+        SQL
+        ActiveRecord::Base.simple_execute(sql_str, term: "%#{term}%", quoted_term: "%\"#{term}\"%")
+      end
+
+      # Transform the raw DB response for the API caller
+      def results_to_response(results:)
+        return [] if results.nil? || !results.is_a?(Array)
+
+        results.map do |funder|
+          hash = {
+            name: funder['name'],
+            funder_id: {
+              identifier: "#{FUNDREF_URI_PREFIX}#{funder['fundref_id']}",
+              type: 'fundref'
+            }
+          }
+          unless funder['api_target'].nil?
+            hash[:funder_api] = "api.#{ENV['DOMAIN']}/funders/#{funder['fundref_id']}/api"
+            hash[:funder_api_label] = funder['api_label']
+            hash[:funder_api_guidance] = funder['api_guidance']
+          end
+          hash
+        end
+      end
+
+      # Connect to the RDS instance
+      def rds_connect
         ActiveRecord::Base.establish_connection(
           adapter: 'mysql2',
-          host: ENV["RDS_HOST"],
+          host: ENV["DATABASE_HOST"],
+          port: ENV["DATABASE_PORT"],
+          database: ENV["DATABASE_NAME"],
           username: SsmReader.get_ssm_value(key: SsmReader::RDS_USERNAME),
           password: SsmReader.get_ssm_value(key: SsmReader::RDS_PASSWORD),
-          database: ENV["RDS_DB_NAME"],
-          port: ENV["RDS_PORT"]
+          encoding: 'utf8mb4'
         )
       end
     end

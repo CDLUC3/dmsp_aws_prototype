@@ -21,5 +21,5 @@ parameters:
   # For valid MySQL versions see: https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/MySQL.Concepts.VersionMgmt.html
   DbEngineVersion: '8.0.32'
 
-  DbUsername: !ssm_parameter /uc3/dmp/tool/dev/RdsDbaUsername
-  DbPassword: !ssm_parameter /uc3/dmp/tool/dev/RdsDbaPassword
+  DbUsername: !ssm_parameter /uc3/dmp/hub/dev/RdsUsername
+  DbPassword: !ssm_parameter /uc3/dmp/hub/dev/RdsPassword

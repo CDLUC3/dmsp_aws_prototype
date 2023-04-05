@@ -72,6 +72,38 @@
       }
     },
 
+    "parameters": {
+      "pageParam": {
+        "name": "page",
+        "in": "query",
+        "description": "the current page",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "perPageParam": {
+        "name": "per_page",
+        "in": "query",
+        "description": "the current number of items per page (max 100, default 25)",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "searchParam": {
+        "name": "search",
+        "in": "query",
+        "description": "the search term",
+        "required": false,
+        "schema": {
+          "type": "string"
+        }
+      }
+    },
+
     "schemas": {
       "StandardError": {
         "type": "object",
@@ -190,6 +222,58 @@
         "required": ["status", "requested", "requested_at", "page", "per_page", "total_items"]
       },
 
+      "FunderResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The status code (e.g. 200, 201, 404, etc.)"
+          },
+          "requested": {
+            "type": "string",
+            "description": "The path that was called (e.g. '/dmps/10.12345/ABC123')"
+          },
+          "requested_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The ISO 8601 date and time the request was processed (e.g. 2023-02-08T18:49:45621UTC)"
+          },
+          "total_items": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The total number of returnable items (regardless of current pagination settings)"
+          },
+          "page": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The current page"
+          },
+          "per_page": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The number of items per page (min - 1, max - 250, default - 25)"
+          },
+          "items": {
+            "type": "array",
+            "description": "The user",
+            "items": {
+              "$ref": "#/components/schemas/Funder"
+            }
+          },
+          "errors": {
+            "type": "array",
+            "description": "Error messages",
+            "items": {
+              "type": "string",
+              "description": "An error message",
+              "example": "You are not authorized to perform this action"
+            }
+          }
+        },
+        "required": ["status", "requested", "requested_at", "page", "per_page", "total_items"]
+      },
+
       "Dmp": {},
 
       "User": {
@@ -262,11 +346,106 @@
           }
         },
         "required": ["user_id", "mbox", "name", "affiliation"]
+      },
+
+      "Funder": {
+        "type": "object",
+        "title": "A Funder institution",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Name of the institution",
+            "example": "University of Exampleland"
+          },
+          "funder_id": {
+            "type": "object",
+            "description": "A unique identifier for the funder",
+            "properties": {
+              "identifier": {
+                "type": "string",
+                "description": "The value of the identifier",
+                "example": "https://ror.org/zzz000z"
+              },
+              "type": {
+                "type": "string",
+                "enum": ["fundref", "other"],
+                "description": "Identifier type. Allowed values: fundref, other",
+                "example": "fundref"
+              }
+            },
+            "required": ["identifier", "type"]
+          },
+          "funder_api": {
+            "type": "string",
+            "description": "The AJAX target for the funder's API. Can be used to back a search field on an HTML form",
+            "example": "https://api.example.com/funders/0000000000/api"
+          },
+          "funder_api_label": {
+            "type": "string",
+            "description": "The label to display on the HTML form for a field using the funder's API",
+            "example": "Research Project"
+          },
+          "funder_api_guidance": {
+            "type": "string",
+            "description": "Text to help the user understand what the the HTML form expects for input for the field using the funder's API",
+            "example": "Please enter your research project title"
+          },
+          "required": ["name", "funder_id"]
+        }
       }
     }
   },
 
   "paths": {
+    "/funders": {
+      "servers": [
+        {
+          "description": "DMPHub development instance",
+          "url": "https://api.dmphub-dev.cdlib.org"
+        }
+      ],
+      "get": {
+        "tags": [
+          "UI support operations"
+        ],
+        "operationId": "GetFunders",
+        "description": "Performs a search for funders whose name/alias match the search term",
+        "parameters": [
+          { "$ref": "#/components/parameters/searchParam" },
+          { "$ref": "#/components/parameters/pageParam" },
+          { "$ref": "#/components/parameters/perPageParam" }
+        ],
+        "security": [
+          {
+            "Authorizer": [
+              "https://auth.dmphub-dev.cdlib.org/dev.read"
+            ]
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The Funder's name, acronym, alias, or homepage url",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FunderResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StandardError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/me": {
       "servers": [
         {
