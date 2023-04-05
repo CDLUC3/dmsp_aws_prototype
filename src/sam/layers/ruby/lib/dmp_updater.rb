@@ -61,7 +61,7 @@ class DmpUpdater
     new_version = versioner.new_version(p_key: p_key, dmp: json)
     return { status: 404, error: Messages::MSG_DMP_UNABLE_TO_VERSION } if new_version.nil?
 
-    log_message(source: source, message: 'Updating DMP', details: new_version) if @debug
+    Responder.log_message(source: source, message: 'Updating DMP', details: new_version) if @debug
 
     # Save the changes
     response = @client.put_item(

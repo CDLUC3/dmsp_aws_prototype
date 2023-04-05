@@ -111,7 +111,7 @@ class DmpFinder
 
   # Find the DMP's versions
   # -------------------------------------------------------------------------
-  # rubocop:disable Metrics/AbcSize
+  # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
   def find_dmp_versions(p_key:)
     source = "DmpFinder.find_dmp_versions - PK: #{p_key}"
     return { status: 400, error: "#{Messages::MSG_INVALID_ARGS} - versions" } if p_key.nil?
@@ -119,25 +119,26 @@ class DmpFinder
     response = @client.query(
       {
         table_name: @table,
-        key: { PK: p_key },
-        scan_index_forward: false, # Sort by SK descending
+        key_conditions: {
+          PK: { attribute_value_list: [KeyHelper.append_pk_prefix(dmp: p_key)], comparison_operator: 'EQ' }
+        },
+        scan_index_forward: false, # Sort by SK descending,
+        projection_expression: 'modified',
         consistent_read: false,
         return_consumed_capacity: @debug ? 'TOTAL' : 'NONE'
       }
     )
-    log_message(source: source, message: 'Search for versions by PK', details: response.items) if @debug
-    return { status: 404, error: Messages::MSG_DMP_NOT_FOUND } if response.items.nil?
+    Responder.log_message(source: source, message: 'Search for versions by PK', details: response.items) if @debug
+    return { status: 404, error: Messages::MSG_DMP_NOT_FOUND } if response.items.nil? || response.items.empty?
 
-    items = response.items.map { |item| JSON.parse({ dmp: item.item }.to_json) }.compact.uniq
-    return { status: 404, error: Messages::MSG_DMP_NOT_FOUND } if items.empty?
-
+    items = response.items.map { |item| JSON.parse({ dmp: item }.to_json) }.compact.uniq
     { status: 200, items: items }
   rescue Aws::Errors::ServiceError => e
     Responder.log_error(source: source, message: e.message,
                         details: ([provenance] << e.backtrace).flatten)
     { status: 500, error: Messages::MSG_SERVER_ERROR }
   end
-  # rubocop:enable Metrics/AbcSize
+  # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
 
   # Find the DMP by its PK and SK
   # -------------------------------------------------------------------------
@@ -155,7 +156,11 @@ class DmpFinder
         return_consumed_capacity: @debug ? 'TOTAL' : 'NONE'
       }
     )
-    log_message(source: source, message: 'Search by PK', details: response.items) if @debug
+
+    puts response.data
+    puts response[:item]
+
+    Responder.log_message(source: source, message: 'Search by PK', details: response[:item]) if @debug
     return { status: 404, error: Messages::MSG_DMP_NOT_FOUND } if response[:item].nil? || response[:item].empty?
 
     { status: 200, items: [JSON.parse({ dmp: response[:item] }.to_json)] }
@@ -190,7 +195,7 @@ class DmpFinder
         return_consumed_capacity: @debug ? 'TOTAL' : 'NONE'
       }
     )
-    log_message(source: source, message: 'Search by provenance identifier', details: response.items) if @debug
+    Responder.log_message(source: source, message: 'Search by provenance identifier', details: response.items) if @debug
     return { status: 404, error: Messages::MSG_DMP_NOT_FOUND } if response.nil?
 
     items = response.items.map { |item| JSON.parse({ dmp: item.item }.to_json) }.compact.uniq
@@ -206,15 +211,17 @@ class DmpFinder
   # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
 
   # Build the dmphub_versions array and attach it to the dmp
+  # rubocop:disable Metrics/AbcSize
   def append_versions(p_key:, dmp:)
     return dmp if p_key.nil? || !dmp.is_a?(Hash)
 
     result = find_dmp_versions(p_key: p_key)
-    return dmp unless result[:status] == 200 && result[:items].any?
+    return dmp unless result[:status] == 200 && result[:items].length > 1
 
     versions = result[:items].map do |version|
-      timestamp = version['modified']
+      next if version.fetch('dmp', {})['modified'].nil?
 
+      timestamp = version['dmp']['modified']
       {
         timestamp: timestamp,
         url: "#{KeyHelper.api_base_url}dmps/#{KeyHelper.remove_pk_prefix(dmp: p_key)}?version=#{timestamp}"
@@ -223,4 +230,5 @@ class DmpFinder
     dmp['dmphub_versions'] = JSON.parse(versions.to_json)
     dmp
   end
+  # rubocop:enable Metrics/AbcSize
 end

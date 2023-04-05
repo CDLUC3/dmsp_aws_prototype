@@ -1,5 +1,11 @@
 #!/bin/bash
 
+echo ''
+echo '===================='
+echo 'SAM BUILD AND DEPLOY'
+echo '===================='
+echo ''
+
 TAG_QUERY=aws_tag_query.json
 ARN_PREFIX=arn:aws:s3:::
 KEY=ParameterKey
@@ -13,10 +19,21 @@ if [ $# -ne 3 ]; then
 fi
 
 echo "Fetching resource ARNs from SSM ..."
+echo "----------------------------------------------------------------------------"
 EVENT_BRIDGE_ARN=$(aws ssm get-parameter --name "/uc3/dmp/hub/$1/EventBusArn" | jq .Parameter.Value | sed -e "s/\"//g")
 HOSTED_ZONE_ID=$(aws ssm get-parameter --name "/uc3/dmp/hub/$1/HostedZoneId" | jq .Parameter.Value | sed -e "s/\"//g")
+RDS_HOST=$(aws ssm get-parameter --name "/uc3/dmp/hub/$1/RdsHost" | jq .Parameter.Value | sed -e "s/\"//g")
+ECR_URI=$(aws ssm get-parameter --name "/uc3/dmp/hub/$1/EcrUri" | jq .Parameter.Value | sed -e "s/\"//g")
+
+echo "Fetching stack output information ..."
+DB_SEC_GRP=$(aws cloudformation describe-stacks --stack-name uc3-dmp-hub-dev-regional-rds --query 'Stacks[0].Outputs[?OutputKey==`DbSecurityGroupId`].OutputValue' --output text)
+VPC_ID=$(aws cloudformation describe-stacks --stack-name cdl-uc3-dev-vpc-stack --query 'Stacks[0].Outputs[?OutputKey==`vpc`].OutputValue' --output text)
+SUBNETA=$(aws cloudformation describe-stacks --stack-name cdl-uc3-dev-privatesubnet-stack --query 'Stacks[0].Outputs[?OutputKey==`privatesubnet2a`].OutputValue' --output text)
+SUBNETB=$(aws cloudformation describe-stacks --stack-name cdl-uc3-dev-privatesubnet-stack --query 'Stacks[0].Outputs[?OutputKey==`privatesubnet2b`].OutputValue' --output text)
+SUBNETC=$(aws cloudformation describe-stacks --stack-name cdl-uc3-dev-privatesubnet-stack --query 'Stacks[0].Outputs[?OutputKey==`privatesubnet2c`].OutputValue' --output text)
 
 echo "Fetching resource ARNs needed for SAM template.yaml ..."
+echo "----------------------------------------------------------------------------"
 # WARNING: This script relies heavily on Sceptre-CF naming conventions
 #          changes to resource names may invalidate this script!
 for resource in `aws resource-groups search-resources --resource-query file://$TAG_QUERY | jq .ResourceIdentifiers[].ResourceArn`; do
@@ -67,6 +84,13 @@ if [ -z $DYNAMO_TABLE_ARN ]; then echo "No Dynamo Table found!"; FAIL=1; fi
 if [ -z $SQS_QUEUE_ARN ]; then echo "No SQS Queue found!"; FAIL=1; fi
 if [ -z $DEAD_LETTER_ARN ]; then echo "No SQS Dead Letter Queue found!"; FAIL=1; fi
 if [ -z $SNS_EMAIL_TOPIC_ARN ]; then echo "No SNS Topic for Email found!"; FAIL=1; fi
+if [ -z $RDS_HOST ]; then echo "No RDS Hostname!"; FAIL=1; fi
+if [ -z $ECR_URI ]; then echo "No ECR!"; FAIL=1; fi
+if [ -z $DB_SEC_GRP ]; then echo "No DB Security Group!"; FAIL=1; fi
+if [ -z $VPC_ID ]; then echo "No VPC!"; FAIL=1; fi
+if [ -z $SUBNETA ]; then echo "No Subnet A!"; FAIL=1; fi
+if [ -z $SUBNETB ]; then echo "No Subnet B!"; FAIL=1; fi
+if [ -z $SUBNETC ]; then echo "No Subnet C!"; FAIL=1; fi
 # FAIL=1
 if [ $FAIL == 1 ]; then exit 1; fi
 
@@ -83,11 +107,18 @@ P9="$KEY=CertificateArn,$VAL=$CERT_ARN"
 P10="$KEY=WafArn,$VAL=$WAF_ARN"
 P11="$KEY=EventBusArn,$VAL=$EVENT_BRIDGE_ARN"
 P12="$KEY=HostedZoneId,$VAL=$HOSTED_ZONE_ID"
+P13="$KEY=RdsHost,$VAL=$RDS_HOST"
+P14="$KEY=DbSecGroupId,$VAL=$DB_SEC_GRP"
+P15="$KEY=VpcId,$VAL=$VPC_ID"
+P16="$KEY=SubnetA,$VAL=$SUBNETA"
+P17="$KEY=SubnetB,$VAL=$SUBNETB"
+P18="$KEY=SubnetC,$VAL=$SUBNETC"
 
 # Build the LambdaLayer if applicable
 if [ "$3" == "true" ]; then
   cd ./src/sam/layers
   echo "Building Lambda Layers from $(pwd)..."
+  echo "----------------------------------------------------------------------------"
   ./build.sh
   cd ..
 else
@@ -95,14 +126,19 @@ else
 fi
 
 echo "Building Lambda Functions from $(pwd)..."
+echo "----------------------------------------------------------------------------"
 sam build
 
 echo "Deploying Lambdas and API Gateway ..."
-echo "    Using --config-env $1"
-echo "    Using --s3-bucket $S3_CF_BUCKET"
-echo "    Using --parameter-overrides: $P1 $P2 $P3 $P4 $P5 $P6 $P7 $P8 $P9 $P10 $P11 $P12"
-echo ""
+echo "----------------------------------------------------------------------------"
 sam deploy \
   --config-env $1 \
   --s3-bucket $S3_CF_BUCKET \
-  --parameter-overrides "$P1 $P2 $P3 $P4 $P5 $P6 $P7 $P8 $P9 $P10 $P11 $P12"
+  --image-repository $ECR_URI \
+  --parameter-overrides "$P1 $P2 $P3 $P4 $P5 $P6 $P7 $P8 $P9 $P10 $P11 $P12 $P13 $P14 $P15 $P16 $P17 $P18"
+echo ""
+
+echo "PLEASE UPDATE YOUR SWAGGER DOCS IF THE API HAS BEEN CHANGED!!!!"
+echo "----------------------------------------------------------------------------"
+echo "  Swagger/OpenAPI specifications can be found in the src/swagger/ directory."
+echo ""

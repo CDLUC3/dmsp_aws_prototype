@@ -57,7 +57,7 @@ class DmpCreator
     # Add the DMPHub specific attributes and then save
     json = DmpHelper.annotate_dmp(provenance: @provenance, json: json, p_key: p_key)
 
-    log_message(source: source, message: 'Creating DMP', details: json) if @debug
+    Responder.log_message(source: source, message: 'Creating DMP', details: json) if @debug
     # Create the item
     @client.put_item({ table_name: @table, item: json, return_consumed_capacity: @debug ? 'TOTAL' : 'NONE' })
     # Should probably abort here if it fails ... not sure what that looks like yet
@@ -106,7 +106,7 @@ class DmpCreator
     # Something went wrong and it was unable to identify a unique id
     return nil if counter >= 10
 
-    log_message(source: source, message: "Preregistering DMP ID: #{dmp_id}") if @debug
+    Responder.log_message(source: source, message: "Preregistering DMP ID: #{dmp_id}") if @debug
     url = @dmp_id_base_url.gsub(%r{https?://}, '')
     "#{KeyHelper::PK_DMP_PREFIX}#{url.end_with?('/') ? url : "#{url}/"}#{dmp_id}"
   end

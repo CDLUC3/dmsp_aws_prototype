@@ -10,6 +10,9 @@ Parameters:
   AdminEmail:
     Type: 'String'
 
+  CodeBuildEmail:
+    Type: 'String'
+
   MessageRetentionSeconds:
     Type: 'Number'
     Default: 7200 # 2 hours
@@ -88,25 +91,15 @@ Resources:
       Type: 'String'
       Value: !Ref SnsTopicEmail
 
-  # # Topic used to send the results of the dmp-hub-ui CodeBuild to email addresses
-  # SnsCodeBuildTopicEmail:
-  #   Type: 'AWS::SNS::Topic'
-  #   Properties:
-  #     # ContentBasedDeduplication: true
-  #     DisplayName: 'CodeBuildEmail'
-  #     Subscription:
-  #       - Protocol: 'sqs'
-  #         Endpoint: !GetAtt SqsQueue.Arn
-
-  # # Add the Topic name to SSM so that our Lambdas can access it
-  # SnsCodeBuildTopicEmailParameter:
-  #   Type: 'AWS::SSM::Parameter'
-  #   Properties:
-  #     Description: !Sub "${AWS::StackName} dmp-hub-ui CodeBuild Topic"
-  #     Name: !Sub "${SsmPath}SnsCodeBuildTopicArn"
-  #     # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
-  #     Type: 'String'
-  #     Value: !Ref CodeBuildEmail
+  # Topic used to send the results of the dmp-hub-ui CodeBuild to email addresses
+  SnsCodeBuildTopicEmail:
+    Type: 'AWS::SNS::Topic'
+    Properties:
+      # ContentBasedDeduplication: true
+      DisplayName: 'CodeBuildEmail'
+      Subscription:
+        - Protocol: 'sqs'
+          Endpoint: !GetAtt SqsQueue.Arn
 
   # You can only give one email address at a time. If you want to send a message to
   # multiple users, you have to create multiple subscriptions
@@ -119,6 +112,18 @@ Resources:
       Endpoint: !Ref AdminEmail
       Protocol: 'email'
       TopicArn: !Ref SnsTopicEmail
+
+  # You can only give one email address at a time. If you want to send a message to
+  # multiple users, you have to create multiple subscriptions
+  #
+  # Note that the AdminEmail address will receive a confirmation email from AWS that
+  # must be manually confirmed!
+  CodeBuildEmailSubscription:
+    Type: 'AWS::SNS::Subscription'
+    Properties:
+      Endpoint: !Ref CodeBuildEmail
+      Protocol: 'email'
+      TopicArn: !Ref SnsCodeBuildTopicEmail
 
 Outputs:
   DeadLetterQueueId:
@@ -136,7 +141,7 @@ Outputs:
   SnsTopicEmailName:
     Value: !GetAtt SnsTopicEmail.TopicName
 
-  # SnsCodeBuildTopicEmailArn:
-  #   Value: !Ref SnsCodeBuildTopicEmail
-  # SnsCodeBuildTopicEmailName:
-  #   Value: !GetAtt SnsCodeBuildTopicEmail.TopicName
+  SnsCodeBuildTopicEmailArn:
+    Value: !Ref SnsCodeBuildTopicEmail
+  SnsCodeBuildTopicEmailName:
+    Value: !GetAtt SnsCodeBuildTopicEmail.TopicName

@@ -30,7 +30,7 @@ class EventPublisher
           event_bus_name: ENV.fetch('EVENT_BUS_NAME', nil)
         }]
       }
-      log_message(source: source, message: 'Publishing event', details: message) if debug
+      Responder.log_message(source: source, message: 'Publishing event', details: message) if debug
       resp = client.put_events(message)
       return true unless resp.failed_entry_count.nil? || resp.failed_entry_count.positive?
 

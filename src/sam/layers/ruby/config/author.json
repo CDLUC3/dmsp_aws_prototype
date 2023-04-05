@@ -1,7 +1,7 @@
 {
   "$id": "https://github.com/CDLUC3/dmp-hub-sam/layer/ruby/config/schemas/author.json",
-  "title": "RDA DMP Common Standard Schema",
-  "description": "JSON Schema for the RDA DMP Common Standard",
+  "title": "Data Management Plan (DMP)",
+  "description": "JSON Schema for a Data Management Plan (DMP)",
   "type": "object",
   "properties": {
     "dmp": {
@@ -23,7 +23,7 @@
                   "$id": "#/properties/dmp/properties/contact/properties/contact_id/properties/identifier",
                   "type": "string",
                   "title": "The DMP Contact Identifier Schema",
-                  "examples": ["https://orcid.org/0000-0003-0644-4174"]
+                  "examples": ["https://orcid.org/0000-0000-0000-0000"]
                 },
                 "type": {
                   "$id": "#/properties/dmp/properties/contact/properties/contact_id/properties/type",
@@ -101,8 +101,8 @@
               "$id": "#/properties/dmp/properties/contact/properties/name",
               "type": "string",
               "title": "The Name Schema",
-              "description": "Name of the contact person",
-              "examples": ["Charlie Chaplin"]
+              "description": "Name of the contact person as Last, First (e.g. 'Doe PhD., Jane A.' or 'Doe, Jane')",
+              "examples": ["Doe, Jane"]
             }
           },
           "required": [
@@ -208,8 +208,8 @@
                 "$id": "#/properties/dmp/properties/contributor/items/properties/name",
                 "type": "string",
                 "title": "The Name Schema",
-                "description": "Name of the contributor",
-                "examples": ["John Smith"]
+                "description": "Name of the contributor as Last, First (e.g. 'Doe PhD., Jane A.' or 'Doe, Jane')",
+                "examples": ["Smith, John"]
               },
               "role": {
                 "$id": "#/properties/dmp/properties/contributor/items/properties/role",
@@ -297,7 +297,7 @@
           "format": "date-time",
           "title": "The DMP Creation Schema",
           "description": "Date and time of the first version of a DMP. Must not be changed in subsequent DMPs. Encoded using the relevant ISO 8601 Date and Time compliant string",
-          "examples": ["2019-03-13T13:13:00"]
+          "examples": ["2019-03-13T13:13:00+00:00"]
         },
         "dataset": {
           "$id": "#/properties/dmp/properties/dataset",
@@ -417,7 +417,7 @@
                       "format": "uri",
                       "title": "The Dataset Distribution Download URL Schema",
                       "description": "The URL of the downloadable file in a given format. E.g. CSV file or RDF file.",
-                      "examples": ["http://some.repo.../download/..."]
+                      "examples": ["http://example.com/download/abc123/download"]
                     },
                     "format": {
                       "$id": "#/properties/dmp/properties/dataset/items/properties/distribution/items/properties/format",
@@ -863,6 +863,7 @@
                             "ark",
                             "doi",
                             "handle",
+                            "rrid",
                             "url",
                             "other"
                           ],
@@ -931,10 +932,11 @@
                 "doi",
                 "ark",
                 "url",
-                "other"
+                "other",
+                "file"
               ],
               "title": "The DMP Identifier Type Schema",
-              "description": "The DMP Identifier Type. Allowed values: handle, doi, ark, url, other",
+              "description": "The DMP Identifier Type. Allowed values: handle, doi, ark, url, other, file (note: file is used by DMPHub to handle new PDF uploads)",
               "examples": ["doi"]
             }
           },
@@ -942,57 +944,6 @@
             "identifier",
             "type"
           ]
-        },
-        "dmproadmap_research_facilities": {
-          "$id": "#/properties/dmp/properties/dmproadmap_research_facilities",
-          "type": "array",
-          "title": "Facilities",
-          "description": "Facilities (e.g. labs and research stations) that will be used to collect/process research data",
-          "items": {
-            "$id": "#/properties/dmp/properties/dmproadmap_research_facilities/items",
-            "type": "object",
-            "title": "A research facility",
-            "properties": {
-              "affiliation_id": {
-                "$id": "#/properties/dmp/properties/dmproadmap_research_facilities/items/properties/facility_id",
-                "type": "object",
-                "title": "The unique ID of the facility",
-                "description": "The facility's ROR, DOI or URL",
-                "properties": {
-                  "identifier": {
-                    "$id": "#/properties/dmp/properties/dmproadmap_research_facilities/items/properties/facility_id/properties/identifier",
-                    "type": "string",
-                    "title": "The facility ID",
-                    "description": "ROR ID, DOI or URL. Recommended to use Research Organization Registry (ROR) or DOI when available. See: https://ror.org",
-                    "examples": ["https://ror.org/03yrm5c26", "http://doi.org/10.13039/100005595", "http://www.cdlib.org/"]
-                  },
-                  "type": {
-                    "$id": "#/properties/dmp/properties/dmproadmap_research_facilities/items/properties/facility_id/properties/type",
-                    "type": "string",
-                    "enum": [
-                      "doi",
-                      "ror",
-                      "url"
-                    ],
-                    "title": "The facility ID type schema",
-                    "description": "Identifier type. Allowed values: doi, ror, url",
-                    "examples": ["ror"]
-                  }
-                },
-                "required": [
-                  "identifier",
-                  "type"
-                ]
-              },
-              "name": {
-                "$id": "#/properties/dmp/properties/dmproadmap_research_facilities/items/properties/name",
-                "type": "string",
-                "title": "Name of the facility",
-                "description": "Official facility name",
-                "examples": ["Example Research Lab"]
-              }
-            }
-          }
         },
         "dmproadmap_related_identifiers": {
           "$id": "#/properties/dmp/properties/dmproadmap_related_identifiers",
@@ -1071,6 +1022,71 @@
             ]
           }
         },
+        "dmproadmap_research_facilities": {
+          "$id": "#/properties/dmp/properties/dmproadmap_research_facilities",
+          "type": "array",
+          "title": "Facilities",
+          "description": "Facilities (e.g. labs and research stations) that will be used to collect/process research data",
+          "items": {
+            "$id": "#/properties/dmp/properties/dmproadmap_research_facilities/items",
+            "type": "object",
+            "title": "A research facility",
+            "properties": {
+              "facility_id": {
+                "$id": "#/properties/dmp/properties/dmproadmap_research_facilities/items/properties/facility_id",
+                "type": "object",
+                "title": "The unique ID of the facility",
+                "description": "The facility's ROR, DOI or URL",
+                "properties": {
+                  "identifier": {
+                    "$id": "#/properties/dmp/properties/dmproadmap_research_facilities/items/properties/facility_id/properties/identifier",
+                    "type": "string",
+                    "title": "The facility ID",
+                    "description": "ROR ID, DOI or URL. Recommended to use Research Organization Registry (ROR) or DOI when available. See: https://ror.org",
+                    "examples": ["https://ror.org/03yrm5c26", "http://doi.org/10.13039/100005595", "http://www.cdlib.org/"]
+                  },
+                  "type": {
+                    "$id": "#/properties/dmp/properties/dmproadmap_research_facilities/items/properties/facility_id/properties/type",
+                    "type": "string",
+                    "enum": [
+                      "doi",
+                      "ror",
+                      "url"
+                    ],
+                    "title": "The facility ID type schema",
+                    "description": "Identifier type. Allowed values: doi, ror, url",
+                    "examples": ["ror"]
+                  }
+                },
+                "required": [
+                  "identifier",
+                  "type"
+                ]
+              },
+              "name": {
+                "$id": "#/properties/dmp/properties/dmproadmap_research_facilities/items/properties/name",
+                "type": "string",
+                "title": "Name of the facility",
+                "description": "Official facility name",
+                "examples": ["Example Research Lab"]
+              },
+              "type": {
+                "$id": "#/properties/dmp/properties/dmproadmap_research_facilities/items/properties/type",
+                "type": "string",
+                "enum": [
+                  "field_station",
+                  "laboratory"
+                ],
+                "title": "The type of facility",
+                "examples": ["field_station"]
+              }
+            },
+            "required": [
+              "name",
+              "type"
+            ]
+          }
+        },
         "ethical_issues_description": {
           "$id": "#/properties/dmp/properties/ethical_issues_description",
           "type": "string",
@@ -1123,7 +1139,7 @@
           "format": "date-time",
           "title": "The DMP Modification Schema",
           "description": "Must be set each time DMP is modified. Indicates DMP version. Encoded using the relevant ISO 8601 Date and Time compliant string.",
-          "examples": ["2020-03-14T10:53:49"]
+          "examples": ["2020-03-14T10:53:49+00:00"]
         },
         "project": {
           "$id": "#/properties/dmp/properties/project",
@@ -1211,6 +1227,20 @@
                         }
                       }
                     },
+                    "dmproadmap_opportunity_number": {
+                      "$id": "#/properties/dmp/properties/project/items/properties/funding/properties/dmproadmap_opportunity_number",
+                      "type": "string",
+                      "title": "The funder's opportunity / award number",
+                      "description": "The funder's number used to identify the award or call for submissions",
+                      "examples": ["Award-123"]
+                    },
+                    "dmproadmap_project_number": {
+                      "$id": "#/properties/dmp/properties/project/items/properties/funding/properties/dmproadmap_project_number",
+                      "type": "string",
+                      "title": "The funder's identifier for the research project",
+                      "description": "The funder's identifier used to identify the research project",
+                      "examples": ["prj-XYZ987-UCB"]
+                    },
                     "funder_id": {
                       "$id": "#/properties/dmp/properties/project/items/properties/funding/properties/funder_id",
                       "type": "object",
@@ -1292,12 +1322,12 @@
                       "title": "The name of the funding instituion / organization",
                       "description": "Name",
                       "examples": ["National Science Foundation"]
-                    },
-                    "required": [
-                      "funding_status",
-                      "name"
-                    ]
-                  }
+                    }
+                  },
+                  "required": [
+                    "funding_status",
+                    "name"
+                  ]
                 }
               },
               "start": {

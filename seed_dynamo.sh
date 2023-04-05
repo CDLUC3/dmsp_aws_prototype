@@ -10,14 +10,16 @@ fi
 KEY=$(echo $2 | tr '[:upper:]' '[:lower:]')
 SSM_PATH_DYNAMO="/uc3/dmp/hub/$1/DynamoTableName"
 SSM_PATH_EMAIL="/uc3/dmp/hub/$1/AdminEmail"
-echo "Looking for Dynamo Table name at $SSM_PATH_DYNAMO"
 
+echo "Looking for Dynamo Table name at $SSM_PATH_DYNAMO"
+echo "----------------------------------------------------------------------------"
 DYNAMO_TABLE=$(echo `aws ssm get-parameter --name $SSM_PATH_DYNAMO | jq .Parameter.Value | sed -e "s/\"//g"`)
 ADMIN_EMAIL=$(echo `aws ssm get-parameter --name $SSM_PATH_EMAIL | jq .Parameter.Value | sed -e "s/\"//g"`)
 
 if [ -z $DYNAMO_TABLE ]; then echo "No Dynamo Table name found in SSM!"; exit 1; fi
 
 echo "Seeding $DYNAMO_TABLE ..."
+echo "----------------------------------------------------------------------------"
 echo "Creating Provenance item for $2 -> {\"PK\": \"PROVENANCE#$KEY\", \"SK\": \"PROFILE\"}"
 # Insert the Provenance record for the DMPTool application
 aws dynamodb put-item --table-name $DYNAMO_TABLE  \
@@ -26,5 +28,7 @@ aws dynamodb put-item --table-name $DYNAMO_TABLE  \
 
 echo ''
 echo 'Done.'
+echo ''
 echo 'Use the Partition and Sort keys listed above to find the new item in the table and ensure all of the information is correct.'
 echo 'For an overview of these records, please see: https://github.com/CDLUC3/dmp-hub-cfn/wiki/database#sample-provenance-item'
+echo ''

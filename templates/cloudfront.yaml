@@ -64,8 +64,42 @@ Resources:
   # TODO: Set this up to pass specific headers through
   # CloudfrontOriginRequestPolicy:
 
+  # ----------------------------------------------------
+  # CloudFront Function that allow us to access the root object in subdirectories
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-cloudfront-function.html
+  # ----------------------------------------------------
+  CloudFrontFunction:
+    Type: 'AWS::CloudFront::Function'
+    Properties:
+      Name: !Sub "${AWS::StackName}-index-function"
+      AutoPublish: true
+      FunctionCode: >
+        // This script is required in order for CloudFront to be able to find the appropriate resource
+        // when the user requests a path without a file and/or extenstion (e.g. /blog gets rewritten
+        // to /blog/index.html).
+        //   See: https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/example-function-add-index.html
+
+        function handler(event) {
+          var request = event.request;
+          var uri = request.uri;
+
+          if (uri.endsWith('/')) {
+            // Check whether the URI is missing a file name.
+            request.uri += 'index.html';
+          } else if (!uri.includes('.')) {
+            // Check whether the URI is missing a file extension.
+            request.uri += '/index.html';
+          }
+          return request;
+        }
+      FunctionConfig:
+        Runtime: 'cloudfront-js-1.0'
+        Comment: 'Function that appends index.html to requests for subdirectories (e.g. /blog)'
+
   CloudfrontOrginAccessControl:
     Type: 'AWS::CloudFront::OriginAccessControl'
+    DependsOn:
+      - CloudFrontFunction
     Properties:
       OriginAccessControlConfig:
         Name: !Sub "${AWS::StackName}-oac"
@@ -106,6 +140,9 @@ Resources:
             Cookies:
               Forward: 'none'
           ViewerProtocolPolicy: 'redirect-to-https'
+          FunctionAssociations:
+            - EventType: 'viewer-request'
+              FunctionARN: !GetAtt CloudFrontFunction.FunctionARN
         # Using Price Class ALL to support our large South American user base
         #   See: https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/PriceClass.html
         PriceClass: 'PriceClass_All'
@@ -142,7 +179,19 @@ Resources:
           Resource: !Sub "${S3CloudFrontBucketArn}/*"
           Condition:
             StringEquals:
-              "AWS:SourceArn": !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/#{CloudfrontDistro}"
+              "AWS:SourceArn": !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudfrontDistro}"
+
+  # ----------------------------------------------
+  # SSM Parameter Store
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-ssm-parameter.html
+  # ----------------------------------------------
+  CloudFrontDistroIdParameter:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: !Sub "${AWS::StackName} CloudFront Distro Id"
+      Name: !Sub "${SsmPath}CloudFrontDistroId"
+      Type: 'String'
+      Value: !Ref CloudfrontDistro
 
 Outputs:
   CloudfrontDistroId:

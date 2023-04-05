@@ -49,7 +49,7 @@ class DmpDeleter
     dmp['SK'] = KeyHelper::DMP_TOMBSTONE_VERSION
     dmp['deletion_date'] = Time.now.iso8601
     dmp['title'] = "OBSOLETE: #{dmp['title']}"
-    log_message(source: source, message: 'Tombstoning DMP', details: dmp) if @debug
+    Responder.log_message(source: source, message: 'Tombstoning DMP', details: dmp) if @debug
 
     # Create the Tombstone record
     response = @client.put_item({ table_name: @table, item: dmp, return_consumed_capacity: @debug ? 'TOTAL' : 'NONE' })

@@ -48,7 +48,7 @@ class DmpVersioner
     return nil if prior.nil?
 
     args = { owner: owner, updater: updater, base: prior, mods: dmp, debug: debug }
-    log_message(source: source, message: 'JSON before splicing changes', details: dmp) if debug
+    Responder.log_message(source: source, message: 'JSON before splicing changes', details: dmp) if @debug
 
     # If the system of provenance is making the change then just use the
     # new version as the base and then splice in any mods made by others
@@ -122,7 +122,7 @@ class DmpVersioner
   def _generate_version(latest_version:, owner:, updater:)
     source = 'DmpVersioner._generate_version'
     # Only create a version if the Updater is not the Owner OR the changes have happened on a different day
-    mod_time = Time.parse(latest_version['dmphub_modification_day'])
+    mod_time = Time.parse(latest_version.fetch('dmphub_updated_at', Time.now.iso8601))
     now = Time.now
     return latest_version if mod_time.nil? || !(now - mod_time).is_a?(Float)
 
@@ -136,7 +136,7 @@ class DmpVersioner
                                   return_consumed_capacity: @debug ? 'TOTAL' : 'NONE' })
     return nil unless response.successful?
 
-    log_message(source: source, message: 'Created new version', details: latest_version) if debug
+    Responder.log_message(source: source, message: 'Created new version', details: latest_version) if @debug
     latest_version
   rescue Aws::Errors::ServiceError => e
     Responder.log_error(source: source, message: e.message,

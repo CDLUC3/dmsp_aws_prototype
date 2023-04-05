@@ -12,8 +12,6 @@ parameters:
   Subdomain: 'auth'
   Env: !stack_attr sceptre_user_data.env
 
-  SsmPath: !stack_attr sceptre_user_data.ssm_path
-
   CertificateArn: !stack_output dev/global/cert.yaml::CertificateArn
 
   TagProgram: !stack_attr stack_tags.Program

@@ -44,7 +44,10 @@ class DmpSplicer
       spliced['dmproadmap_related_identifiers'] = mod_relateds
       spliced['dmproadmap_related_identifiers'] << other_relateds if other_relateds.any?
 
-      log_message(source: source, message: 'JSON after splicing in changes from provenance', details: spliced) if debug
+      if debug
+        Responder.log_message(source: source, message: 'JSON after splicing in changes from provenance',
+                              details: spliced)
+      end
       spliced
     end
     # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
@@ -75,8 +78,8 @@ class DmpSplicer
         updater: updater, base: base_relateds, mods: mod_relateds
       )
       if debug
-        log_message(source: source, message: 'JSON after splicing in changes from non-provenance',
-                    details: spliced)
+        Responder.log_message(source: source, message: 'JSON after splicing in changes from non-provenance',
+                              details: spliced)
       end
       spliced
     end

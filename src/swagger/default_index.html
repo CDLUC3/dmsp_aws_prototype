@@ -1,0 +1,108 @@
+<!-- HTML for static distribution bundle build -->
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <title>DMPHub API Documentation</title>
+    <link rel="stylesheet" type="text/css" href="./api-docs/swagger-ui.css" >
+
+    <link rel="icon" type="image/png" href="./api-docs/favicon.ico" sizes="32x32" />
+    <link rel="icon" type="image/png" href="./api-docs/favicon.ico" sizes="16x16" />
+
+    <link rel="stylesheet" type="text/css" href="./api-docs/dmphub.css" >
+
+    <style>
+      html
+      {
+        box-sizing: border-box;
+        overflow: -moz-scrollbars-vertical;
+        overflow-y: scroll;
+      }
+
+      *,
+      *:before,
+      *:after
+      {
+        box-sizing: inherit;
+      }
+
+      body
+      {
+        margin:0;
+        background: #fafafa;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div id="swagger-ui"></div>
+
+    <script src="./api-docs/swagger-ui-bundle.js"> </script>
+    <script src="./api-docs/swagger-ui-standalone-preset.js"> </script>
+
+    <script>
+      window.onload = function() {
+        // Begin Swagger UI call region
+        var allText;
+        function readTextFile(file){
+          var rawFile = new XMLHttpRequest();
+          rawFile.overrideMimeType("application/json");
+          rawFile.open("GET", file, false);
+          rawFile.onreadystatechange = function ()
+          {
+            if(rawFile.readyState === 4)
+            {
+              if(rawFile.status === 200 || rawFile.status == 0)
+              {
+                allText= rawFile.responseText;
+              }
+            }
+          }
+          rawFile.send();
+        }
+
+        readTextFile("./api-docs/docs-list.json")
+
+        const ui = SwaggerUIBundle({
+          urls:JSON.parse(allText),
+          dom_id: '#swagger-ui',
+          deepLinking: true,
+          presets: [
+            SwaggerUIBundle.presets.apis,
+            SwaggerUIStandalonePreset
+          ],
+          plugins: [
+            SwaggerUIBundle.plugins.DownloadUrl
+          ],
+          layout: "StandaloneLayout"
+        })
+        // End Swagger UI call region
+
+        window.ui = ui
+
+        function getImagesByAlt(alt) {
+          var allImages = document.getElementsByTagName("img");
+          var images = [];
+          for (var i = 0, len = allImages.length; i < len; ++i) {
+            if (allImages[i].alt == alt) {
+              images.push(allImages[i]);
+            }
+          }
+          return images;
+        }
+
+        // Replace the default Swagger logo with ours
+        var images = getImagesByAlt('Swagger UI');
+        if (images !== undefined && images[0] !== undefined) {
+          images[0].src="./api-docs/DMPTool_logo_blue_shades_v1b3b_no_tag.svg"
+        }
+
+        // Replace the 'default' label at the top of the endpoint list with our text
+        operationsTag = document.getElementById('operations-tag-default');
+        if (operationsTag) {
+          operationsTag.innerText = 'Endpoints';
+        }
+      }
+    </script>
+  </body>
+</html>

@@ -30,6 +30,9 @@ class SsmReader
   S3_BUCKET_URL = '/uc3/dmp/hub/%{env}/S3CloudFrontBucketUrl'
   S3_ACCESS_POINT = '/uc3/dmp/hub/%{env}/S3CloudFrontBucketAccessPoint'
 
+  RDS_USERNAME = '/uc3/dmp/tool/%{env}/RdsUsername'
+  RDS_PASSWORD = '/uc3/dmp/tool/%{env}/RdsPassword'
+
   TABLE_NAME = '/uc3/dmp/hub/%{env}/DynamoTableName'
 
   class << self

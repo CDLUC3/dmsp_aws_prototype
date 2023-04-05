@@ -209,6 +209,20 @@
                             }
                           }
                         },
+                        "dmproadmap_opportunity_number": {
+                          "$id": "#/properties/dmp/properties/project/items/properties/funding/properties/dmproadmap_opportunity_number",
+                          "type": "string",
+                          "title": "The funder's opportunity / award number",
+                          "description": "The funder's number used to identify the award or call for submissions",
+                          "examples": ["Award-123"]
+                        },
+                        "dmproadmap_project_number": {
+                          "$id": "#/properties/dmp/properties/project/items/properties/funding/properties/dmproadmap_project_number",
+                          "type": "string",
+                          "title": "The funder's identifier for the research project",
+                          "description": "The funder's identifier used to identify the research project",
+                          "examples": ["prj-XYZ987-UCB"]
+                        },
                         "funder_id": {
                           "$id": "#/properties/dmp/properties/project/items/properties/funding/properties/funder_id",
                           "type": "object",
@@ -220,7 +234,7 @@
                               "type": "string",
                               "title": "The Funder ID Value Schema",
                               "description": "Funder ID, recommended to use CrossRef Funder Registry. See: https://www.crossref.org/services/funder-registry/",
-                              "examples": ["http://dx.doi.org/10.13039/100005595"]
+                              "examples": ["501100002428"]
                             },
                             "type": {
                               "$id": "#/properties/dmp/properties/project/items/properties/funding/properties/funder_id/properties/type",
@@ -283,11 +297,18 @@
                             "identifier",
                             "type"
                           ]
+                        },
+                        "name": {
+                          "$id": "#/properties/dmp/properties/project/items/properties/funding/properties/name",
+                          "type": "string",
+                          "title": "The name of the funding instituion / organization",
+                          "description": "Name",
+                          "examples": ["National Science Foundation"]
                         }
                       },
                       "required": [
-                        "funder_id",
-                        "funding_status"
+                        "funding_status",
+                        "name"
                       ]
                     }
                   }

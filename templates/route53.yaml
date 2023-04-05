@@ -14,11 +14,23 @@ Parameters:
     Type: 'String'
     Default: 'A'
 
+  # Defaults to the AWS Global region: us-east-1
+  TargetRegion:
+    Type: 'String'
+    Default: 'us-east-1'
+
   TargetName:
     Type: 'String'
 
   TargetHostedZoneId:
     Type: 'String'
+
+  SetIdentifier:
+    Type: 'String'
+
+Conditions:
+  UseSetIdentifier:
+    !Not [!Equals [!Ref SetIdentifier, 'none']]
 
 Resources:
   # -----------------------------------------------------------
@@ -31,6 +43,11 @@ Resources:
       HostedZoneId: !Ref HostedZoneId
       Name: !Ref Domain
       Type: !Ref RecordType
+      Region: !Ref TargetRegion
+      SetIdentifier: !If
+        - UseSetIdentifier
+        - !Ref SetIdentifier
+        - !Ref AWS::NoValue
       AliasTarget:
         DNSName: !Ref TargetName
         HostedZoneId: !Ref TargetHostedZoneId

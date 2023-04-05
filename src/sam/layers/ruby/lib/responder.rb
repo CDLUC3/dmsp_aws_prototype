@@ -40,6 +40,14 @@ class Responder
       page = args[:page] || DEFAULT_PAGE
       per_page = args[:per_page] || DEFAULT_PER_PAGE
 
+      unless ENV['CORS_ORIGIN'].nil?
+        cors_headers = {
+          'Access-Control-Allow-Headers': ENV['CORS_HEADERS'],
+          'Access-Control-Allow-Origin': ENV['CORS_ORIGIN'],
+          'Access-Control-Allow-Methods': ENV['CORS_METHODS']
+        }
+      end
+
       body = {
         status: status.to_i,
         requested: url,
@@ -54,7 +62,7 @@ class Responder
       # If this is a server error, then notify the administrator!
       log_error(source: url, message: errors, details: body, event: args[:event]) if status == 500
 
-      { statusCode: status.to_i, body: body.to_json }
+      { statusCode: status.to_i, body: body.to_json, headers: cors_headers.nil? ? {} : cors_headers }
     rescue StandardError => e
       puts "LambdaLayer: Responder.respond - #{e.message}"
       puts " - STACK: #{e.backtrace}"
@@ -215,8 +223,9 @@ class Responder
       return json.map { |obj| _cleanse_dmp_json(json: obj) }.compact if json.is_a?(Array)
 
       cleansed = {}
+      allowable = %w[dmphub_versions]
       json.each_key do |key|
-        next if key.to_s.start_with?('dmphub') || %w[PK SK].include?(key.to_s)
+        next if (key.to_s.start_with?('dmphub') && !allowable.include?(key)) || %w[PK SK].include?(key.to_s)
 
         obj = json[key]
         # If this object is a Hash or Array then recursively cleanse it

@@ -25,8 +25,12 @@ Resources:
         Rules:
           - ExpirationInDays: !Ref LogBucketObjectLifeSpan
             Status: 'Enabled'
+      AccessControl: 'Private'
       PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
         IgnorePublicAcls: true
+        RestrictPublicBuckets: true
 
   # S3 Bucket that stores DMP documents and UI resources. It is not directly public, but is
   # instead server through the CloudFront Distribution
@@ -34,8 +38,12 @@ Resources:
     Type: 'AWS::S3::Bucket'
     DeletionPolicy: Retain
     Properties:
+      AccessControl: 'Private'
       PublicAccessBlockConfiguration:
-        RestrictPublicBuckets: false
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
       LoggingConfiguration:
         DestinationBucketName: !Ref S3LogBucket
         LogFilePrefix: 's3-access'
@@ -45,8 +53,12 @@ Resources:
     Type: 'AWS::S3::Bucket'
     DeletionPolicy: Retain
     Properties:
+      AccessControl: 'Private'
       PublicAccessBlockConfiguration:
-        RestrictPublicBuckets: false
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
       LoggingConfiguration:
         DestinationBucketName: !Ref S3LogBucket
         LogFilePrefix: 's3-access'

@@ -10,11 +10,21 @@ Globals:
   Function:
     Timeout: 3
     Tracing: 'Active'
-  Api:
-    TracingEnabled: True
 
 Parameters:
+  VpcId:
+    Type: 'AWS::EC2::VPC::Id'
+  SubnetA:
+    Type: 'AWS::EC2::Subnet::Id'
+  SubnetB:
+    Type: 'AWS::EC2::Subnet::Id'
+  SubnetC:
+    Type: 'AWS::EC2::Subnet::Id'
+
   HostedZoneId:
+    Type: 'String'
+
+  DbSecGroupId:
     Type: 'String'
 
   EventBusArn:
@@ -45,9 +55,24 @@ Parameters:
   DeadLetterQueueArn:
     Type: 'String'
 
+  RdsHost:
+    Type: 'String'
+
+  RdsPort:
+    Type: 'String'
+    Default: '3306'
+
+  RdsDbName:
+    Type: 'String'
+    Default: 'dmp'
+
   LogRetentionDays:
     Type: 'Number'
     Default: 7
+
+  CorsHeaders:
+    Type: 'String'
+    Default: 'Accept, Authorization, Content-Type, Origin, Referer, User-Agent'
 
 Resources:
   # -----------------------------------------------------------
@@ -153,6 +178,47 @@ Resources:
             - !Ref S3CloudFrontBucketArn
             - !Sub "${S3CloudFrontBucketArn}/*"
 
+  # -----------------------------------------------------------
+  # EC2 Security Groups for use with Lambdas that need to talk to the RDS database
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-security-group.html
+  # -----------------------------------------------------------
+  LambdaSecGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: !Sub 'RDS security group for Lambdas that will access RDS'
+      GroupName: !Sub "${DomainName}-lambda-sec-grp"
+      VpcId: !Ref VpcId
+
+  LambdaSecGroupIngress:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      Description: !Sub "${DomainName} Ingress rule to Lambda"
+      GroupId: !GetAtt LambdaSecGroup.GroupId
+      CidrIp: '0.0.0.0/0'
+      IpProtocol: 'tcp'
+      FromPort: '0'
+      ToPort: '65535'
+
+  LambdaSecGroupEgress:
+    Type: 'AWS::EC2::SecurityGroupEgress'
+    Properties:
+      Description: !Sub "${DomainName} Egress rule from Lambda to API Gateway"
+      GroupId: !GetAtt LambdaSecGroup.GroupId
+      CidrIp: '0.0.0.0/0'
+      IpProtocol: 'tcp'
+      FromPort: '0'
+      ToPort: '65535'
+
+  LambdaToRdsSecGroupIngress:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      Description: !Sub "${DomainName} Ingress rule to Lambda"
+      GroupId: !Ref DbSecGroupId
+      SourceSecurityGroupId: !GetAtt LambdaSecGroup.GroupId
+      IpProtocol: 'tcp'
+      FromPort: '3306'
+      ToPort: '3306'
+
   # ----------------------------------------------------
   # CloudWatch LogGroup
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_Logs.html
@@ -172,7 +238,19 @@ Resources:
       AccessLogSetting:
         DestinationArn: !GetAtt ApiAccessLogGroup.Arn
         Format: '{"requestId":"$context.requestId","ip": "$context.identity.sourceIp","caller":"$context.identity.caller","user":"$context.identity.user","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath","status":"$context.status","protocol":"$context.protocol","responseLength":"$context.responseLength"}'
-  #     CacheClusterEnabled: true
+      # TODO: Consider enabling caching in prod
+      # Cache @ 0.5GB is $0.02 per hour! -> $0.48 per day -> roughly $15 per month
+      # CacheClusterEnabled: true
+      # CacheClusterSize: '0.5' # .5 GB
+
+      Cors:
+        # Values here need to be wrapped in single quotes, but the ENV variables passed into the
+        # Lambdas do not! For example, "'GET,PUT'" defined here should be "GET, PUT" when passed
+        # into the Lambdas as an ENV!
+        AllowOrigin: !Sub "'https://${DomainName}'"
+        AllowHeaders: !Sub "'${CorsHeaders}'"
+        AllowMethods: "'DELETE, GET, OPTIONS, PATCH, POST, PUT'"
+
       DisableExecuteApiEndpoint: true
       Domain:
         DomainName: !Sub "api.${DomainName}"
@@ -185,8 +263,10 @@ Resources:
           BasePath:
             - /
       StageName: 'v0'
+      OpenApiVersion: '3.0.1'
       TracingEnabled: true
       Auth:
+        AddDefaultAuthorizerToCorsPreflight: false
         Authorizers:
           DmpHubCognitoAuthorizer:
             UserPoolArn: !Ref CognitoUserPoolArn
@@ -194,8 +274,9 @@ Resources:
             Identity:
               Header: 'Authorization'
             AuthorizationScopes:
+              - !Sub 'https://auth.${DomainName}/${Env}.delete'
               - !Sub 'https://auth.${DomainName}/${Env}.read'
-              - !Sub 'https://auth.${DomainName}/${Env}.search'
+              - !Sub 'https://auth.${DomainName}/${Env}.upload'
               - !Sub 'https:/auth.${DomainName}/${Env}.write'
         DefaultAuthorizer: DmpHubCognitoAuthorizer
 
@@ -210,7 +291,6 @@ Resources:
       # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
       Type: 'String'
       Value: !Sub "https://api.${DomainName}"
-
 
   # ----------------------------------------------------
   # Lambda Layers
@@ -248,12 +328,18 @@ Resources:
         - !Ref DmpHubDynamoTableWritePolicy
         - !Ref EventBusPolicy
         - !Ref CognitoPolicy
+      DeadLetterQueue:
+        Type: 'SQS'
+        TargetArn: !Ref DeadLetterQueueArn
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env
           DOMAIN: !Ref DomainName
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
           EVENT_BUS_NAME: !Ref EventBusArn
+          CORS_METHODS: 'DELETE'
+          CORS_HEADERS: !Ref CorsHeaders
+          CORS_ORIGIN: !Sub "https://${DomainName}"
       Events:
         DeleteDmps:
           # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
@@ -267,7 +353,7 @@ Resources:
             Auth:
               Authorizer: 'DmpHubCognitoAuthorizer'
               AuthorizationScopes:
-                - !Sub 'https://auth.${DomainName}/${Env}.write'
+                - !Sub 'https://auth.${DomainName}/${Env}.delete'
 
   # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
   GetDmpFunction:
@@ -285,10 +371,16 @@ Resources:
         - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
         - !Ref DmpHubDynamoTableReadPolicy
         - !Ref S3BucketPolicy
+      DeadLetterQueue:
+        Type: 'SQS'
+        TargetArn: !Ref DeadLetterQueueArn
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
+          CORS_METHODS: 'GET'
+          CORS_HEADERS: !Ref CorsHeaders
+          CORS_ORIGIN: !Sub "https://${DomainName}"
       Events:
         GetDmp:
           # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
@@ -299,6 +391,88 @@ Resources:
             Method: 'get'
             Auth:
               Authorizer: 'NONE'
+
+  # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+  GetFundersFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      PackageType: 'Image'
+      Timeout: 60
+      Architectures:
+        - 'x86_64'
+      Policies:
+        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonRDSDataFullAccess'
+      DeadLetterQueue:
+        Type: 'SQS'
+        TargetArn: !Ref DeadLetterQueueArn
+      Environment:
+        Variables:
+          DATABASE_HOST: !Ref RdsHost
+          DATABASE_PORT: !Ref RdsPort
+          DATABASE_NAME: !Ref RdsDbName
+          CORS_METHODS: 'GET'
+          CORS_HEADERS: !Ref CorsHeaders
+          CORS_ORIGIN: !Sub "https://${DomainName}"
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecGroup
+        SubnetIds:
+          - !Ref SubnetA
+          - !Ref SubnetB
+          - !Ref SubnetC
+      Events:
+        GetFunders:
+          # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Type: 'Api'
+          Properties:
+            RestApiId: !Ref DmpHubRestApi
+            Path: '/funders'
+            Method: 'get'
+            Auth:
+              Authorizer: 'DmpHubCognitoAuthorizer'
+              AuthorizationScopes:
+                - !Sub 'https://auth.${DomainName}/${Env}.read'
+    Metadata:
+      DockerTag: 'getFunders-v0'
+      DockerContext: 'functions/get_funders/'
+      Dockerfile: 'Dockerfile'
+      DockerBuildArgs:
+        "--platform": 'linux/arm64/v8'
+
+  # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+  GetMeFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      CodeUri: 'functions/get_me/'
+      Handler: 'app.Functions::GetMe.process'
+      Runtime: 'ruby2.7'
+      Timeout: 5
+      Architectures:
+        - 'x86_64'
+      Layers:
+        - !Ref LambdaLayer
+      DeadLetterQueue:
+        Type: 'SQS'
+        TargetArn: !Ref DeadLetterQueueArn
+      Environment:
+        Variables:
+          CORS_METHODS: 'GET'
+          CORS_HEADERS: !Ref CorsHeaders
+          CORS_ORIGIN: !Sub "https://${DomainName}"
+      Events:
+        GetMe:
+          # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Type: 'Api'
+          Properties:
+            RestApiId: !Ref DmpHubRestApi
+            Path: '/me'
+            Method: 'get'
+            Auth:
+              Authorizer: 'DmpHubCognitoAuthorizer'
+              AuthorizationScopes:
+                - !Sub 'https://auth.${DomainName}/${Env}.read'
 
   PostDmpsFunction:
     Type: 'AWS::Serverless::Function'
@@ -318,12 +492,18 @@ Resources:
         - !Ref DmpHubDynamoTableWritePolicy
         - !Ref EventBusPolicy
         - !Ref CognitoPolicy
+      DeadLetterQueue:
+        Type: 'SQS'
+        TargetArn: !Ref DeadLetterQueueArn
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env
           DOMAIN: !Ref DomainName
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
           EVENT_BUS_NAME: !Ref EventBusArn
+          CORS_METHODS: 'POST'
+          CORS_HEADERS: !Ref CorsHeaders
+          CORS_ORIGIN: !Sub "https://${DomainName}"
       Events:
         PostDmps:
           # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
@@ -357,12 +537,18 @@ Resources:
         - !Ref DmpHubDynamoTableWritePolicy
         - !Ref EventBusPolicy
         - !Ref CognitoPolicy
+      DeadLetterQueue:
+        Type: 'SQS'
+        TargetArn: !Ref DeadLetterQueueArn
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env
           DOMAIN: !Ref DomainName
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
           EVENT_BUS_NAME: !Ref EventBusArn
+          CORS_METHODS: 'PUT'
+          CORS_HEADERS: !Ref CorsHeaders
+          CORS_ORIGIN: !Sub "https://${DomainName}"
       Events:
         PutDmps:
           # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
@@ -391,10 +577,16 @@ Resources:
         - !Ref LambdaLayer
       Policies:
         - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
+      DeadLetterQueue:
+        Type: 'SQS'
+        TargetArn: !Ref DeadLetterQueueArn
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
+          CORS_METHODS: 'POST'
+          CORS_HEADERS: !Ref CorsHeaders
+          CORS_ORIGIN: !Sub "https://${DomainName}"
       Events:
         ValidateDmp:
           # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
@@ -593,6 +785,9 @@ Outputs:
   S3BucketPolicyArn:
     Value: !Ref S3BucketPolicy
 
+  LambdaSecGroupId:
+    Value: !Ref LambdaSecGroup
+
   DeleteDmpFunctionArn:
     Value: !GetAtt DeleteDmpFunction.Arn
     Export:
@@ -624,6 +819,8 @@ Outputs:
   # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
   # Find out more about other implicit resources you can reference within SAM
   # https://github.com/awslabs/serverless-application-model/blob/master/docs/internals/generated_resources.rst#api
+  SwaggerUiEndpoint:
+    Value: !Sub "GET https://${DmpHubRestApi}.execute-api.${AWS::Region}.amazonaws.com/v0/api-docs/"
   DeleteDmpEndpoint:
     Value: !Sub "DELETE https://${DmpHubRestApi}.execute-api.${AWS::Region}.amazonaws.com/v0/dmps/{dmp_id+}"
   GetDmpEndpoint:

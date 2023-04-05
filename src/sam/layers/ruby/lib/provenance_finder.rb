@@ -56,7 +56,10 @@ class ProvenanceFinder
         return_consumed_capacity: @debug ? 'TOTAL' : 'NONE'
       }
     )
-    log_message(source: source, message: 'Provenance from Lambda Context', details: response[:items].first) if @debug
+    if @debug
+      Responder.log_message(source: source,
+                            message: 'Provenance from Lambda Context', details: response[:item].first)
+    end
     return { status: 404, error: Messages::MSG_PROVENANCE_NOT_FOUND } if response[:item].nil? ||
                                                                          response[:item].empty?
 
@@ -85,7 +88,7 @@ class ProvenanceFinder
         return_consumed_capacity: @debug ? 'TOTAL' : 'NONE'
       }
     )
-    log_message(source: source, message: 'Provenance from PK', details: response[:items].first) if @debug
+    Responder.log_message(source: source, message: 'Provenance from PK', details: response[:item].first) if @debug
     return { status: 404, error: Messages::MSG_PROVENANCE_NOT_FOUND } if response[:item].nil? ||
                                                                          response[:item].empty?
 
@@ -107,7 +110,10 @@ class ProvenanceFinder
     client = Aws::CognitoIdentityProvider::Client.new(region: ENV.fetch('AWS_REGION', nil))
     resp = client.describe_user_pool_client({ user_pool_id: user_pool_id, client_id: client_id })
     name = resp&.user_pool_client&.client_name&.downcase
-    log_message(source: SOURCE, message: "Found provenance #{name} for Cognito id #{client_id}") if @debug
+    if @debug
+      Responder.log_message(source: 'ProvenanceFinder',
+                            message: "Found provenance #{name} for Cognito id #{client_id}")
+    end
     name
   rescue Aws::Errors::ServiceError => e
     Responder.log_error(source: source, message: e.message, details: e.backtrace)
