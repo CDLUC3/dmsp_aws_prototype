@@ -442,6 +442,104 @@ Resources:
         "--platform": 'linux/arm64/v8'
 
   # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+  GetOrgsFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      PackageType: 'Image'
+      Timeout: 60
+      Architectures:
+        - 'x86_64'
+      Policies:
+        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonRDSDataFullAccess'
+      DeadLetterQueue:
+        Type: 'SQS'
+        TargetArn: !Ref DeadLetterQueueArn
+      Environment:
+        Variables:
+          DATABASE_HOST: !Ref RdsHost
+          DATABASE_PORT: !Ref RdsPort
+          DATABASE_NAME: !Ref RdsDbName
+          CORS_METHODS: 'GET'
+          CORS_HEADERS: !Ref CorsHeaders
+          CORS_ORIGIN: !Sub "https://${DomainName}"
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecGroup
+        SubnetIds:
+          - !Ref SubnetA
+          - !Ref SubnetB
+          - !Ref SubnetC
+      Events:
+        GetFunders:
+          # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Type: 'Api'
+          Properties:
+            RestApiId: !Ref DmpHubRestApi
+            Path: '/orgs'
+            Method: 'get'
+            Auth:
+              Authorizer: 'DmpHubCognitoAuthorizer'
+              AuthorizationScopes:
+                - !Sub 'https://auth.${DomainName}/${Env}.read'
+    Metadata:
+      DockerTag: 'getOrgs-v0'
+      DockerContext: 'functions/get_orgs/'
+      Dockerfile: 'Dockerfile'
+      DockerBuildArgs:
+        "--platform": 'linux/arm64/v8'
+
+  # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+  GetrepositoriesFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      PackageType: 'Image'
+      Timeout: 60
+      Architectures:
+        - 'x86_64'
+      Policies:
+        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonRDSDataFullAccess'
+      DeadLetterQueue:
+        Type: 'SQS'
+        TargetArn: !Ref DeadLetterQueueArn
+      Environment:
+        Variables:
+          DATABASE_HOST: !Ref RdsHost
+          DATABASE_PORT: !Ref RdsPort
+          DATABASE_NAME: !Ref RdsDbName
+          CORS_METHODS: 'GET'
+          CORS_HEADERS: !Ref CorsHeaders
+          CORS_ORIGIN: !Sub "https://${DomainName}"
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecGroup
+        SubnetIds:
+          - !Ref SubnetA
+          - !Ref SubnetB
+          - !Ref SubnetC
+      Events:
+        GetFunders:
+          # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Type: 'Api'
+          Properties:
+            RestApiId: !Ref DmpHubRestApi
+            Path: '/repositories'
+            Method: 'get'
+            Auth:
+              Authorizer: 'DmpHubCognitoAuthorizer'
+              AuthorizationScopes:
+                - !Sub 'https://auth.${DomainName}/${Env}.read'
+    Metadata:
+      DockerTag: 'getRepositories-v0'
+      DockerContext: 'functions/get_repositories/'
+      Dockerfile: 'Dockerfile'
+      DockerBuildArgs:
+        "--platform": 'linux/arm64/v8'
+
+  # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
   GetMeFunction:
     Type: 'AWS::Serverless::Function'
     Properties:
@@ -468,6 +566,39 @@ Resources:
           Properties:
             RestApiId: !Ref DmpHubRestApi
             Path: '/me'
+            Method: 'get'
+            Auth:
+              Authorizer: 'DmpHubCognitoAuthorizer'
+              AuthorizationScopes:
+                - !Sub 'https://auth.${DomainName}/${Env}.read'
+
+  # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+  GetContributorRolesFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      CodeUri: 'functions/get_contributor_roles/'
+      Handler: 'app.Functions::GetContributorRoles.process'
+      Runtime: 'ruby2.7'
+      Timeout: 5
+      Architectures:
+        - 'x86_64'
+      Layers:
+        - !Ref LambdaLayer
+      DeadLetterQueue:
+        Type: 'SQS'
+        TargetArn: !Ref DeadLetterQueueArn
+      Environment:
+        Variables:
+          CORS_METHODS: 'GET'
+          CORS_HEADERS: !Ref CorsHeaders
+          CORS_ORIGIN: !Sub "https://${DomainName}"
+      Events:
+        GetMe:
+          # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Type: 'Api'
+          Properties:
+            RestApiId: !Ref DmpHubRestApi
+            Path: '/contributor_roles'
             Method: 'get'
             Auth:
               Authorizer: 'DmpHubCognitoAuthorizer'

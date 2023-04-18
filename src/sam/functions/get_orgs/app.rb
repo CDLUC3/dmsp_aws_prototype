@@ -18,11 +18,11 @@ require_relative 'lib/ssm_reader'
 
 module Functions
   # The handler for POST /dmps/validate
-  class GetFunders
-    SOURCE = 'GET /funders?search=name'.freeze
+  class GetOrgs
+    SOURCE = 'GET /orgs?search=name'.freeze
     TABLE = 'registry_orgs'.freeze
 
-    FUNDREF_URI_PREFIX = 'https://doi.org/10.13039/'.freeze
+    ROR_URI_PREFIX = 'https://ror.org/'.freeze
 
     # Parameters
     # ----------
@@ -44,20 +44,17 @@ module Functions
     # Example body:
     #    [
     #      {
-    #        "name": "National Institutes of Health (nih.gov)",
-    #        "funder_id": {
-    #          "identifier": "https://api.crossref.org/funders/100000002",
-    #          "type": "fundref"
-    #        },
-    #        "funder_api": "api.dmphub-dev.cdlib.org/funders/100000002/api",
-    #        "funder_api_label": "Project lookup",
-    #        "funder_api_guidance": "Please enter your research project title"
+    #        "name": "California Digitial Library (cdlib.org)",
+    #        "affiliation_id": {
+    #          "identifier": "https://ror.org/03yrm5c26",
+    #          "type": "ror"
+    #        }
     #      },
     #      {
-    #        "name": "National Science Foundation (nsf.gov)",
+    #        "name": "University of Washington (washington.edu)",
     #        "funder_id": {
-    #          "identifier": "https://api.crossref.org/funders/10000001",
-    #          "type": "fundref"
+    #          "identifier": "https://ror.org/00cvxb145",
+    #          "type": "ror"
     #        }
     #      }
     #    ]
@@ -105,7 +102,7 @@ module Functions
       def search(term:)
         sql_str = <<~SQL.squish
           SELECT * FROM registry_orgs
-          WHERE registry_orgs.fundref_id IS NOT NULL AND
+          WHERE registry_orgs.ror_id IS NOT NULL AND
             (registry_orgs.name LIKE :term OR registry_orgs.home_page LIKE :term
               OR registry_orgs.acronyms LIKE :quoted_term OR registry_orgs.aliases LIKE :quoted_term)
         SQL
@@ -116,20 +113,14 @@ module Functions
       def results_to_response(results:)
         return [] if results.nil? || !results.is_a?(Array)
 
-        results.map do |funder|
-          hash = {
-            name: funder['name'],
-            funder_id: {
-              identifier: "#{FUNDREF_URI_PREFIX}#{funder['fundref_id']}",
-              type: 'fundref'
+        results.map do |org|
+          {
+            name: org['name'],
+            affiliation_id: {
+              identifier: "#{ROR_URI_PREFIX}#{org['ror_id']}",
+              type: 'ror'
             }
           }
-          unless funder['api_target'].nil?
-            hash[:funder_api] = "api.#{ENV['DOMAIN']}/funders/#{funder['fundref_id']}/api"
-            hash[:funder_api_label] = funder['api_label']
-            hash[:funder_api_guidance] = funder['api_guidance']
-          end
-          hash
         end
       end
 

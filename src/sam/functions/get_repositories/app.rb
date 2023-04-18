@@ -18,11 +18,9 @@ require_relative 'lib/ssm_reader'
 
 module Functions
   # The handler for POST /dmps/validate
-  class GetFunders
-    SOURCE = 'GET /funders?search=name'.freeze
-    TABLE = 'registry_orgs'.freeze
-
-    FUNDREF_URI_PREFIX = 'https://doi.org/10.13039/'.freeze
+  class GetRepositories
+    SOURCE = 'GET /repositories?search=name'.freeze
+    TABLE = 'repositories'.freeze
 
     # Parameters
     # ----------
@@ -44,22 +42,23 @@ module Functions
     # Example body:
     #    [
     #      {
-    #        "name": "National Institutes of Health (nih.gov)",
-    #        "funder_id": {
-    #          "identifier": "https://api.crossref.org/funders/100000002",
-    #          "type": "fundref"
-    #        },
-    #        "funder_api": "api.dmphub-dev.cdlib.org/funders/100000002/api",
-    #        "funder_api_label": "Project lookup",
-    #        "funder_api_guidance": "Please enter your research project title"
+    #        "title": "Dryad",
+    #        "description": "Dryad is an international repository of data …",
+    #        "url": "https://datadryad.org",
+    #        "dmproadmap_host_id": {
+    #          "identifier": "https://www.re3data.org/repository/r3d100000044",
+    #          "type": "url"
+    #        }
     #      },
     #      {
-    #        "name": "National Science Foundation (nsf.gov)",
-    #        "funder_id": {
-    #          "identifier": "https://api.crossref.org/funders/10000001",
-    #          "type": "fundref"
+    #        "title": "Zenodo",
+    #        "description": "ZENODO builds and operates a simple and innovative service …",
+    #        "url": "https://zenodo.org",
+    #        "dmproadmap_host_id": {
+    #          "identifier": "https://www.re3data.org/repository/r3d100010468",
+    #          "type": "url"
     #        }
-    #      }
+    #      },
     #    ]
 
     class << self
@@ -104,32 +103,27 @@ module Functions
       # Run the search query against the DB and return the raw results
       def search(term:)
         sql_str = <<~SQL.squish
-          SELECT * FROM registry_orgs
-          WHERE registry_orgs.fundref_id IS NOT NULL AND
-            (registry_orgs.name LIKE :term OR registry_orgs.home_page LIKE :term
-              OR registry_orgs.acronyms LIKE :quoted_term OR registry_orgs.aliases LIKE :quoted_term)
+          SELECT * FROM repositories
+          WHERE repositories.name LIKE :term OR repositories.homepage LIKE :term
+              OR repositories.description LIKE :term
         SQL
-        ActiveRecord::Base.simple_execute(sql_str, term: "%#{term}%", quoted_term: "%\"#{term}\"%")
+        ActiveRecord::Base.simple_execute(sql_str, term: "%#{term}%")
       end
 
       # Transform the raw DB response for the API caller
       def results_to_response(results:)
         return [] if results.nil? || !results.is_a?(Array)
 
-        results.map do |funder|
-          hash = {
-            name: funder['name'],
-            funder_id: {
-              identifier: "#{FUNDREF_URI_PREFIX}#{funder['fundref_id']}",
-              type: 'fundref'
+        results.map do |repo|
+          {
+            title: repo['name'],
+            description: repo['description'],
+            url: repo['homepage'],
+            dmproadmap_host_id: {
+              identifier: repo['uri'],
+              type: 'url'
             }
           }
-          unless funder['api_target'].nil?
-            hash[:funder_api] = "api.#{ENV['DOMAIN']}/funders/#{funder['fundref_id']}/api"
-            hash[:funder_api_label] = funder['api_label']
-            hash[:funder_api_guidance] = funder['api_guidance']
-          end
-          hash
         end
       end
 
