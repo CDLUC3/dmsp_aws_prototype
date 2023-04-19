@@ -1,22 +1,22 @@
-# Sceptre will create an S3 bucket to store your CloudFormation templates. Define the name here or
-# provide the name of an existing bucket.
-template_bucket_name: 'uc3-dmp-hub-cf-bucket'
 
 # Define reusable variables that can be referenced in template specific config files via:
 #   my_variable: !stack_attr sceptre_user_data.[variable]
 sceptre_user_data:
-  vpc_id: !stack_output_external cdl-uc3-dev-vpc-stack::vpc
+  vpc_id: !stack_output_external cdl-uc3-prd-vpc-stack::vpc
   public_subnets:
-    - !stack_output_external cdl-uc3-dev-defaultsubnet-stack::defaultsubnet2a
-    - !stack_output_external cdl-uc3-dev-defaultsubnet-stack::defaultsubnet2b
-    - !stack_output_external cdl-uc3-dev-defaultsubnet-stack::defaultsubnet2c
+    - !stack_output_external cdl-uc3-prd-defaultsubnet-stack::defaultsubnet2a
+    - !stack_output_external cdl-uc3-prd-defaultsubnet-stack::defaultsubnet2b
+    - !stack_output_external cdl-uc3-prd-defaultsubnet-stack::defaultsubnet2c
   private_subnets:
-    - !stack_output_external cdl-uc3-dev-privatesubnet-stack::privatesubnet2a
-    - !stack_output_external cdl-uc3-dev-privatesubnet-stack::privatesubnet2b
-    - !stack_output_external cdl-uc3-dev-privatesubnet-stack::privatesubnet2c
+    - !stack_output_external cdl-uc3-prd-privatesubnet-stack::privatesubnet2a
+    - !stack_output_external cdl-uc3-prd-privatesubnet-stack::privatesubnet2b
+    - !stack_output_external cdl-uc3-prd-privatesubnet-stack::privatesubnet2c
 
-  hosted_zone_id: !stack_output_external uc3-ops-dmphub-dev-route53::HostedZoneId
+  #hosted_zone_id: !stack_output_external uc3-ops-dmphub-stg-route53::HostedZoneId
+  hosted_zone_id: !stack_output_external uc3-ops-aws-prd-route53::HostedZoneIdUc3StgCdlibOrg
 
-  env: 'dev'
-  domain: 'dmphub-dev.cdlib.org'
-  ssm_path: '/uc3/dmp/hub/dev/'
+  env: 'stg'
+  #domain: 'dmphub-stg.cdlib.org'
+  domain: 'dmphub.uc3stg.cdlib.org'
+  ssm_path: '/uc3/dmp/hub/stg/'
+  code_build_email: 'brian.riley@ucop.edu'

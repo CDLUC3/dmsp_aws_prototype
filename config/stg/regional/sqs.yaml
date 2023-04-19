@@ -7,6 +7,7 @@ dependencies:
 
 parameters:
   SsmPath: !stack_attr sceptre_user_data.ssm_path
+  CodeBuildEmail: !stack_attr sceptre_user_data.code_build_email
   AdminEmail: !ssm_parameter /uc3/dmp/hub/stg/AdminEmail
 
   # SQS settings

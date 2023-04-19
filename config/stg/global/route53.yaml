@@ -11,3 +11,4 @@ parameters:
   TargetName: !stack_output stg/global/cloudfront.yaml::CloudfrontDistroDomainName
   # This HostedZone is the default for ALL CloudFront Distributions
   TargetHostedZoneId: 'Z2FDTNDATAQYW2'
+  SetIdentifier: 'bealzibub'

@@ -128,7 +128,7 @@ Resources:
           Bucket: !Sub "${S3LogBucketId}.s3.amazonaws.com"
           Prefix: 'cloudfront'
         Aliases:
-          - 'dmphub-dev.cdlib.org'
+          - !Ref Domain
         DefaultCacheBehavior:
           AllowedMethods:
           - 'GET'
