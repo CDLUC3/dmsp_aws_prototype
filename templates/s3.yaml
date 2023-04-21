@@ -29,7 +29,6 @@ Resources:
       OwnershipControls:
         Rules:
           - ObjectOwnership: ObjectWriter
-      # these following are now defaults
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
