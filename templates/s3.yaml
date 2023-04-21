@@ -30,11 +30,11 @@ Resources:
         Rules:
           - ObjectOwnership: ObjectWriter
       # these following are now defaults
-      #PublicAccessBlockConfiguration:
-      #  BlockPublicAcls: true
-      #  BlockPublicPolicy: true
-      #  IgnorePublicAcls: true
-      #  RestrictPublicBuckets: true
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
 
   # S3 Bucket that stores DMP documents and UI resources. It is not directly public, but is
   # instead server through the CloudFront Distribution
