@@ -87,7 +87,7 @@ module Functions
         items = search(term: params['search'])
         return Responder.respond(status: 200, items: [], event: event) unless !items.nil? && items.length.positive?
 
-        results = results_to_response(results: items)
+        results = results_to_response(term: params['search'], results: items)
         Responder.respond(status: 200, items: results, event: event, page: page, per_page: per_page)
       rescue Aws::Errors::ServiceError => e
         Responder.log_error(source: SOURCE, message: e.message, details: e.backtrace)
@@ -113,16 +113,16 @@ module Functions
       end
 
       # Transform the raw DB response for the API caller
-      def results_to_response(results:)
-        return [] if results.nil? || !results.is_a?(Array)
+      def results_to_response(term:, results:)
+        return [] if results.nil? || !results.is_a?(Array) || !term.is_a?(String)
 
-        results.map do |funder|
+        results = results.map do |funder|
+          id = funder['fundref_id'] if funder['fundref_id'].start_with?(FUNDREF_URI_PREFIX)
+          id = "#{FUNDREF_URI_PREFIX}#{funder['fundref_id']}" if id.nil?
           hash = {
             name: funder['name'],
-            funder_id: {
-              identifier: "#{FUNDREF_URI_PREFIX}#{funder['fundref_id']}",
-              type: 'fundref'
-            }
+            weight: weigh(term: term, org: funder),
+            funder_id: { identifier: id, type: 'fundref' }
           }
           unless funder['api_target'].nil?
             hash[:funder_api] = "api.#{ENV['DOMAIN']}/funders/#{funder['fundref_id']}/api"
@@ -131,6 +131,32 @@ module Functions
           end
           hash
         end
+        results.sort { |a, b| [b[:weight], a[:name]] <=> [a[:weight], b[:name]] }
+      end
+
+      # Weighs the RegistryOrg. The greater the weight the closer the match, preferring Orgs already in use
+      def weigh(term:, org:)
+        score = 0
+        return score unless term.is_a?(String) && org['name'].is_a?(String)
+
+        term = term.downcase
+        name = org['name'].downcase
+        acronym_match = org['acronyms']&.downcase&.include?(term)
+        alias_match = org['aliases']&.downcase&.include?(term)
+        starts_with = name.start_with?(term)
+
+        # Scoring rules explained:
+        # 1 - Acronym match
+        # 1 - Alias match
+        # 2 - RegistryOrg.starts with term
+        # 1 - RegistryOrg.org_id is not nil (meaning we've used it before)
+        # 1 - :name includes term
+        score += 1 if acronym_match
+        score += 1 if alias_match
+        score += 2 if starts_with
+        score += 1 unless org['org_id'].nil?
+        score += 1 if name.include?(term) && !starts_with
+        score
       end
 
       # Connect to the RDS instance

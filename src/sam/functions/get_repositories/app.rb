@@ -86,7 +86,7 @@ module Functions
         items = search(term: params['search'])
         return Responder.respond(status: 200, items: [], event: event) unless !items.nil? && items.length.positive?
 
-        results = results_to_response(results: items)
+        results = results_to_response(term: params['search'], results: items)
         Responder.respond(status: 200, items: results, event: event, page: page, per_page: per_page)
       rescue Aws::Errors::ServiceError => e
         Responder.log_error(source: SOURCE, message: e.message, details: e.backtrace)
@@ -111,20 +111,45 @@ module Functions
       end
 
       # Transform the raw DB response for the API caller
-      def results_to_response(results:)
-        return [] if results.nil? || !results.is_a?(Array)
+      def results_to_response(term:, results:)
+        return [] if results.nil? || !results.is_a?(Array) || !term.is_a?(String)
 
-        results.map do |repo|
+        results = results.map do |repo|
           {
             title: repo['name'],
             description: repo['description'],
             url: repo['homepage'],
+            weight: weigh(term: term, repo: repo),
             dmproadmap_host_id: {
               identifier: repo['uri'],
               type: 'url'
             }
           }
         end
+        results.sort { |a, b| [b[:weight], a[:title]] <=> [a[:weight], b[:title]] }
+      end
+
+      # Weighs the Repository. The greater the weight the closer the match
+      def weigh(term:, repo:)
+        score = 0
+        return score unless term.is_a?(String) && repo['name'].is_a?(String)
+
+        term = term.downcase
+        name = repo['name'].downcase
+        descr_match = repo['description']&.downcase&.include?(term)
+        url_match = repo['homepage']&.downcase&.include?(term)
+        starts_with = name.start_with?(term)
+
+        # Scoring rules explained:
+        # 1 - Description match
+        # 1 - Homepage match
+        # 2 - Repository.starts with term
+        # 1 - :name includes term
+        score += 1 if descr_match
+        score += 1 if url_match
+        score += 2 if starts_with
+        score += 1 if name.include?(term) && !starts_with
+        score
       end
 
       # Connect to the RDS instance
