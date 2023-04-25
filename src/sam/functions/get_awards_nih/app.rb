@@ -22,10 +22,10 @@ module Functions
 
     LANDING_BASE_URL = 'https://reporter.nih.gov/project-details/'
 
-    MSG_BAD_ARGS = 'You must specify a comma separate list of PI names /
-                    (e.g "pi_names=Jane Doe,Van Buren,John Smith") and an optional /
-                    funding opportunity number (e.g. "opportunity=PA-18-484") and an /
-                    optional list of fiscal years (e.g. years=2023,2021)'
+    MSG_BAD_ARGS = 'You must specify a project id (e.g. project=12345) OR a comma separate list of:
+                    PI names (e.g "pi_names=Jane Doe,Van Buren,John Smith"); a project title; /
+                    a funding opportunity number (optional) (e.g. "opportunity=PA-18-484") and /
+                    applicable award years (optional) (e.g. years=2023,2021)'
 
     def self.process(event:, context:)
       # Parameters
@@ -40,13 +40,16 @@ module Functions
 
       # Expecting the queryStringParameters to include the following:
       #
-      #   pi_names=Jane+Doe,Van+Buren,John+Smith   <-- REQUIRED! - A comma separated list of names
-      #                                                (using '+' instead of space)
+      #   project=5R01AI143730-04                        <-- NIH Project number
       #
-      #   opportunity=PA-18-484                    <-- An NIH funding opportunity number (aka FOA)
+      #         OR
       #
-      #   years=2023,2021                          <-- The year(s) that the award was made
-
+      #   opportunity=PA-18-484&pi_names=Jane+Doe        <-- NIH opportunity nbr and PI names
+      #
+      #         OR
+      #
+      #   years=2023,2022&pi_names=Van+Buren,John+Smith  <-- Years and PI names
+      #
       # Returns
       # ------
       # API Gateway Lambda Proxy Output Format: dict
@@ -62,10 +65,13 @@ module Functions
       # end
       params = event.fetch('queryStringParameters', {})
       pi_names = params.fetch('pi_names', '')
+      project_num = params.fetch('project', '')
       opportunity_nbr = params.fetch('opportunity', '')
+      title = params.fetch('search', '')
       fiscal_years = params.fetch('years', (Date.today.year..Date.today.year - 3).to_a.join(','))
       fiscal_years = fiscal_years.split(',').map(&:to_i)
-      return Responder.respond(status: 400, errors: MSG_BAD_ARGS) if pi_names.nil? || pi_names.empty?
+      return Responder.respond(status: 400, errors: MSG_BAD_ARGS) if (project_num.nil? || project_num.empty?) &&
+                                                                     (pi_names.nil? || pi_names.empty?)
 
       # Debug, output the incoming Event and Context
       debug = SsmReader.debug_mode?
@@ -83,7 +89,8 @@ module Functions
         body: prepare_data(
           years: fiscal_years,
           pi_names: prepare_pi_names_for_search(pi_names: pi_names),
-          opportunity_nbrs: [opportunity_nbr]
+          opportunity_nbrs: [opportunity_nbr],
+          project_nums: [project_num]
         ),
         follow_redirects: true,
         limit: 6
@@ -99,7 +106,7 @@ module Functions
       results = transform_response(response_body: resp.body)
       return Responder.respond(status: 404, items: []) unless results.any?
 
-      Responder.respond(status: 200, items: results)
+      Responder.respond(status: 200, items: results.compact.uniq)
     rescue URI::InvalidURIError
       Responder.log_error(source: SOURCE, message: "Invalid URI, #{API_BASE_URL}", details: e.backtrace)
       return Responder.respond(status: 500, errors: Messages::MSG_SERVER_ERROR, event: event)
@@ -133,13 +140,14 @@ module Functions
       end
 
       # Prepare the API payload
-      def prepare_data(years:, pi_names: [], opportunity_nbrs: [])
+      def prepare_data(years:, pi_names: [], opportunity_nbrs: [], project_nums: [])
         {
           criteria: {
             use_relevance: true,
             fiscal_years: years,
             pi_names: pi_names,
-            foa: opportunity_nbrs
+            foa: opportunity_nbrs,
+            project_nums: project_nums
           },
           offset: 0,
           limit: 25
@@ -152,7 +160,7 @@ module Functions
           full_name_parts = hash['full_name'].split(' ')
           nm = "#{full_name_parts.last}, #{full_name_parts[0..full_name_parts.length - 2].join(' ')}"
         else
-          nm ="#{[hash['last_name'], hash['title']].join(' ')}, #{[hash['first_name'], hash['middle_name']].join(' ')}"
+          nm ="#{hash['last_name']}, #{[hash['first_name'], hash['middle_name']].join(' ')}"
         end
 
         { name: nm, mbox: hash['email'] }
@@ -222,18 +230,21 @@ module Functions
           other_pis = result['principal_investigators'].reject { |pi| pi['is_contact_pi'] }
 
           {
-            funding: {
+            project: {
               title: result['project_title'],
               description: result['abstract_text'],
-              dmproadmap_opportunity_number: result['full_foa'],
-              dmproadmap_project_number: result['project_num'],
               start: result.fetch('project_start_date', '').split('T').first,
               end: result.fetch('project_end_date', '').split('T').first,
-              dmproadmap_award_amount: result['award_amount'],
-              grant_id: {
-                identifier: "#{LANDING_BASE_URL}#{result['appl_id']}",
-                type: 'url'
-              }
+              funding: [
+                name: result[]
+                dmproadmap_opportunity_number: result['full_foa'],
+                dmproadmap_award_amount: result['award_amount'],
+                dmproadmap_project_number: result['project_num'],
+                grant_id: {
+                  identifier: "#{LANDING_BASE_URL}#{result['appl_id']}",
+                  type: 'url'
+                }
+              ]
             },
             contact: pi_from_response(hash: contact_pi),
             contributor: other_pis.map { |pi_hash| pi_from_response(hash: pi_hash) }

@@ -101,6 +101,46 @@
         "schema": {
           "type": "string"
         }
+      },
+      "projectNbrParam": {
+        "name": "project",
+        "in": "query",
+        "description": "the project/award number",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "examples": ["7R21CA256680-02", "12345"]
+        }
+      },
+      "opportunityNbrParam": {
+        "name": "opportunity",
+        "in": "query",
+        "description": "the award opportunity number",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "examples": ["PA-18-484", "98765"]
+        }
+      },
+      "piNamesParam": {
+        "name": "pi_names",
+        "in": "query",
+        "description": "the principal investigator (PI) names",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "examples": ["Jane+Doe", "Smith", "Jane+Doe,John+Smith"]
+        }
+      },
+      "yearsParam": {
+        "name": "years",
+        "in": "query",
+        "description": "the year(s) the project was funded",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "example": ["2022", "2022,2023"]
+        }
       }
     },
 
@@ -430,6 +470,58 @@
         "required": ["status", "requested", "requested_at", "page", "per_page", "total_items"]
       },
 
+      "AwardResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The status code (e.g. 200, 201, 404, etc.)"
+          },
+          "requested": {
+            "type": "string",
+            "description": "The path that was called (e.g. '/dmps/10.12345/ABC123')"
+          },
+          "requested_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The ISO 8601 date and time the request was processed (e.g. 2023-02-08T18:49:45621UTC)"
+          },
+          "total_items": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The total number of returnable items (regardless of current pagination settings)"
+          },
+          "page": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The current page"
+          },
+          "per_page": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The number of items per page (min - 1, max - 250, default - 25)"
+          },
+          "items": {
+            "type": "array",
+            "description": "The user",
+            "items": {
+              "$ref": "#/components/schemas/Project"
+            }
+          },
+          "errors": {
+            "type": "array",
+            "description": "Error messages",
+            "items": {
+              "type": "string",
+              "description": "An error message",
+              "example": "You are not authorized to perform this action"
+            }
+          }
+        },
+        "required": ["status", "requested", "requested_at", "page", "per_page", "total_items"]
+      },
+
       "Dmp": {},
 
       "User": {
@@ -643,6 +735,156 @@
           },
           "required": ["label", "value"]
         }
+      },
+
+      "Project": {
+        "type": "object",
+        "title": "Details about a research project and funding",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "The title of the research project"
+          },
+          "description": {
+            "type": "string",
+            "description": "",
+            "example": "The research project abstract"
+          },
+          "start": {
+            "type": "string",
+            "format": "date",
+            "description": "The date research project begins",
+            "example": "2023-04-15"
+          },
+          "end": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The date the research project ends",
+            "example": "2024-04-01"
+          },
+          "funding": {
+            "type": "array",
+            "description": "The fundings for the research project",
+            "items": {
+              "type": "object",
+              "properties": {
+                "dmproadmap_opportunity_number": {
+                  "type": "string",
+                  "description": "",
+                  "example": "The research project abstract"
+                },
+                "dmproadmap_award_amount": {
+                  "type": "string",
+                  "description": "",
+                  "example": "The research project abstract"
+                },
+                "dmproadmap_project_number": {
+                  "type": "string",
+                  "description": "",
+                  "example": "The research project abstract"
+                },
+                "grant_id": {
+                  "type": "object",
+                  "description": "A unique identifier for the award/grant",
+                  "properties": {
+                    "identifier": {
+                      "type": "string",
+                      "description": "The value of the identifier",
+                      "example": "https://example.com/awards/12345"
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": ["url", "other"],
+                      "description": "Identifier type. Allowed values: doi, url, other",
+                      "example": "url"
+                    }
+                  },
+                  "required": ["identifier", "type"]
+                }
+              }
+            }
+          },
+          "contact": {
+            "type": "object",
+            "description": "The primary principal investigator",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "The contact's name",
+                "example": "Doe, Jane A."
+              },
+              "mbox": {
+                "type": "string",
+                "format": "email",
+                "description": "The contact's email address",
+                "example": "jdoe@example.com"
+              },
+              "dmproadmap_affiliation": {
+                "$ref": "#/components/schemas/Affiliation"
+              },
+              "contact_id": {
+                "type": "object",
+                "description": "A unique identifier for the contact",
+                "properties": {
+                  "identifier": {
+                    "type": "string",
+                    "description": "The value of the identifier",
+                    "example": "https://orcid.org/0000-0000-0000-000X"
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": ["orcid"],
+                    "description": "Identifier type. Allowed values: orcid",
+                    "example": "orcid"
+                  }
+                },
+                "required": ["identifier", "type"]
+              }
+            }
+          },
+          "contributor": {
+            "type": "array",
+            "description": "The other contributors to the research project",
+            "items": {
+              "type": "object",
+              "description": "A project contributor",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "The contact's name",
+                  "example": "Doe, Jane A."
+                },
+                "mbox": {
+                  "type": "string",
+                  "format": "email",
+                  "description": "The contact's email address",
+                  "example": "jdoe@example.com"
+                },
+                "dmproadmap_affiliation": {
+                  "$ref": "#/components/schemas/Affiliation"
+                },
+                "contributor_id": {
+                  "type": "object",
+                  "description": "A unique identifier for the contact",
+                  "properties": {
+                    "identifier": {
+                      "type": "string",
+                      "description": "The value of the identifier",
+                      "example": "https://orcid.org/0000-0000-0000-000X"
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": ["orcid"],
+                      "description": "Identifier type. Allowed values: orcid",
+                      "example": "orcid"
+                    }
+                  },
+                  "required": ["identifier", "type"]
+                }
+              }
+            }
+          }
+        }
       }
     }
   },
@@ -826,6 +1068,57 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ContributorRoleResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StandardError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/awards/nih": {
+      "servers": [
+        {
+          "description": "DMPHub development instance",
+          "url": "https://api.dmphub-dev.cdlib.org"
+        }
+      ],
+      "get": {
+        "tags": [
+          "UI support operations"
+        ],
+        "operationId": "GetAwardsNIH",
+        "description": "Performs a search for NIH award data",
+        "parameters": [
+          { "$ref": "#/components/parameters/searchParam" },
+          { "$ref": "#/components/parameters/projectNbrParam" },
+          { "$ref": "#/components/parameters/opportunityNbrParam" },
+          { "$ref": "#/components/parameters/piNamesParam" },
+          { "$ref": "#/components/parameters/yearsParam" }
+        ],
+        "security": [
+          {
+            "Authorizer": [
+              "https://auth.dmphub-dev.cdlib.org/dev.read"
+            ]
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The Project and award metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AwardResponse"
                 }
               }
             }
