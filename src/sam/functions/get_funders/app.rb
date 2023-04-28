@@ -12,9 +12,8 @@ require 'aws-sdk-sns'
 require 'aws-sdk-ssm'
 require 'mysql2'
 
-require_relative 'lib/messages'
-require_relative 'lib/responder'
-require_relative 'lib/ssm_reader'
+require 'uc3-dmp-api-core'
+require 'uc3-dmp-rds'
 
 module Functions
   # The handler for POST /dmps/validate
@@ -50,7 +49,11 @@ module Functions
     #          "type": "fundref"
     #        },
     #        "funder_api": "api.dmphub-dev.cdlib.org/funders/100000002/api",
-    #        "funder_api_label": "Project lookup",
+    #        "funder_api_query_fields": [
+    #          {
+    #            "label": "Project number", "query_string_key": "project"
+    #          }
+    #        ],
     #        "funder_api_guidance": "Please enter your research project title"
     #      },
     #      {
@@ -69,31 +72,31 @@ module Functions
         params = event.fetch('queryStringParameters', {})
         # Only process if there are 3 or more characters in the search
         continue = !params['search'].nil? || params['search'].length >= 3
-        return Responder.respond(status: 400, errors: [Messages::MSG_INVALID_ARGS], event: event) unless continue
-
-        page = params.fetch('page', Responder::DEFAULT_PAGE)
-        page = Responder::DEFAULT_PAGE if page <= 1
-        per_page = params.fetch('per_page', Responder::DEFAULT_PER_PAGE)
-        per_page = Responder::DEFAULT_PER_PAGE if per_page >= Responder::MAXIMUM_PER_PAGE || per_page <= 1
+        return _respond(status: 400, errors: [Uc3DmpApiCore::MSG_INVALID_ARGS], event: event) unless continue
 
         # Debug, output the incoming Event and Context
         debug = SsmReader.debug_mode?
         pp event if debug
         pp context if debug
 
-        rds_connect
+        # Fetch the DB credentials
+        ENV['RDS_USERNAME'] = Uc3DmpApiCore::SsmReader.get_ssm_value(key: Uc3DmpApiCore::SsmReader::RDS_USERNAME)
+        ENV['RDS_PASSWORD'] = Uc3DmpApiCore::SsmReader.get_ssm_value(key: Uc3DmpApiCore::SsmReader::RDS_PASSWORD)
+
+        _rds_connect
+        # Uc3DmpRds.connect
         # return Responder.respond(status: 500, errors: [Messages::MSG_SERVER_ERROR], event: event) if NOT CONNECTED
 
         items = search(term: params['search'])
-        return Responder.respond(status: 200, items: [], event: event) unless !items.nil? && items.length.positive?
+        return _respond(status: 200, items: [], event: event) unless !items.nil? && items.length.positive?
 
         results = results_to_response(term: params['search'], results: items)
-        Responder.respond(status: 200, items: results, event: event, page: page, per_page: per_page)
+        _respond(status: 200, items: results, event: event, page: page, per_page: per_page)
       rescue Aws::Errors::ServiceError => e
-        Responder.log_error(source: SOURCE, message: e.message, details: e.backtrace)
-        { statusCode: 500, body: { status: 500, errors: [Messages::MSG_SERVER_ERROR] } }
+        Uc3DmpApiCore:Responder.log_error(source: SOURCE, message: e.message, details: e.backtrace)
+        _respond(status: 500, errors: [Messages::MSG_SERVER_ERROR], event: event)
       rescue StandardError => e
-        # Just do a print here (ends up in CloudWatch) in case it was the responder.rb that failed
+        # Just do a print here (ends up in CloudWatch) in case it was the Uc3DmpApiCore::Responder that failed
         puts "#{SOURCE} FATAL: #{e.message}"
         puts e.backtrace
         { statusCode: 500, body: { errors: [Messages::MSG_SERVER_ERROR] }.to_json }
@@ -110,6 +113,7 @@ module Functions
               OR registry_orgs.acronyms LIKE :quoted_term OR registry_orgs.aliases LIKE :quoted_term)
         SQL
         ActiveRecord::Base.simple_execute(sql_str, term: "%#{term}%", quoted_term: "%\"#{term}\"%")
+        # Uc3DmpRds.execute_query(sql, term: "%#{term}%", quoted_term: "%\"#{term}\"%")
       end
 
       # Transform the raw DB response for the API caller
@@ -125,8 +129,8 @@ module Functions
             funder_id: { identifier: id, type: 'fundref' }
           }
           unless funder['api_target'].nil?
-            hash[:funder_api] = "api.#{ENV['DOMAIN']}/funders/#{funder['fundref_id']}/api"
-            hash[:funder_api_label] = funder['api_label']
+            hash[:funder_api] = funder['api_target']
+            hash[:funder_api_query_fields] = funder['api_query_fields']
             hash[:funder_api_guidance] = funder['api_guidance']
           end
           hash
@@ -159,15 +163,18 @@ module Functions
         score
       end
 
-      # Connect to the RDS instance
-      def rds_connect
+      def _respond(status:, items: [], errors: [], event: {})
+        Uc3DmpApiCore::Responder.respond(status: status, items: items, errors: errors, event: event)
+      end
+
+      def _rds_connect
         ActiveRecord::Base.establish_connection(
           adapter: 'mysql2',
           host: ENV["DATABASE_HOST"],
           port: ENV["DATABASE_PORT"],
           database: ENV["DATABASE_NAME"],
-          username: SsmReader.get_ssm_value(key: SsmReader::RDS_USERNAME),
-          password: SsmReader.get_ssm_value(key: SsmReader::RDS_PASSWORD),
+          username: ENV['RDS_USERNAME'],
+          password: ENV['RDS_PASSWORD'],
           encoding: 'utf8mb4'
         )
       end

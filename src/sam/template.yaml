@@ -539,6 +539,44 @@ Resources:
       DockerBuildArgs:
         "--platform": 'linux/arm64/v8'
 
+  GetAwardsCrossrefApiFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      CodeUri: 'functions/get_awards_crossref/'
+      Handler: 'app.Functions::GetAwardsCrossref.process'
+      Runtime: 'ruby2.7'
+      Timeout: 5
+      Architectures:
+        - 'x86_64'
+      Layers:
+        - !Ref LambdaLayer
+      Policies:
+        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonRDSDataFullAccess'
+      DeadLetterQueue:
+        Type: 'SQS'
+        TargetArn: !Ref DeadLetterQueueArn
+      Environment:
+        Variables:
+          LAMBDA_ENV: !Ref Env
+          SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
+          CORS_METHODS: 'GET'
+          CORS_HEADERS: !Ref CorsHeaders
+          CORS_ORIGIN: !Sub "https://${DomainName}"
+      Events:
+        GetAwardsNsf:
+          # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Type: 'Api'
+          Properties:
+            RestApiId: !Ref DmpHubRestApi
+            Path: '/awards/crossref/{funder_id}'
+            Method: 'get'
+            Auth:
+              Authorizer: 'DmpHubCognitoAuthorizer'
+              AuthorizationScopes:
+                - !Sub 'https://auth.${DomainName}/${Env}.read'
+
   # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
   GetAwardsNihApiFunction:
     Type: 'AWS::Serverless::Function'
@@ -572,6 +610,44 @@ Resources:
           Properties:
             RestApiId: !Ref DmpHubRestApi
             Path: '/awards/nih'
+            Method: 'get'
+            Auth:
+              Authorizer: 'DmpHubCognitoAuthorizer'
+              AuthorizationScopes:
+                - !Sub 'https://auth.${DomainName}/${Env}.read'
+
+  GetAwardsNsfApiFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      CodeUri: 'functions/get_awards_nsf/'
+      Handler: 'app.Functions::GetAwardsNsf.process'
+      Runtime: 'ruby2.7'
+      Timeout: 5
+      Architectures:
+        - 'x86_64'
+      Layers:
+        - !Ref LambdaLayer
+      Policies:
+        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonRDSDataFullAccess'
+      DeadLetterQueue:
+        Type: 'SQS'
+        TargetArn: !Ref DeadLetterQueueArn
+      Environment:
+        Variables:
+          LAMBDA_ENV: !Ref Env
+          SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
+          CORS_METHODS: 'GET'
+          CORS_HEADERS: !Ref CorsHeaders
+          CORS_ORIGIN: !Sub "https://${DomainName}"
+      Events:
+        GetAwardsNsf:
+          # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Type: 'Api'
+          Properties:
+            RestApiId: !Ref DmpHubRestApi
+            Path: '/awards/nsf'
             Method: 'get'
             Auth:
               Authorizer: 'DmpHubCognitoAuthorizer'

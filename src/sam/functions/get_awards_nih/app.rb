@@ -23,7 +23,8 @@ module Functions
     LANDING_BASE_URL = 'https://reporter.nih.gov/project-details/'
 
     MSG_BAD_ARGS = 'You must specify a project id (e.g. project=12345) OR a comma separate list of:
-                    PI names (e.g "pi_names=Jane Doe,Van Buren,John Smith"); a project title; /
+                    PI names (e.g "pi_names=Jane Doe,Van Buren,John Smith"); /
+                    title keywords (optional) (e.g. keyword=genetic); /
                     a funding opportunity number (optional) (e.g. "opportunity=PA-18-484") and /
                     applicable award years (optional) (e.g. years=2023,2021)'
 
@@ -67,7 +68,7 @@ module Functions
       pi_names = params.fetch('pi_names', '')
       project_num = params.fetch('project', '')
       opportunity_nbr = params.fetch('opportunity', '')
-      title = params.fetch('search', '')
+      title = params.fetch('keyword', '')
       fiscal_years = params.fetch('years', (Date.today.year..Date.today.year - 3).to_a.join(','))
       fiscal_years = fiscal_years.split(',').map(&:to_i)
       return Responder.respond(status: 400, errors: MSG_BAD_ARGS) if (project_num.nil? || project_num.empty?) &&
@@ -236,7 +237,6 @@ module Functions
               start: result.fetch('project_start_date', '').split('T').first,
               end: result.fetch('project_end_date', '').split('T').first,
               funding: [
-                name: result[]
                 dmproadmap_opportunity_number: result['full_foa'],
                 dmproadmap_award_amount: result['award_amount'],
                 dmproadmap_project_number: result['project_num'],

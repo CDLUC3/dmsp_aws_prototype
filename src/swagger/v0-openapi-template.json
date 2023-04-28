@@ -4,7 +4,7 @@
   "info": {
     "version": "0.1.0",
     "title": "DMPTool v3 API specification",
-    "description": "Please use the interface below to test the features of the DMPTool API.<br><br>Please note that the lock icon next to an endpoint indicates that you must provide an access token.<br>To acquire an access token, click on the green 'Authorize' button and enter your API credentials along with the scope(s) you have access to.<br><br>If you do not have credentials for the API, you can test any of the endpoints that do not display a lock icon.<br>If you would like API credentials, please contact us via the link below.",
+    "description": "Please use the interface below to test the features of the DMPTool API.<br><br>Note that the lock icon next to an endpoint indicates that you must provide an access token.<br>To acquire an access token, click on the green 'Authorize' button and enter your API credentials along with the scope(s) you have access to.<br><br>If you do not have credentials for the API, you can test any of the endpoints that do not display a lock icon.<br>If you would like API credentials, please contact us via the link below.<br><br><strong>If you receive a 'TypeError: Load failed' message from one of the endpoints, then this is due to an issue with your token. Please log out and then re authenticate</strong>",
     "contact": {
       "name": "DMPTool Support",
       "email": "dmptool@ucop.edu",
@@ -23,21 +23,79 @@
 
   "components": {
     "responses": {
-      "Forbidden": {
-        "description": "Invalid access token"
-      },
-      "IllegalInput": {
-        "description": "Invalid arguments"
-      },
-      "NotFound": {
-        "description": "DMP not found"
-      },
-      "Success": {
+      "200": {
         "description": "Success",
         "content": {
           "application/json": {
             "schema": {
-              "$ref": "#/components/schemas/StandardResponse"
+              "$ref": "#/components/schemas/StandardSuccessResponse"
+            }
+          }
+        }
+      },
+      "201": {
+        "description": "Created",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/StandardSuccessResponse"
+            }
+          }
+        }
+      },
+      "301": {
+        "description": "Moved permanently (typically an http -> https redirect)"
+      },
+      "400": {
+        "description": "Invalid arguments",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/StandardErrorResponse"
+            }
+          }
+        }
+      },
+      "401": {
+        "description": "Invalid token",
+        "content": {
+          "application/json": {
+            "type": "object",
+            "properties": {
+              "message": {
+                "type": "string",
+                "example": "Unauthorized"
+              }
+            }
+          }
+        }
+      },
+      "403": {
+        "description": "You do not have permission",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/StandardErrorResponse"
+            }
+          }
+        }
+      },
+      "404": {
+        "description": "Not found",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/StandardSuccessResponse"
+            }
+          }
+        }
+      },
+      "405": {
+        "description": "Method not allowed",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/StandardErrorResponse"
             }
           }
         }
@@ -47,7 +105,7 @@
         "content": {
           "application/json": {
             "schema": {
-              "$ref": "#/components/schemas/StandardError"
+              "$ref": "#/components/schemas/StandardErrorResponse"
             }
           }
         }
@@ -96,10 +154,20 @@
       "searchParam": {
         "name": "search",
         "in": "query",
-        "description": "the search term",
+        "description": "the search term (at least 3 characters)",
         "required": false,
         "schema": {
           "type": "string"
+        }
+      },
+      "keywordParam": {
+        "name": "keywords",
+        "in": "query",
+        "description": "Keywords to search for in the project title and abstract",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "example": "particle Physics"
         }
       },
       "projectNbrParam": {
@@ -109,7 +177,7 @@
         "required": false,
         "schema": {
           "type": "string",
-          "examples": ["7R21CA256680-02", "12345"]
+          "example": "7R21CA256680-02 or 12345"
         }
       },
       "opportunityNbrParam": {
@@ -119,7 +187,7 @@
         "required": false,
         "schema": {
           "type": "string",
-          "examples": ["PA-18-484", "98765"]
+          "example": "PA-18-484 or 98765"
         }
       },
       "piNamesParam": {
@@ -129,7 +197,7 @@
         "required": false,
         "schema": {
           "type": "string",
-          "examples": ["Jane+Doe", "Smith", "Jane+Doe,John+Smith"]
+          "example": "Jane+Doe,John+Smith"
         }
       },
       "yearsParam": {
@@ -139,389 +207,12 @@
         "required": false,
         "schema": {
           "type": "string",
-          "example": ["2022", "2022,2023"]
+          "example": "2022,2023"
         }
       }
     },
 
     "schemas": {
-      "StandardError": {
-        "type": "object",
-        "properties": {
-          "code": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "message": {
-            "type": "string"
-          }
-        }
-      },
-
-      "DmpResponse": {
-        "type": "object",
-        "properties": {
-          "status": {
-            "type": "integer",
-            "format": "int32",
-            "description": "The status code (e.g. 200, 201, 404, etc.)"
-          },
-          "requested": {
-            "type": "string",
-            "description": "The path that was called (e.g. '/dmps/10.12345/ABC123')"
-          },
-          "requested_at": {
-            "type": "string",
-            "format": "date-time",
-            "description": "The ISO 8601 date and time the request was processed (e.g. 2023-02-08T18:49:45621UTC)"
-          },
-          "total_items": {
-            "type": "integer",
-            "format": "int32",
-            "description": "The total number of returnable items (regardless of current pagination settings)"
-          },
-          "page": {
-            "type": "integer",
-            "format": "int32",
-            "description": "The current page"
-          },
-          "per_page": {
-            "type": "integer",
-            "format": "int32",
-            "description": "The number of items per page (min - 1, max - 250, default - 25)"
-          },
-          "items": {
-            "type": "array",
-            "description": "The DMPs",
-            "items": {
-              "$ref": "#/components/schemas/Dmp"
-            }
-          },
-          "errors": {
-            "type": "array",
-            "description": "Error messages",
-            "items": {
-              "type": "string",
-              "description": "An error message",
-              "example": "You are not authorized to perform this action"
-            }
-          }
-        },
-        "required": ["status", "requested", "requested_at", "page", "per_page", "total_items"]
-      },
-
-      "UserResponse": {
-        "type": "object",
-        "properties": {
-          "status": {
-            "type": "integer",
-            "format": "int32",
-            "description": "The status code (e.g. 200, 201, 404, etc.)"
-          },
-          "requested": {
-            "type": "string",
-            "description": "The path that was called (e.g. '/dmps/10.12345/ABC123')"
-          },
-          "requested_at": {
-            "type": "string",
-            "format": "date-time",
-            "description": "The ISO 8601 date and time the request was processed (e.g. 2023-02-08T18:49:45621UTC)"
-          },
-          "total_items": {
-            "type": "integer",
-            "format": "int32",
-            "description": "The total number of returnable items (regardless of current pagination settings)"
-          },
-          "page": {
-            "type": "integer",
-            "format": "int32",
-            "description": "The current page"
-          },
-          "per_page": {
-            "type": "integer",
-            "format": "int32",
-            "description": "The number of items per page (min - 1, max - 250, default - 25)"
-          },
-          "items": {
-            "type": "array",
-            "description": "The user",
-            "items": {
-              "$ref": "#/components/schemas/User"
-            }
-          },
-          "errors": {
-            "type": "array",
-            "description": "Error messages",
-            "items": {
-              "type": "string",
-              "description": "An error message",
-              "example": "You are not authorized to perform this action"
-            }
-          }
-        },
-        "required": ["status", "requested", "requested_at", "page", "per_page", "total_items"]
-      },
-
-      "FunderResponse": {
-        "type": "object",
-        "properties": {
-          "status": {
-            "type": "integer",
-            "format": "int32",
-            "description": "The status code (e.g. 200, 201, 404, etc.)"
-          },
-          "requested": {
-            "type": "string",
-            "description": "The path that was called (e.g. '/funders?search=foo')"
-          },
-          "requested_at": {
-            "type": "string",
-            "format": "date-time",
-            "description": "The ISO 8601 date and time the request was processed (e.g. 2023-02-08T18:49:45621UTC)"
-          },
-          "total_items": {
-            "type": "integer",
-            "format": "int32",
-            "description": "The total number of returnable items (regardless of current pagination settings)"
-          },
-          "page": {
-            "type": "integer",
-            "format": "int32",
-            "description": "The current page"
-          },
-          "per_page": {
-            "type": "integer",
-            "format": "int32",
-            "description": "The number of items per page (min - 1, max - 250, default - 25)"
-          },
-          "items": {
-            "type": "array",
-            "description": "The user",
-            "items": {
-              "$ref": "#/components/schemas/Funder"
-            }
-          },
-          "errors": {
-            "type": "array",
-            "description": "Error messages",
-            "items": {
-              "type": "string",
-              "description": "An error message",
-              "example": "You are not authorized to perform this action"
-            }
-          }
-        },
-        "required": ["status", "requested", "requested_at", "page", "per_page", "total_items"]
-      },
-
-      "AffiliationResponse": {
-        "type": "object",
-        "properties": {
-          "status": {
-            "type": "integer",
-            "format": "int32",
-            "description": "The status code (e.g. 200, 201, 404, etc.)"
-          },
-          "requested": {
-            "type": "string",
-            "description": "The path that was called (e.g. '/orgs?search=foo')"
-          },
-          "requested_at": {
-            "type": "string",
-            "format": "date-time",
-            "description": "The ISO 8601 date and time the request was processed (e.g. 2023-02-08T18:49:45621UTC)"
-          },
-          "total_items": {
-            "type": "integer",
-            "format": "int32",
-            "description": "The total number of returnable items (regardless of current pagination settings)"
-          },
-          "page": {
-            "type": "integer",
-            "format": "int32",
-            "description": "The current page"
-          },
-          "per_page": {
-            "type": "integer",
-            "format": "int32",
-            "description": "The number of items per page (min - 1, max - 250, default - 25)"
-          },
-          "items": {
-            "type": "array",
-            "description": "The user",
-            "items": {
-              "$ref": "#/components/schemas/Affiliation"
-            }
-          },
-          "errors": {
-            "type": "array",
-            "description": "Error messages",
-            "items": {
-              "type": "string",
-              "description": "An error message",
-              "example": "You are not authorized to perform this action"
-            }
-          }
-        },
-        "required": ["status", "requested", "requested_at", "page", "per_page", "total_items"]
-      },
-
-      "RepositoryResponse": {
-        "type": "object",
-        "properties": {
-          "status": {
-            "type": "integer",
-            "format": "int32",
-            "description": "The status code (e.g. 200, 201, 404, etc.)"
-          },
-          "requested": {
-            "type": "string",
-            "description": "The path that was called (e.g. '/repositories?search=foo')"
-          },
-          "requested_at": {
-            "type": "string",
-            "format": "date-time",
-            "description": "The ISO 8601 date and time the request was processed (e.g. 2023-02-08T18:49:45621UTC)"
-          },
-          "total_items": {
-            "type": "integer",
-            "format": "int32",
-            "description": "The total number of returnable items (regardless of current pagination settings)"
-          },
-          "page": {
-            "type": "integer",
-            "format": "int32",
-            "description": "The current page"
-          },
-          "per_page": {
-            "type": "integer",
-            "format": "int32",
-            "description": "The number of items per page (min - 1, max - 250, default - 25)"
-          },
-          "items": {
-            "type": "array",
-            "description": "The user",
-            "items": {
-              "$ref": "#/components/schemas/Repository"
-            }
-          },
-          "errors": {
-            "type": "array",
-            "description": "Error messages",
-            "items": {
-              "type": "string",
-              "description": "An error message",
-              "example": "You are not authorized to perform this action"
-            }
-          }
-        },
-        "required": ["status", "requested", "requested_at", "page", "per_page", "total_items"]
-      },
-
-      "ContributorRoleResponse": {
-        "type": "object",
-        "properties": {
-          "status": {
-            "type": "integer",
-            "format": "int32",
-            "description": "The status code (e.g. 200, 201, 404, etc.)"
-          },
-          "requested": {
-            "type": "string",
-            "description": "The path that was called (e.g. '/contributor_roles')"
-          },
-          "requested_at": {
-            "type": "string",
-            "format": "date-time",
-            "description": "The ISO 8601 date and time the request was processed (e.g. 2023-02-08T18:49:45621UTC)"
-          },
-          "total_items": {
-            "type": "integer",
-            "format": "int32",
-            "description": "The total number of returnable items (regardless of current pagination settings)"
-          },
-          "page": {
-            "type": "integer",
-            "format": "int32",
-            "description": "The current page"
-          },
-          "per_page": {
-            "type": "integer",
-            "format": "int32",
-            "description": "The number of items per page (min - 1, max - 250, default - 25)"
-          },
-          "items": {
-            "type": "array",
-            "description": "The user",
-            "items": {
-              "$ref": "#/components/schemas/Affiliation"
-            }
-          },
-          "errors": {
-            "type": "array",
-            "description": "Error messages",
-            "items": {
-              "type": "string",
-              "description": "An error message",
-              "example": "You are not authorized to perform this action"
-            }
-          }
-        },
-        "required": ["status", "requested", "requested_at", "page", "per_page", "total_items"]
-      },
-
-      "AwardResponse": {
-        "type": "object",
-        "properties": {
-          "status": {
-            "type": "integer",
-            "format": "int32",
-            "description": "The status code (e.g. 200, 201, 404, etc.)"
-          },
-          "requested": {
-            "type": "string",
-            "description": "The path that was called (e.g. '/dmps/10.12345/ABC123')"
-          },
-          "requested_at": {
-            "type": "string",
-            "format": "date-time",
-            "description": "The ISO 8601 date and time the request was processed (e.g. 2023-02-08T18:49:45621UTC)"
-          },
-          "total_items": {
-            "type": "integer",
-            "format": "int32",
-            "description": "The total number of returnable items (regardless of current pagination settings)"
-          },
-          "page": {
-            "type": "integer",
-            "format": "int32",
-            "description": "The current page"
-          },
-          "per_page": {
-            "type": "integer",
-            "format": "int32",
-            "description": "The number of items per page (min - 1, max - 250, default - 25)"
-          },
-          "items": {
-            "type": "array",
-            "description": "The user",
-            "items": {
-              "$ref": "#/components/schemas/Project"
-            }
-          },
-          "errors": {
-            "type": "array",
-            "description": "Error messages",
-            "items": {
-              "type": "string",
-              "description": "An error message",
-              "example": "You are not authorized to perform this action"
-            }
-          }
-        },
-        "required": ["status", "requested", "requested_at", "page", "per_page", "total_items"]
-      },
-
       "Dmp": {},
 
       "User": {
@@ -626,20 +317,31 @@
           "funder_api": {
             "type": "string",
             "description": "The AJAX target for the funder's API. Can be used to back a search field on an HTML form",
-            "example": "https://api.example.com/funders/0000000000/api"
+            "example": "https://api.dmphub-dev.cdlib.org/awards/nih"
           },
-          "funder_api_label": {
-            "type": "string",
-            "description": "The label to display on the HTML form for a field using the funder's API",
-            "example": "Research Project"
+          "funder_api_query_fields": {
+            "type": "object",
+            "description": "The fields the user can search on",
+            "properties": {
+              "label": {
+                "type": "string",
+                "description": "The label for the field that the user will see",
+                "example": "Project number"
+              },
+              "query_string_key": {
+                "type": "string",
+                "description": "The query string key to use when sending the user's input to the API target (e.g. '?project=foo')",
+                "example": "project"
+              }
+            }
           },
           "funder_api_guidance": {
             "type": "string",
             "description": "Text to help the user understand what the the HTML form expects for input for the field using the funder's API",
             "example": "Please enter your research project title"
-          },
-          "required": ["name", "funder_id"]
-        }
+          }
+        },
+        "required": ["name", "funder_id"]
       },
 
       "Affiliation": {
@@ -668,9 +370,9 @@
               }
             },
             "required": ["identifier", "type"]
-          },
-          "required": ["name", "affiliation_id"]
-        }
+          }
+        },
+        "required": ["name", "affiliation_id"]
       },
 
       "Repository": {
@@ -709,9 +411,9 @@
               }
             },
             "required": ["identifier", "type"]
-          },
-          "required": ["name", "url"]
-        }
+          }
+        },
+        "required": ["name", "url"]
       },
 
       "ContributorRole": {
@@ -732,9 +434,9 @@
             "type": "string",
             "description": "Whether or not the role is a default",
             "enum": ["true", "false"]
-          },
-          "required": ["label", "value"]
-        }
+          }
+        },
+        "required": ["label", "value"]
       },
 
       "Project": {
@@ -885,6 +587,244 @@
             }
           }
         }
+      },
+
+      "StandardResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The HTTP status code (e.g. 200, 404, etc.)"
+          },
+          "requested": {
+            "type": "string",
+            "description": "The path that was called (e.g. '/dmps/10.12345/ABC123')"
+          },
+          "requested_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The ISO 8601 date and time the request was processed (e.g. 2023-02-08T18:49:45621UTC)"
+          },
+          "total_items": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The total number of returnable items (regardless of current pagination settings)"
+          },
+          "page": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The current page"
+          },
+          "per_page": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The number of items per page (min - 1, max - 250, default - 25)"
+          }
+        },
+        "required": ["status", "requested", "requested_at", "page", "per_page", "total_items"]
+      },
+
+      "AwsResponse": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "example": "Unauthorized"
+          }
+        }
+      },
+
+      "StandardErrorResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/StandardResponse"
+          },
+          {
+            "type": "object",
+            "required": ["errors"],
+            "properties": {
+              "errors": {
+                "type": "array",
+                "description": "Error messages",
+                "items": {
+                  "type": "string",
+                  "description": "An error message",
+                  "example": "Unable to process your request at this time."
+                }
+              }
+            }
+          }
+        ]
+      },
+
+      "StandardSuccessResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/StandardResponse"
+          },
+          {
+            "type": "object",
+            "required": ["items"],
+            "properties": {
+              "items": {
+                "type": "array",
+                "description": "The results of the call",
+                "items": {
+                  "type": "string",
+                  "description": "A result (e.g. DMP, funder, etc.)"
+                }
+              }
+            }
+          }
+        ]
+      },
+
+      "DmpResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/StandardResponse"
+          },
+          {
+            "type": "object",
+            "required": ["items"],
+            "properties": {
+              "items": {
+                "type": "array",
+                "description": "The DMPs",
+                "items": {
+                  "$ref": "#/components/schemas/Dmp"
+                }
+              }
+            }
+          }
+        ]
+      },
+
+      "UserResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/StandardResponse"
+          },
+          {
+            "type": "object",
+            "required": ["items"],
+            "properties": {
+              "items": {
+                "type": "array",
+                "description": "The user",
+                "items": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          }
+        ]
+      },
+
+      "FunderResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/StandardResponse"
+          },
+          {
+            "type": "object",
+            "required": ["items"],
+            "properties": {
+              "items": {
+                "type": "array",
+                "description": "The funder organization",
+                "items": {
+                  "$ref": "#/components/schemas/Funder"
+                }
+              }
+            }
+          }
+        ]
+      },
+
+      "AffiliationResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/StandardResponse"
+          },
+          {
+            "type": "object",
+            "required": ["items"],
+            "properties": {
+              "items": {
+                "type": "array",
+                "description": "The organization or institution",
+                "items": {
+                  "$ref": "#/components/schemas/Affiliation"
+                }
+              }
+            }
+          }
+        ]
+      },
+
+      "RepositoryResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/StandardResponse"
+          },
+          {
+            "type": "object",
+            "required": ["items"],
+            "properties": {
+              "items": {
+                "type": "array",
+                "description": "The repository metadata",
+                "items": {
+                  "$ref": "#/components/schemas/Repository"
+                }
+              }
+            }
+          }
+        ]
+      },
+
+      "ContributorRoleResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/StandardResponse"
+          },
+          {
+            "type": "object",
+            "required": ["items"],
+            "properties": {
+              "items": {
+                "type": "array",
+                "description": "The role the person perfoms on the research project",
+                "items": {
+                  "$ref": "#/components/schemas/ContributorRole"
+                }
+              }
+            }
+          }
+        ]
+      },
+
+      "AwardResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/StandardResponse"
+          },
+          {
+            "type": "object",
+            "required": ["items"],
+            "properties": {
+              "items": {
+                "type": "array",
+                "description": "The project, award and contributor information",
+                "items": {
+                  "$ref": "#/components/schemas/Project"
+                }
+              }
+            }
+          }
+        ]
       }
     }
   },
@@ -931,7 +871,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/StandardError"
+                  "$ref": "#/components/schemas/StandardErrorResponse"
                 }
               }
             }
@@ -980,7 +920,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/StandardError"
+                  "$ref": "#/components/schemas/StandardErrorResponse"
                 }
               }
             }
@@ -1029,7 +969,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/StandardError"
+                  "$ref": "#/components/schemas/StandardErrorResponse"
                 }
               }
             }
@@ -1077,7 +1017,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/StandardError"
+                  "$ref": "#/components/schemas/StandardErrorResponse"
                 }
               }
             }
@@ -1085,7 +1025,7 @@
         }
       }
     },
-    "/awards/nih": {
+    "/awards/crossref/{funderId}": {
       "servers": [
         {
           "description": "DMPHub development instance",
@@ -1096,10 +1036,20 @@
         "tags": [
           "UI support operations"
         ],
-        "operationId": "GetAwardsNIH",
-        "description": "Performs a search for NIH award data",
+        "operationId": "GetAwardsCrossref",
+        "description": "Performs a search for Crossref award data",
         "parameters": [
-          { "$ref": "#/components/parameters/searchParam" },
+          {
+            "name": "funderId",
+            "in": "path",
+            "description": "The Crossref Funder Id",
+            "example": "10.13039/100000015",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          { "$ref": "#/components/parameters/keywordParam" },
           { "$ref": "#/components/parameters/projectNbrParam" },
           { "$ref": "#/components/parameters/opportunityNbrParam" },
           { "$ref": "#/components/parameters/piNamesParam" },
@@ -1128,7 +1078,109 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/StandardError"
+                  "$ref": "#/components/schemas/StandardErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/awards/nih": {
+      "servers": [
+        {
+          "description": "DMPHub development instance",
+          "url": "https://api.dmphub-dev.cdlib.org"
+        }
+      ],
+      "get": {
+        "tags": [
+          "UI support operations"
+        ],
+        "operationId": "GetAwardsNIH",
+        "description": "Performs a search for NIH award data",
+        "parameters": [
+          { "$ref": "#/components/parameters/keywordParam" },
+          { "$ref": "#/components/parameters/projectNbrParam" },
+          { "$ref": "#/components/parameters/opportunityNbrParam" },
+          { "$ref": "#/components/parameters/piNamesParam" },
+          { "$ref": "#/components/parameters/yearsParam" }
+        ],
+        "security": [
+          {
+            "Authorizer": [
+              "https://auth.dmphub-dev.cdlib.org/dev.read"
+            ]
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The Project and award metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AwardResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StandardErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/awards/nsf": {
+      "servers": [
+        {
+          "description": "DMPHub development instance",
+          "url": "https://api.dmphub-dev.cdlib.org"
+        }
+      ],
+      "get": {
+        "tags": [
+          "UI support operations"
+        ],
+        "operationId": "GetAwardsNSF",
+        "description": "Performs a search for NSF award data",
+        "parameters": [
+          { "$ref": "#/components/parameters/keywordParam" },
+          { "$ref": "#/components/parameters/projectNbrParam" },
+          { "$ref": "#/components/parameters/opportunityNbrParam" },
+          { "$ref": "#/components/parameters/piNamesParam" },
+          { "$ref": "#/components/parameters/yearsParam" }
+        ],
+        "security": [
+          {
+            "Authorizer": [
+              "https://auth.dmphub-dev.cdlib.org/dev.read"
+            ]
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The Project and award metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AwardResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StandardErrorResponse"
                 }
               }
             }
@@ -1172,7 +1224,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/StandardError"
+                  "$ref": "#/components/schemas/StandardErrorResponse"
                 }
               }
             }
@@ -1227,7 +1279,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/StandardError"
+                  "$ref": "#/components/schemas/StandardErrorResponse"
                 }
               }
             }
@@ -1276,7 +1328,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/StandardError"
+                  "$ref": "#/components/schemas/StandardErrorResponse"
                 }
               }
             }
@@ -1334,7 +1386,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/StandardError"
+                  "$ref": "#/components/schemas/StandardErrorResponse"
                 }
               }
             }
@@ -1386,7 +1438,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/StandardError"
+                  "$ref": "#/components/schemas/StandardErrorResponse"
                 }
               }
             }
@@ -1442,11 +1494,11 @@
             }
           },
           "default": {
-            "description": "Error",
+            "description": "Non-2xx level HTTP status codes",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/StandardError"
+                  "$ref": "#/components/schemas/StandardErrorResponse"
                 }
               }
             }
