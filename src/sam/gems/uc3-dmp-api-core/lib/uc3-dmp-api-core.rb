@@ -1,8 +1,10 @@
+# rubocop:disable Naming/FileName
 # frozen_string_literal: true
 
 require 'aws-sdk-sns'
 require 'aws-sdk-ssm'
 
+require 'uc3-dmp-api-core/log_writer'
 require 'uc3-dmp-api-core/notifier'
 require 'uc3-dmp-api-core/paginator'
 require 'uc3-dmp-api-core/responder'
@@ -15,3 +17,4 @@ module Uc3DmpApiCore
   MSG_INVALID_ARGS = 'Invalid arguments.' # For HTTP 400 (Bad request)
   MSG_SERVER_ERROR = 'Unable to process your request at this time.' # For HTTP 500 (Server error)
 end
+# rubocop:enable Naming/FileName

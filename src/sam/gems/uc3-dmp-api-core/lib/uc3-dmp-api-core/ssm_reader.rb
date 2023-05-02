@@ -21,9 +21,8 @@ module Uc3DmpApiCore
       # ----------------------------------------------------
       # rubocop:disable Metrics/AbcSize
       def get_ssm_value(key:, provenance_name: nil)
-        full_key = _ssm_keys[:"#{key.downcase.to_s}"] unless key.nil?
+        full_key = _ssm_keys[:"#{key.downcase}"] unless key.nil?
         return nil if full_key.nil?
-
 
         key_vals = { env: ENV.fetch('LAMBDA_ENV', 'dev').to_s.downcase }
         # Swap in the provenance name if applicable
@@ -31,7 +30,7 @@ module Uc3DmpApiCore
                                                        !full_key.include?('%{provenance}')
         fetch_value(key: format(full_key, key_vals))
       rescue Aws::Errors::ServiceError => e
-        Logger.log_error(
+        LogWriter.log_error(
           source: "#{SOURCE} - looking for #{key}", message: e.message, details: e.backtrace
         )
         nil
@@ -54,6 +53,7 @@ module Uc3DmpApiCore
 
       # DMPTool/DMPHub SSM keys. See the installation guide for information about how these values are used
       #    https://github.com/CDLUC3/dmp-hub-cfn/wiki/installation-and-setup#required-ssm-parameters
+      # rubocop:disable Metrics/MethodLength
       def _ssm_keys
         {
           administrator_email: '/uc3/dmp/hub/%{env}/AdminEmail',
@@ -82,6 +82,7 @@ module Uc3DmpApiCore
           dynamo_table_name: '/uc3/dmp/hub/%{env}/DynamoTableName'
         }
       end
+      # rubocop:enable Metrics/MethodLength
     end
   end
 end

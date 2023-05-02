@@ -1,0 +1,57 @@
+GEM
+  remote: https://rubygems.org/
+  specs:
+    active_record_simple_execute (0.9.1)
+      activerecord (>= 3.2)
+    activemodel (7.0.4.3)
+      activesupport (= 7.0.4.3)
+    activerecord (7.0.4.3)
+      activemodel (= 7.0.4.3)
+      activesupport (= 7.0.4.3)
+    activesupport (7.0.4.3)
+      concurrent-ruby (~> 1.0, >= 1.0.2)
+      i18n (>= 1.6, < 2)
+      minitest (>= 5.1)
+      tzinfo (~> 2.0)
+    aws-eventstream (1.2.0)
+    aws-partitions (1.758.0)
+    aws-sdk-core (3.171.0)
+      aws-eventstream (~> 1, >= 1.0.2)
+      aws-partitions (~> 1, >= 1.651.0)
+      aws-sigv4 (~> 1.5)
+      jmespath (~> 1, >= 1.6.1)
+    aws-sdk-sns (1.60.0)
+      aws-sdk-core (~> 3, >= 3.165.0)
+      aws-sigv4 (~> 1.1)
+    aws-sdk-ssm (1.150.0)
+      aws-sdk-core (~> 3, >= 3.165.0)
+      aws-sigv4 (~> 1.1)
+    aws-sigv4 (1.5.2)
+      aws-eventstream (~> 1, >= 1.0.2)
+    concurrent-ruby (1.2.2)
+    i18n (1.13.0)
+      concurrent-ruby (~> 1.0)
+    jmespath (1.6.2)
+    json (2.6.3)
+    logger (1.5.3)
+    minitest (5.18.0)
+    mysql2 (0.5.5)
+    tzinfo (2.0.6)
+      concurrent-ruby (~> 1.0)
+    uc3-dmp-api-core (0.0.6)
+      aws-sdk-sns (~> 1.60)
+      aws-sdk-ssm (~> 1.150)
+      json (~> 2.6)
+      logger (~> 1.4)
+
+PLATFORMS
+  arm64-darwin-21
+
+DEPENDENCIES
+  active_record_simple_execute
+  activerecord
+  mysql2
+  uc3-dmp-api-core
+
+BUNDLED WITH
+   2.4.6

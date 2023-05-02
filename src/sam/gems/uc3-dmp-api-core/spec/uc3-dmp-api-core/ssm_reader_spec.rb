@@ -8,7 +8,7 @@ RSpec.describe 'Uc3DmpApiCore::SsmReader' do
   let!(:ssm_client) { mock_ssm(value: 'foo', success: true) }
 
   before do
-    allow(Uc3DmpApiCore::Logger).to receive(:log_error).and_return(true)
+    allow(Uc3DmpApiCore::LogWriter).to receive(:log_error).and_return(true)
   end
 
   describe 'get_ssm_value(key:)' do
@@ -41,7 +41,7 @@ RSpec.describe 'Uc3DmpApiCore::SsmReader' do
       allow(ENV).to receive(:fetch).and_return('test')
       mock_ssm(value: 'foo', success: false)
       expect(described_class.get_ssm_value(key: test_key)).to be_nil
-      expect(Uc3DmpApiCore::Logger).to have_received(:log_error).once
+      expect(Uc3DmpApiCore::LogWriter).to have_received(:log_error).once
     end
 
     it 'returns the value for the parameter from SSM' do

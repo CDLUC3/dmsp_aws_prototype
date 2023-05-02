@@ -28,5 +28,7 @@ Gem::Specification.new do |spec|
   # Requirements for running RSpec
   spec.add_development_dependency('byebug', '11.1.3')
   spec.add_development_dependency('rspec', '3.9.0')
-  spec.add_development_dependency('rubocop', '0.88.0')
+  spec.add_development_dependency('rubocop', '1.50.2')
+  spec.add_development_dependency('rubocop-rspec', '2.20.0')
+  spec.metadata['rubygems_mfa_required'] = 'true'
 end

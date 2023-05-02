@@ -13,29 +13,33 @@ RSpec.describe 'Paginator' do
     it 'returns the :results as-is if it is not an array' do
       expect(described_class.paginate(params: {}, results: 'foo')).to eql('foo')
     end
+
     it 'returns the :results as-is if :params is not a Hash' do
       expect(described_class.paginate(params: 'bar', results: ['foo'])).to eql(['foo'])
     end
+
     it 'returns the results as-is if the :results are empty' do
       expect(described_class.paginate(params: {}, results: [])).to eql([])
     end
+
     it 'returns the correct results for the first page' do
       allow(described_class).to receive(:_current_page).and_return({ page: 1, per_page: 5, total_pages: 7 })
       expected = %w[a b c d e]
-      expect(described_class.paginate(params: { page: 1, per_page: 5}, results: results)).to eql(expected)
+      expect(described_class.paginate(params: { page: 1, per_page: 5 }, results: results)).to eql(expected)
     end
+
     it 'returns the correct :results for a middle page' do
       allow(described_class).to receive(:_current_page).and_return({ page: 3, per_page: 5, total_pages: 7 })
       expected = %w[k l m n o]
-      expect(described_class.paginate(params: { page: 3, per_page: 5}, results: results)).to eql(expected)
+      expect(described_class.paginate(params: { page: 3, per_page: 5 }, results: results)).to eql(expected)
     end
+
     it 'returns the correct :results for the last page' do
       allow(described_class).to receive(:_current_page).and_return({ page: 7, per_page: 5, total_pages: 7 })
       expected = %w[4 5 6 7]
-      expect(described_class.paginate(params: { page: 7, per_page: 5}, results: results)).to eql(expected)
+      expect(described_class.paginate(params: { page: 7, per_page: 5 }, results: results)).to eql(expected)
     end
   end
-  # rubocop:enable RSpec/MultipleExpectations
 
   describe 'pagination_meta(url:, item_count: 0, params: {})' do
     it 'returns the expected response meta information when there is only one page' do
@@ -48,6 +52,7 @@ RSpec.describe 'Paginator' do
       result = described_class.pagination_meta(url: url, item_count: 4, params: {})
       expect(compare_hashes(hash_a: result, hash_b: expected)).to be(true)
     end
+
     it 'returns the expected response meta information when on the first page' do
       allow(described_class).to receive(:_current_page).and_return({ page: 1, per_page: 5, total_pages: 7 })
       expected = {
@@ -60,6 +65,7 @@ RSpec.describe 'Paginator' do
       result = described_class.pagination_meta(url: url, item_count: 34, params: {})
       expect(compare_hashes(hash_a: result, hash_b: expected)).to be(true)
     end
+
     it 'returns the expected response meta information when on the last page' do
       allow(described_class).to receive(:_current_page).and_return({ page: 7, per_page: 5, total_pages: 7 })
       expected = {
@@ -72,6 +78,7 @@ RSpec.describe 'Paginator' do
       result = described_class.pagination_meta(url: url, item_count: 34, params: {})
       expect(compare_hashes(hash_a: result, hash_b: expected)).to be(true)
     end
+
     it 'returns the expected response meta information when all pagination links are necessary' do
       allow(described_class).to receive(:_current_page).and_return({ page: 3, per_page: 5, total_pages: 7 })
       expected = {
@@ -86,6 +93,7 @@ RSpec.describe 'Paginator' do
       result = described_class.pagination_meta(url: url, item_count: 34, params: {})
       expect(compare_hashes(hash_a: result, hash_b: expected)).to be(true)
     end
+
     it 'skips adding pagination urls if :url is nil' do
       allow(described_class).to receive(:_current_page).and_return({ page: 3, per_page: 5, total_pages: 7 })
       expected = {
@@ -104,31 +112,31 @@ RSpec.describe 'Paginator' do
       expected = { page: 1, per_page: 5, total_pages: 4 }
       expect(described_class.send(:_current_page, item_count: 17, params: params)).to eql(expected)
     end
-    it 'uses the specified :page' do
-      params = JSON.parse({ page:2, per_page: 5 }.to_json)
+
+    it 'uses the specified :page and :per_page' do
+      params = JSON.parse({ page: 2, per_page: 5 }.to_json)
       expected = { page: 2, per_page: 5, total_pages: 4 }
       expect(described_class.send(:_current_page, item_count: 17, params: params)).to eql(expected)
     end
+
     it 'does not allow pages below 1' do
       params = JSON.parse({ page: 0 }.to_json)
       expected = { page: 1, per_page: 25, total_pages: 1 }
       expect(described_class.send(:_current_page, item_count: 17, params: params)).to eql(expected)
     end
+
     it 'does not allow pages beyond the total number of pages' do
       params = JSON.parse({ page: 2, per_page: 25 }.to_json)
       expected = { page: 1, per_page: 25, total_pages: 1 }
       expect(described_class.send(:_current_page, item_count: 17, params: params)).to eql(expected)
     end
+
     it 'uses the DEFAULT_PER_PAGE if no :per_page is in :params' do
       params = JSON.parse({ page: 2 }.to_json)
       expected = { page: 2, per_page: 25, total_pages: 2 }
       expect(described_class.send(:_current_page, item_count: 34, params: params)).to eql(expected)
     end
-    it 'uses the specified :per_page' do
-      params = JSON.parse({ page: 2, per_page: 5 }.to_json)
-      expected = { page: 2, per_page: 5, total_pages: 4 }
-      expect(described_class.send(:_current_page, item_count: 17, params: params)).to eql(expected)
-    end
+
     it 'does not allow a :per_page specification to be above the MAXIMUM_PER_PAGE' do
       params = JSON.parse({ per_page: described_class::MAXIMUM_PER_PAGE + 1 }.to_json)
       expected = { page: 1, per_page: 25, total_pages: 1 }

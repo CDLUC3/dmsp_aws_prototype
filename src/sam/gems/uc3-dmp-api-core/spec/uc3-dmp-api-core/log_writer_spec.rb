@@ -2,8 +2,8 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Uc3DmpApiCore::Logger' do
-  let!(:described_class) { Uc3DmpApiCore::Logger }
+RSpec.describe 'Uc3DmpApiCore::LogWriter' do
+  let!(:described_class) { Uc3DmpApiCore::LogWriter }
 
   before do
     allow(described_class).to receive(:puts).and_return(true)

@@ -24,8 +24,7 @@ module Uc3DmpApiCore
       #
       # Returns a hash that is a valid Lambda API response
       # --------------------------------------------------------------------------------
-      # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
-      # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+      # rubocop:disable Metrics/AbcSize
       def respond(status: DEFAULT_STATUS_CODE, items: [], errors: [], **args)
         url = _url_from_event(event: args[:event]) || SsmReader.get_ssm_value(key: 'api_base_url')
         return _standard_error(url: url) if url.nil?
@@ -53,8 +52,7 @@ module Uc3DmpApiCore
         puts " - STACK: #{e.backtrace}"
         _standard_error(url: url)
       end
-      # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
-      # rubocop:enable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+      # rubocop:enable Metrics/AbcSize
 
       private
 
@@ -85,9 +83,9 @@ module Uc3DmpApiCore
         return {} if ENV['CORS_ORIGIN'].nil?
 
         {
-          'Access-Control-Allow-Headers': ENV['CORS_HEADERS'],
-          'Access-Control-Allow-Origin': ENV['CORS_ORIGIN'],
-          'Access-Control-Allow-Methods': ENV['CORS_METHODS']
+          'Access-Control-Allow-Headers': ENV.fetch('CORS_HEADERS', nil),
+          'Access-Control-Allow-Origin': ENV.fetch('CORS_ORIGIN', nil),
+          'Access-Control-Allow-Methods': ENV.fetch('CORS_METHODS', nil)
         }
       end
     end

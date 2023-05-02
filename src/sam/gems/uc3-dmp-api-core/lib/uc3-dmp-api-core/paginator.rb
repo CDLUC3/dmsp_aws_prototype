@@ -8,7 +8,8 @@ module Uc3DmpApiCore
     MAXIMUM_PER_PAGE = 250
 
     class << self
-      def paginate(params: {}, results:)
+      # rubocop:disable Metrics/AbcSize
+      def paginate(results:, params: {})
         return results unless results.is_a?(Array) && results.any? && params.is_a?(Hash)
 
         current = _current_page(item_count: results.length, params: params)
@@ -17,18 +18,16 @@ module Uc3DmpApiCore
 
         # Calculate the offset and extract those results
         offset = current[:page] == 1 ? 0 : (current[:page] - 1) * current[:per_page]
-        results[offset,current[:per_page]]
+        results[offset, current[:per_page]]
       end
+      # rubocop:enable Metrics/AbcSize
 
       # Construct the pagination meta information that will be included in the response
+      # rubocop:disable Metrics/AbcSize
       def pagination_meta(url:, item_count: 0, params: {})
         prms = _current_page(item_count: item_count, params: params)
 
-        hash = {
-          page: prms[:page],
-          per_page: prms[:per_page],
-          total_items: item_count
-        }
+        hash = { page: prms[:page], per_page: prms[:per_page], total_items: item_count }
         return hash if prms[:total_pages] == 1 || item_count <= prms[:per_page]
 
         prv = prms[:page] - 1
@@ -41,15 +40,16 @@ module Uc3DmpApiCore
         hash[:last] = _build_link(url: url, target_page: last, per_page: prms[:per_page]) if prms[:page] < last
         hash.compact
       end
+      # rubocop:enable Metrics/AbcSize
 
       private
 
       # Fetch the current :page and :per_page from the params or use the defaults
       def _current_page(item_count: 0, params: {})
         page = params.fetch('page', DEFAULT_PAGE)
-        page = DEFAULT_PAGE if page <= 1
+        page = DEFAULT_PAGE if page.nil? || page <= 1
         per_page = params.fetch('per_page', DEFAULT_PER_PAGE)
-        per_page = DEFAULT_PER_PAGE if per_page >= MAXIMUM_PER_PAGE || per_page < 1
+        per_page = DEFAULT_PER_PAGE if per_page.nil? || per_page >= MAXIMUM_PER_PAGE || per_page < 1
 
         total_pages = _page_count(total: item_count, per_page: per_page)
         page = total_pages if page > total_pages

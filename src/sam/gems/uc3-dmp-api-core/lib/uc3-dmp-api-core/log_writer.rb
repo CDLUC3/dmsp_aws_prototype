@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require_relative './notifier'
-
 module Uc3DmpApiCore
   # Standardized ways for logging messages and errors to CloudWatch
   #
@@ -12,7 +10,7 @@ module Uc3DmpApiCore
   #   - event:        the Lambda event if available
   #
   # --------------------------------------------------------------------------------
-  class Logger
+  class LogWriter
     class << self
       # rubocop:disable Metrics/AbcSize
       def log_error(source:, message:, details: {}, event: {})
@@ -36,6 +34,7 @@ module Uc3DmpApiCore
         # Is there a better way here than just 'print'? This ends up in the CloudWatch logs
         puts "INFO: #{source} - #{message}"
         puts " - DETAILS: #{details.to_json}" if details.is_a?(Hash) && details.keys.any?
+        puts " - EVENT: #{event.to_json}" if event.is_a?(Hash) && event.keys.any?
         true
       end
     end

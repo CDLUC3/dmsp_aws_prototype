@@ -13,7 +13,7 @@ require 'aws-sdk-ssm'
 require 'mysql2'
 
 require 'uc3-dmp-api-core'
-require 'uc3-dmp-rds'
+# require 'uc3-dmp-rds'
 
 module Functions
   # The handler for POST /dmps/validate
@@ -75,37 +75,37 @@ module Functions
         return _respond(status: 400, errors: [Uc3DmpApiCore::MSG_INVALID_ARGS], event: event) unless continue
 
         # Debug, output the incoming Event and Context
-        debug = SsmReader.debug_mode?
+        debug = Uc3DmpApiCore::SsmReader.debug_mode?
         pp event if debug
         pp context if debug
 
         # Fetch the DB credentials
-        ENV['RDS_USERNAME'] = Uc3DmpApiCore::SsmReader.get_ssm_value(key: Uc3DmpApiCore::SsmReader::RDS_USERNAME)
-        ENV['RDS_PASSWORD'] = Uc3DmpApiCore::SsmReader.get_ssm_value(key: Uc3DmpApiCore::SsmReader::RDS_PASSWORD)
+        ENV['RDS_USERNAME'] = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :rds_username)
+        ENV['RDS_PASSWORD'] = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :rds_pasword)
 
         _rds_connect
         # Uc3DmpRds.connect
-        # return Responder.respond(status: 500, errors: [Messages::MSG_SERVER_ERROR], event: event) if NOT CONNECTED
+        # return Responder.respond(status: 500, errors: [Uc3DmpApiCore::MSG_SERVER_ERROR], event: event) if NOT CONNECTED
 
-        items = search(term: params['search'])
+        items = _search(term: params['search'])
         return _respond(status: 200, items: [], event: event) unless !items.nil? && items.length.positive?
 
-        results = results_to_response(term: params['search'], results: items)
-        _respond(status: 200, items: results, event: event, page: page, per_page: per_page)
+        results = _results_to_response(term: params['search'], results: items)
+        _respond(status: 200, items: results, event: event, params: params)
       rescue Aws::Errors::ServiceError => e
         Uc3DmpApiCore:Responder.log_error(source: SOURCE, message: e.message, details: e.backtrace)
-        _respond(status: 500, errors: [Messages::MSG_SERVER_ERROR], event: event)
+        _respond(status: 500, errors: [Uc3DmpApiCore::MSG_SERVER_ERROR], event: event)
       rescue StandardError => e
         # Just do a print here (ends up in CloudWatch) in case it was the Uc3DmpApiCore::Responder that failed
         puts "#{SOURCE} FATAL: #{e.message}"
         puts e.backtrace
-        { statusCode: 500, body: { errors: [Messages::MSG_SERVER_ERROR] }.to_json }
+        { statusCode: 500, body: { errors: [Uc3DmpApiCore::MSG_SERVER_ERROR] }.to_json }
       end
 
       private
 
       # Run the search query against the DB and return the raw results
-      def search(term:)
+      def _search(term:)
         sql_str = <<~SQL.squish
           SELECT * FROM registry_orgs
           WHERE registry_orgs.fundref_id IS NOT NULL AND
@@ -117,7 +117,7 @@ module Functions
       end
 
       # Transform the raw DB response for the API caller
-      def results_to_response(term:, results:)
+      def _results_to_response(term:, results:)
         return [] if results.nil? || !results.is_a?(Array) || !term.is_a?(String)
 
         results = results.map do |funder|
@@ -163,8 +163,11 @@ module Functions
         score
       end
 
-      def _respond(status:, items: [], errors: [], event: {})
-        Uc3DmpApiCore::Responder.respond(status: status, items: items, errors: errors, event: event)
+      def _respond(status:, items: [], errors: [], event: {}, params: {})
+        Uc3DmpApiCore::Responder.respond(
+          status: status, items: items, errors: errors, event: event,
+          page: params['page'], per_page: params['per_page']
+        )
       end
 
       def _rds_connect
