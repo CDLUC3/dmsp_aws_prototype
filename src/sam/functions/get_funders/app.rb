@@ -13,7 +13,7 @@ require 'aws-sdk-ssm'
 require 'mysql2'
 
 require 'uc3-dmp-api-core'
-# require 'uc3-dmp-rds'
+require 'uc3-dmp-rds'
 
 module Functions
   # The handler for POST /dmps/validate
@@ -79,17 +79,15 @@ module Functions
         pp event if debug
         pp context if debug
 
-        # Fetch the DB credentials
-        ENV['RDS_USERNAME'] = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :rds_username)
-        ENV['RDS_PASSWORD'] = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :rds_pasword)
+        # Connect to the DB
+        connected = Uc3DmpRds::Adapter.connect
+        return _respond(status: 500, errors: [Uc3DmpApiCore::MSG_SERVER_ERROR], event: event) unless connected
 
-        _rds_connect
-        # Uc3DmpRds.connect
-        # return Responder.respond(status: 500, errors: [Uc3DmpApiCore::MSG_SERVER_ERROR], event: event) if NOT CONNECTED
-
+        # Query the DB
         items = _search(term: params['search'])
         return _respond(status: 200, items: [], event: event) unless !items.nil? && items.length.positive?
 
+        # Process the results
         results = _results_to_response(term: params['search'], results: items)
         _respond(status: 200, items: results, event: event, params: params)
       rescue Aws::Errors::ServiceError => e
@@ -112,8 +110,7 @@ module Functions
             (registry_orgs.name LIKE :term OR registry_orgs.home_page LIKE :term
               OR registry_orgs.acronyms LIKE :quoted_term OR registry_orgs.aliases LIKE :quoted_term)
         SQL
-        ActiveRecord::Base.simple_execute(sql_str, term: "%#{term}%", quoted_term: "%\"#{term}\"%")
-        # Uc3DmpRds.execute_query(sql, term: "%#{term}%", quoted_term: "%\"#{term}\"%")
+        Uc3DmpRds::Adapter.execute_query(sql, term: "%#{term}%", quoted_term: "%\"#{term}\"%")
       end
 
       # Transform the raw DB response for the API caller
@@ -163,22 +160,11 @@ module Functions
         score
       end
 
+      # Send the output to the Responder
       def _respond(status:, items: [], errors: [], event: {}, params: {})
         Uc3DmpApiCore::Responder.respond(
           status: status, items: items, errors: errors, event: event,
           page: params['page'], per_page: params['per_page']
-        )
-      end
-
-      def _rds_connect
-        ActiveRecord::Base.establish_connection(
-          adapter: 'mysql2',
-          host: ENV["DATABASE_HOST"],
-          port: ENV["DATABASE_PORT"],
-          database: ENV["DATABASE_NAME"],
-          username: ENV['RDS_USERNAME'],
-          password: ENV['RDS_PASSWORD'],
-          encoding: 'utf8mb4'
         )
       end
     end
