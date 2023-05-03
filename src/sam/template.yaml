@@ -412,6 +412,8 @@ Resources:
           DATABASE_HOST: !Ref RdsHost
           DATABASE_PORT: !Ref RdsPort
           DATABASE_NAME: !Ref RdsDbName
+          LAMBDA_ENV: !Ref Env
+          SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
           CORS_METHODS: 'GET'
           CORS_HEADERS: !Ref CorsHeaders
           CORS_ORIGIN: !Sub "https://${DomainName}"
@@ -461,6 +463,8 @@ Resources:
           DATABASE_HOST: !Ref RdsHost
           DATABASE_PORT: !Ref RdsPort
           DATABASE_NAME: !Ref RdsDbName
+          LAMBDA_ENV: !Ref Env
+          SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
           CORS_METHODS: 'GET'
           CORS_HEADERS: !Ref CorsHeaders
           CORS_ORIGIN: !Sub "https://${DomainName}"
@@ -510,6 +514,8 @@ Resources:
           DATABASE_HOST: !Ref RdsHost
           DATABASE_PORT: !Ref RdsPort
           DATABASE_NAME: !Ref RdsDbName
+          LAMBDA_ENV: !Ref Env
+          SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
           CORS_METHODS: 'GET'
           CORS_HEADERS: !Ref CorsHeaders
           CORS_ORIGIN: !Sub "https://${DomainName}"
@@ -671,6 +677,8 @@ Resources:
         TargetArn: !Ref DeadLetterQueueArn
       Environment:
         Variables:
+          LAMBDA_ENV: !Ref Env
+          SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
           CORS_METHODS: 'GET'
           CORS_HEADERS: !Ref CorsHeaders
           CORS_ORIGIN: !Sub "https://${DomainName}"
@@ -704,6 +712,8 @@ Resources:
         TargetArn: !Ref DeadLetterQueueArn
       Environment:
         Variables:
+          LAMBDA_ENV: !Ref Env
+          SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
           CORS_METHODS: 'GET'
           CORS_HEADERS: !Ref CorsHeaders
           CORS_ORIGIN: !Sub "https://${DomainName}"

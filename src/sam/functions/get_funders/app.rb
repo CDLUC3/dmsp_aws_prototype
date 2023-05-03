@@ -6,11 +6,11 @@
 my_gem_path = Dir['/opt/ruby/gems/**/lib/']
 $LOAD_PATH.unshift(*my_gem_path)
 
-require 'active_record'
-require 'active_record_simple_execute'
-require 'aws-sdk-sns'
-require 'aws-sdk-ssm'
-require 'mysql2'
+# require 'active_record'
+# require 'active_record_simple_execute'
+# require 'aws-sdk-sns'
+# require 'aws-sdk-ssm'
+# require 'mysql2'
 
 require 'uc3-dmp-api-core'
 require 'uc3-dmp-rds'
@@ -71,7 +71,7 @@ module Functions
       def process(event:, context:)
         params = event.fetch('queryStringParameters', {})
         # Only process if there are 3 or more characters in the search
-        continue = !params['search'].nil? || params['search'].length >= 3
+        continue = params.fetch('search', '').to_s.strip.length >= 3
         return _respond(status: 400, errors: [Uc3DmpApiCore::MSG_INVALID_ARGS], event: event) unless continue
 
         # Debug, output the incoming Event and Context
@@ -80,7 +80,7 @@ module Functions
         pp context if debug
 
         # Connect to the DB
-        connected = Uc3DmpRds::Adapter.connect
+        connected = _establish_connection
         return _respond(status: 500, errors: [Uc3DmpApiCore::MSG_SERVER_ERROR], event: event) unless connected
 
         # Query the DB
@@ -102,6 +102,13 @@ module Functions
 
       private
 
+      def _establish_connection
+        # Fetch the DB credentials from SSM parameter store
+        username = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :rds_username)
+        password = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :rds_password)
+        Uc3DmpRds::Adapter.connect(username: username, password: password)
+      end
+
       # Run the search query against the DB and return the raw results
       def _search(term:)
         sql_str = <<~SQL.squish
@@ -110,19 +117,19 @@ module Functions
             (registry_orgs.name LIKE :term OR registry_orgs.home_page LIKE :term
               OR registry_orgs.acronyms LIKE :quoted_term OR registry_orgs.aliases LIKE :quoted_term)
         SQL
-        Uc3DmpRds::Adapter.execute_query(sql, term: "%#{term}%", quoted_term: "%\"#{term}\"%")
+        Uc3DmpRds::Adapter.execute_query(sql: sql_str, term: "%#{term}%", quoted_term: "%\"#{term}\"%")
       end
 
       # Transform the raw DB response for the API caller
       def _results_to_response(term:, results:)
-        return [] if results.nil? || !results.is_a?(Array) || !term.is_a?(String)
+        return [] unless results.is_a?(Array) && term.is_a?(String) && !term.strip.empty?
 
         results = results.map do |funder|
-          id = funder['fundref_id'] if funder['fundref_id'].start_with?(FUNDREF_URI_PREFIX)
+          id = funder['fundref_id'] if funder['fundref_id']&.start_with?(FUNDREF_URI_PREFIX)
           id = "#{FUNDREF_URI_PREFIX}#{funder['fundref_id']}" if id.nil?
           hash = {
             name: funder['name'],
-            weight: weigh(term: term, org: funder),
+            weight: _weigh(term: term, org: funder),
             funder_id: { identifier: id, type: 'fundref' }
           }
           unless funder['api_target'].nil?
@@ -136,9 +143,9 @@ module Functions
       end
 
       # Weighs the RegistryOrg. The greater the weight the closer the match, preferring Orgs already in use
-      def weigh(term:, org:)
+      def _weigh(term:, org:)
         score = 0
-        return score unless term.is_a?(String) && org['name'].is_a?(String)
+        return score unless term.is_a?(String) && org.is_a?(Hash) && org['name'].is_a?(String)
 
         term = term.downcase
         name = org['name'].downcase

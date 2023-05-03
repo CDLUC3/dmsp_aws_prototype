@@ -77,7 +77,7 @@ module Uc3DmpApiCore
           s3_access_point: '/uc3/dmp/hub/%{env}/S3CloudFrontBucketAccessPoint',
 
           rds_username: '/uc3/dmp/tool/%{env}/RdsUsername',
-          rds_pasword: '/uc3/dmp/tool/%{env}/RdsPassword',
+          rds_password: '/uc3/dmp/tool/%{env}/RdsPassword',
 
           dynamo_table_name: '/uc3/dmp/hub/%{env}/DynamoTableName'
         }

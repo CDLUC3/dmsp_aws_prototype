@@ -9,3 +9,11 @@ gem 'active_record_simple_execute'
 gem 'mysql2'
 
 gem 'uc3-dmp-api-core'
+gem 'uc3-dmp-rds'
+
+group :test do
+  gem "rspec"
+  gem "rubocop"
+  gem "rubocop-performance"
+  gem "rubocop-rspec"
+end

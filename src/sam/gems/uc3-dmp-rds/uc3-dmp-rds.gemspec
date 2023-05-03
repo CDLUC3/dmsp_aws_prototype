@@ -25,12 +25,11 @@ Gem::Specification.new do |spec|
   spec.add_runtime_dependency('json', '~> 2.6')
   spec.add_runtime_dependency('mysql2', '~> 0.5.5')
 
-  spec.add_runtime_dependency('uc3-dmp-api-core', ' ~> 0.0.6')
-
   # Requirements for running RSpec
   spec.add_development_dependency('byebug', '11.1.3')
   spec.add_development_dependency('rspec', '3.9.0')
   spec.add_development_dependency('rubocop', '1.50.2')
+  spec.add_development_dependency('rubocop-performance', '1.17.1')
   spec.add_development_dependency('rubocop-rspec', '2.20.0')
 
   spec.metadata['rubygems_mfa_required'] = 'false'

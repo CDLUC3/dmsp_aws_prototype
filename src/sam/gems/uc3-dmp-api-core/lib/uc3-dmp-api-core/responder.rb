@@ -44,7 +44,7 @@ module Uc3DmpApiCore
         body = body.merge(Paginator.pagination_meta(url: url, item_count: item_count, params: args))
 
         # If this is a server error, then notify the administrator!
-        log_error(source: url, message: errors, details: body, event: args[:event]) if status.to_s[0] == '5'
+        LogWriter.log_error(source: url, message: errors, details: body, event: args[:event]) if status.to_s[0] == '5'
 
         { statusCode: status.to_i, body: body.compact.to_json, headers: headers }
       rescue StandardError => e
