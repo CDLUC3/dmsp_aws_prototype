@@ -3,9 +3,6 @@ FROM public.ecr.aws/lambda/ruby:2.7
 # Copy function code
 COPY app.rb ${LAMBDA_TASK_ROOT}
 
-# Copy dependency code
-RUN mkdir ${LAMBDA_TASK_ROOT}/lib
-
 RUN yum update -y && yum install -y gcc make mariadb-devel
 
 # Copy dependency management file

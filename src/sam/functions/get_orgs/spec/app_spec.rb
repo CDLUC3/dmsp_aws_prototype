@@ -2,8 +2,8 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Functions::GetFunders' do
-  let!(:described_class) { Functions::GetFunders }
+RSpec.describe 'Functions::GetOrgs' do
+  let!(:described_class) { Functions::GetOrgs }
 
   before do
     allow(described_class).to receive(:puts).and_return(true)
@@ -85,11 +85,9 @@ RSpec.describe 'Functions::GetFunders' do
   describe '_results_to_response(term:, results:)' do
     let!(:results) do
       [
-        { name: 'Example Institution (eu.gov)', fundref_id: 'abcdefg', org_id: 123 },
-        { name: 'Example Org (example.com)', fundref_id: 'zyxw' },
+        { name: 'Example Institution (eu.gov)', ror_id: 'abcdefg', org_id: 123 },
         { name: 'Missing Fundref (missing.net)' },
-        { name: 'API Funder (api.gov)', fundref_id: '12345', api_target: 'http:/foo.edu', api_guidance: 'foo',
-          api_query_fields: '[{"label":"Foo","query_string_key":"foo}]' }
+        { name: 'API Funder (api.gov)', ror_id: '12345' }
       ]
     end
 
@@ -111,12 +109,12 @@ RSpec.describe 'Functions::GetFunders' do
       expect(described_class.send(:_results_to_response, term: 'foo', results: [])).to eql([])
     end
 
-    it 'adds the Fundref prefix to the fundref_id if it is missing' do
+    it 'adds the ROR prefix to the fundref_id if it is missing' do
       allow(described_class).to receive(:_weigh).and_return(1)
       recs = [results.first]
-      expected = { identifier: "#{described_class::FUNDREF_URI_PREFIX}#{recs.first[:fundref_id]}", type: 'fundref' }
+      expected = { identifier: "#{described_class::ROR_URI_PREFIX}#{recs.first[:ror_id]}", type: 'ror' }
       items = described_class.send(:_results_to_response, term: 'instit', results: JSON.parse(recs.to_json))
-      expect(items.first[:funder_id]).to eql(expected)
+      expect(items.first[:affiliation_id]).to eql(expected)
     end
 
     it 'weighs each result' do
@@ -128,29 +126,21 @@ RSpec.describe 'Functions::GetFunders' do
 
     it 'returns what we expect when the record has only a name' do
       allow(described_class).to receive(:_weigh).and_return(1)
-      recs = [{ name: 'Missing Fundref (missing.net)' }]
+      recs = [{ name: 'Missing ROR (missing.net)' }]
       items = described_class.send(:_results_to_response, term: 'missing', results: JSON.parse(recs.to_json))
       expect(items.first[:name]).to eql(recs.first[:name])
       expect(items.first[:weight]).to be(1)
-      expect(items.first[:funder_id]).to be(nil)
-      expect(items.first[:funder_api]).to be(nil)
-      expect(items.first[:funder_api_guidance]).to be(nil)
-      expect(items.first[:funder_api_query_fields]).to be(nil)
+      expect(items.first[:affiliation_id]).to be(nil)
     end
 
     it 'returns what we expect when the record has all data elements' do
       allow(described_class).to receive(:_weigh).and_return(1)
       recs = [results.last]
       items = described_class.send(:_results_to_response, term: 'example', results: JSON.parse(recs.to_json))
-      expected = { identifier: "#{described_class::FUNDREF_URI_PREFIX}#{recs.first[:fundref_id]}", type: 'fundref' }
+      expected = { identifier: "#{described_class::ROR_URI_PREFIX}#{recs.first[:ror_id]}", type: 'ror' }
       expect(items.first[:name]).to eql(recs.first[:name])
       expect(items.first[:weight]).to be(1)
-      expect(items.first[:funder_id]).to eql(expected)
-      expect(items.first[:homepage]).to eql(recs.first[:homepage])
-      expect(items.first[:dmproadmap_host_id]).to eql(recs.first[:uri])
-      expect(items.first[:funder_api]).to eql(recs.first[:api_target])
-      expect(items.first[:funder_api_guidance]).to eql(recs.first[:api_guidance])
-      expect(items.first[:funder_api_query_fields]).to eql(recs.first[:api_query_fields])
+      expect(items.first[:affiliation_id]).to eql(expected)
     end
 
     it 'sorts the results based on weight and name' do

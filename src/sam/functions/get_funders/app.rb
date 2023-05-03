@@ -6,22 +6,16 @@
 my_gem_path = Dir['/opt/ruby/gems/**/lib/']
 $LOAD_PATH.unshift(*my_gem_path)
 
-# require 'active_record'
-# require 'active_record_simple_execute'
-# require 'aws-sdk-sns'
-# require 'aws-sdk-ssm'
-# require 'mysql2'
-
 require 'uc3-dmp-api-core'
 require 'uc3-dmp-rds'
 
 module Functions
   # The handler for POST /dmps/validate
   class GetFunders
-    SOURCE = 'GET /funders?search=name'.freeze
-    TABLE = 'registry_orgs'.freeze
+    SOURCE = 'GET /funders?search=name'
+    TABLE = 'registry_orgs'
 
-    FUNDREF_URI_PREFIX = 'https://doi.org/10.13039/'.freeze
+    FUNDREF_URI_PREFIX = 'https://doi.org/10.13039/'
 
     # Parameters
     # ----------
@@ -68,6 +62,7 @@ module Functions
     class << self
       # This is a temporary endpoint used to provide pseudo user data to the React application
       # while it is under development. This will eventually be replaced by Cognito or the Rails app.
+      # rubocop:disable Metrics/AbcSize
       def process(event:, context:)
         params = event.fetch('queryStringParameters', {})
         # Only process if there are 3 or more characters in the search
@@ -91,7 +86,7 @@ module Functions
         results = _results_to_response(term: params['search'], results: items)
         _respond(status: 200, items: results, event: event, params: params)
       rescue Aws::Errors::ServiceError => e
-        Uc3DmpApiCore:Responder.log_error(source: SOURCE, message: e.message, details: e.backtrace)
+        Uc3DmpApiCore::Responder.log_error(source: SOURCE, message: e.message, details: e.backtrace)
         _respond(status: 500, errors: [Uc3DmpApiCore::MSG_SERVER_ERROR], event: event)
       rescue StandardError => e
         # Just do a print here (ends up in CloudWatch) in case it was the Uc3DmpApiCore::Responder that failed
@@ -99,15 +94,9 @@ module Functions
         puts e.backtrace
         { statusCode: 500, body: { errors: [Uc3DmpApiCore::MSG_SERVER_ERROR] }.to_json }
       end
+      # rubocop:enable Metrics/AbcSize
 
       private
-
-      def _establish_connection
-        # Fetch the DB credentials from SSM parameter store
-        username = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :rds_username)
-        password = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :rds_password)
-        Uc3DmpRds::Adapter.connect(username: username, password: password)
-      end
 
       # Run the search query against the DB and return the raw results
       def _search(term:)
@@ -121,17 +110,19 @@ module Functions
       end
 
       # Transform the raw DB response for the API caller
+      # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
       def _results_to_response(term:, results:)
         return [] unless results.is_a?(Array) && term.is_a?(String) && !term.strip.empty?
 
         results = results.map do |funder|
           id = funder['fundref_id'] if funder['fundref_id']&.start_with?(FUNDREF_URI_PREFIX)
-          id = "#{FUNDREF_URI_PREFIX}#{funder['fundref_id']}" if id.nil?
+          id = "#{FUNDREF_URI_PREFIX}#{funder['fundref_id']}" if id.nil? && !funder['fundref_id'].nil?
           hash = {
             name: funder['name'],
-            weight: _weigh(term: term, org: funder),
-            funder_id: { identifier: id, type: 'fundref' }
+            weight: _weigh(term: term, org: funder)
           }
+          hash[:funder_id] = { identifier: id, type: 'fundref' } unless id.nil?
+
           unless funder['api_target'].nil?
             hash[:funder_api] = funder['api_target']
             hash[:funder_api_query_fields] = funder['api_query_fields']
@@ -141,8 +132,10 @@ module Functions
         end
         results.sort { |a, b| [b[:weight], a[:name]] <=> [a[:weight], b[:name]] }
       end
+      # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
       # Weighs the RegistryOrg. The greater the weight the closer the match, preferring Orgs already in use
+      # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
       def _weigh(term:, org:)
         score = 0
         return score unless term.is_a?(String) && org.is_a?(Hash) && org['name'].is_a?(String)
@@ -165,6 +158,14 @@ module Functions
         score += 1 unless org['org_id'].nil?
         score += 1 if name.include?(term) && !starts_with
         score
+      end
+      # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+
+      def _establish_connection
+        # Fetch the DB credentials from SSM parameter store
+        username = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :rds_username)
+        password = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :rds_password)
+        Uc3DmpRds::Adapter.connect(username: username, password: password)
       end
 
       # Send the output to the Responder

@@ -6,21 +6,14 @@
 my_gem_path = Dir['/opt/ruby/gems/**/lib/']
 $LOAD_PATH.unshift(*my_gem_path)
 
-require 'active_record'
-require 'active_record_simple_execute'
-require 'aws-sdk-sns'
-require 'aws-sdk-ssm'
-require 'mysql2'
-
-require_relative 'lib/messages'
-require_relative 'lib/responder'
-require_relative 'lib/ssm_reader'
+require 'uc3-dmp-api-core'
+require 'uc3-dmp-rds'
 
 module Functions
   # The handler for POST /dmps/validate
   class GetRepositories
-    SOURCE = 'GET /repositories?search=name'.freeze
-    TABLE = 'repositories'.freeze
+    SOURCE = 'GET /repositories?search=name'
+    TABLE = 'repositories'
 
     # Parameters
     # ----------
@@ -64,75 +57,76 @@ module Functions
     class << self
       # This is a temporary endpoint used to provide pseudo user data to the React application
       # while it is under development. This will eventually be replaced by Cognito or the Rails app.
+      # rubocop:disable Metrics/AbcSize
       def process(event:, context:)
         params = event.fetch('queryStringParameters', {})
         # Only process if there are 3 or more characters in the search
-        continue = !params['search'].nil? || params['search'].length >= 3
-        return Responder.respond(status: 400, errors: [Messages::MSG_INVALID_ARGS], event: event) unless continue
-
-        page = params.fetch('page', Responder::DEFAULT_PAGE)
-        page = Responder::DEFAULT_PAGE if page <= 1
-        per_page = params.fetch('per_page', Responder::DEFAULT_PER_PAGE)
-        per_page = Responder::DEFAULT_PER_PAGE if per_page >= Responder::MAXIMUM_PER_PAGE || per_page <= 1
+        continue = params.fetch('search', '').to_s.strip.length >= 3
+        return _respond(status: 400, errors: [Uc3DmpApiCore::MSG_INVALID_ARGS], event: event) unless continue
 
         # Debug, output the incoming Event and Context
-        debug = SsmReader.debug_mode?
+        debug = Uc3DmpApiCore::SsmReader.debug_mode?
         pp event if debug
         pp context if debug
 
-        rds_connect
-        # return Responder.respond(status: 500, errors: [Messages::MSG_SERVER_ERROR], event: event) if NOT CONNECTED
+        # Connect to the DB
+        connected = _establish_connection
+        return _respond(status: 500, errors: [Uc3DmpApiCore::MSG_SERVER_ERROR], event: event) unless connected
 
-        items = search(term: params['search'])
-        return Responder.respond(status: 200, items: [], event: event) unless !items.nil? && items.length.positive?
+        # Query the DB
+        items = _search(term: params['search'])
+        return _respond(status: 200, items: [], event: event) unless !items.nil? && items.length.positive?
 
-        results = results_to_response(term: params['search'], results: items)
-        Responder.respond(status: 200, items: results, event: event, page: page, per_page: per_page)
+        # Process the results
+        results = _results_to_response(term: params['search'], results: items)
+        _respond(status: 200, items: results, event: event, params: params)
       rescue Aws::Errors::ServiceError => e
-        Responder.log_error(source: SOURCE, message: e.message, details: e.backtrace)
-        { statusCode: 500, body: { status: 500, errors: [Messages::MSG_SERVER_ERROR] } }
+        Uc3DmpApiCore::Responder.log_error(source: SOURCE, message: e.message, details: e.backtrace)
+        _respond(status: 500, errors: [Uc3DmpApiCore::MSG_SERVER_ERROR], event: event)
       rescue StandardError => e
         # Just do a print here (ends up in CloudWatch) in case it was the responder.rb that failed
         puts "#{SOURCE} FATAL: #{e.message}"
         puts e.backtrace
         { statusCode: 500, body: { errors: [Messages::MSG_SERVER_ERROR] }.to_json }
       end
+      # rubocop:enable Metrics/AbcSize
 
       private
 
       # Run the search query against the DB and return the raw results
-      def search(term:)
+      def _search(term:)
         sql_str = <<~SQL.squish
           SELECT * FROM repositories
           WHERE repositories.name LIKE :term OR repositories.homepage LIKE :term
               OR repositories.description LIKE :term
         SQL
-        ActiveRecord::Base.simple_execute(sql_str, term: "%#{term}%")
+        Uc3DmpRds::Adapter.execute_query(sql: sql_str, term: "%#{term}%")
       end
 
       # Transform the raw DB response for the API caller
-      def results_to_response(term:, results:)
-        return [] if results.nil? || !results.is_a?(Array) || !term.is_a?(String)
+      # rubocop:disable Metrics/AbcSize
+      def _results_to_response(term:, results:)
+        return [] unless results.is_a?(Array) && term.is_a?(String) && !term.strip.empty?
 
         results = results.map do |repo|
-          {
+          hash = {
             title: repo['name'],
             description: repo['description'],
             url: repo['homepage'],
-            weight: weigh(term: term, repo: repo),
-            dmproadmap_host_id: {
-              identifier: repo['uri'],
-              type: 'url'
-            }
+            weight: _weigh(term: term, repo: repo)
           }
+          hash[:dmproadmap_host_id] = { identifier: repo['uri'], type: 'url' } unless repo['uri'].nil?
+          hash
         end
         results.sort { |a, b| [b[:weight], a[:title]] <=> [a[:weight], b[:title]] }
       end
+      # rubocop:enable Metrics/AbcSize
 
       # Weighs the Repository. The greater the weight the closer the match
-      def weigh(term:, repo:)
+      # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+      def _weigh(term:, repo:)
         score = 0
-        return score unless term.is_a?(String) && repo['name'].is_a?(String)
+        return score unless term.is_a?(String) && repo.is_a?(Hash) && repo['name'].is_a?(String)
 
         term = term.downcase
         name = repo['name'].downcase
@@ -151,17 +145,20 @@ module Functions
         score += 1 if name.include?(term) && !starts_with
         score
       end
+      # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
-      # Connect to the RDS instance
-      def rds_connect
-        ActiveRecord::Base.establish_connection(
-          adapter: 'mysql2',
-          host: ENV["DATABASE_HOST"],
-          port: ENV["DATABASE_PORT"],
-          database: ENV["DATABASE_NAME"],
-          username: SsmReader.get_ssm_value(key: SsmReader::RDS_USERNAME),
-          password: SsmReader.get_ssm_value(key: SsmReader::RDS_PASSWORD),
-          encoding: 'utf8mb4'
+      def _establish_connection
+        # Fetch the DB credentials from SSM parameter store
+        username = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :rds_username)
+        password = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :rds_password)
+        Uc3DmpRds::Adapter.connect(username: username, password: password)
+      end
+
+      # Send the output to the Responder
+      def _respond(status:, items: [], errors: [], event: {}, params: {})
+        Uc3DmpApiCore::Responder.respond(
+          status: status, items: items, errors: errors, event: event,
+          page: params['page'], per_page: params['per_page']
         )
       end
     end

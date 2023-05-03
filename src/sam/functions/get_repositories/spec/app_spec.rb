@@ -2,8 +2,8 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Functions::GetFunders' do
-  let!(:described_class) { Functions::GetFunders }
+RSpec.describe 'Functions::GetRepositories' do
+  let!(:described_class) { Functions::GetRepositories }
 
   before do
     allow(described_class).to receive(:puts).and_return(true)
@@ -85,11 +85,8 @@ RSpec.describe 'Functions::GetFunders' do
   describe '_results_to_response(term:, results:)' do
     let!(:results) do
       [
-        { name: 'Example Institution (eu.gov)', fundref_id: 'abcdefg', org_id: 123 },
-        { name: 'Example Org (example.com)', fundref_id: 'zyxw' },
-        { name: 'Missing Fundref (missing.net)' },
-        { name: 'API Funder (api.gov)', fundref_id: '12345', api_target: 'http:/foo.edu', api_guidance: 'foo',
-          api_query_fields: '[{"label":"Foo","query_string_key":"foo}]' }
+        { name: 'Example Repo (er.com)', description: 'foo', uri: 'https://bar.foo', homepage: 'http://er.com' },
+        { name: 'Example Repo Bland (example.com)' }
       ]
     end
 
@@ -111,112 +108,95 @@ RSpec.describe 'Functions::GetFunders' do
       expect(described_class.send(:_results_to_response, term: 'foo', results: [])).to eql([])
     end
 
-    it 'adds the Fundref prefix to the fundref_id if it is missing' do
-      allow(described_class).to receive(:_weigh).and_return(1)
-      recs = [results.first]
-      expected = { identifier: "#{described_class::FUNDREF_URI_PREFIX}#{recs.first[:fundref_id]}", type: 'fundref' }
-      items = described_class.send(:_results_to_response, term: 'instit', results: JSON.parse(recs.to_json))
-      expect(items.first[:funder_id]).to eql(expected)
-    end
-
     it 'weighs each result' do
       allow(described_class).to receive(:_weigh).and_return(1)
       items = [results.first, results.last]
-      described_class.send(:_results_to_response, term: 'instit', results: JSON.parse(items.to_json))
+      described_class.send(:_results_to_response, term: 'example', results: JSON.parse(items.to_json))
       expect(described_class).to have_received(:_weigh).twice
     end
 
     it 'returns what we expect when the record has only a name' do
       allow(described_class).to receive(:_weigh).and_return(1)
-      recs = [{ name: 'Missing Fundref (missing.net)' }]
-      items = described_class.send(:_results_to_response, term: 'missing', results: JSON.parse(recs.to_json))
-      expect(items.first[:name]).to eql(recs.first[:name])
+      recs = [results.last]
+      items = described_class.send(:_results_to_response, term: 'example', results: JSON.parse(recs.to_json))
+      expect(items.first[:title]).to eql(recs.first[:name])
       expect(items.first[:weight]).to be(1)
-      expect(items.first[:funder_id]).to be(nil)
-      expect(items.first[:funder_api]).to be(nil)
-      expect(items.first[:funder_api_guidance]).to be(nil)
-      expect(items.first[:funder_api_query_fields]).to be(nil)
+      expect(items.first[:description]).to be_nil
+      expect(items.first[:url]).to be_nil
+      expect(items.first[:dmproadmap_host_id]).to be_nil
     end
 
     it 'returns what we expect when the record has all data elements' do
       allow(described_class).to receive(:_weigh).and_return(1)
-      recs = [results.last]
+      recs = [results.first]
       items = described_class.send(:_results_to_response, term: 'example', results: JSON.parse(recs.to_json))
-      expected = { identifier: "#{described_class::FUNDREF_URI_PREFIX}#{recs.first[:fundref_id]}", type: 'fundref' }
-      expect(items.first[:name]).to eql(recs.first[:name])
+      expect(items.first[:title]).to eql(recs.first[:name])
       expect(items.first[:weight]).to be(1)
-      expect(items.first[:funder_id]).to eql(expected)
-      expect(items.first[:homepage]).to eql(recs.first[:homepage])
-      expect(items.first[:dmproadmap_host_id]).to eql(recs.first[:uri])
-      expect(items.first[:funder_api]).to eql(recs.first[:api_target])
-      expect(items.first[:funder_api_guidance]).to eql(recs.first[:api_guidance])
-      expect(items.first[:funder_api_query_fields]).to eql(recs.first[:api_query_fields])
+      expect(items.first[:description]).to eql(recs.first[:description])
+      expect(items.first[:url]).to eql(recs.first[:homepage])
+      expected = { identifier: recs.first[:uri], type: 'url' }
+      expect(items.first[:dmproadmap_host_id]).to eql(expected)
     end
 
     it 'sorts the results based on weight and name' do
       recs = [results.first, results.last]
-      allow(described_class).to receive(:_weigh).with(term: 'foo', org: JSON.parse(recs.first.to_json))
+      allow(described_class).to receive(:_weigh).with(term: 'repo', repo: JSON.parse(recs.first.to_json))
                                                 .and_return(0)
-      allow(described_class).to receive(:_weigh).with(term: 'foo', org: JSON.parse(recs.last.to_json))
+      allow(described_class).to receive(:_weigh).with(term: 'repo', repo: JSON.parse(recs.last.to_json))
                                                 .and_return(5)
-      items = described_class.send(:_results_to_response, term: 'foo', results: JSON.parse(recs.to_json))
-      expect(items.first[:name]).to eql(recs.last[:name])
-      expect(items.last[:name]).to eql(recs.first[:name])
+      items = described_class.send(:_results_to_response, term: 'repo', results: JSON.parse(recs.to_json))
+      expect(items.first[:title]).to eql(recs.last[:name])
+      expect(items.last[:title]).to eql(recs.first[:name])
     end
   end
 
-  describe '_weigh(term:, org:)' do
-    let!(:org) { { name: 'example university', acronyms: '[\'xyz\']', aliases: '[\'foo\', \'bar\']' } }
+  describe '_weigh(term:, repo:)' do
+    let!(:repo) do
+      { name: 'example university', description: 'foo bar', homepage: 'http://foo.bar', uri: 'https://bar.foo' }
+    end
 
     it 'returns zero if :term is not a String' do
-      expect(described_class.send(:_weigh, term: 123, org: org)).to be(0)
+      expect(described_class.send(:_weigh, term: 123, repo: repo)).to be(0)
     end
 
-    it 'returns zero if :org is not a Hash' do
-      expect(described_class.send(:_weigh, term: '123', org: 123)).to be(0)
+    it 'returns zero if :repo is not a Hash' do
+      expect(described_class.send(:_weigh, term: '123', repo: 123)).to be(0)
     end
 
-    it 'returns zero if org:name is not a String' do
-      expect(described_class.send(:_weigh, term: '123', org: { foo: 'foo' })).to be(0)
+    it 'returns zero if repo:name is not a String' do
+      expect(described_class.send(:_weigh, term: '123', repo: { foo: 'foo' })).to be(0)
     end
 
-    it 'applies the correct score when we have an acronym match' do
-      expect(described_class.send(:_weigh, term: 'xyz', org: JSON.parse(org.to_json))).to be(1)
+    it 'applies the correct score when we have a description match' do
+      expect(described_class.send(:_weigh, term: 'foo bar', repo: JSON.parse(repo.to_json))).to be(1)
     end
 
-    it 'applies the correct score when we have an alias match' do
-      expect(described_class.send(:_weigh, term: 'foo', org: JSON.parse(org.to_json))).to be(1)
+    it 'applies the correct score when we have an homepage match' do
+      expect(described_class.send(:_weigh, term: 'foo.bar', repo: JSON.parse(repo.to_json))).to be(1)
     end
 
     it 'applies the correct score when we have a partial name match' do
-      expect(described_class.send(:_weigh, term: 'xample', org: JSON.parse(org.to_json))).to be(1)
+      expect(described_class.send(:_weigh, term: 'xample', repo: JSON.parse(repo.to_json))).to be(1)
     end
 
     it 'applies the correct score when we have a starts with name match' do
-      expect(described_class.send(:_weigh, term: 'exam', org: JSON.parse(org.to_json))).to be(2)
-    end
-
-    it 'applies the correct score when we have an org_id' do
-      org = { name: 'foo', org_id: 123 }
-      expect(described_class.send(:_weigh, term: 'exam', org: JSON.parse(org.to_json))).to be(1)
+      expect(described_class.send(:_weigh, term: 'exam', repo: JSON.parse(repo.to_json))).to be(2)
     end
 
     it 'is possible to have a score of zero' do
-      org = { name: 'baz' }
-      expect(described_class.send(:_weigh, term: 'exam', org: JSON.parse(org.to_json))).to be(0)
+      expect(described_class.send(:_weigh, term: 'repository', repo: JSON.parse(repo.to_json))).to be(0)
     end
 
     it 'is possible to get a score of 3' do
-      org[:acronyms] = '[\'exam\']'
-      org[:org_id] = 123
-      expect(described_class.send(:_weigh, term: 'xam', org: JSON.parse(org.to_json))).to be(3)
+      repo[:description] = 'A good example'
+      repo[:homepage] = 'https://xam.edu/foo'
+      expect(described_class.send(:_weigh, term: 'xam', repo: JSON.parse(repo.to_json))).to be(3)
     end
 
     it 'is possible to get a score of 5 (highest score)' do
-      org[:acronyms] = '[\'exam\']'
-      org[:aliases] = '[\'baz\', \'exam\']'
-      org[:org_id] = 123
-      expect(described_class.send(:_weigh, term: 'exam', org: JSON.parse(org.to_json))).to be(5)
+      repo[:description] = 'A good example'
+      repo[:homepage] = 'https://exam.edu/foo'
+      expect(described_class.send(:_weigh, term: 'exam', repo: JSON.parse(repo.to_json))).to be(4)
     end
   end
 end
