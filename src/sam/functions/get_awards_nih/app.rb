@@ -6,11 +6,8 @@
 my_gem_path = Dir['/opt/ruby/gems/**/lib/']
 $LOAD_PATH.unshift(*my_gem_path)
 
-require 'httparty'
-
-require 'messages'
-require 'responder'
-require 'ssm_reader'
+require 'uc3-dmp-api-core'
+require 'uc3-dmp-external-api'
 
 module Functions
   # A Proxy service that queries the NIH Awards API and transforms the results into a common format
@@ -27,6 +24,7 @@ module Functions
                     title keywords (optional) (e.g. keyword=genetic); /
                     a funding opportunity number (optional) (e.g. "opportunity=PA-18-484") and /
                     applicable award years (optional) (e.g. years=2023,2021)'
+    MSG_EMPTY_RESPONSE = 'NIH API returned an empty resultset'
 
     def self.process(event:, context:)
       # Parameters
@@ -64,74 +62,62 @@ module Functions
       #   puts error.inspect
       #   raise error
       # end
-      params = event.fetch('queryStringParameters', {})
-      pi_names = params.fetch('pi_names', '')
-      project_num = params.fetch('project', '')
-      opportunity_nbr = params.fetch('opportunity', '')
-      title = params.fetch('keyword', '')
-      fiscal_years = params.fetch('years', (Date.today.year..Date.today.year - 3).to_a.join(','))
-      fiscal_years = fiscal_years.split(',').map(&:to_i)
-      return Responder.respond(status: 400, errors: MSG_BAD_ARGS) if (project_num.nil? || project_num.empty?) &&
-                                                                     (pi_names.nil? || pi_names.empty?)
+      params = _parse_params(event: event)
+      continue = params[:project_num].length.positive? || params[:pi_names].length.positive?
+      return _respond(status: 400, errors: [MSG_BAD_ARGS], event: event) unless continue
 
       # Debug, output the incoming Event and Context
-      debug = SsmReader.debug_mode?
+      debug = Uc3DmpApiCore::SsmReader.debug_mode?
       pp event if debug
       pp context if debug
 
-      # TODO: Update the User-Agent to include the domain url and the admin email (from SSM)
+      body = _prepare_data(
+        years: params[:fiscal_years],
+        pi_names: _prepare_pi_names_for_search(pi_names: params[:pi_names]),
+        opportunity_nbrs: [params[:opportunity_nbr]],
+        project_nums: [params[:project_num]]
+      )
 
-      opts = {
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'User-Agent': "DMPTool"
-        },
-        body: prepare_data(
-          years: fiscal_years,
-          pi_names: prepare_pi_names_for_search(pi_names: pi_names),
-          opportunity_nbrs: [opportunity_nbr],
-          project_nums: [project_num]
-        ),
-        follow_redirects: true,
-        limit: 6
-      }
-      opts[:debug_output] = $stdout if debug
-
-      resp = HTTParty.post(API_BASE_URL, opts)
-      if resp.body.nil? || resp.body.empty? || resp.code != 200
-        Responder.log_error(source: SOURCE, message: "Error from NIH API: #{resp.code}", details: resp.body)
-        return Responder.respond(status: 500, errors: Messages::MSG_SERVER_ERROR, event: event)
+      resp = Uc3DmpExternalApi::Client.call(url: API_BASE_URL, method: :post, body: body, debug: true) # debug)
+      if resp.nil? || resp.to_s.strip.empty?
+        Uc3DmpApiCore::Responder.log_error(source: SOURCE, message: MSG_EMPTY_RESPONSE, details: resp)
+        return _respond(status: 404, items: [], event: event)
       end
 
-      results = transform_response(response_body: resp.body)
-      return Responder.respond(status: 404, items: []) unless results.any?
+      puts "BEFORE: #{resp.class.name}"
+      puts resp
 
-      Responder.respond(status: 200, items: results.compact.uniq)
-    rescue URI::InvalidURIError
-      Responder.log_error(source: SOURCE, message: "Invalid URI, #{API_BASE_URL}", details: e.backtrace)
-      return Responder.respond(status: 500, errors: Messages::MSG_SERVER_ERROR, event: event)
-    rescue HTTParty::Error => e
-      Responder.log_error(source: SOURCE, message: "HTTParty error: #{e.message}", details: e.backtrace)
-      return Responder.respond(status: 500, errors: Messages::MSG_SERVER_ERROR, event: event)
-    rescue JSON::ParserError => e
-      Responder.log_error(source: SOURCE, message: 'Error from NIH API JSON response!', details: resp&.body)
-      return Responder.respond(status: 500, errors: Messages::MSG_SERVER_ERROR, event: event)
+      results = _transform_response(response_body: resp)
+      _respond(status: 200, items: results.compact.uniq, event: event)
+    rescue Uc3DmpExternalApi::ExternalApiError => e
+      _respond(status: 500, errors: [Uc3DmpApiCore::MSG_SERVER_ERROR], event: event)
     rescue Aws::Errors::ServiceError => e
-      Responder.log_error(source: SOURCE, message: e.message, details: e.backtrace)
-      return Responder.respond(status: 500, errors: Messages::MSG_SERVER_ERROR, event: event)
+      _respond(status: 500, errors: [Uc3DmpApiCore::MSG_SERVER_ERROR], event: event)
     rescue StandardError => e
-      # Just do a print here (ends up in CloudWatch) in case it was the responder.rb that failed
+      # Just do a print here (ends up in CloudWatch) in case it was the Uc3DmpApiCore::Responder.rb that failed
       puts "#{SOURCE} FATAL: #{e.message}"
       puts e.backtrace
-      { statusCode: 500, body: { errors: [Messages::MSG_SERVER_ERROR] }.to_json }
+      { statusCode: 500, body: { errors: [Uc3DmpApiCore::MSG_SERVER_ERROR] }.to_json }
     end
 
     private
 
     class << self
+      # Parse the incoming query string arguments
+      def _parse_params(event:)
+        params = event.fetch('queryStringParameters', {})
+        fiscal_years = params.fetch('years', (Date.today.year..Date.today.year - 3).to_a.join(','))
+        {
+          project_num: params.fetch('project', ''),
+          opportunity_nbr: params.fetch('opportunity', ''),
+          pi_names: params.fetch('pi_names', ''),
+          title: params.fetch('keyword', ''),
+          fiscal_years: fiscal_years.split(',').map(&:to_i)
+        }
+      end
+
       # Convert the provided PI names into API criteria
-      def prepare_pi_names_for_search(pi_names:)
+      def _prepare_pi_names_for_search(pi_names:)
         names = pi_names.split(',')
         names = names.map do |name|
           parts = name.split('+')
@@ -141,7 +127,7 @@ module Functions
       end
 
       # Prepare the API payload
-      def prepare_data(years:, pi_names: [], opportunity_nbrs: [], project_nums: [])
+      def _prepare_data(years:, pi_names: [], opportunity_nbrs: [], project_nums: [])
         {
           criteria: {
             use_relevance: true,
@@ -156,7 +142,7 @@ module Functions
       end
 
       # Convert the PI info from the response into "Last, First"
-      def pi_from_response(hash:)
+      def _pi_from_response(hash:)
         if hash['last_name'].nil?
           full_name_parts = hash['full_name'].split(' ')
           nm = "#{full_name_parts.last}, #{full_name_parts[0..full_name_parts.length - 2].join(' ')}"
@@ -222,9 +208,10 @@ module Functions
       #     }
       #   ]
       # }
-      def transform_response(response_body:)
-        json = JSON.parse(response_body)
-        json['results'].map do |result|
+      def _transform_response(response_body:)
+        return [] unless response_body.is_a?(Hash)
+
+        response_body['results'].map do |result|
           next if result['project_title'].nil? || result['appl_id'].nil? || result['principal_investigators'].nil?
 
           contact_pi = result['principal_investigators'].select { |pi| pi['is_contact_pi'] }.first
@@ -246,10 +233,18 @@ module Functions
                 }
               ]
             },
-            contact: pi_from_response(hash: contact_pi),
-            contributor: other_pis.map { |pi_hash| pi_from_response(hash: pi_hash) }
+            contact: _pi_from_response(hash: contact_pi),
+            contributor: other_pis.map { |pi_hash| _pi_from_response(hash: pi_hash) }
           }
         end
+      end
+
+      # Send the output to the Responder
+      def _respond(status:, items: [], errors: [], event: {}, params: {})
+        Uc3DmpApiCore::Responder.respond(
+          status: status, items: items, errors: errors, event: event,
+          page: params['page'], per_page: params['per_page']
+        )
       end
     end
   end

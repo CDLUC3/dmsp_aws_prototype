@@ -566,6 +566,7 @@ Resources:
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env
+          DOMAIN: !Ref DomainName
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
           CORS_METHODS: 'GET'
           CORS_HEADERS: !Ref CorsHeaders
@@ -605,6 +606,7 @@ Resources:
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env
+          DOMAIN: !Ref DomainName
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
           CORS_METHODS: 'GET'
           CORS_HEADERS: !Ref CorsHeaders
@@ -643,6 +645,7 @@ Resources:
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env
+          DOMAIN: !Ref DomainName
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
           CORS_METHODS: 'GET'
           CORS_HEADERS: !Ref CorsHeaders
