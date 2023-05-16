@@ -7,6 +7,11 @@ source 'https://rubygems.org'
 gem 'httparty'
 gem 'json-schema'
 
+gem 'uc3-dmp-api-core'
+gem 'uc3-dmp-id'
+gem 'uc3-dmp-provenance'
+gem 'uc3-dmp-s3'
+
 # This is required to sign events published to EventBridge. The aws-crt is not automatically
 # available to the Lambdas so we install here in the layer
 # gem 'aws-sigv4', '1.4.1.crt'
