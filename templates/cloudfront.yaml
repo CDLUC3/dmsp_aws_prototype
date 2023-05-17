@@ -152,7 +152,7 @@ Resources:
         Staging: 'false'
         ViewerCertificate:
           AcmCertificateArn: !Ref CertificateArn
-          MinimumProtocolVersion: 'TLSv1'
+          MinimumProtocolVersion: 'TLSv1.2_2018'
           SslSupportMethod: 'sni-only'
         WebACLId: !Ref WafArn
 
