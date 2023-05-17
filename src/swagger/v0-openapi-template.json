@@ -215,6 +215,33 @@
     "schemas": {
       "Dmp": {},
 
+      "PdfMetadata": {
+        "type": "object",
+        "properties": {
+          "descriptor": {
+            "type": "string",
+            "title": "How the DMP ID relates to the PDF document (currently only supports is_metadata_for)",
+            "example": "is_metadata_for"
+          },
+          "work_type": {
+            "type": "string",
+            "title": "The type of PDF document (currently only supports output_management_plan)",
+            "example": "output_management_plan"
+          },
+          "type": {
+            "type": "string",
+            "title": "The type of identifier (currently only supports url)",
+            "example": "url"
+          },
+          "identifier": {
+            "type": "string",
+            "title": "The download uri for the PDF document",
+            "example": "https://api.dmphub-dev.cdlib.org/narratives/1234567890.pdf"
+          }
+        },
+        "required": ["descriptor", "work_type", "type", "identifier"]
+      },
+
       "User": {
         "type": "object",
         "title": "A DMPTool user",
@@ -585,6 +612,122 @@
                 }
               }
             }
+          },
+          "Wip": {
+            "type": "object",
+            "properties": {
+              "contact": {
+                "$ref": "#/components/schemas/contact"
+              },
+              "contributor": {
+                "$ref": "#/components/schemas/contributor"
+              },
+              "dataset": {
+                "type": "array",
+                "description": "Array of research outputs",
+                "items": {
+                  "type": "object",
+                  "description": "A research output",
+                  "properties": {
+                    "distribution": {
+                      "type": "array",
+                      "description": "Array of repositories the research output will be distributed to",
+                      "items": {
+                        "type": "object",
+                        "description": "A distribution of the research output",
+                        "properties": {
+                          "host": {
+                            "$ref": "#/components/schemas/Repository"
+                          },
+                          "personal_data": {
+                            "type": "string",
+                            "description": "Whether or not the research output will contain personal data PII",
+                            "example": "yes"
+                          },
+                          "sensitive_data": {
+                            "type": "string",
+                            "description": "Whether or not the research output will contain sensitve data",
+                            "example": "no"
+                          },
+                          "title": {
+                            "type": "string",
+                            "description": "The title of the research output",
+                            "example": "Recordings of crickets in late summer"
+                          },
+                          "type": {
+                            "type": "string",
+                            "description": "The type of the research output",
+                            "example": "image"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "dmphub_wip_id": {
+                "type": "object",
+                "description": "The link to the related PDF narrative document",
+                "properties": {
+                  "identifier": {
+                    "type": "string",
+                    "description": "The value of the identifier (first 8 characters are the date)",
+                    "example": "20230518H654GE9M"
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": ["other"],
+                    "description": "Identifier type. Allowed values: other",
+                    "example": "other"
+                  }
+                }
+              },
+              "dmproadmap_privacy": {
+                "type": "string",
+                "description": "The DMPs visibility setting (valid values: 'public' or 'private')",
+                "example": "public"
+              },
+              "dmproadmap_related_identifiers": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "description": "The link to the related PDF narrative document",
+                  "properties": {
+                    "work_type": {
+                      "type": "string",
+                      "enum": ["output_management_plan"],
+                      "description": "Work type. Allowed values: output_management_plan",
+                      "example": "output_management_plan"
+                    },
+                    "descriptor": {
+                      "type": "string",
+                      "enum": ["is_metadata_for"],
+                      "description": "Descriptor of how the DMP relates to the narrative PDF. Allowed values: is_metadata_for",
+                      "example": "is_metadata_for"
+                    },
+                    "identifier": {
+                      "type": "string",
+                      "description": "The value of the identifier",
+                      "example": "https://api.dmphub-dev.cdlib.org/narratives/12345abcdef.pdf"
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": ["url"],
+                      "description": "Identifier type. Allowed values: url",
+                      "example": "url"
+                    }
+                  }
+                }
+              },
+              "project": {
+                "$ref": "#/components/schemas/Project"
+              },
+              "title": {
+                "type": "string",
+                "description": "The Title of the DMP (usually the same as the project title"
+              }
+            },
+            "required": ["title"]
           }
         }
       },
@@ -820,6 +963,27 @@
                 "description": "The project, award and contributor information",
                 "items": {
                   "$ref": "#/components/schemas/Project"
+                }
+              }
+            }
+          }
+        ]
+      },
+
+      "PdfResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/StandardResponse"
+          },
+          {
+            "type": "object",
+            "required": ["items"],
+            "properties": {
+              "items": {
+                "type": "array",
+                "description": "The uploaded PDF's metadata",
+                "items": {
+                  "$ref": "#/components/schemas/PdfMetadata"
                 }
               }
             }
@@ -1171,6 +1335,171 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AwardResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StandardErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "/wips": {
+      "servers": [
+        {
+          "description": "DMPHub development instance",
+          "url": "https://api.dmphub-dev.cdlib.org"
+        }
+      ],
+      "post": {
+        "tags": [
+          "UI support operations"
+        ],
+        "operationId": "PostWips",
+        "description": "Create a Work In Progress (WIP) DMP",
+        "security": [
+          {
+            "Authorizer": [
+              "https://auth.dmphub-dev.cdlib.org/dev.write"
+            ]
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Wip"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The metadata of the uploaded PDF document including its download URL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PdfResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StandardErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "/narratives/{narrativeId}": {
+      "servers": [
+        {
+          "description": "DMPHub development instance",
+          "url": "https://api.dmphub-dev.cdlib.org"
+        }
+      ],
+      "get": {
+        "tags": [
+          "UI support operations"
+        ],
+        "operationId": "GetNarrative",
+        "description": "Download the DMP narrative document",
+        "parameters": [
+          {
+            "name": "narrativeId",
+            "in": "path",
+            "description": "The Narrative Id",
+            "example": "abcdefg12345.pdf",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The DMP narrative document",
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "base64"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StandardErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "/narratives": {
+      "servers": [
+        {
+          "description": "DMPHub development instance",
+          "url": "https://api.dmphub-dev.cdlib.org"
+        }
+      ],
+      "post": {
+        "tags": [
+          "UI support operations"
+        ],
+        "operationId": "PostNarratives",
+        "description": "Uploads the specified PDF document",
+        "security": [
+          {
+            "Authorizer": [
+              "https://auth.dmphub-dev.cdlib.org/dev.upload"
+            ]
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The metadata of the uploaded PDF document including its download URL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PdfResponse"
                 }
               }
             }

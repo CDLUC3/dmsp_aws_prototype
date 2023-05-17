@@ -21,7 +21,6 @@ Gem::Specification.new do |spec|
 
   spec.add_runtime_dependency('json', '~> 2.6')
   spec.add_runtime_dependency('json-schema', '~> 3.0')
-  spec.add_runtime_dependency('logger', '~> 1.4')
 
   spec.add_runtime_dependency('uc3-dmp-dynamo', '~> 0.0')
 

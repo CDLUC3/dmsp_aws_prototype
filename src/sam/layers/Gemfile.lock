@@ -107,7 +107,7 @@ GEM
       json (~> 2.6)
       logger (~> 1.4)
       uc3-dmp-dynamo (~> 0.0)
-    uc3-dmp-s3 (0.0.1)
+    uc3-dmp-s3 (0.0.2)
       aws-sdk-s3 (~> 1.119)
       base64 (~> 0.1)
       cgi (~> 0.3)

@@ -19,7 +19,6 @@ Gem::Specification.new do |spec|
   spec.require_paths = ['lib']
   spec.required_ruby_version = '>= 2.7'
 
-  spec.add_runtime_dependency('active_record_simple_execute', '~> 0.9.1')
   spec.add_runtime_dependency('aws-sdk-sns', '~> 1.60')
   spec.add_runtime_dependency('aws-sdk-ssm', '~> 1.150')
   spec.add_runtime_dependency('json', '~> 2.6')

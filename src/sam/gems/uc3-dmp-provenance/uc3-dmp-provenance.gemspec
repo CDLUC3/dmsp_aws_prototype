@@ -20,7 +20,6 @@ Gem::Specification.new do |spec|
   spec.required_ruby_version = '>= 2.7'
 
   spec.add_runtime_dependency('json', '~> 2.6')
-  spec.add_runtime_dependency('logger', '~> 1.4')
 
   spec.add_runtime_dependency('uc3-dmp-cognito', '~> 0.0')
   spec.add_runtime_dependency('uc3-dmp-dynamo', '~> 0.0')

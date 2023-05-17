@@ -265,6 +265,9 @@ Resources:
       StageName: 'v0'
       OpenApiVersion: '3.0.1'
       TracingEnabled: true
+      BinaryMediaTypes:
+        - 'application/pdf'
+        - 'multipart/form-data'
       Auth:
         AddDefaultAuthorizerToCorsPreflight: false
         Authorizers:
@@ -495,7 +498,7 @@ Resources:
         "--platform": 'linux/arm64/v8'
 
   # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
-  GetrepositoriesFunction:
+  GetRepositoriesFunction:
     Type: 'AWS::Serverless::Function'
     Properties:
       PackageType: 'Image'
@@ -662,6 +665,133 @@ Resources:
               Authorizer: 'DmpHubCognitoAuthorizer'
               AuthorizationScopes:
                 - !Sub 'https://auth.${DomainName}/${Env}.read'
+
+  # Create a Work in Progress (WIP) DMP
+  PostWipsFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      PackageType: 'Image'
+      Timeout: 60
+      Architectures:
+        - 'x86_64'
+      Policies:
+        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonRDSDataFullAccess'
+      DeadLetterQueue:
+        Type: 'SQS'
+        TargetArn: !Ref DeadLetterQueueArn
+      Environment:
+        Variables:
+          DATABASE_HOST: !Ref RdsHost
+          DATABASE_PORT: !Ref RdsPort
+          DATABASE_NAME: !Ref RdsDbName
+          LAMBDA_ENV: !Ref Env
+          SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
+          CORS_METHODS: 'GET'
+          CORS_HEADERS: !Ref CorsHeaders
+          CORS_ORIGIN: !Sub "https://${DomainName}"
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecGroup
+        SubnetIds:
+          - !Ref SubnetA
+          - !Ref SubnetB
+          - !Ref SubnetC
+      Events:
+        PostWips:
+          # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Type: 'Api'
+          Properties:
+            RestApiId: !Ref DmpHubRestApi
+            Path: '/wips'
+            Method: 'post'
+            Auth:
+              Authorizer: 'DmpHubCognitoAuthorizer'
+              AuthorizationScopes:
+                - !Sub 'https://auth.${DomainName}/${Env}.write'
+    Metadata:
+      DockerTag: 'postWips-v0'
+      DockerContext: 'functions/post_wips/'
+      Dockerfile: 'Dockerfile'
+      DockerBuildArgs:
+        "--platform": 'linux/arm64/v8'
+
+  GetNarrativeFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      CodeUri: 'functions/get_narrative/'
+      Handler: 'app.Functions::GetNarrative.process'
+      Runtime: 'ruby2.7'
+      Timeout: 5
+      Architectures:
+        - 'x86_64'
+      Layers:
+        - !Ref LambdaLayer
+      Policies:
+        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonS3FullAccess'
+      DeadLetterQueue:
+        Type: 'SQS'
+        TargetArn: !Ref DeadLetterQueueArn
+      Environment:
+        Variables:
+          LAMBDA_ENV: !Ref Env
+          S3_BUCKET: !Ref S3CloudFrontBucketArn
+          SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
+          CORS_METHODS: 'GET'
+          CORS_HEADERS: !Ref CorsHeaders
+          CORS_ORIGIN: !Sub "https://${DomainName}"
+      Events:
+        GetNarrative:
+          # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Type: 'Api'
+          Properties:
+            RestApiId: !Ref DmpHubRestApi
+            Path: '/narratives/{narrative_id+}'
+            Method: 'get'
+            Auth:
+              Authorizer: 'NONE'
+
+  PostNarrativesFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      CodeUri: 'functions/post_narratives/'
+      Handler: 'app.Functions::PostNarratives.process'
+      Runtime: 'ruby2.7'
+      Timeout: 5
+      Architectures:
+        - 'x86_64'
+      Layers:
+        - !Ref LambdaLayer
+      Policies:
+        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonS3FullAccess'
+      DeadLetterQueue:
+        Type: 'SQS'
+        TargetArn: !Ref DeadLetterQueueArn
+      Environment:
+        Variables:
+          LAMBDA_ENV: !Ref Env
+          S3_BUCKET: !Ref S3CloudFrontBucketArn
+          SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
+          CORS_METHODS: 'GET'
+          CORS_HEADERS: !Ref CorsHeaders
+          CORS_ORIGIN: !Sub "https://${DomainName}"
+      Events:
+        PostNarratives:
+          # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Type: 'Api'
+          Properties:
+            RestApiId: !Ref DmpHubRestApi
+            Path: '/narratives'
+            Method: 'post'
+            Auth:
+              Authorizer: 'DmpHubCognitoAuthorizer'
+              AuthorizationScopes:
+                - !Sub 'https://auth.${DomainName}/${Env}.upload'
 
   # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
   GetMeFunction:

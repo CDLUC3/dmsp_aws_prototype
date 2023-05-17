@@ -51,8 +51,8 @@ if ARGV.length == 2
     end
 
     # Convert the DMP Json Schema to OpenApi format
-    p 'Converting JSON schema in ../sam/layers/ruby/config/author.json to OpenApi format ...'
-    conversion_output = `yarn run json-schema-to-openapi-schema convert ../sam/layers/ruby/config/author.json`
+    p 'Converting JSON schema in ../sam/gems/uc3-dmp-id/lib/schemas/author.json to OpenApi format ...'
+    conversion_output = `yarn run json-schema-to-openapi-schema convert ../sam/gems/uc3-dmp-id/lib/schemas/author.json`
     conversion_output = conversion_output.split(/\n/)[2]
     begin
       dmp_component = JSON.parse(conversion_output)
