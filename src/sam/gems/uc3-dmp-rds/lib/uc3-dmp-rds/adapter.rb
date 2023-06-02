@@ -2,8 +2,6 @@
 
 require 'active_record'
 require 'active_record_simple_execute'
-require 'aws-sdk-sns'
-require 'aws-sdk-ssm'
 require 'mysql2'
 
 module Uc3DmpRds
@@ -24,6 +22,7 @@ module Uc3DmpRds
     MSG_MISSING_CREDENTIALS = 'No username and/or password specified'
     MSG_UNABLE_TO_CONNECT = 'Unable to establish a connection'
     MSG_UNABLE_TO_QUERY = 'Unable to process the query'
+    MSG_UNAUTHORIZED = 'You are not authorized to perform that action'
 
     class << self
       # Connect to the RDS instance

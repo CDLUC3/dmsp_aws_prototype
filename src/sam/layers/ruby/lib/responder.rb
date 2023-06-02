@@ -41,11 +41,7 @@ class Responder
       per_page = args[:per_page] || DEFAULT_PER_PAGE
 
       unless ENV['CORS_ORIGIN'].nil?
-        cors_headers = {
-          'Access-Control-Allow-Headers': ENV['CORS_HEADERS'],
-          'Access-Control-Allow-Origin': ENV['CORS_ORIGIN'],
-          'Access-Control-Allow-Methods': ENV['CORS_METHODS']
-        }
+        cors_headers = { 'access-control-allow-origin': ENV['CORS_ORIGIN'] }
       end
 
       body = {

@@ -1,5 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: 'AWS::Serverless-2016-10-31'
+
 Description: >
   dmp-hub-sam
 
@@ -70,9 +71,9 @@ Parameters:
     Type: 'Number'
     Default: 7
 
-  CorsHeaders:
-    Type: 'String'
-    Default: 'Accept, Authorization, Content-Type, Origin, Referer, User-Agent'
+Conditions:
+  IsDev:
+    !Equals [!Ref Env, 'dev']
 
 Resources:
   # -----------------------------------------------------------
@@ -228,6 +229,46 @@ Resources:
     Properties:
       RetentionInDays: !Ref LogRetentionDays
 
+  # Lambda Function to handle User Auth via API Token. This function is used as an Authorizer by the API
+  UserTokenFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      PackageType: 'Image'
+      Timeout: 60
+      Architectures:
+        - 'x86_64'
+      Policies:
+        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonRDSDataFullAccess'
+      DeadLetterQueue:
+        Type: 'SQS'
+        TargetArn: !Ref DeadLetterQueueArn
+      Environment:
+        Variables:
+          DATABASE_HOST: !Ref RdsHost
+          DATABASE_PORT: !Ref RdsPort
+          DATABASE_NAME: !Ref RdsDbName
+          LAMBDA_ENV: !Ref Env
+          SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
+          CORS_ORIGIN: !If
+            - IsDev
+            - "*"
+            - !Sub "https://${DomainName}"
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecGroup
+        SubnetIds:
+          - !Ref SubnetA
+          - !Ref SubnetB
+          - !Ref SubnetC
+    Metadata:
+      DockerTag: 'userTokenAuth-v0'
+      DockerContext: 'functions/user_token_auth/'
+      Dockerfile: 'Dockerfile'
+      DockerBuildArgs:
+        "--platform": 'linux/arm64/v8'
+
   # ----------------------------------------------------
   # API Definition
   #  see: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-resource-api.html
@@ -243,13 +284,16 @@ Resources:
       # CacheClusterEnabled: true
       # CacheClusterSize: '0.5' # .5 GB
 
+      # Values here need to be wrapped in single quotes, but the ENV variables passed into the
+      # Lambdas do not! For example, "'GET,PUT'" defined here should be "GET, PUT" when passed
+      # into the Lambdas as an ENV!
       Cors:
-        # Values here need to be wrapped in single quotes, but the ENV variables passed into the
-        # Lambdas do not! For example, "'GET,PUT'" defined here should be "GET, PUT" when passed
-        # into the Lambdas as an ENV!
-        AllowOrigin: !Sub "'https://${DomainName}'"
-        AllowHeaders: !Sub "'${CorsHeaders}'"
-        AllowMethods: "'DELETE, GET, OPTIONS, PATCH, POST, PUT'"
+        AllowHeaders: !Sub "'Accept, Authorization, Content-Type, Origin, Referer, User-Agent'"
+        AllowMethods: "'GET, PUT, POST, DELETE, OPTIONS'"
+        AllowOrigin: !If
+        - IsDev
+        - "'*'"
+        - !Sub "'https://${DomainName}'"
 
       DisableExecuteApiEndpoint: true
       Domain:
@@ -271,6 +315,8 @@ Resources:
       Auth:
         AddDefaultAuthorizerToCorsPreflight: false
         Authorizers:
+          UserTokenAuthorizer:
+            FunctionArn: !GetAtt UserTokenFunction.Arn
           DmpHubCognitoAuthorizer:
             UserPoolArn: !Ref CognitoUserPoolArn
             AuthType: 'COGNITO_USER_POOLS'
@@ -340,9 +386,10 @@ Resources:
           DOMAIN: !Ref DomainName
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
           EVENT_BUS_NAME: !Ref EventBusArn
-          CORS_METHODS: 'DELETE'
-          CORS_HEADERS: !Ref CorsHeaders
-          CORS_ORIGIN: !Sub "https://${DomainName}"
+          CORS_ORIGIN: !If
+            - IsDev
+            - "*"
+            - !Sub "https://${DomainName}"
       Events:
         DeleteDmps:
           # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
@@ -381,9 +428,10 @@ Resources:
         Variables:
           LAMBDA_ENV: !Ref Env
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
-          CORS_METHODS: 'GET'
-          CORS_HEADERS: !Ref CorsHeaders
-          CORS_ORIGIN: !Sub "https://${DomainName}"
+          CORS_ORIGIN: !If
+            - IsDev
+            - "*"
+            - !Sub "https://${DomainName}"
       Events:
         GetDmp:
           # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
@@ -417,9 +465,10 @@ Resources:
           DATABASE_NAME: !Ref RdsDbName
           LAMBDA_ENV: !Ref Env
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
-          CORS_METHODS: 'GET'
-          CORS_HEADERS: !Ref CorsHeaders
-          CORS_ORIGIN: !Sub "https://${DomainName}"
+          CORS_ORIGIN: !If
+            - IsDev
+            - "*"
+            - !Sub "https://${DomainName}"
       VpcConfig:
         SecurityGroupIds:
           - !Ref LambdaSecGroup
@@ -436,9 +485,7 @@ Resources:
             Path: '/funders'
             Method: 'get'
             Auth:
-              Authorizer: 'DmpHubCognitoAuthorizer'
-              AuthorizationScopes:
-                - !Sub 'https://auth.${DomainName}/${Env}.read'
+              Authorizer: 'UserTokenAuthorizer'
     Metadata:
       DockerTag: 'getFunders-v0'
       DockerContext: 'functions/get_funders/'
@@ -468,9 +515,10 @@ Resources:
           DATABASE_NAME: !Ref RdsDbName
           LAMBDA_ENV: !Ref Env
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
-          CORS_METHODS: 'GET'
-          CORS_HEADERS: !Ref CorsHeaders
-          CORS_ORIGIN: !Sub "https://${DomainName}"
+          CORS_ORIGIN: !If
+            - IsDev
+            - "*"
+            - !Sub "https://${DomainName}"
       VpcConfig:
         SecurityGroupIds:
           - !Ref LambdaSecGroup
@@ -479,7 +527,7 @@ Resources:
           - !Ref SubnetB
           - !Ref SubnetC
       Events:
-        GetFunders:
+        GetOrgs:
           # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
           Type: 'Api'
           Properties:
@@ -487,9 +535,7 @@ Resources:
             Path: '/orgs'
             Method: 'get'
             Auth:
-              Authorizer: 'DmpHubCognitoAuthorizer'
-              AuthorizationScopes:
-                - !Sub 'https://auth.${DomainName}/${Env}.read'
+              Authorizer: 'UserTokenAuthorizer'
     Metadata:
       DockerTag: 'getOrgs-v0'
       DockerContext: 'functions/get_orgs/'
@@ -519,9 +565,10 @@ Resources:
           DATABASE_NAME: !Ref RdsDbName
           LAMBDA_ENV: !Ref Env
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
-          CORS_METHODS: 'GET'
-          CORS_HEADERS: !Ref CorsHeaders
-          CORS_ORIGIN: !Sub "https://${DomainName}"
+          CORS_ORIGIN: !If
+            - IsDev
+            - "*"
+            - !Sub "https://${DomainName}"
       VpcConfig:
         SecurityGroupIds:
           - !Ref LambdaSecGroup
@@ -538,9 +585,7 @@ Resources:
             Path: '/repositories'
             Method: 'get'
             Auth:
-              Authorizer: 'DmpHubCognitoAuthorizer'
-              AuthorizationScopes:
-                - !Sub 'https://auth.${DomainName}/${Env}.read'
+              Authorizer: 'UserTokenAuthorizer'
     Metadata:
       DockerTag: 'getRepositories-v0'
       DockerContext: 'functions/get_repositories/'
@@ -571,11 +616,12 @@ Resources:
           LAMBDA_ENV: !Ref Env
           DOMAIN: !Ref DomainName
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
-          CORS_METHODS: 'GET'
-          CORS_HEADERS: !Ref CorsHeaders
-          CORS_ORIGIN: !Sub "https://${DomainName}"
+          CORS_ORIGIN: !If
+            - IsDev
+            - "*"
+            - !Sub "https://${DomainName}"
       Events:
-        GetAwardsNsf:
+        GetAwardsCrossref:
           # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
           Type: 'Api'
           Properties:
@@ -583,9 +629,7 @@ Resources:
             Path: '/awards/crossref/{funder_id}'
             Method: 'get'
             Auth:
-              Authorizer: 'DmpHubCognitoAuthorizer'
-              AuthorizationScopes:
-                - !Sub 'https://auth.${DomainName}/${Env}.read'
+              Authorizer: 'UserTokenAuthorizer'
 
   # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
   GetAwardsNihApiFunction:
@@ -611,9 +655,10 @@ Resources:
           LAMBDA_ENV: !Ref Env
           DOMAIN: !Ref DomainName
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
-          CORS_METHODS: 'GET'
-          CORS_HEADERS: !Ref CorsHeaders
-          CORS_ORIGIN: !Sub "https://${DomainName}"
+          CORS_ORIGIN: !If
+            - IsDev
+            - "*"
+            - !Sub "https://${DomainName}"
       Events:
         GetAwardsNih:
           # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
@@ -623,9 +668,7 @@ Resources:
             Path: '/awards/nih'
             Method: 'get'
             Auth:
-              Authorizer: 'DmpHubCognitoAuthorizer'
-              AuthorizationScopes:
-                - !Sub 'https://auth.${DomainName}/${Env}.read'
+              Authorizer: 'UserTokenAuthorizer'
 
   GetAwardsNsfApiFunction:
     Type: 'AWS::Serverless::Function'
@@ -650,9 +693,10 @@ Resources:
           LAMBDA_ENV: !Ref Env
           DOMAIN: !Ref DomainName
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
-          CORS_METHODS: 'GET'
-          CORS_HEADERS: !Ref CorsHeaders
-          CORS_ORIGIN: !Sub "https://${DomainName}"
+          CORS_ORIGIN: !If
+            - IsDev
+            - "*"
+            - !Sub "https://${DomainName}"
       Events:
         GetAwardsNsf:
           # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
@@ -662,9 +706,107 @@ Resources:
             Path: '/awards/nsf'
             Method: 'get'
             Auth:
-              Authorizer: 'DmpHubCognitoAuthorizer'
-              AuthorizationScopes:
-                - !Sub 'https://auth.${DomainName}/${Env}.read'
+              Authorizer: 'UserTokenAuthorizer'
+
+  # Get a Work in Progress (WIP) DMP
+  GetWipsFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      PackageType: 'Image'
+      Timeout: 60
+      Architectures:
+        - 'x86_64'
+      Policies:
+        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonRDSDataFullAccess'
+      DeadLetterQueue:
+        Type: 'SQS'
+        TargetArn: !Ref DeadLetterQueueArn
+      Environment:
+        Variables:
+          DATABASE_HOST: !Ref RdsHost
+          DATABASE_PORT: !Ref RdsPort
+          DATABASE_NAME: !Ref RdsDbName
+          LAMBDA_ENV: !Ref Env
+          SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
+          CORS_ORIGIN: !If
+            - IsDev
+            - "*"
+            - !Sub "https://${DomainName}"
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecGroup
+        SubnetIds:
+          - !Ref SubnetA
+          - !Ref SubnetB
+          - !Ref SubnetC
+      Events:
+        GetWips:
+          # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Type: 'Api'
+          Properties:
+            RestApiId: !Ref DmpHubRestApi
+            Path: '/wips'
+            Method: 'get'
+            Auth:
+              Authorizer: 'UserTokenAuthorizer'
+    Metadata:
+      DockerTag: 'getWips-v0'
+      DockerContext: 'functions/get_wips/'
+      Dockerfile: 'Dockerfile'
+      DockerBuildArgs:
+        "--platform": 'linux/arm64/v8'
+
+  # Get a Work in Progress (WIP) DMP
+  GetWipFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      PackageType: 'Image'
+      Timeout: 60
+      Architectures:
+        - 'x86_64'
+      Policies:
+        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonRDSDataFullAccess'
+      DeadLetterQueue:
+        Type: 'SQS'
+        TargetArn: !Ref DeadLetterQueueArn
+      Environment:
+        Variables:
+          DATABASE_HOST: !Ref RdsHost
+          DATABASE_PORT: !Ref RdsPort
+          DATABASE_NAME: !Ref RdsDbName
+          LAMBDA_ENV: !Ref Env
+          SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
+          CORS_ORIGIN: !If
+            - IsDev
+            - "*"
+            - !Sub "https://${DomainName}"
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecGroup
+        SubnetIds:
+          - !Ref SubnetA
+          - !Ref SubnetB
+          - !Ref SubnetC
+      Events:
+        GetWip:
+          # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Type: 'Api'
+          Properties:
+            RestApiId: !Ref DmpHubRestApi
+            Path: '/wips/{wip_id+}'
+            Method: 'get'
+            Auth:
+              Authorizer: 'UserTokenAuthorizer'
+    Metadata:
+      DockerTag: 'getWip-v0'
+      DockerContext: 'functions/get_wip/'
+      Dockerfile: 'Dockerfile'
+      DockerBuildArgs:
+        "--platform": 'linux/arm64/v8'
 
   # Create a Work in Progress (WIP) DMP
   PostWipsFunction:
@@ -688,9 +830,10 @@ Resources:
           DATABASE_NAME: !Ref RdsDbName
           LAMBDA_ENV: !Ref Env
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
-          CORS_METHODS: 'GET'
-          CORS_HEADERS: !Ref CorsHeaders
-          CORS_ORIGIN: !Sub "https://${DomainName}"
+          CORS_ORIGIN: !If
+            - IsDev
+            - "*"
+            - !Sub "https://${DomainName}"
       VpcConfig:
         SecurityGroupIds:
           - !Ref LambdaSecGroup
@@ -707,12 +850,110 @@ Resources:
             Path: '/wips'
             Method: 'post'
             Auth:
-              Authorizer: 'DmpHubCognitoAuthorizer'
-              AuthorizationScopes:
-                - !Sub 'https://auth.${DomainName}/${Env}.write'
+              Authorizer: 'UserTokenAuthorizer'
     Metadata:
       DockerTag: 'postWips-v0'
       DockerContext: 'functions/post_wips/'
+      Dockerfile: 'Dockerfile'
+      DockerBuildArgs:
+        "--platform": 'linux/arm64/v8'
+
+  # Get a Work in Progress (WIP) DMP
+  PutWipFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      PackageType: 'Image'
+      Timeout: 60
+      Architectures:
+        - 'x86_64'
+      Policies:
+        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonRDSDataFullAccess'
+      DeadLetterQueue:
+        Type: 'SQS'
+        TargetArn: !Ref DeadLetterQueueArn
+      Environment:
+        Variables:
+          DATABASE_HOST: !Ref RdsHost
+          DATABASE_PORT: !Ref RdsPort
+          DATABASE_NAME: !Ref RdsDbName
+          LAMBDA_ENV: !Ref Env
+          SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
+          CORS_ORIGIN: !If
+            - IsDev
+            - "*"
+            - !Sub "https://${DomainName}"
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecGroup
+        SubnetIds:
+          - !Ref SubnetA
+          - !Ref SubnetB
+          - !Ref SubnetC
+      Events:
+        PutWip:
+          # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Type: 'Api'
+          Properties:
+            RestApiId: !Ref DmpHubRestApi
+            Path: '/wips/{wip_id+}'
+            Method: 'put'
+            Auth:
+              Authorizer: 'UserTokenAuthorizer'
+    Metadata:
+      DockerTag: 'putWip-v0'
+      DockerContext: 'functions/put_wip/'
+      Dockerfile: 'Dockerfile'
+      DockerBuildArgs:
+        "--platform": 'linux/arm64/v8'
+
+  # Delete a Work in Progress (WIP) DMP
+  DeleteWipFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      PackageType: 'Image'
+      Timeout: 60
+      Architectures:
+        - 'x86_64'
+      Policies:
+        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonRDSDataFullAccess'
+      DeadLetterQueue:
+        Type: 'SQS'
+        TargetArn: !Ref DeadLetterQueueArn
+      Environment:
+        Variables:
+          DATABASE_HOST: !Ref RdsHost
+          DATABASE_PORT: !Ref RdsPort
+          DATABASE_NAME: !Ref RdsDbName
+          LAMBDA_ENV: !Ref Env
+          SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
+          CORS_ORIGIN: !If
+            - IsDev
+            - "*"
+            - !Sub "https://${DomainName}"
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecGroup
+        SubnetIds:
+          - !Ref SubnetA
+          - !Ref SubnetB
+          - !Ref SubnetC
+      Events:
+        DeleteWip:
+          # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Type: 'Api'
+          Properties:
+            RestApiId: !Ref DmpHubRestApi
+            Path: '/wips/{wip_id+}'
+            Method: 'delete'
+            Auth:
+              Authorizer: 'UserTokenAuthorizer'
+    Metadata:
+      DockerTag: 'deleteWip-v0'
+      DockerContext: 'functions/delete_wip/'
       Dockerfile: 'Dockerfile'
       DockerBuildArgs:
         "--platform": 'linux/arm64/v8'
@@ -740,9 +981,10 @@ Resources:
           LAMBDA_ENV: !Ref Env
           S3_BUCKET: !Ref S3CloudFrontBucketArn
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
-          CORS_METHODS: 'GET'
-          CORS_HEADERS: !Ref CorsHeaders
-          CORS_ORIGIN: !Sub "https://${DomainName}"
+          CORS_ORIGIN: !If
+            - IsDev
+            - "*"
+            - !Sub "https://${DomainName}"
       Events:
         GetNarrative:
           # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
@@ -777,9 +1019,10 @@ Resources:
           LAMBDA_ENV: !Ref Env
           S3_BUCKET: !Ref S3CloudFrontBucketArn
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
-          CORS_METHODS: 'GET'
-          CORS_HEADERS: !Ref CorsHeaders
-          CORS_ORIGIN: !Sub "https://${DomainName}"
+          CORS_ORIGIN: !If
+            - IsDev
+            - "*"
+            - !Sub "https://${DomainName}"
       Events:
         PostNarratives:
           # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
@@ -789,12 +1032,10 @@ Resources:
             Path: '/narratives'
             Method: 'post'
             Auth:
-              Authorizer: 'DmpHubCognitoAuthorizer'
-              AuthorizationScopes:
-                - !Sub 'https://auth.${DomainName}/${Env}.upload'
+              Authorizer: 'UserTokenAuthorizer'
 
   # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
-  GetMeFunction:
+  GetMe:
     Type: 'AWS::Serverless::Function'
     Properties:
       CodeUri: 'functions/get_me/'
@@ -805,16 +1046,22 @@ Resources:
         - 'x86_64'
       Layers:
         - !Ref LambdaLayer
+      Policies:
+        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonRDSDataFullAccess'
       DeadLetterQueue:
         Type: 'SQS'
         TargetArn: !Ref DeadLetterQueueArn
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env
+          DOMAIN: !Ref DomainName
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
-          CORS_METHODS: 'GET'
-          CORS_HEADERS: !Ref CorsHeaders
-          CORS_ORIGIN: !Sub "https://${DomainName}"
+          CORS_ORIGIN: !If
+            - IsDev
+            - "*"
+            - !Sub "https://${DomainName}"
       Events:
         GetMe:
           # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
@@ -824,9 +1071,7 @@ Resources:
             Path: '/me'
             Method: 'get'
             Auth:
-              Authorizer: 'DmpHubCognitoAuthorizer'
-              AuthorizationScopes:
-                - !Sub 'https://auth.${DomainName}/${Env}.read'
+              Authorizer: 'UserTokenAuthorizer'
 
   # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
   GetContributorRolesFunction:
@@ -847,11 +1092,13 @@ Resources:
         Variables:
           LAMBDA_ENV: !Ref Env
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
-          CORS_METHODS: 'GET'
-          CORS_HEADERS: !Ref CorsHeaders
-          CORS_ORIGIN: !Sub "https://${DomainName}"
+          CORS_ORIGIN: '*'
+          CORS_ORIGIN: !If
+            - IsDev
+            - "*"
+            - !Sub "https://${DomainName}"
       Events:
-        GetMe:
+        GetContributorRoles:
           # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
           Type: 'Api'
           Properties:
@@ -859,9 +1106,7 @@ Resources:
             Path: '/contributor_roles'
             Method: 'get'
             Auth:
-              Authorizer: 'DmpHubCognitoAuthorizer'
-              AuthorizationScopes:
-                - !Sub 'https://auth.${DomainName}/${Env}.read'
+              Authorizer: 'UserTokenAuthorizer'
 
   PostDmpsFunction:
     Type: 'AWS::Serverless::Function'
@@ -890,9 +1135,10 @@ Resources:
           DOMAIN: !Ref DomainName
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
           EVENT_BUS_NAME: !Ref EventBusArn
-          CORS_METHODS: 'POST'
-          CORS_HEADERS: !Ref CorsHeaders
-          CORS_ORIGIN: !Sub "https://${DomainName}"
+          CORS_ORIGIN: !If
+            - IsDev
+            - "*"
+            - !Sub "https://${DomainName}"
       Events:
         PostDmps:
           # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
@@ -935,9 +1181,10 @@ Resources:
           DOMAIN: !Ref DomainName
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
           EVENT_BUS_NAME: !Ref EventBusArn
-          CORS_METHODS: 'PUT'
-          CORS_HEADERS: !Ref CorsHeaders
-          CORS_ORIGIN: !Sub "https://${DomainName}"
+          CORS_ORIGIN: !If
+            - IsDev
+            - "*"
+            - !Sub "https://${DomainName}"
       Events:
         PutDmps:
           # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
@@ -973,9 +1220,10 @@ Resources:
         Variables:
           LAMBDA_ENV: !Ref Env
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
-          CORS_METHODS: 'POST'
-          CORS_HEADERS: !Ref CorsHeaders
-          CORS_ORIGIN: !Sub "https://${DomainName}"
+          CORS_ORIGIN: !If
+            - IsDev
+            - "*"
+            - !Sub "https://${DomainName}"
       Events:
         ValidateDmp:
           # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api

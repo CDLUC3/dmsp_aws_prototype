@@ -14,9 +14,9 @@ module Functions
   # The handler for saving Work in Progress (WIP) DMPs
   class PostWips
     SOURCE = 'POST /wips'
-    TABLE = 'wips'
 
-    MSG_INVALID_WIP = 'Unable to save the work in progress (WIP) record. Expected a JSON object'
+    MSG_INVALID_WIP = 'Unable to save the work in progress (WIP) record. Expected a JSON object like /
+                       \'{ "dmp": { "title": "My example DMP", "dmphub_owner": { "mbox": "you@exmzple.com" } } }\''
 
     # Parameters
     # ----------
@@ -58,8 +58,15 @@ module Functions
       # while it is under development. This will eventually be replaced by Cognito or the Rails app.
       # rubocop:disable Metrics/AbcSize
       def process(event:, context:)
-        body = event.fetch('body', '').to_s.strip
-        return _respond(status: 400, errors: [Uc3DmpApiCore::MSG_INVALID_ARGS], event: event) if body.empty?
+        body = event.fetch('body', '{}').to_s.strip
+        principal = event.fetch('requestContext', {}).fetch('authorizer', {})
+        return _respond(status: 401, errors: [Uc3DmpRds::MSG_MISSING_USER], event: event) if principal.nil? ||
+                                                                                             principal['mbox'].nil?
+
+        continue = !body.empty?
+        json = JSON.parse(body) if continue
+        continue = !json.fetch('dmp', {})['title'].nil? if continue
+        return _respond(status: 400, errors: [MSG_INVALID_WIP], event: event) unless continue
 
         # Debug, output the incoming Event and Context
         debug = Uc3DmpApiCore::SsmReader.debug_mode?
@@ -71,11 +78,11 @@ module Functions
         return _respond(status: 500, errors: [Uc3DmpApiCore::MSG_SERVER_ERROR], event: event) unless connected
 
         # Create the Work in Progress (WIP) record
-        wip = _insert(wip: JSON.parse(body))
+        wip = _insert(owner: principal, wip: json)
         return _respond(status: 400, errors: [MSG_INVALID_WIP], event: event) if wip.nil?
 
         # Return the updated WIP record that now contains the :wip_id
-        _respond(status: 200, items: [wip], event: event, params: params)
+        _respond(status: 201, items: [wip], event: event)
       rescue JSON::ParserError
         _respond(status: 500, errors: [Uc3DmpApiCore::MSG_INVALID_WIP], event: event)
       rescue Aws::Errors::ServiceError => e
@@ -92,13 +99,16 @@ module Functions
       private
 
       # Run the search query against the DB and return the raw results
-      def _insert(wip:)
+      def _insert(owner:, wip:)
+        return nil if owner.nil? || owner['id'].nil?
+
         tstamp = Time.now.strftime('%Y-%m-%dT%H:%M:%S')
-        identifier = "#{Time.now.strftime('%Y%m%d')}-#{SecureRandom.hex(6)}"
-        wip['dmphub_wip_id'] = { type: 'other', identifier: identifier }
+        id = "#{Time.now.strftime('%Y%m%d')}-#{SecureRandom.hex(6)}"
+        wip['dmp']['dmphub_wip_id'] = { type: 'other', identifier: id }
+        wip['dmp']['dmphub_owner_id'] = owner['id']
 
         sql_str = <<~SQL.squish
-          INSERT INTO #{TABLE} (identifier, metadata, created_at, updated_at)
+          INSERT INTO wips (identifier, metadata, created_at, updated_at)
           VALUES (:identifier, :metadata, :tstamp, :tstamp)
         SQL
         Uc3DmpRds::Adapter.execute_query(sql: sql_str, identifier: id, metadata: wip.to_json, tstamp: tstamp)
@@ -113,11 +123,8 @@ module Functions
       end
 
       # Send the output to the Responder
-      def _respond(status:, items: [], errors: [], event: {}, params: {})
-        Uc3DmpApiCore::Responder.respond(
-          status: status, items: items, errors: errors, event: event,
-          page: params['page'], per_page: params['per_page']
-        )
+      def _respond(status:, items: [], errors: [], event: {})
+        Uc3DmpApiCore::Responder.respond(status: status, items: items, errors: errors, event: event)
       end
     end
   end

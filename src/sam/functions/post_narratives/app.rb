@@ -47,6 +47,10 @@ module Functions
       continue = params[:payload].length.positive?
       return _respond(status: 400, errors: [MSG_BAD_ARGS], event: event) unless params[:payload].length.positive?
 
+      principal = event.fetch('requestContext', {}).fetch('authorizer', {})
+      return _respond(status: 401, errors: [Uc3DmpRds::MSG_MISSING_USER], event: event) if principal.nil? ||
+                                                                                           principal['mbox'].nil?
+
       # Debug, output the incoming Event and Context
       debug = Uc3DmpApiCore::SsmReader.debug_mode?
       pp event if debug

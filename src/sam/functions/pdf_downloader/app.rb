@@ -182,7 +182,7 @@ module Functions
 
         # CloudFront S3 bucket is in the Global us-east-1 region!
         s3_client = Aws::S3::Client.new(region: ENV.fetch('AWS_REGION', nil))
-        key = "dmps/#{SecureRandom.hex(8)}.pdf"
+        key = "narratives/#{SecureRandom.hex(8)}.pdf"
         resp = s3_client.put_object({
                                       body: document,
                                       bucket: ENV['S3_BUCKET'].gsub('arn:aws:s3:::', ''),

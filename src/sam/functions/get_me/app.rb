@@ -6,7 +6,7 @@
 my_gem_path = Dir['/opt/ruby/gems/**/lib/']
 $LOAD_PATH.unshift(*my_gem_path)
 
-require 'responder'
+require 'uc3-dmp-api-core'
 
 module Functions
   # The handler for POST /dmps/validate
@@ -51,22 +51,39 @@ module Functions
       # This is a temporary endpoint used to provide pseudo user data to the React application
       # while it is under development. This will eventually be replaced by Cognito or the Rails app.
       def process(event:, context:)
-        item = {
-          name: "Doe PhD., Jane A.",
-          mbox: "jane.doe@example.com",
-          user_id: {
-            identifier: "https://orcid.org/0000-0000-0000-000X",
-            type: "orcid"
-          },
-          affiliation: {
-            name: "California Digital Library (cdlib.org)",
-            affiliation_id: {
-              identifier: "https://ror.org/03yrm5c26",
-              type: "ror"
-            }
-          }
-        }
-        Responder.respond(status: 200, items: [item.to_json], event: event)
+        # Only process if there is a valid API token
+        principal = event.fetch('requestContext', {}).fetch('authorizer', {})
+        return _respond(status: 401, errors: [Uc3DmpRds::MSG_MISSING_USER], event: event) if principal.nil? ||
+                                                                                             principal['mbox'].nil?
+
+        # Debug, output the incoming Event and Context
+        debug = Uc3DmpApiCore::SsmReader.debug_mode?
+        pp event if debug
+        pp context if debug
+
+        # Convert the user info into the standardized format to work with DMP JSON standards
+        user = { name: principal['name'], mbox: principal['mbox'] }
+        user['user_id'] = { type: 'orcid', identifier: principal['orcid'] } unless principal['orcid'].nil?
+        user['affiliation'] = { name: principal['affiliation'] } unless principal['affiliation'].nil?
+        id = { type: 'ror', identifier: principal['affiliation_id'] } unless principal['affiliation_id'].nil?
+        user['affiliation']['affiliation_id'] = id unless id.nil?
+
+        _respond(status: 200, items: [user], event: event)
+      rescue Aws::Errors::ServiceError => e
+        Uc3DmpApiCore::Responder.log_error(source: SOURCE, message: e.message, details: e.backtrace)
+        _respond(status: 500, errors: [Uc3DmpApiCore::MSG_SERVER_ERROR], event: event)
+      rescue StandardError => e
+        # Just do a print here (ends up in CloudWatch) in case it was the Uc3DmpApiCore::Responder that failed
+        puts "#{SOURCE} FATAL: #{e.message}"
+        puts e.backtrace
+        { statusCode: 500, body: { errors: [Uc3DmpApiCore::MSG_SERVER_ERROR] }.to_json }
+      end
+
+      private
+
+      # Send the output to the Responder
+      def _respond(status:, items: [], errors: [], event: {})
+        Uc3DmpApiCore::Responder.respond(status: status, items: items, errors: errors, event: event)
       end
     end
   end

@@ -6,12 +6,8 @@
 my_gem_path = Dir['/opt/ruby/gems/**/lib/']
 $LOAD_PATH.unshift(*my_gem_path)
 
-require 'httparty'
-require 'uri'
-
-require 'messages'
-require 'responder'
-require 'ssm_reader'
+require 'uc3-dmp-api-core'
+require 'uc3-dmp-external-api'
 
 module Functions
   # A Proxy service that queries the NSF Awards API and transforms the results into a common format
@@ -27,6 +23,7 @@ module Functions
     MSG_BAD_ARGS = 'You must specify an award DOI (e.g. project=10.46936/cpcy.proj.2019.50733/60006578), /
                     PI names (e.g "pi_names=Jane Doe,Van Buren,John Smith"); a project title (e.g. title=); and /
                     applicable award years (optional) (e.g. years=2023,2021)'
+    MSG_EMPTY_RESPONSE = 'Crossref API returned an empty resultset'
 
     def self.process(event:, context:)
       # Parameters
@@ -34,7 +31,6 @@ module Functions
       # event: Hash, required
       #     API Gateway Lambda Proxy Input Format
       #     Event doc: https://docs.aws.amazon.com/apigateway/latest/developerguide/set-up-lambda-proxy-integrations.html#api-gateway-simple-proxy-for-lambda-input-format
-
       # context: object, required
       #     Lambda Context runtime methods and attributes
       #     Context doc: https://docs.aws.amazon.com/lambda/latest/dg/ruby-context.html
@@ -55,70 +51,52 @@ module Functions
       funder = event.fetch('pathParameters', {})['funder_id']
       return Responder.respond(status: 400, errors: MSG_NO_FUNDER) if funder.nil? || funder.empty?
 
+      principal = event.fetch('requestContext', {}).fetch('authorizer', {})
+      return _respond(status: 401, errors: [Uc3DmpApiCore::MSG_FORBIDDEN], event: event) if principal.nil? ||
+                                                                                            principal['mbox'].nil?
+
       params = event.fetch('queryStringParameters', {})
       pi_names = params.fetch('pi_names', '')
       project_num = params.fetch('project', '')
       title = params.fetch('keyword', '')
       years = params.fetch('years', (Date.today.year..Date.today.year - 3).to_a.join(','))
       years = years.split(',').map(&:to_i)
-      return Responder.respond(status: 400, errors: MSG_BAD_ARGS) if (title.nil? || title.empty?) &&
-                                                                     (pi_names.nil? || pi_names.empty?)
+      return _respond(status: 400, errors: [MSG_BAD_ARGS], event: event) if (title.nil? || title.empty?) &&
+                                                                            (pi_names.nil? || pi_names.empty?)
 
       # Debug, output the incoming Event and Context
-      debug = SsmReader.debug_mode?
+      debug = Uc3DmpApiCore::SsmReader.debug_mode?
       pp event if debug
       pp context if debug
 
       url = "#{project_num}" unless project_num.nil? || project_num.empty?
-      url = "?#{prepare_query_string(funder: funder, pi_names: pi_names, title: title, years: years)}" if url.nil?
+      url = "?#{_prepare_query_string(funder: funder, pi_names: pi_names, title: title, years: years)}" if url.nil?
       url = "#{API_BASE_URL}#{url}"
 
-      # TODO: Update the User-Agent to include the domain url and the admin email (from SSM)
-      opts = {
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'User-Agent': "DMPTool"
-        },
-        follow_redirects: true,
-        limit: 6
-      }
-      opts[:debug_output] = $stdout # if debug
-
-      resp = HTTParty.get(url, opts)
-      if resp.body.nil? || resp.body.empty? || resp.code != 200
-        Responder.log_error(source: SOURCE, message: "Error from NSF API: #{resp.code}", details: resp.body)
-        return Responder.respond(status: 500, errors: Messages::MSG_SERVER_ERROR, event: event)
+      resp = Uc3DmpExternalApi::Client.call(url: url, method: :get, debug: true) # debug)
+      if resp.nil? || resp.to_s.strip.empty?
+        Uc3DmpApiCore::Responder.log_error(source: SOURCE, message: MSG_EMPTY_RESPONSE, details: resp)
+        return _respond(status: 404, items: [], event: event)
       end
 
-      results = transform_response(response_body: resp.body)
-      return Responder.respond(status: 404, items: []) unless results.any?
-
-      Responder.respond(status: 200, items: results.compact.uniq)
-    rescue URI::InvalidURIError
-      Responder.log_error(source: SOURCE, message: "Invalid URI, #{API_BASE_URL}", details: e.backtrace)
-      return Responder.respond(status: 500, errors: Messages::MSG_SERVER_ERROR, event: event)
-    rescue HTTParty::Error => e
-      Responder.log_error(source: SOURCE, message: "HTTParty error: #{e.message}", details: e.backtrace)
-      return Responder.respond(status: 500, errors: Messages::MSG_SERVER_ERROR, event: event)
-    rescue JSON::ParserError => e
-      Responder.log_error(source: SOURCE, message: 'Error from NSF API JSON response!', details: resp&.body)
-      return Responder.respond(status: 500, errors: Messages::MSG_SERVER_ERROR, event: event)
+      results = _transform_response(response_body: resp)
+      _respond(status: 200, items: results.compact.uniq, event: event, params: params)
+    rescue Uc3DmpExternalApi::ExternalApiError => e
+      _respond(status: 500, errors: [Uc3DmpApiCore::MSG_SERVER_ERROR], event: event)
     rescue Aws::Errors::ServiceError => e
-      Responder.log_error(source: SOURCE, message: e.message, details: e.backtrace)
-      return Responder.respond(status: 500, errors: Messages::MSG_SERVER_ERROR, event: event)
+      _respond(status: 500, errors: [Uc3DmpApiCore::MSG_SERVER_ERROR], event: event)
     rescue StandardError => e
-      # Just do a print here (ends up in CloudWatch) in case it was the responder.rb that failed
+      # Just do a print here (ends up in CloudWatch) in case it was the Uc3DmpApiCore::Responder.rb that failed
       puts "#{SOURCE} FATAL: #{e.message}"
       puts e.backtrace
-      { statusCode: 500, body: { errors: [Messages::MSG_SERVER_ERROR] }.to_json }
+      { statusCode: 500, body: { errors: [Uc3DmpApiCore::MSG_SERVER_ERROR] }.to_json }
     end
 
     private
 
     class << self
       # URI encode the values sent in
-      def sanitize_params(str:, params: {})
+      def _sanitize_params(str:, params: {})
         return str if str.nil? || !params.is_a?(Hash)
 
         params.each do |k, v|
@@ -129,7 +107,7 @@ module Functions
       end
 
       # Prepare the query string for the API call
-      def prepare_query_string(funder:, pi_names: [], title: '', years: [])
+      def _prepare_query_string(funder:, pi_names: [], title: '', years: [])
         return '' if funder.nil?
 
         qs = ['sort=score']
@@ -137,7 +115,7 @@ module Functions
 
         words = title.nil? ? '' : title.tr('+', ' ')
         words += pi_names.split(',').map { |name| name.tr('+', ' ') }.join(' ')
-        qs << sanitize_params(str: 'query=:words', params: { words: words }) unless words.nil? || words.empty?
+        qs << _sanitize_params(str: 'query=:words', params: { words: words }) unless words.nil? || words.empty?
         qs << "filter=type:grant,funder:#{funder}"
         qs = qs.join('&')
         return qs if years.empty?
@@ -146,21 +124,32 @@ module Functions
           start: "#{years.first}-01-01",
           end: "#{years.last}-12-31"
         }
-        qs += sanitize_params(str: ",from-awarded-date::start,until-awarded-date::end", params: filter_params)
+        qs += _sanitize_params(str: ",from-awarded-date::start,until-awarded-date::end", params: filter_params)
       end
 
       # Convert the PI info from the response into "Last, First"
-      def pi_from_response(pi_hash:)
+      def _pi_from_response(pi_hash:)
         pi = { name: [pi_hash['family'], pi_hash['given']].compact.join(', ') }
         affiliation = pi_hash.fetch('affiliation', []).first
         return pi if affiliation.nil?
 
-        id = affiliation['id']
-        id = {
-          identifier: id['id'].starts_with?('http') ? id['id'] : "https://dx.doi.org/#{id['id']}",
-          type: 'fundref'
-        }
-        pi[:dmproadmap_affiliation] = { name: affiliation['name'], affiliation_id: id }
+        id = affiliation.fetch('id', []).first
+        unless id.nil?
+
+puts id
+puts id.class.name
+puts id['id-type']
+puts id['id']
+
+          affiliation_id = { identifier: id['id'], type: 'ror' } if !id.nil? &&
+                                                                    id['id-type']&.downcase&.strip == 'ror'
+
+puts affiliation_id
+
+        end
+        affil = { name: affiliation['name'] }
+        affil['affiliation_id'] = affiliation_id unless affiliation_id.nil?
+        pi[:dmproadmap_affiliation] = affil
         pi
       end
 
@@ -241,11 +230,11 @@ module Functions
       #     ]
       #   }
       # }
-      def transform_response(response_body:)
+      def _transform_response(response_body:)
+        return [] unless response_body.is_a?(Hash)
         return [] if response_body['message'].nil?
 
-        json = JSON.parse(response_body)
-        items = json['message'].fetch('items', [json['message']])
+        items = response_body['message'].fetch('items', [response_body['message']])
 
         items.map do |item|
           project = item.fetch('project', []).first
@@ -271,10 +260,18 @@ module Functions
                 }
               ]
             },
-            contact: pi_from_response(pi_hash: project['lead-investigator'].first),
-            contributor: project.fetch('investigator', []).map { |contrib| pi_from_response(pi_hash: contrib) }
+            contact: _pi_from_response(pi_hash: project['lead-investigator'].first),
+            contributor: project.fetch('investigator', []).map { |contrib| _pi_from_response(pi_hash: contrib) }
           }
         end
+      end
+
+      # Send the output to the Responder
+      def _respond(status:, items: [], errors: [], event: {}, params: {})
+        Uc3DmpApiCore::Responder.respond(
+          status: status, items: items, errors: errors, event: event,
+          page: params['page'], per_page: params['per_page']
+        )
       end
     end
   end

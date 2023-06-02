@@ -8,6 +8,7 @@ gem 'httparty'
 gem 'json-schema'
 
 gem 'uc3-dmp-api-core'
+gem 'uc3-dmp-external-api'
 gem 'uc3-dmp-id'
 gem 'uc3-dmp-provenance'
 gem 'uc3-dmp-s3'
@@ -23,7 +24,7 @@ group :test do
   gem 'aws-sdk-cognitoidentityprovider'
   gem 'aws-sdk-dynamodb'
   gem 'aws-sdk-eventbridge'
-  # gem 'aws-sdk-s3'
+  gem 'aws-sdk-s3'
   gem 'aws-sdk-sns'
   gem 'aws-sdk-ssm'
 end

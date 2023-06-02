@@ -67,6 +67,10 @@ module Functions
         params = event.fetch('queryStringParameters', {})
         # Only process if there are 3 or more characters in the search
         continue = params.fetch('search', '').to_s.strip.length >= 3
+        principal = event.fetch('requestContext', {}).fetch('authorizer', {})
+        return _respond(status: 401, errors: [Uc3DmpRds::MSG_MISSING_USER], event: event) if principal.nil? ||
+                                                                                             principal['mbox'].nil?
+
         return _respond(status: 400, errors: [Uc3DmpApiCore::MSG_INVALID_ARGS], event: event) unless continue
 
         # Debug, output the incoming Event and Context

@@ -6,12 +6,7 @@
 my_gem_path = Dir['/opt/ruby/gems/**/lib/']
 $LOAD_PATH.unshift(*my_gem_path)
 
-require 'aws-sdk-sns'
-require 'aws-sdk-ssm'
-
-require_relative 'lib/messages'
-require_relative 'lib/responder'
-require_relative 'lib/ssm_reader'
+require 'uc3-dmp-api-core'
 
 module Functions
   # The handler for POST /dmps/validate
@@ -52,14 +47,13 @@ module Functions
       # while it is under development. This will eventually be replaced by Cognito or the Rails app.
       def process(event:, context:)
         params = event.fetch('queryStringParameters', {})
-        params = {} if params.nil?
-        page = params.fetch('page', Responder::DEFAULT_PAGE)
-        page = Responder::DEFAULT_PAGE if page <= 1
-        per_page = params.fetch('per_page', Responder::DEFAULT_PER_PAGE)
-        per_page = Responder::DEFAULT_PER_PAGE if per_page >= Responder::MAXIMUM_PER_PAGE || per_page <= 1
+        # Only process if there is a valid API token
+        principal = event.fetch('requestContext', {}).fetch('authorizer', {})
+        return _respond(status: 401, errors: [Uc3DmpApiCore::MSG_FORBIDDEN], event: event) if principal.nil? ||
+                                                                                              principal['mbox'].nil?
 
         # Debug, output the incoming Event and Context
-        debug = SsmReader.debug_mode?
+        debug = Uc3DmpApiCore::SsmReader.debug_mode?
         pp event if debug
         pp context if debug
 
@@ -85,15 +79,21 @@ module Functions
           }
         ]
 
-        Responder.respond(status: 200, items: items, event: event, page: page, per_page: per_page)
+        _respond(status: 200, items: [items], event: event, params: params)
       rescue Aws::Errors::ServiceError => e
-        Responder.log_error(source: SOURCE, message: e.message, details: e.backtrace)
-        { statusCode: 500, body: { status: 500, errors: [Messages::MSG_SERVER_ERROR] } }
+        _respond(status: 500, errors: [Uc3DmpApiCore::MSG_SERVER_ERROR], event: event)
       rescue StandardError => e
         # Just do a print here (ends up in CloudWatch) in case it was the responder.rb that failed
         puts "#{SOURCE} FATAL: #{e.message}"
         puts e.backtrace
-        { statusCode: 500, body: { errors: [Messages::MSG_SERVER_ERROR] }.to_json }
+        { statusCode: 500, body: { errors: [Uc3DmpApiCore::MSG_SERVER_ERROR] }.to_json }
+      end
+
+      private
+
+      # Send the output to the Responder
+      def _respond(status:, items: [], errors: [], event: {}, params: {})
+        Uc3DmpApiCore::Responder.respond(status: status, items: items, errors: errors, event: event)
       end
     end
   end

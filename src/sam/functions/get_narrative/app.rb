@@ -56,7 +56,7 @@ module Functions
 
       # Store the document in S3 Bucket
       payload = Uc3DmpS3::Client.get_narrative(key: id)
-      return _respond(status: 404, errors: MSG_NOT_FOUND, event: event) if payload.nil?
+      return _respond(status: 404, errors: Uc3DmpApiCore::MSG_NOT_FOUND, event: event) if payload.nil?
 
       # Return the narrative document
       # The Base64 encoded body lets API Gateway know to return this as a binary rather than json

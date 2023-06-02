@@ -20,8 +20,6 @@ Gem::Specification.new do |spec|
   spec.required_ruby_version = '>= 2.7'
 
   spec.add_runtime_dependency('active_record_simple_execute', '~> 0.9.1')
-  spec.add_runtime_dependency('aws-sdk-sns', '~> 1.60')
-  spec.add_runtime_dependency('aws-sdk-ssm', '~> 1.150')
   spec.add_runtime_dependency('json', '~> 2.6')
   spec.add_runtime_dependency('mysql2', '~> 0.5.5')
 

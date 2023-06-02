@@ -24,8 +24,13 @@ if [ -d $BUNDLER_BUILD_DIR ]; then bundle clean; fi
 # If 'test' was passed as an argument then bundle with all of the test dependencies
 if [ "$1" == 'test' ]; then
   bundle install --with test
+  bundle config --local without ''
+  bundle config --local with 'test'
+  bundle install
 else
-  bundle install --without test
+  bundle config --local with ''
+  bundle config --local without 'test'
+  bundle install
 fi
 
 cp -r $BUNDLER_GEM_DIR/** $SAM_GEM_DIR/$RUBY_VERSION

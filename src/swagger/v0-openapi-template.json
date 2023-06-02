@@ -113,17 +113,21 @@
     },
 
     "securitySchemes": {
-      "Authorizer": {
+      "UserAuthorizer": {
+        "type": "http",
+        "scheme": "bearer"
+      },
+      "SystemAuthorizer": {
         "type": "oauth2",
         "description": "OAuth2 Client Credentials",
         "flows": {
           "clientCredentials": {
             "tokenUrl": "https://auth.dmphub-dev.cdlib.org/oauth2/token",
             "scopes": {
-              "https://auth.dmphub-dev.cdlib.org/dev.delete": "Tombstone a DMP",
-              "https://auth.dmphub-dev.cdlib.org/dev.read": "Read or modify a DMP",
-              "https://auth.dmphub-dev.cdlib.org/dev.upload": "Create or modify a DMP",
-              "https://auth.dmphub-dev.cdlib.org/dev.write": "Create or modify a DMP"
+              "https://auth.dmphub-dev.cdlib.org/dev.delete": "Delete an item",
+              "https://auth.dmphub-dev.cdlib.org/dev.read": "Fetch an item",
+              "https://auth.dmphub-dev.cdlib.org/dev.upload": "Upload an object",
+              "https://auth.dmphub-dev.cdlib.org/dev.write": "Create or update an item"
             }
           }
         }
@@ -214,6 +218,235 @@
 
     "schemas": {
       "Dmp": {},
+
+      "Wip": {
+        "type": "object",
+        "properties": {
+          "dmp": {
+            "type": "object",
+            "properties": {
+              "contact": {
+                "$ref": "#/components/schemas/Contact"
+              },
+              "contributor": {
+                "$ref": "#/components/schemas/Contributor"
+              },
+              "dataset": {
+                "type": "array",
+                "description": "Array of research outputs",
+                "items": {
+                  "type": "object",
+                  "description": "A research output",
+                  "properties": {
+                    "distribution": {
+                      "type": "array",
+                      "description": "Array of repositories the research output will be distributed to",
+                      "items": {
+                        "type": "object",
+                        "description": "A distribution of the research output",
+                        "properties": {
+                          "host": {
+                            "$ref": "#/components/schemas/Repository"
+                          },
+                          "personal_data": {
+                            "type": "string",
+                            "description": "Whether or not the research output will contain personal data PII",
+                            "example": "yes"
+                          },
+                          "sensitive_data": {
+                            "type": "string",
+                            "description": "Whether or not the research output will contain sensitve data",
+                            "example": "no"
+                          },
+                          "title": {
+                            "type": "string",
+                            "description": "The title of the research output",
+                            "example": "Recordings of crickets in late summer"
+                          },
+                          "type": {
+                            "type": "string",
+                            "description": "The type of the research output",
+                            "example": "image"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "dmphub_owner": {
+                "type": "object",
+                "description": "The user who owns (is working on) the Work in Progress (WIP)",
+                "properties": {
+                  "mbox": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "User's E-mail address",
+                    "example": "cc@example.com"
+                  }
+                }
+              },
+              "dmphub_wip_id": {
+                "type": "object",
+                "description": "The link to the related PDF narrative document",
+                "properties": {
+                  "identifier": {
+                    "type": "string",
+                    "description": "The value of the identifier (first 8 characters are the date)",
+                    "example": "20230518H654GE9M"
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": ["other"],
+                    "description": "Identifier type. Allowed values: other",
+                    "example": "other"
+                  }
+                }
+              },
+              "dmproadmap_privacy": {
+                "type": "string",
+                "description": "The DMPs visibility setting (valid values: 'public' or 'private')",
+                "example": "public"
+              },
+              "dmproadmap_related_identifiers": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "description": "The link to the related PDF narrative document",
+                  "properties": {
+                    "work_type": {
+                      "type": "string",
+                      "enum": ["output_management_plan"],
+                      "description": "Work type. Allowed values: output_management_plan",
+                      "example": "output_management_plan"
+                    },
+                    "descriptor": {
+                      "type": "string",
+                      "enum": ["is_metadata_for"],
+                      "description": "Descriptor of how the DMP relates to the narrative PDF. Allowed values: is_metadata_for",
+                      "example": "is_metadata_for"
+                    },
+                    "identifier": {
+                      "type": "string",
+                      "description": "The value of the identifier",
+                      "example": "https://api.dmphub-dev.cdlib.org/narratives/12345abcdef.pdf"
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": ["url"],
+                      "description": "Identifier type. Allowed values: url",
+                      "example": "url"
+                    }
+                  }
+                }
+              },
+              "project": {
+                "type": "array",
+                "description": "Research projects the DMP is related to",
+                "items": {
+                  "type": "object",
+                  "title": "Details about a research project and funding",
+                  "properties": {
+                    "title": {
+                      "type": "string",
+                      "description": "The title of the research project"
+                    },
+                    "description": {
+                      "type": "string",
+                      "description": "",
+                      "example": "The research project abstract"
+                    },
+                    "start": {
+                      "type": "string",
+                      "format": "date",
+                      "description": "The date research project begins",
+                      "example": "2023-04-15"
+                    },
+                    "end": {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "The date the research project ends",
+                      "example": "2024-04-01"
+                    },
+                    "funding": {
+                      "type": "array",
+                      "description": "The fundings for the research project",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "description": "Name of the funder",
+                            "example": "National Institutes of Health (nih.gov)"
+                          },
+                          "funder_id": {
+                            "type": "object",
+                            "description": "A unique identifier for the funder",
+                            "properties": {
+                              "identifier": {
+                                "type": "string",
+                                "description": "The value of the identifier",
+                                "example": "https://api.crossref.org/funders/100000002"
+                              },
+                              "type": {
+                                "type": "string",
+                                "enum": ["fundref", "other"],
+                                "description": "Identifier type. Allowed values: fundref, other",
+                                "example": "fundref"
+                              }
+                            },
+                            "required": ["identifier", "type"]
+                          },
+                          "dmproadmap_opportunity_number": {
+                            "type": "string",
+                            "description": "",
+                            "example": "The research project abstract"
+                          },
+                          "dmproadmap_award_amount": {
+                            "type": "string",
+                            "description": "",
+                            "example": "The research project abstract"
+                          },
+                          "dmproadmap_project_number": {
+                            "type": "string",
+                            "description": "",
+                            "example": "The research project abstract"
+                          },
+                          "grant_id": {
+                            "type": "object",
+                            "description": "A unique identifier for the award/grant",
+                            "properties": {
+                              "identifier": {
+                                "type": "string",
+                                "description": "The value of the identifier",
+                                "example": "https://example.com/awards/12345"
+                              },
+                              "type": {
+                                "type": "string",
+                                "enum": ["url", "other"],
+                                "description": "Identifier type. Allowed values: doi, url, other",
+                                "example": "url"
+                              }
+                            },
+                            "required": ["identifier", "type"]
+                          }
+                        },
+                        "required": ["name"]
+                      }
+                    }
+                  }
+                }
+              },
+              "title": {
+                "type": "string",
+                "description": "The Title of the DMP (usually the same as the project title"
+              }
+            },
+            "required": ["title"]
+          }
+        },
+        "required": ["dmp"]
+      },
 
       "PdfMetadata": {
         "type": "object",
@@ -466,6 +699,88 @@
         "required": ["label", "value"]
       },
 
+      "Contact": {
+        "type": "object",
+        "description": "The primary principal investigator",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The contact's name",
+            "example": "Doe, Jane A."
+          },
+          "mbox": {
+            "type": "string",
+            "format": "email",
+            "description": "The contact's email address",
+            "example": "jdoe@example.com"
+          },
+          "dmproadmap_affiliation": {
+            "$ref": "#/components/schemas/Affiliation"
+          },
+          "contact_id": {
+            "type": "object",
+            "description": "A unique identifier for the contact",
+            "properties": {
+              "identifier": {
+                "type": "string",
+                "description": "The value of the identifier",
+                "example": "https://orcid.org/0000-0000-0000-000X"
+              },
+              "type": {
+                "type": "string",
+                "enum": ["orcid"],
+                "description": "Identifier type. Allowed values: orcid",
+                "example": "orcid"
+              }
+            },
+            "required": ["identifier", "type"]
+          }
+        }
+      },
+
+      "Contributor": {
+        "type": "array",
+        "description": "The other contributors to the research project",
+        "items": {
+          "type": "object",
+          "description": "A project contributor",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "The contact's name",
+              "example": "Doe, Jane A."
+            },
+            "mbox": {
+              "type": "string",
+              "format": "email",
+              "description": "The contact's email address",
+              "example": "jdoe@example.com"
+            },
+            "dmproadmap_affiliation": {
+              "$ref": "#/components/schemas/Affiliation"
+            },
+            "contributor_id": {
+              "type": "object",
+              "description": "A unique identifier for the contact",
+              "properties": {
+                "identifier": {
+                  "type": "string",
+                  "description": "The value of the identifier",
+                  "example": "https://orcid.org/0000-0000-0000-000X"
+                },
+                "type": {
+                  "type": "string",
+                  "enum": ["orcid"],
+                  "description": "Identifier type. Allowed values: orcid",
+                  "example": "orcid"
+                }
+              },
+              "required": ["identifier", "type"]
+            }
+          }
+        }
+      },
+
       "Project": {
         "type": "object",
         "title": "Details about a research project and funding",
@@ -534,200 +849,10 @@
             }
           },
           "contact": {
-            "type": "object",
-            "description": "The primary principal investigator",
-            "properties": {
-              "name": {
-                "type": "string",
-                "description": "The contact's name",
-                "example": "Doe, Jane A."
-              },
-              "mbox": {
-                "type": "string",
-                "format": "email",
-                "description": "The contact's email address",
-                "example": "jdoe@example.com"
-              },
-              "dmproadmap_affiliation": {
-                "$ref": "#/components/schemas/Affiliation"
-              },
-              "contact_id": {
-                "type": "object",
-                "description": "A unique identifier for the contact",
-                "properties": {
-                  "identifier": {
-                    "type": "string",
-                    "description": "The value of the identifier",
-                    "example": "https://orcid.org/0000-0000-0000-000X"
-                  },
-                  "type": {
-                    "type": "string",
-                    "enum": ["orcid"],
-                    "description": "Identifier type. Allowed values: orcid",
-                    "example": "orcid"
-                  }
-                },
-                "required": ["identifier", "type"]
-              }
-            }
+            "$ref": "#/components/schemas/Contact"
           },
           "contributor": {
-            "type": "array",
-            "description": "The other contributors to the research project",
-            "items": {
-              "type": "object",
-              "description": "A project contributor",
-              "properties": {
-                "name": {
-                  "type": "string",
-                  "description": "The contact's name",
-                  "example": "Doe, Jane A."
-                },
-                "mbox": {
-                  "type": "string",
-                  "format": "email",
-                  "description": "The contact's email address",
-                  "example": "jdoe@example.com"
-                },
-                "dmproadmap_affiliation": {
-                  "$ref": "#/components/schemas/Affiliation"
-                },
-                "contributor_id": {
-                  "type": "object",
-                  "description": "A unique identifier for the contact",
-                  "properties": {
-                    "identifier": {
-                      "type": "string",
-                      "description": "The value of the identifier",
-                      "example": "https://orcid.org/0000-0000-0000-000X"
-                    },
-                    "type": {
-                      "type": "string",
-                      "enum": ["orcid"],
-                      "description": "Identifier type. Allowed values: orcid",
-                      "example": "orcid"
-                    }
-                  },
-                  "required": ["identifier", "type"]
-                }
-              }
-            }
-          },
-          "Wip": {
-            "type": "object",
-            "properties": {
-              "contact": {
-                "$ref": "#/components/schemas/contact"
-              },
-              "contributor": {
-                "$ref": "#/components/schemas/contributor"
-              },
-              "dataset": {
-                "type": "array",
-                "description": "Array of research outputs",
-                "items": {
-                  "type": "object",
-                  "description": "A research output",
-                  "properties": {
-                    "distribution": {
-                      "type": "array",
-                      "description": "Array of repositories the research output will be distributed to",
-                      "items": {
-                        "type": "object",
-                        "description": "A distribution of the research output",
-                        "properties": {
-                          "host": {
-                            "$ref": "#/components/schemas/Repository"
-                          },
-                          "personal_data": {
-                            "type": "string",
-                            "description": "Whether or not the research output will contain personal data PII",
-                            "example": "yes"
-                          },
-                          "sensitive_data": {
-                            "type": "string",
-                            "description": "Whether or not the research output will contain sensitve data",
-                            "example": "no"
-                          },
-                          "title": {
-                            "type": "string",
-                            "description": "The title of the research output",
-                            "example": "Recordings of crickets in late summer"
-                          },
-                          "type": {
-                            "type": "string",
-                            "description": "The type of the research output",
-                            "example": "image"
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              },
-              "dmphub_wip_id": {
-                "type": "object",
-                "description": "The link to the related PDF narrative document",
-                "properties": {
-                  "identifier": {
-                    "type": "string",
-                    "description": "The value of the identifier (first 8 characters are the date)",
-                    "example": "20230518H654GE9M"
-                  },
-                  "type": {
-                    "type": "string",
-                    "enum": ["other"],
-                    "description": "Identifier type. Allowed values: other",
-                    "example": "other"
-                  }
-                }
-              },
-              "dmproadmap_privacy": {
-                "type": "string",
-                "description": "The DMPs visibility setting (valid values: 'public' or 'private')",
-                "example": "public"
-              },
-              "dmproadmap_related_identifiers": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "description": "The link to the related PDF narrative document",
-                  "properties": {
-                    "work_type": {
-                      "type": "string",
-                      "enum": ["output_management_plan"],
-                      "description": "Work type. Allowed values: output_management_plan",
-                      "example": "output_management_plan"
-                    },
-                    "descriptor": {
-                      "type": "string",
-                      "enum": ["is_metadata_for"],
-                      "description": "Descriptor of how the DMP relates to the narrative PDF. Allowed values: is_metadata_for",
-                      "example": "is_metadata_for"
-                    },
-                    "identifier": {
-                      "type": "string",
-                      "description": "The value of the identifier",
-                      "example": "https://api.dmphub-dev.cdlib.org/narratives/12345abcdef.pdf"
-                    },
-                    "type": {
-                      "type": "string",
-                      "enum": ["url"],
-                      "description": "Identifier type. Allowed values: url",
-                      "example": "url"
-                    }
-                  }
-                }
-              },
-              "project": {
-                "$ref": "#/components/schemas/Project"
-              },
-              "title": {
-                "type": "string",
-                "description": "The Title of the DMP (usually the same as the project title"
-              }
-            },
-            "required": ["title"]
+            "$ref": "#/components/schemas/Contributor"
           }
         }
       },
@@ -837,6 +962,27 @@
                 "description": "The DMPs",
                 "items": {
                   "$ref": "#/components/schemas/Dmp"
+                }
+              }
+            }
+          }
+        ]
+      },
+
+      "WipResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/StandardResponse"
+          },
+          {
+            "type": "object",
+            "required": ["items"],
+            "properties": {
+              "items": {
+                "type": "array",
+                "description": "The Work in Progress (WIP) DMPs",
+                "items": {
+                  "$ref": "#/components/schemas/Wip"
                 }
               }
             }
@@ -1014,9 +1160,7 @@
         ],
         "security": [
           {
-            "Authorizer": [
-              "https://auth.dmphub-dev.cdlib.org/dev.read"
-            ]
+            "UserAuthorizer": []
           }
         ],
         "responses": {
@@ -1063,9 +1207,7 @@
         ],
         "security": [
           {
-            "Authorizer": [
-              "https://auth.dmphub-dev.cdlib.org/dev.read"
-            ]
+            "UserAuthorizer": []
           }
         ],
         "responses": {
@@ -1112,9 +1254,7 @@
         ],
         "security": [
           {
-            "Authorizer": [
-              "https://auth.dmphub-dev.cdlib.org/dev.read"
-            ]
+            "UserAuthorizer": []
           }
         ],
         "responses": {
@@ -1160,9 +1300,7 @@
         ],
         "security": [
           {
-            "Authorizer": [
-              "https://auth.dmphub-dev.cdlib.org/dev.read"
-            ]
+            "UserAuthorizer": []
           }
         ],
         "responses": {
@@ -1217,13 +1355,13 @@
           { "$ref": "#/components/parameters/projectNbrParam" },
           { "$ref": "#/components/parameters/opportunityNbrParam" },
           { "$ref": "#/components/parameters/piNamesParam" },
-          { "$ref": "#/components/parameters/yearsParam" }
+          { "$ref": "#/components/parameters/yearsParam" },
+          { "$ref": "#/components/parameters/pageParam" },
+          { "$ref": "#/components/parameters/perPageParam" }
         ],
         "security": [
           {
-            "Authorizer": [
-              "https://auth.dmphub-dev.cdlib.org/dev.read"
-            ]
+            "UserAuthorizer": []
           }
         ],
         "responses": {
@@ -1268,13 +1406,13 @@
           { "$ref": "#/components/parameters/projectNbrParam" },
           { "$ref": "#/components/parameters/opportunityNbrParam" },
           { "$ref": "#/components/parameters/piNamesParam" },
-          { "$ref": "#/components/parameters/yearsParam" }
+          { "$ref": "#/components/parameters/yearsParam" },
+          { "$ref": "#/components/parameters/pageParam" },
+          { "$ref": "#/components/parameters/perPageParam" }
         ],
         "security": [
           {
-            "Authorizer": [
-              "https://auth.dmphub-dev.cdlib.org/dev.read"
-            ]
+            "UserAuthorizer": []
           }
         ],
         "responses": {
@@ -1319,13 +1457,13 @@
           { "$ref": "#/components/parameters/projectNbrParam" },
           { "$ref": "#/components/parameters/opportunityNbrParam" },
           { "$ref": "#/components/parameters/piNamesParam" },
-          { "$ref": "#/components/parameters/yearsParam" }
+          { "$ref": "#/components/parameters/yearsParam" },
+          { "$ref": "#/components/parameters/pageParam" },
+          { "$ref": "#/components/parameters/perPageParam" }
         ],
         "security": [
           {
-            "Authorizer": [
-              "https://auth.dmphub-dev.cdlib.org/dev.read"
-            ]
+            "UserAuthorizer": []
           }
         ],
         "responses": {
@@ -1360,6 +1498,44 @@
           "url": "https://api.dmphub-dev.cdlib.org"
         }
       ],
+      "get": {
+        "tags": [
+          "UI support operations"
+        ],
+        "operationId": "GetWips",
+        "description": "Fetch all of the Work In Progress (WIP) DMPs for the owner email",
+        "security": [
+          {
+            "UserAuthorizer": []
+          }
+        ],
+        "parameters": [
+          { "$ref": "#/components/parameters/pageParam" },
+          { "$ref": "#/components/parameters/perPageParam" }
+        ],
+        "responses": {
+          "200": {
+            "description": "The works in progress for the specified user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WipResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StandardErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
       "post": {
         "tags": [
           "UI support operations"
@@ -1368,9 +1544,7 @@
         "description": "Create a Work In Progress (WIP) DMP",
         "security": [
           {
-            "Authorizer": [
-              "https://auth.dmphub-dev.cdlib.org/dev.write"
-            ]
+            "UserAuthorizer": []
           }
         ],
         "requestBody": {
@@ -1384,11 +1558,167 @@
         },
         "responses": {
           "201": {
-            "description": "The metadata of the uploaded PDF document including its download URL",
+            "description": "The metadata of the work in progress",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PdfResponse"
+                  "$ref": "#/components/schemas/WipResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StandardErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "/wips/{wipId}": {
+      "servers": [
+        {
+          "description": "DMPHub development instance",
+          "url": "https://api.dmphub-dev.cdlib.org"
+        }
+      ],
+      "get": {
+        "tags": [
+          "UI support operations"
+        ],
+        "operationId": "GetWip",
+        "description": "Download the Work In Progress (WIP) DMP metadata",
+        "parameters": [
+          {
+            "name": "wipId",
+            "in": "path",
+            "description": "The work in progress (WIP) Id",
+            "example": "20230518AB549Z",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "UserAuthorizer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The work in progress (WIP) metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WipResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StandardErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "UI support operations"
+        ],
+        "operationId": "PutWip",
+        "description": "Update the Work In Progress (WIP) DMP metadata",
+        "parameters": [
+          {
+            "name": "wipId",
+            "in": "path",
+            "description": "The work in progress (WIP) Id",
+            "example": "20230518-AB549Z",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "UserAuthorizer": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Wip"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The work in progress (WIP) metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WipResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StandardErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "UI support operations"
+        ],
+        "operationId": "DeleteWip",
+        "description": "Delete the Work In Progress (WIP) DMP metadata",
+        "parameters": [
+          {
+            "name": "wipId",
+            "in": "path",
+            "description": "The work in progress (WIP) Id",
+            "example": "20230518-AB549Z",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "UserAuthorizer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "An empty array if it worked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StandardResponse"
                 }
               }
             }
@@ -1473,9 +1803,7 @@
         "description": "Uploads the specified PDF document",
         "security": [
           {
-            "Authorizer": [
-              "https://auth.dmphub-dev.cdlib.org/dev.upload"
-            ]
+            "UserAuthorizer": []
           }
         ],
         "requestBody": {
@@ -1532,9 +1860,7 @@
         "description": "Fetches the user info for the logged in user.<br><br><strong>Note:</strong> this endpoint currently returns stubbed data.",
         "security": [
           {
-            "Authorizer": [
-              "https://auth.dmphub-dev.cdlib.org/dev.read"
-            ]
+            "UserAuthorizer": []
           }
         ],
         "responses": {
@@ -1587,7 +1913,7 @@
         },
         "security": [
           {
-            "Authorizer": [
+            "SystemAuthorizer": [
               "https://auth.dmphub-dev.cdlib.org/dev.write"
             ]
           }
@@ -1694,7 +2020,7 @@
         ],
         "security": [
           {
-            "Authorizer": [
+            "SystemAuthorizer": [
               "https://auth.dmphub-dev.cdlib.org/dev.write"
             ]
           }
@@ -1806,7 +2132,7 @@
         },
         "security": [
           {
-            "Authorizer": [
+            "SystemAuthorizer": [
               "https://auth.dmphub-dev.cdlib.org/dev.write"
             ]
           }

@@ -66,6 +66,10 @@ module Functions
       continue = params[:project_num].length.positive? || params[:pi_names].length.positive?
       return _respond(status: 400, errors: [MSG_BAD_ARGS], event: event) unless continue
 
+      principal = event.fetch('requestContext', {}).fetch('authorizer', {})
+      return _respond(status: 401, errors: [Uc3DmpApiCore::MSG_FORBIDDEN], event: event) if principal.nil? ||
+                                                                                            principal['mbox'].nil?
+
       # Debug, output the incoming Event and Context
       debug = Uc3DmpApiCore::SsmReader.debug_mode?
       pp event if debug
@@ -84,11 +88,8 @@ module Functions
         return _respond(status: 404, items: [], event: event)
       end
 
-      puts "BEFORE: #{resp.class.name}"
-      puts resp
-
       results = _transform_response(response_body: resp)
-      _respond(status: 200, items: results.compact.uniq, event: event)
+      _respond(status: 200, items: results.compact.uniq, event: event, params: params)
     rescue Uc3DmpExternalApi::ExternalApiError => e
       _respond(status: 500, errors: [Uc3DmpApiCore::MSG_SERVER_ERROR], event: event)
     rescue Aws::Errors::ServiceError => e
