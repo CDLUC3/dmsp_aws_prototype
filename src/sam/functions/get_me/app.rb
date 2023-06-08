@@ -63,6 +63,7 @@ module Functions
 
         # Convert the user info into the standardized format to work with DMP JSON standards
         user = { name: principal['name'], mbox: principal['mbox'] }
+        user['token'] = principal['token'] unless principal['token'].nil?
         user['user_id'] = { type: 'orcid', identifier: principal['orcid'] } unless principal['orcid'].nil?
         user['affiliation'] = { name: principal['affiliation'] } unless principal['affiliation'].nil?
         id = { type: 'ror', identifier: principal['affiliation_id'] } unless principal['affiliation_id'].nil?

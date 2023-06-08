@@ -518,6 +518,12 @@
             "description": "User's E-mail address",
             "example": "cc@example.com"
           },
+          "token": {
+            "type": "string",
+            "title": "The user token",
+            "description": "User's token",
+            "example": "8734yyt94j5u457u57u"
+          },
           "name": {
             "type": "string",
             "title": "The Name Schema",

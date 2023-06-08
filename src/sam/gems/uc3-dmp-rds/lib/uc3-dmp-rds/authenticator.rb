@@ -37,7 +37,7 @@ module Uc3DmpRds
 
         sql = <<~SQL.squish
           SELECT users.id, users.firstname, users.surname, users.email, users.active, i.value orcid,
-            orgs.name org_name, ro.name ror_name, ro.ror_id,
+            orgs.name org_name, ro.name ror_name, ro.ror_id, users.ui_token,
             (SELECT perms.name FROM users_perms up LEFT OUTER JOIN perms ON up.perm_id = perms.id
              WHERE users.id = up.user_id AND perms.name = 'modify_templates') perm
           FROM users
@@ -64,6 +64,7 @@ module Uc3DmpRds
           admin: !user['perm'].nil?,
           active: user.fetch('active', false)
         }
+        hash[:token] = user['ui_token'] unless user['ui_token'].nil?
         hash[:user_id] = { type: 'orcid', identifier: user['orcid'] } unless user['orcid'].nil?
         return hash if user['org_name'].nil?
 

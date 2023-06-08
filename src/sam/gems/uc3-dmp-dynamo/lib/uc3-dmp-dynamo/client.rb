@@ -1,8 +1,5 @@
 # frozen_string_literal: true
 
-# TODO: Be sure to update the API functions so that they call cleanse_dmp_json before
-#       calling Uc3DmpApiCore::Responder.respond !!!!!!!!!!
-
 module Uc3DmpDynamo
   class ClientError < StandardError; end
 
@@ -75,10 +72,60 @@ module Uc3DmpDynamo
         puts "#{SOURCE} => query - args: #{hash.inspect}"
         puts resp.items.inspect
       end
-      resp.items.any? ? resp.items.map(&:item) : []
+      return [] unless resp.items.any?
+      return resp.items if resp.items.first.is_a?(Hash)
+
+      resp.items.first.respond_to?(:item) ? resp.items.map(&:item) : resp.items
     rescue Aws::Errors::ServiceError => e
       raise ClientError, format(MSG_DYNAMO_ERROR, msg: e.message, trace: e.backtrace)
     end
     # rubocop:enable Metrics/AbcSize
+
+    # Create/Update an item
+    def put_item(json:, debug: false)
+      json = Helper.parse_json(json: json)
+      raise ClientError, MSG_INVALID_KEY unless json.is_a?(Hash) && !json['PK'].nil? && !json['SK'].nil?
+
+      resp = @connection.put_item(
+        { table_name: @table,
+          item: json,
+          consistent_read: false,
+          return_consumed_capacity: debug ? 'TOTAL' : 'NONE'
+        }
+      )
+
+      # If debug is enabled then write the response to the LogWriter
+      if debug
+        puts "#{SOURCE} => put_item -"
+        puts json
+        puts resp.inspect
+      end
+      resp
+    rescue Aws::Errors::ServiceError => e
+      raise ClientError, format(MSG_DYNAMO_ERROR, msg: e.message, trace: e.backtrace)
+    end
+
+    # Delete an item
+    def delete_item(p_key:, s_key:, debug: false)
+      json = Helper.parse_json(json: json)
+      raise ClientError, MSG_INVALID_KEY unless json.is_a?(Hash) && !json['PK'].nil? && !json['SK'].nil?
+
+      resp = @connection.delete_item(
+        {
+          table_name: @table,
+          key: {
+            PK: p_key,
+            SK: s_key
+          }
+        }
+      )
+      # If debug is enabled then write the response to the LogWriter
+      if debug
+        puts "#{SOURCE} => delete_item -"
+        puts json
+        puts resp.inspect
+      end
+      resp
+    end
   end
 end

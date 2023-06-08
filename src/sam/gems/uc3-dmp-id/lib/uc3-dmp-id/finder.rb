@@ -3,7 +3,7 @@
 require 'uc3-dmp-dynamo'
 
 module Uc3DmpId
-  class Uc3DmpIdFinderError < StandardError; end
+  class FinderError < StandardError; end
 
   # Methods to find/search for DMP IDs
   class Finder
@@ -15,33 +15,17 @@ module Uc3DmpId
 
     class << self
       # TODO: Replace this with ElasticSearch
-      def search_dmps(**_args)
+      def search_dmps(args:)
 
         # TODO: Need to move this to ElasticSearch!!!
       end
       # rubocop:enable Metrics/MethodLength
 
-      # Find the DMP's versions
-      # -------------------------------------------------------------------------
-      def versions(p_key:, client: nil, debug: false)
-        raise Uc3DmpIdFinderError, MSG_MISSING_PK if p_key.nil?
-
-        args = {
-          key_conditions: {
-            PK: { attribute_value_list: [Helper.append_pk_prefix(dmp: p_key)], comparison_operator: 'EQ' }
-          },
-          projection_expression: 'modified',
-          scan_index_forward: false
-        }
-        client = client.nil? ? Uc3DmpDynamo::Client.new(debug: debug) : client
-        client.query(**args)
-      end
-
       # Find a DMP based on the contents of the incoming JSON
       # -------------------------------------------------------------------------
       def by_json(json:, debug: false)
-        json = Validator.parse_json(json: json)&.fetch('dmp', {})
-        raise Uc3DmpIdFinderError, MSG_INVALID_ARGS if json.nil? || (json['PK'].nil? && json['dmp_id'].nil?)
+        json = Helper.parse_json(json: json)&.fetch('dmp', {})
+        raise FinderError, MSG_INVALID_ARGS if json.nil? || (json['PK'].nil? && json['dmp_id'].nil?)
 
         p_key = json['PK']
         # Translate the incoming :dmp_id into a PK
@@ -58,27 +42,45 @@ module Uc3DmpId
       # Find the DMP by its PK and SK
       # -------------------------------------------------------------------------
       def by_pk(p_key:, s_key: Helper::DMP_LATEST_VERSION, client: nil, debug: false)
-        raise Uc3DmpIdFinderError, MSG_MISSING_PK if p_key.nil?
+        raise FinderError, MSG_MISSING_PK if p_key.nil?
 
-        s_key = Helper::DMP_LATEST_VERSION if s_key.nil? || s_key.strip.empty?
-
+        s_key = Helper::DMP_LATEST_VERSION if s_key.nil? || s_key.to_s.strip.empty?
         client = client.nil? ? Uc3DmpDynamo::Client.new(debug: debug) : client
         resp = client.get_item(
           key: {
-            PK: Helper.append_pk_prefix(dmp: p_key),
-            SK: s_key.nil? || s_key.strip.empty? ? Helper::DMP_LATEST_VERSION : s_key
+            PK: Helper.append_pk_prefix(p_key: p_key),
+            SK: s_key
           }
         )
-        return nil if resp.nil? || resp.fetch('dmp', {})['PK'].nil?
+        return resp unless resp.is_a?(Hash)
 
-        _append_versions(p_key: resp['dmp']['PK'], dmp: resp, client: client, debug: debug)
+        dmp = resp['dmp'].nil? ? JSON.parse({ dmp: resp }.to_json) : resp
+        return nil if dmp['dmp']['PK'].nil?
+
+        dmp = Versioner.append_versions(p_key: dmp['dmp']['PK'], dmp: dmp, client: client, debug: debug)
+        Helper.cleanse_dmp_json(json: dmp)
+      end
+
+      # Fetch just the PK to see if a record exists
+      # -------------------------------------------------------------------------
+      def exists?(p_key:)
+        raise FinderError, MSG_MISSING_PK if p_key.nil?
+
+        resp = client.get_item(
+          key: {
+            PK: Helper.append_pk_prefix(p_key: p_key),
+            SK: s_key
+          },
+          projection_expression: 'PK'
+        )
+        resp.is_a?(Hash)
       end
 
       # Attempt to find the DMP item by the provenance system's identifier
       # -------------------------------------------------------------------------
       # rubocop:disable Metrics/AbcSize
       def by_provenance_identifier(json:, client: nil, debug: false)
-        raise Uc3DmpIdFinderError, MSG_MISSING_PROV_ID if json.nil? || json.fetch('dmp_id', {})['identifier'].nil?
+        raise FinderError, MSG_MISSING_PROV_ID if json.nil? || json.fetch('dmp_id', {})['identifier'].nil?
 
         args = {
           key_conditions: {
@@ -88,38 +90,17 @@ module Uc3DmpId
             }
           },
           filter_expression: 'SK = :version',
-          expression_attribute_values: { ':version': KeyHelper::DMP_LATEST_VERSION }
+          expression_attribute_values: { ':version': Helper::DMP_LATEST_VERSION }
         }
         client = client.nil? ? Uc3DmpDynamo::Client.new(debug: debug) : client
-        resp = client.query(**args)
-        return resp if resp.nil? || resp['dmp'].nil?
+        resp = client.query(args: args)
+        return resp unless resp.is_a?(Hash)
+
+        dmp = resp['dmp'].nil? ? JSON.parse({ dmp: resp }.to_json) : resp
+        return nil if dmp['dmp']['PK'].nil?
 
         # If we got a hit, fetch the DMP and return it.
-        by_pk(p_key: resp['dmp']['PK'], s_key: resp['dmp']['SK'])
-      end
-      # rubocop:enable Metrics/AbcSize
-
-      private
-
-      # Build the dmphub_versions array and attach it to the dmp
-      # rubocop:disable Metrics/AbcSize
-      def _append_versions(p_key:, dmp:, client: nil, debug: false)
-        return dmp if p_key.nil? || !dmp.is_a?(Hash) || dmp['dmp'].nil?
-
-        results = versions(p_key: p_key, client: client, debug: debug)
-        return dmp unless results.length > 1
-
-        versions = results.map do |version|
-          next if version.fetch('dmp', {})['modified'].nil?
-
-          timestamp = version['dmp']['modified']
-          {
-            timestamp: timestamp,
-            url: "#{Helper.api_base_url}dmps/#{Helper.remove_pk_prefix(dmp: p_key)}?version=#{timestamp}"
-          }
-        end
-        dmp['dmp']['dmphub_versions'] = JSON.parse(versions.to_json)
-        dmp
+        by_pk(p_key: dmp['dmp']['PK'], s_key: dmp['dmp']['SK'])
       end
       # rubocop:enable Metrics/AbcSize
     end

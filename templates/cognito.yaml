@@ -284,6 +284,8 @@ Outputs:
 
   UserPoolId:
     Value: !Ref UserPool
+    Export:
+      Name: !Sub "${AWS::StackName}-UserPoolId"
 
   UserPoolResourceServerId:
     Value: !Ref UserPoolResourceServer

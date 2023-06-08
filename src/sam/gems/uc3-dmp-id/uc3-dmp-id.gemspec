@@ -23,6 +23,7 @@ Gem::Specification.new do |spec|
   spec.add_runtime_dependency('json-schema', '~> 3.0')
 
   spec.add_runtime_dependency('uc3-dmp-dynamo', '~> 0.0')
+  spec.add_runtime_dependency('uc3-dmp-event-bridge', '~> 0.0')
 
   # Requirements for running RSpec
   spec.add_development_dependency('byebug', '11.1.3')

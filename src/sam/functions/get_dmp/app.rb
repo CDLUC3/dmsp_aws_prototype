@@ -43,8 +43,9 @@ module Functions
       #   raise error
       # end
       params = event.fetch('pathParameters', {})
+      qs_params = event.fetch('queryStringParameters', {})
       dmp_id = params['dmp_id']
-      s_key = params.fetch('version', _version_from_path(dmp_id: dmp_id)) unless dmp_id.nil?
+      s_key = qs_params&.fetch('version', _version_from_path(dmp_id: dmp_id)) unless dmp_id.nil?
       s_key = Uc3DmpId::Helper.append_sk_prefix(s_key: s_key) unless s_key.nil?
       return _respond(status: 400, errors: [Uc3DmpApiCore::MSG_INVALID_ARGS], event: event) if dmp_id.nil?
 
@@ -62,7 +63,7 @@ module Functions
       _prep_env
 
       # Get the DMP
-      result = Uc3DmpId::Finder.by_pk(p_key: p_key, s_key: s_key)
+      result = Uc3DmpId::Finder.by_pk(p_key: p_key, s_key: s_key, debug: debug)
       _respond(status: 200, items: [result], event: event, params: params)
     # rescue Uc3DmpId::Uc3DmpIdFinderError => e
     #   Uc3DmpApiCore::Responder.log_error(source: SOURCE, message: e.message, details: e.backtrace)

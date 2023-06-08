@@ -47,6 +47,9 @@ Parameters:
   DynamoTableArn:
     Type: 'String'
 
+  DynamoTableName:
+    Type: 'String'
+
   S3CloudFrontBucketArn:
     Type: 'String'
 
@@ -386,6 +389,8 @@ Resources:
           DOMAIN: !Ref DomainName
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
           EVENT_BUS_NAME: !Ref EventBusArn
+          COGNITO_USER_POOL: !Ref CognitoUserPoolArn
+          DYNAMO_TABLE: !Ref DynamoTableName
           CORS_ORIGIN: !If
             - IsDev
             - "*"
@@ -427,6 +432,7 @@ Resources:
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env
+          DMP_ID_BASE_URL: 'doi.org'
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
           CORS_ORIGIN: !If
             - IsDev
@@ -1125,7 +1131,8 @@ Resources:
         - 'arn:aws:iam::aws:policy/AmazonSQSFullAccess'
         - !Ref DmpHubDynamoTableWritePolicy
         - !Ref EventBusPolicy
-        - !Ref CognitoPolicy
+        - 'arn:aws:iam::aws:policy/AmazonCognitoReadOnly'
+        # - !Ref CognitoPolicy
       DeadLetterQueue:
         Type: 'SQS'
         TargetArn: !Ref DeadLetterQueueArn
@@ -1135,6 +1142,8 @@ Resources:
           DOMAIN: !Ref DomainName
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
           EVENT_BUS_NAME: !Ref EventBusArn
+          COGNITO_USER_POOL: !Ref CognitoUserPoolArn
+          DYNAMO_TABLE: !Ref DynamoTableName
           CORS_ORIGIN: !If
             - IsDev
             - "*"
@@ -1181,6 +1190,8 @@ Resources:
           DOMAIN: !Ref DomainName
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
           EVENT_BUS_NAME: !Ref EventBusArn
+          COGNITO_USER_POOL: !Ref CognitoUserPoolArn
+          DYNAMO_TABLE: !Ref DynamoTableName
           CORS_ORIGIN: !If
             - IsDev
             - "*"

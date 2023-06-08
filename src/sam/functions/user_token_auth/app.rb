@@ -87,6 +87,7 @@ module Functions
           mbox: principal.fetch('mbox', '').to_s,
           admin: principal.fetch('admin', false)
         }
+        context[:token] = principal['token'] unless principal['token'].nil?
         context[:orcid] = principal.fetch('user_id', {})['identifier'] unless principal['user_id'].nil?
         context[:affiliation] = affiliation['name'] unless affiliation['name'].nil?
         context[:affiliation_id] = affiliation.fetch('affiliation_id', {})['identifier'] unless affiliation['affiliation_id'].nil?

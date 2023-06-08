@@ -135,6 +135,21 @@ Resources:
             ReadCapacityUnits: !Ref DynamoReadCapacityUnits
             WriteCapacityUnits: !Ref DynamoWriteCapacityUnits
 
+        - IndexName: 'org_dmps_gsi'
+          KeySchema:
+            - AttributeName: 'dmphub_owner_org'
+              KeyType: 'HASH'
+            - AttributeName: 'PK'
+              KeyType: 'RANGE'
+          Projection:
+            ProjectionType: 'INCLUDE'
+            NonKeyAttributes: ['title', 'contact', 'modified']
+          ContributorInsightsSpecification:
+            Enabled: !Ref DynamoEnableContributorInsights
+          ProvisionedThroughput:
+            ReadCapacityUnits: !Ref DynamoReadCapacityUnits
+            WriteCapacityUnits: !Ref DynamoWriteCapacityUnits
+
       BillingMode: !Ref DynamoBillingMode
       TableClass: !Ref DynamoTableClass
       ProvisionedThroughput:

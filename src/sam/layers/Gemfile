@@ -7,6 +7,8 @@ source 'https://rubygems.org'
 gem 'httparty'
 gem 'json-schema'
 
+# Unfortunately you cannot include gems by path here because AWS doesn't have access when it builds the layer
+# so the gems must exist in RubyGems
 gem 'uc3-dmp-api-core'
 gem 'uc3-dmp-external-api'
 gem 'uc3-dmp-id'
