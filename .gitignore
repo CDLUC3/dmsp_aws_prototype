@@ -10,3 +10,7 @@ src/swagger.node_modules/
 
 # Ignore the Node Modules used to convert the JSON schema to OpenApi schema
 src/swagger/node_modules/
+
+# Ignore Gems in Layer build folders
+src/sam/layer/ruby/gems/
+src/sam/layers/ruby/gems/
