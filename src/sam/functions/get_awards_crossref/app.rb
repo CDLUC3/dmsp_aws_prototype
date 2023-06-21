@@ -8,6 +8,7 @@ $LOAD_PATH.unshift(*my_gem_path)
 
 require 'uc3-dmp-api-core'
 require 'uc3-dmp-external-api'
+require 'uc3-dmp-provenance'
 
 module Functions
   # A Proxy service that queries the NSF Awards API and transforms the results into a common format
@@ -26,34 +27,13 @@ module Functions
     MSG_EMPTY_RESPONSE = 'Crossref API returned an empty resultset'
 
     def self.process(event:, context:)
-      # Parameters
-      # ----------
-      # event: Hash, required
-      #     API Gateway Lambda Proxy Input Format
-      #     Event doc: https://docs.aws.amazon.com/apigateway/latest/developerguide/set-up-lambda-proxy-integrations.html#api-gateway-simple-proxy-for-lambda-input-format
-      # context: object, required
-      #     Lambda Context runtime methods and attributes
-      #     Context doc: https://docs.aws.amazon.com/lambda/latest/dg/ruby-context.html
-
-      # Returns
-      # ------
-      # API Gateway Lambda Proxy Output Format: dict
-      #     'statusCode' and 'body' are required
-      #     # api-gateway-simple-proxy-for-lambda-output-format
-      #     Return doc: https://docs.aws.amazon.com/apigateway/latest/developerguide/set-up-lambda-proxy-integrations.html
-
-      # begin
-      #   response = HTTParty.get('http://checkip.amazonaws.com/')
-      # rescue HTTParty::Error => error
-      #   puts error.inspect
-      #   raise error
-      # end
       funder = event.fetch('pathParameters', {})['funder_id']
       return Responder.respond(status: 400, errors: MSG_NO_FUNDER) if funder.nil? || funder.empty?
 
-      principal = event.fetch('requestContext', {}).fetch('authorizer', {})
-      return _respond(status: 401, errors: [Uc3DmpApiCore::MSG_FORBIDDEN], event: event) if principal.nil? ||
-                                                                                            principal['mbox'].nil?
+      # Debug, output the incoming Event and Context
+      debug = Uc3DmpApiCore::SsmReader.debug_mode?
+      puts event if debug
+      puts context if debug
 
       params = event.fetch('queryStringParameters', {})
       pi_names = params.fetch('pi_names', '')
@@ -63,11 +43,6 @@ module Functions
       years = years.split(',').map(&:to_i)
       return _respond(status: 400, errors: [MSG_BAD_ARGS], event: event) if (title.nil? || title.empty?) &&
                                                                             (pi_names.nil? || pi_names.empty?)
-
-      # Debug, output the incoming Event and Context
-      debug = Uc3DmpApiCore::SsmReader.debug_mode?
-      pp event if debug
-      pp context if debug
 
       url = "#{project_num}" unless project_num.nil? || project_num.empty?
       url = "?#{_prepare_query_string(funder: funder, pi_names: pi_names, title: title, years: years)}" if url.nil?

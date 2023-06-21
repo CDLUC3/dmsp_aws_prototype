@@ -36,18 +36,11 @@ module Functions
       provenance = Uc3DmpProvenance::Finder.from_lambda_cotext(identity: claim)
       return _respond(status: 403, errors: Uc3DmpId::MSG_DMP_FORBIDDEN, event: event) if provenance.nil?
 
-puts "PROVENANCE:"
-puts provenance
-puts "BODY:"
-puts json
-puts "OWNER ORG:"
-puts _extract_org(json: json)
-
       # Get the DMP
       resp = Uc3DmpId::Creator.create(provenance: provenance, owner_org: _extract_org(json: json), json: json, debug: debug)
       return _respond(status: 400, errors: Uc3DmpId::MSG_DMP_NO_DMP_ID) if resp.nil?
 
-      _respond(status: 201, items: rep, event: event)
+      _respond(status: 201, items: resp, event: event)
     rescue Uc3DmpId::CreatorError => e
       _respond(status: 400, errors: [Uc3DmpId::MSG_DMP_NO_DMP_ID, e.message], event: event)
     rescue StandardError => e

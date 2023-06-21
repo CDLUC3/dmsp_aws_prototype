@@ -8,6 +8,7 @@ $LOAD_PATH.unshift(*my_gem_path)
 
 require 'uc3-dmp-api-core'
 require 'uc3-dmp-external-api'
+require 'uc3-dmp-provenance'
 
 module Functions
   # A Proxy service that queries the NIH Awards API and transforms the results into a common format
@@ -27,48 +28,9 @@ module Functions
     MSG_EMPTY_RESPONSE = 'NIH API returned an empty resultset'
 
     def self.process(event:, context:)
-      # Parameters
-      # ----------
-      # event: Hash, required
-      #     API Gateway Lambda Proxy Input Format
-      #     Event doc: https://docs.aws.amazon.com/apigateway/latest/developerguide/set-up-lambda-proxy-integrations.html#api-gateway-simple-proxy-for-lambda-input-format
-
-      # context: object, required
-      #     Lambda Context runtime methods and attributes
-      #     Context doc: https://docs.aws.amazon.com/lambda/latest/dg/ruby-context.html
-
-      # Expecting the queryStringParameters to include the following:
-      #
-      #   project=5R01AI143730-04                        <-- NIH Project number
-      #
-      #         OR
-      #
-      #   opportunity=PA-18-484&pi_names=Jane+Doe        <-- NIH opportunity nbr and PI names
-      #
-      #         OR
-      #
-      #   years=2023,2022&pi_names=Van+Buren,John+Smith  <-- Years and PI names
-      #
-      # Returns
-      # ------
-      # API Gateway Lambda Proxy Output Format: dict
-      #     'statusCode' and 'body' are required
-      #     # api-gateway-simple-proxy-for-lambda-output-format
-      #     Return doc: https://docs.aws.amazon.com/apigateway/latest/developerguide/set-up-lambda-proxy-integrations.html
-
-      # begin
-      #   response = HTTParty.get('http://checkip.amazonaws.com/')
-      # rescue HTTParty::Error => error
-      #   puts error.inspect
-      #   raise error
-      # end
       params = _parse_params(event: event)
       continue = params[:project_num].length.positive? || params[:pi_names].length.positive?
       return _respond(status: 400, errors: [MSG_BAD_ARGS], event: event) unless continue
-
-      principal = event.fetch('requestContext', {}).fetch('authorizer', {})
-      return _respond(status: 401, errors: [Uc3DmpApiCore::MSG_FORBIDDEN], event: event) if principal.nil? ||
-                                                                                            principal['mbox'].nil?
 
       # Debug, output the incoming Event and Context
       debug = Uc3DmpApiCore::SsmReader.debug_mode?

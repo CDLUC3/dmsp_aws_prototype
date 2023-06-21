@@ -108,11 +108,11 @@ Resources:
           KeySchema:
             - AttributeName: 'dmphub_provenance_identifier'
               KeyType: 'HASH'
-            - AttributeName: 'PK'
+            - AttributeName: 'dmphub_modification_day'
               KeyType: 'RANGE'
           Projection:
             ProjectionType: 'INCLUDE'
-            NonKeyAttributes: ['PK', 'SK']
+            NonKeyAttributes: ['PK', 'SK', 'title', 'contact', 'modified', 'project']
           ContributorInsightsSpecification:
             Enabled: !Ref DynamoEnableContributorInsights
           ProvisionedThroughput:
@@ -123,21 +123,6 @@ Resources:
         - IndexName: 'provenance_dmps_gsi'
           KeySchema:
             - AttributeName: 'dmphub_provenance_id'
-              KeyType: 'HASH'
-            - AttributeName: 'PK'
-              KeyType: 'RANGE'
-          Projection:
-            ProjectionType: 'INCLUDE'
-            NonKeyAttributes: ['title', 'contact', 'modified']
-          ContributorInsightsSpecification:
-            Enabled: !Ref DynamoEnableContributorInsights
-          ProvisionedThroughput:
-            ReadCapacityUnits: !Ref DynamoReadCapacityUnits
-            WriteCapacityUnits: !Ref DynamoWriteCapacityUnits
-
-        - IndexName: 'org_dmps_gsi'
-          KeySchema:
-            - AttributeName: 'dmphub_owner_org'
               KeyType: 'HASH'
             - AttributeName: 'PK'
               KeyType: 'RANGE'

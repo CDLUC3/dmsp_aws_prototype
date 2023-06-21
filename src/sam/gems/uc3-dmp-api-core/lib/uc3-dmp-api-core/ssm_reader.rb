@@ -59,7 +59,7 @@ module Uc3DmpApiCore
           administrator_email: '/uc3/dmp/hub/%{env}/AdminEmail',
           api_base_url: '/uc3/dmp/hub/%{env}/ApiBaseUrl',
           base_url: '/uc3/dmp/hub/%{env}/BaseUrl',
-          debug_mode: '/uc3/dmp/hub/%{env}/Debug',
+          debug_mode: '/uc3/dmp/hub/%{env}/Debug'
 
           dmp_id_api_url: '/uc3/dmp/hub/%{env}/EzidApiUrl',
           dmp_id_base_url: '/uc3/dmp/hub/%{env}/EzidBaseUrl',
