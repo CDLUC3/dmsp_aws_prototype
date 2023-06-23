@@ -3,6 +3,10 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: 'Builds out an SQS queue used to email sys admin and trigger some lambdas'
 
 Parameters:
+  Env:
+    Type: 'String'
+    Default: 'dev'
+
   SsmPath:
     Type: 'String'
 
@@ -127,20 +131,30 @@ Resources:
 Outputs:
   DeadLetterQueueId:
     Value: !Ref DeadLetterQueue
+
   DeadLetterQueueArn:
     Value: !GetAtt DeadLetterQueue.Arn
+    Export:
+      Name: !Sub '${Env}-DeadLetterQueueArn'
 
   SqsQueueId:
     Value: !Ref SqsQueue
+
   SqsQueueArn:
     Value: !GetAtt SqsQueue.Arn
 
   SnsTopicEmailArn:
     Value: !Ref SnsTopicEmail
+    Export:
+      Name: !Sub '${Env}-SnsTopicEmailArn'
+
   SnsTopicEmailName:
     Value: !GetAtt SnsTopicEmail.TopicName
 
   SnsCodeBuildTopicEmailArn:
     Value: !Ref SnsCodeBuildTopicEmail
+
   SnsCodeBuildTopicEmailName:
     Value: !GetAtt SnsCodeBuildTopicEmail.TopicName
+    Export:
+      Name: !Sub '${Env}-SnsCodeBuildTopicEmailName'

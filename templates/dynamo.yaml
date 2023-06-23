@@ -3,6 +3,10 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: 'DynamoDB that backs the API dmp-hub-sam'
 
 Parameters:
+  Env:
+    Type: 'String'
+    Default: 'dev'
+
   Domain:
     Type: 'String'
 
@@ -158,20 +162,24 @@ Resources:
       Type: 'String'
       Value: !Sub "https://${Domain}"
 
-  # Add the Table name to SSM so that our Lambdas can access it
   TableNameParameter:
     Type: 'AWS::SSM::Parameter'
     Properties:
-      Description: !Sub "${AWS::StackName} DynamoTable"
+      Description: !Sub "${AWS::StackName} DynamoDb Table"
       Name: !Sub "${SsmPath}DynamoTableName"
-      # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
       Type: 'String'
       Value: !Select [1, !Split ['/', !GetAtt DynamoTable.Arn]]
 
 Outputs:
   DynamoTableName:
     Value: !Select [1, !Split ['/', !GetAtt DynamoTable.Arn]]
+    Export:
+      Name: !Sub '${Env}-DynamoTableName'
+
   DynamoTableId:
     Value: !Ref DynamoTable
+
   DynamoTableArn:
     Value: !GetAtt DynamoTable.Arn
+    Export:
+      Name: !Sub '${Env}-DynamoTableArn'

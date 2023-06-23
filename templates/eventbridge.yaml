@@ -3,6 +3,10 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: 'EventBridge for the DMPHub'
 
 Parameters:
+  Env:
+    Type: 'String'
+    Default: 'dev'
+
   SsmPath:
     Type: 'String'
 
@@ -149,6 +153,8 @@ Outputs:
     Value: !Ref EventBus
   EventBusArn:
     Value: !GetAtt EventBus.Arn
+    Export:
+      Name: !Sub '${Env}-EventBusArn'
 
   EventBusPolicy:
     Value: !Ref EventBusPolicy

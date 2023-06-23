@@ -17,6 +17,7 @@ Parameters:
 
   Env:
     Type: 'String'
+    Default: 'dev'
 
   TagProgram:
     Type: 'String'
@@ -285,7 +286,7 @@ Outputs:
   UserPoolId:
     Value: !Ref UserPool
     Export:
-      Name: !Sub "${AWS::StackName}-UserPoolId"
+      Name: !Sub "${Env}-UserPoolId"
 
   UserPoolResourceServerId:
     Value: !Ref UserPoolResourceServer
@@ -293,4 +294,4 @@ Outputs:
   UserPoolArn:
     Value: !GetAtt UserPool.Arn
     Export:
-      Name: !Sub '${AWS::StackName}-UserPoolArn'
+      Name: !Sub '${Env}-CognitoUserPoolArn'

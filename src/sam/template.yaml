@@ -13,19 +13,7 @@ Globals:
     Tracing: 'Active'
 
 Parameters:
-  VpcId:
-    Type: 'AWS::EC2::VPC::Id'
-  SubnetA:
-    Type: 'AWS::EC2::Subnet::Id'
-  SubnetB:
-    Type: 'AWS::EC2::Subnet::Id'
-  SubnetC:
-    Type: 'AWS::EC2::Subnet::Id'
-
   HostedZoneId:
-    Type: 'String'
-
-  DbSecGroupId:
     Type: 'String'
 
   EventBusArn:
@@ -53,22 +41,14 @@ Parameters:
   S3CloudFrontBucketArn:
     Type: 'String'
 
+  S3PrivateBucketId:
+    Type: 'String'
+
   SnsEmailTopicArn:
     Type: 'String'
 
   DeadLetterQueueArn:
     Type: 'String'
-
-  RdsHost:
-    Type: 'String'
-
-  RdsPort:
-    Type: 'String'
-    Default: '3306'
-
-  RdsDbName:
-    Type: 'String'
-    Default: 'dmp'
 
   LogRetentionDays:
     Type: 'Number'
@@ -183,47 +163,6 @@ Resources:
             - !Ref S3CloudFrontBucketArn
             - !Sub "${S3CloudFrontBucketArn}/*"
 
-  # -----------------------------------------------------------
-  # EC2 Security Groups for use with Lambdas that need to talk to the RDS database
-  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-security-group.html
-  # -----------------------------------------------------------
-  LambdaSecGroup:
-    Type: 'AWS::EC2::SecurityGroup'
-    Properties:
-      GroupDescription: !Sub 'RDS security group for Lambdas that will access RDS'
-      GroupName: !Sub "${DomainName}-lambda-sec-grp"
-      VpcId: !Ref VpcId
-
-  LambdaSecGroupIngress:
-    Type: 'AWS::EC2::SecurityGroupIngress'
-    Properties:
-      Description: !Sub "${DomainName} Ingress rule to Lambda"
-      GroupId: !GetAtt LambdaSecGroup.GroupId
-      CidrIp: '0.0.0.0/0'
-      IpProtocol: 'tcp'
-      FromPort: '0'
-      ToPort: '65535'
-
-  LambdaSecGroupEgress:
-    Type: 'AWS::EC2::SecurityGroupEgress'
-    Properties:
-      Description: !Sub "${DomainName} Egress rule from Lambda to API Gateway"
-      GroupId: !GetAtt LambdaSecGroup.GroupId
-      CidrIp: '0.0.0.0/0'
-      IpProtocol: 'tcp'
-      FromPort: '0'
-      ToPort: '65535'
-
-  LambdaToRdsSecGroupIngress:
-    Type: 'AWS::EC2::SecurityGroupIngress'
-    Properties:
-      Description: !Sub "${DomainName} Ingress rule to Lambda"
-      GroupId: !Ref DbSecGroupId
-      SourceSecurityGroupId: !GetAtt LambdaSecGroup.GroupId
-      IpProtocol: 'tcp'
-      FromPort: '3306'
-      ToPort: '3306'
-
   # ----------------------------------------------------
   # CloudWatch LogGroup
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_Logs.html
@@ -312,10 +251,16 @@ Resources:
     Properties:
       LayerName: !Sub '${AWS::StackName}-lambda-layer'
       Description: !Sub 'Core Lambda Layer for DMPHub ${Env}'
-      ContentUri: 'layers/uc3-dmp-hub-lambda-layer.zip'
+      ContentUri: !Sub 'layers'
+        # Bucket: !Ref S3PrivateBucketId
+        # Key: !Sub 'lambdas/uc3-dmp-hub-${Env}-sam-resources-lambda-layer.zip'
       CompatibleRuntimes:
         - 'ruby2.7'
       RetentionPolicy: 'Delete'
+    Metadata:
+      BuildMethod: 'makefile'
+      BuildArchitecture: 'x86_64'
+
 
   # ----------------------------------------------------
   # API Lambdas
@@ -392,6 +337,7 @@ Resources:
         Variables:
           LAMBDA_ENV: !Ref Env
           DMP_ID_BASE_URL: 'doi.org'
+          DYNAMO_TABLE: !Ref DynamoTableName
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
           CORS_ORIGIN: !If
             - IsDev
@@ -1026,9 +972,6 @@ Outputs:
     Value: !Ref DmpHubDynamoTableWritePolicy
   S3BucketPolicyArn:
     Value: !Ref S3BucketPolicy
-
-  LambdaSecGroupId:
-    Value: !Ref LambdaSecGroup
 
   DeleteDmpFunctionArn:
     Value: !GetAtt DeleteDmpFunction.Arn
