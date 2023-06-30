@@ -12,4 +12,5 @@ src/swagger.node_modules/
 src/swagger/node_modules/
 
 # Ignore Gems in Layer build folders
-src/sam/layers/ruby/
+src/sam/.aws-sam/
+src/sam/layers/ruby/2.7.0/
