@@ -61,6 +61,8 @@ module Functions
       pp event if debug
       pp context if debug
 
+      _set_env
+
       # Fail if there was no DMP ID specified
       return Responder.respond(status: 404, errors: Messages::MSG_INVALID_JSON, event: event) if dmp_id.nil?
 
@@ -97,5 +99,16 @@ module Functions
       { statusCode: 500, body: { errors: [Messages::MSG_SERVER_ERROR] }.to_json }
     end
     # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
+
+    private
+
+    class << self
+      # Set the Cognito User Pool Id and DyanmoDB Table name for the downstream Uc3DmpCognito and Uc3DmpDynamo
+      def _set_env
+        ENV['COGNITO_USER_POOL_ID'] = ENV['COGNITO_USER_POOL_ID']&.split('/')&.last
+        ENV['DMP_ID_SHOULDER'] = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :dmp_id_shoulder)
+        ENV['DMP_ID_BASE_URL'] = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :dmp_id_base_url)
+      end
+    end
   end
 end

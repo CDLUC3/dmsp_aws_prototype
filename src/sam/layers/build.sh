@@ -1,40 +1,16 @@
 #!/bin/bash
+mkdir -p "$SAM_BUILD_DIR/ruby"
 
-# You can specify test when running this script to get Bundler to install all of the test
-# dependencies. e.g. `./build.sh test`
+echo "    Bundling gems into $SAM_BUILD_DIR/ruby ..."
+bundle config path $SAM_BUILD_DIR
+bundle config --local with ''
+bundle config --local without 'test'
+bundle install --quiet
 
-ZIP_NAME="uc3-dmp-hub-lambda-layer.zip"
+echo "    Transferring gems to Lambda dir ..."
+mkdir -p "$SAM_BUILD_DIR/ruby/gems"
+cp -rf "$SAM_BUILD_DIR/ruby/2.7.0/gems" "$SAM_BUILD_DIR/ruby/gems/2.7.0"
+rm -rf "$SAM_BUILD_DIR/ruby/2.7.0"
 
-RUBY_VERSION=2.7.0
-
-# Lambda Layers are imported into the Lambda as /opt/ruby/gems/[Version]
-# so we need to bundle and then move them to the appropriate dir
-BUNDLER_BUILD_DIR=ruby/$RUBY_VERSION
-BUNDLER_GEM_DIR=ruby/$RUBY_VERSION/gems
-SAM_GEM_DIR=ruby/gems
-
-# Cleanup
-if [ -f Gemfile.lock ]; then rm Gemfile.lock; fi
-if [ -f $ZIP_NAME ]; then rm $ZIP_NAME; fi
-if [ -d $SAM_GEM_DIR/$RUBY_VERSION ]; then rm -rf $SAM_GEM_DIR/$RUBY_VERSION/**; fi
-
-# Run bundler
-if [ -d $BUNDLER_BUILD_DIR ]; then bundle clean; fi
-
-# If 'test' was passed as an argument then bundle with all of the test dependencies
-if [ "$1" == 'test' ]; then
-  bundle install --with test
-  bundle config --local without ''
-  bundle config --local with 'test'
-  bundle install
-else
-  bundle config --local with ''
-  bundle config --local without 'test'
-  bundle install
-fi
-
-cp -r $BUNDLER_GEM_DIR/** $SAM_GEM_DIR/$RUBY_VERSION
-rm -rf $BUNDLER_BUILD_DIR
-
-# Create the ZIP artifact
-zip -r $ZIP_NAME ruby
+echo "    Generating MD5 hash"
+find "$$SAM_BUILD_DIR/ruby/gems/2.7.0/" -type f -exec md5sum {} + > md5.txt

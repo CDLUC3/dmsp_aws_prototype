@@ -46,7 +46,11 @@ module Uc3DmpApiCore
       # Checks to see if debug mode has been enabled in SSM
       # ----------------------------------------------------
       def debug_mode?
-        get_ssm_value(key: _ssm_keys[:debug_mode])&.downcase&.strip == 'true'
+
+puts "Checking to see if we are in debug mode."
+puts "Key: #{_ssm_keys[:debug_mode]}, Val: #{get_ssm_value(key: _ssm_keys[:debug_mode])}, Downcased: #{get_ssm_value(key: _ssm_keys[:debug_mode])&.to_s&.downcase&.strip} "
+
+        get_ssm_value(key: _ssm_keys[:debug_mode])&.to_s&.downcase&.strip == 'true'
       end
 
       private
@@ -59,7 +63,7 @@ module Uc3DmpApiCore
           administrator_email: '/uc3/dmp/hub/%{env}/AdminEmail',
           api_base_url: '/uc3/dmp/hub/%{env}/ApiBaseUrl',
           base_url: '/uc3/dmp/hub/%{env}/BaseUrl',
-          debug_mode: '/uc3/dmp/hub/%{env}/Debug'
+          debug_mode: '/uc3/dmp/hub/%{env}/Debug',
 
           dmp_id_api_url: '/uc3/dmp/hub/%{env}/EzidApiUrl',
           dmp_id_base_url: '/uc3/dmp/hub/%{env}/EzidBaseUrl',

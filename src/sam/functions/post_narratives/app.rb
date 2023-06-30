@@ -7,6 +7,8 @@ my_gem_path = Dir['/opt/ruby/gems/**/lib/']
 $LOAD_PATH.unshift(*my_gem_path)
 
 require 'uc3-dmp-api-core'
+require 'uc3-dmp-id'
+require 'uc3-dmp-provenance'
 require 'uc3-dmp-s3'
 
 module Functions
@@ -14,58 +16,48 @@ module Functions
   class PostNarratives
     SOURCE = 'POST /narratives'
 
-    MSG_BAD_ARGS = 'Expecting multipart/form-data with PDF content in the body'
+    MSG_BAD_ARGS = 'Expecting multipart/form-data with PDF content in the body.'
+    MSG_UNABLE_TO_ATTACH = 'Unable to save the narrative document and attach it to the DMP ID.'
 
     def self.process(event:, context:)
-      # Parameters
-      # ----------
-      # event: Hash, required
-      #     API Gateway Lambda Proxy Input Format
-      #     Event doc: https://docs.aws.amazon.com/apigateway/latest/developerguide/set-up-lambda-proxy-integrations.html#api-gateway-simple-proxy-for-lambda-input-format
-
-      # context: object, required
-      #     Lambda Context runtime methods and attributes
-      #     Context doc: https://docs.aws.amazon.com/lambda/latest/dg/ruby-context.html
-
-      # Expecting the request to include the PDF:
-      #
-      #
-      # Returns
-      # ------
-      # API Gateway Lambda Proxy Output Format: dict
-      #     'statusCode' and 'body' are required
-      #     # api-gateway-simple-proxy-for-lambda-output-format
-      #     Return doc: https://docs.aws.amazon.com/apigateway/latest/developerguide/set-up-lambda-proxy-integrations.html
-
-      # begin
-      #   response = HTTParty.get('http://checkip.amazonaws.com/')
-      # rescue HTTParty::Error => error
-      #   puts error.inspect
-      #   raise error
-      # end
       params = _parse_params(event: event)
-      continue = params[:payload].length.positive?
-      return _respond(status: 400, errors: [MSG_BAD_ARGS], event: event) unless params[:payload].length.positive?
-
-      principal = event.fetch('requestContext', {}).fetch('authorizer', {})
-      return _respond(status: 401, errors: [Uc3DmpRds::MSG_MISSING_USER], event: event) if principal.nil? ||
-                                                                                           principal['mbox'].nil?
+      continue = params[:dmp_id].length.positive? && params[:payload].length.positive?
+      return _respond(status: 400, errors: [MSG_BAD_ARGS], event: event) unless continue
 
       # Debug, output the incoming Event and Context
       debug = Uc3DmpApiCore::SsmReader.debug_mode?
       pp event if debug
       pp context if debug
+      puts "In Debug mode: #{debug}"
+
+      _set_env
+
+      # Fail if the Provenance could not be loaded
+      claim = event.fetch('requestContext', {}).fetch('authorizer', {})['claims']
+      provenance = Uc3DmpProvenance::Finder.from_lambda_cotext(identity: claim)
+      return _respond(status: 403, errors: Uc3DmpId::MSG_DMP_FORBIDDEN, event: event) if provenance.nil?
+
+      # Make sure there is a DMP ID for the narrative to be attached to!
+      dmp = Uc3DmpId::Finder.by_pk(p_key: params[:dmp_id], debug: debug)
+      return _respond(status: 403, errors: [Uc3DmpId::MSG_DMP_FORBIDDEN], event: event) if dmp.nil?
 
       # Store the document in S3 Bucket
       object_key = Uc3DmpS3::Client.put_narrative(document: params[:payload], base64: params[:base64encoded])
       return _respond(status: 500, errors: Uc3DmpS3::Client::MSG_S3_FAILURE, event: event) if object_key.nil?
 
-      Uc3DmpApiCore::LogWriter.log_message(source: SOURCE, message: "Added #{object_key} to S3") if debug
+      # Attache the S3 access URL to the DMP ID record
+      url = "#{Uc3DmpApiCore::SsmReader.get_ssm_value(key: :api_base_url)}/#{object_key}"
+      attached = Uc3DmpId::Updater.attach_narrative(provenance: provenance, p_key: params[:dmp_id], url: url, debug: debug)
+      return _respond(status: 500, errors: [MSG_UNABLE_TO_ATTACH], event: event) unless attached
 
-      # Generate the S3 access URL and hash for the DMP ID record
-      _respond(status: 201, items: [_generate_response(object_key: object_key)], event: event)
+      # Reload the DMP ID and return it. It should now have a new dmproadmap_related_identifier pointing to the PDF
+      Uc3DmpApiCore::LogWriter.log_message(source: SOURCE, message: "Added #{object_key} to S3") if debug
+      dmp = Uc3DmpId::Finder.by_pk(p_key: params[:dmp_id], debug: debug)
+      _respond(status: 201, items: [dmp], event: event)
     rescue Aws::Errors::ServiceError => e
       _respond(status: 500, errors: [Uc3DmpApiCore::MSG_SERVER_ERROR], event: event)
+    rescue Uc3DmpId::UpdaterError => e
+      _respond(status: 400, errors: [e.message], event: event)
     rescue StandardError => e
       # Just do a print here (ends up in CloudWatch) in case it was the Uc3DmpApiCore::Responder.rb that failed
       puts "#{SOURCE} FATAL: #{e.message}"
@@ -76,44 +68,22 @@ module Functions
     private
 
     class << self
+      # Set the Cognito User Pool Id and DyanmoDB Table name for the downstream Uc3DmpCognito and Uc3DmpDynamo
+      def _set_env
+        ENV['COGNITO_USER_POOL_ID'] = ENV['COGNITO_USER_POOL_ID']&.split('/')&.last
+        ENV['DMP_ID_SHOULDER'] = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :dmp_id_shoulder)
+        ENV['DMP_ID_BASE_URL'] = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :dmp_id_base_url)
+      end
+
       # Parse the incoming query string arguments
       def _parse_params(event:)
         return {} unless event.is_a?(Hash) &&
-                         event.fetch('headers', {})['content-type']&.start_with?('multipart/form-data')
+                         !event.fetch('queryStringParameters', {})['dmp_id'].nil?
 
         {
+          dmp_id: event.fetch('queryStringParameters', {})['dmp_id'],
           payload: event.fetch('body', ''),
           base64encoded: event.fetch('isBase64Encoded', false)
-        }
-      end
-
-      # Generate the response hash.
-      #
-      # {
-      #   "dmproadmap_related_identifiers": [
-      #     {
-      #       "descriptor": "is_metadata_for",
-      #       "work_type": "output_management_plan",
-      #       "type": "url",
-      #       "identifier": "https://api.dmphub-dev.cdlib.org/narratives/83t838t83t.pdf"
-      #     }
-      #   ]
-      # }
-      def _generate_response(object_key:)
-        return {} unless object_key.is_a?(String) && !object_key.strip.empty?
-
-        api_url = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :api_base_url)
-        return {} if api_url.nil?
-
-        {
-          dmproadmap_related_identifiers: [
-            {
-              descriptor: 'is_metadata_for',
-              work_type: 'output_management_plan',
-              type: 'url',
-              identifier: "#{api_url}/#{object_key}"
-            }
-          ]
         }
       end
 

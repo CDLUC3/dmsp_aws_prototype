@@ -6,21 +6,10 @@
 my_gem_path = Dir['/opt/ruby/gems/**/lib/']
 $LOAD_PATH.unshift(*my_gem_path)
 
-require 'aws-sdk-cognitoidentityprovider'
-require 'aws-sdk-dynamodb'
-require 'aws-sdk-eventbridge'
-require 'aws-sdk-sns'
-
-require 'dmp_finder'
-require 'dmp_helper'
-require 'dmp_updater'
-require 'event_publisher'
-require 'key_helper'
-require 'messages'
-require 'provenance_finder'
-require 'responder'
-require 'ssm_reader'
-require 'validator'
+require 'uc3-dmp-api-core'
+require 'uc3-dmp-event-bridge'
+require 'uc3-dmp-id'
+require 'uc3-dmp-provenance'
 
 module Functions
   # The handler for PUT /dmps/{dmp_id+}
@@ -29,32 +18,6 @@ module Functions
 
     # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
     def self.process(event:, context:)
-      # Sample pure Lambda function
-
-      # Parameters
-      # ----------
-      # event: Hash, required
-      #     API Gateway Lambda Proxy Input Format
-      #     Event doc: https://docs.aws.amazon.com/apigateway/latest/developerguide/set-up-lambda-proxy-integrations.html#api-gateway-simple-proxy-for-lambda-input-format
-
-      # context: object, required
-      #     Lambda Context runtime methods and attributes
-      #     Context doc: https://docs.aws.amazon.com/lambda/latest/dg/ruby-context.html
-
-      # Returns
-      # ------
-      # API Gateway Lambda Proxy Output Format: dict
-      #     'statusCode' and 'body' are required
-      #     # api-gateway-simple-proxy-for-lambda-output-format
-      #     Return doc: https://docs.aws.amazon.com/apigateway/latest/developerguide/set-up-lambda-proxy-integrations.html
-
-      # begin
-      #   response = HTTParty.get('http://checkip.amazonaws.com/')
-      # rescue HTTParty::Error => error
-      #   puts error.inspect
-      #   raise error
-      # end
-
       params = event.fetch('pathParameters', {})
       dmp_id = params['dmp_id']
       body = event.fetch('body', '')
@@ -63,6 +26,8 @@ module Functions
       debug = SsmReader.debug_mode?
       pp event if debug
       pp context if debug
+
+      _set_env
 
       # Fail if the DMP ID specified was not valid
       p_key = KeyHelper.path_parameter_to_pk(param: dmp_id)
@@ -102,5 +67,16 @@ module Functions
       { statusCode: 500, body: { errors: [Messages::MSG_SERVER_ERROR] }.to_json }
     end
     # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
+
+    private
+
+    class << self
+      # Set the Cognito User Pool Id and DyanmoDB Table name for the downstream Uc3DmpCognito and Uc3DmpDynamo
+      def _set_env
+        ENV['COGNITO_USER_POOL_ID'] = ENV['COGNITO_USER_POOL_ID']&.split('/')&.last
+        ENV['DMP_ID_SHOULDER'] = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :dmp_id_shoulder)
+        ENV['DMP_ID_BASE_URL'] = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :dmp_id_base_url)
+      end
+    end
   end
 end

@@ -1,0 +1,13 @@
+current directory: /Users/briley/Documents/workspace/dmp-hub-cfn/src/sam/layers/ruby/2.7.0/gems/json-2.6.3/ext/json
+/Users/briley/.rbenv/versions/2.7.6/bin/ruby -I /Users/briley/.rbenv/versions/2.7.6/lib/ruby/2.7.0 -r ./siteconf20230627-54961-1h8vsxb.rb extconf.rb
+creating Makefile
+
+current directory: /Users/briley/Documents/workspace/dmp-hub-cfn/src/sam/layers/ruby/2.7.0/gems/json-2.6.3/ext/json
+make "DESTDIR=" clean
+
+current directory: /Users/briley/Documents/workspace/dmp-hub-cfn/src/sam/layers/ruby/2.7.0/gems/json-2.6.3/ext/json
+make "DESTDIR="
+make: Nothing to be done for `all'.
+
+current directory: /Users/briley/Documents/workspace/dmp-hub-cfn/src/sam/layers/ruby/2.7.0/gems/json-2.6.3/ext/json
+make "DESTDIR=" install

@@ -37,10 +37,10 @@ module Functions
       return _respond(status: 403, errors: Uc3DmpId::MSG_DMP_FORBIDDEN, event: event) if provenance.nil?
 
       # Get the DMP
-      resp = Uc3DmpId::Creator.create(provenance: provenance, owner_org: _extract_org(json: json), json: json, debug: debug)
+      resp = Uc3DmpId::Creator.create(provenance: provenance, json: json, debug: debug)
       return _respond(status: 400, errors: Uc3DmpId::MSG_DMP_NO_DMP_ID) if resp.nil?
 
-      _respond(status: 201, items: resp, event: event)
+      _respond(status: 201, items: [resp], event: event)
     rescue Uc3DmpId::CreatorError => e
       _respond(status: 400, errors: [Uc3DmpId::MSG_DMP_NO_DMP_ID, e.message], event: event)
     rescue StandardError => e
@@ -57,32 +57,9 @@ module Functions
 
       # Set the Cognito User Pool Id and DyanmoDB Table name for the downstream Uc3DmpCognito and Uc3DmpDynamo
       def _set_env
-        ENV['COGNITO_USER_POOL_ID'] = ENV['COGNITO_USER_POOL']&.split('/')&.last
-        ENV['DYNAMO_TABLE'] = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :dynamo_table_name)
+        ENV['COGNITO_USER_POOL_ID'] = ENV['COGNITO_USER_POOL_ID']&.split('/')&.last
         ENV['DMP_ID_SHOULDER'] = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :dmp_id_shoulder)
         ENV['DMP_ID_BASE_URL'] = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :dmp_id_base_url)
-      end
-
-      # Detemrine who the owner Organization/Institution is based on the contact and contributors
-      def _extract_org(json:)
-        return nil if json['dmp']['contact'].nil? && json['dmp'].fetch('contributor', []).empty?
-
-        id = _affiliation_id_from_person(hash: json['dmp']['contact'])
-        return id unless id.nil?
-
-        orgs = json['dmp'].fetch('contributor').map { |contributor| _affiliation_id_from_person(hash: contributor) }
-        orgs.max_by { |i| orgs.count(i) }
-      end
-
-      # Fetch the ROR from the contact/contributor hash
-      def _affiliation_id_from_person(hash:)
-        return nil unless hash.is_a?(Hash) && !hash.fetch('dmproadmap_affiliation', {})['affiliation_id'].nil?
-
-        id_hash = hash['dmproadmap_affiliation'].fetch('affiliation_id', {})
-        return nil if id_hash.fetch('identifier', '').to_s.strip.empty?
-
-        id = id_hash['identifier'].to_s.downcase.strip
-        id_hash['type'].to_s.downcase.strip == 'ror' ? id : nil
       end
 
       # Send the output to the Responder

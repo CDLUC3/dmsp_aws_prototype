@@ -14,37 +14,11 @@ require 'base64'
 module Functions
   # A Proxy service that queries the NIH Awards API and transforms the results into a common format
   class GetNarrative
-    SOURCE = 'GET /narratives/{narrative_id}'
+    SOURCE = 'GET /narratives?dmp_id={dmp_id+}'
 
     MSG_BAD_ARGS = 'Expecting a narrative id (e.g. 1234567890abcd.pdf)'
 
     def self.process(event:, context:)
-      # Parameters
-      # ----------
-      # event: Hash, required
-      #     API Gateway Lambda Proxy Input Format
-      #     Event doc: https://docs.aws.amazon.com/apigateway/latest/developerguide/set-up-lambda-proxy-integrations.html#api-gateway-simple-proxy-for-lambda-input-format
-
-      # context: object, required
-      #     Lambda Context runtime methods and attributes
-      #     Context doc: https://docs.aws.amazon.com/lambda/latest/dg/ruby-context.html
-
-      # Expecting the request to include the PDF:
-      #
-      #
-      # Returns
-      # ------
-      # API Gateway Lambda Proxy Output Format: dict
-      #     'statusCode' and 'body' are required
-      #     # api-gateway-simple-proxy-for-lambda-output-format
-      #     Return doc: https://docs.aws.amazon.com/apigateway/latest/developerguide/set-up-lambda-proxy-integrations.html
-
-      # begin
-      #   response = HTTParty.get('http://checkip.amazonaws.com/')
-      # rescue HTTParty::Error => error
-      #   puts error.inspect
-      #   raise error
-      # end
       params = event.fetch('pathParameters', {})
       id = params.fetch('narrative_id', '')
       return _respond(status: 400, errors: [MSG_BAD_ARGS], event: event) if id.strip.empty?
