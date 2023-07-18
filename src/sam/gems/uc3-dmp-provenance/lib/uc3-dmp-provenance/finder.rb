@@ -27,14 +27,15 @@ module Uc3DmpProvenance
       #    "client_id": "abcdefghijklmnopqrstuvwxyz"
       #  }
       # -------------------------------------------------------------------------------------------
-      def from_lambda_cotext(identity:)
+      def from_lambda_cotext(identity:, logger: nil)
         return nil unless identity.is_a?(Hash) && !identity['iss'].nil? && !identity['client_id'].nil?
 
         client = Uc3DmpDynamo::Client.new
-        client_name = _cognito_client_id_to_name(claim: identity)
+        client_name = _cognito_client_id_to_name(claim: identity, logger: logger)
 
         resp = client.get_item(
-          key: { PK: Helper.append_pk_prefix(provenance: client_name), SK: Helper::SK_PROVENANCE_PREFIX }
+          key: { PK: Helper.append_pk_prefix(provenance: client_name), SK: Helper::SK_PROVENANCE_PREFIX },
+          logger: logger
         )
         resp.nil? || resp.empty? ? nil : resp
       end
@@ -42,12 +43,13 @@ module Uc3DmpProvenance
       # Fetch the Provenance by it's PK.
       #
       # Expecting either the name (e.g. `dmptool` or the qualified PK (e.g. `PROVENANCE#dmptool`)
-      def from_pk(pk:)
+      def from_pk(pk:, logger: nil)
         return nil if pk.nil?
 
         pk = Helper.append_pk_prefix(provenance: pk)
         resp = client.get_item(
-          key: { PK: Helper.append_pk_prefix(provenance: pk), SK: Helper::SK_PROVENANCE_PREFIX }
+          key: { PK: Helper.append_pk_prefix(provenance: pk), SK: Helper::SK_PROVENANCE_PREFIX },
+          logger: logger
         )
         resp.nil? || resp.empty? ? nil : resp
       end
@@ -55,10 +57,11 @@ module Uc3DmpProvenance
       private
 
       # Method to fetch the client's name from the Cognito UserPool based on the client_id
-      def _cognito_client_id_to_name(claim:)
+      def _cognito_client_id_to_name(claim:, logger: nil)
         return nil if claim.nil? || !claim.is_a?(Hash) || claim['iss'].nil? || claim['client_id'].nil?
 
         user_pool_id = claim['iss'].split('/').last
+        logger.debug(message: "Cognito User Pool: #{user_pool_id}, ClientId: #{claim['client_id']}") if logger.respond_to?(:debug)
         Uc3DmpCognito::Client.get_client_name(client_id: claim['client_id'])
       end
     end

@@ -92,9 +92,6 @@ Resources:
         # The originating provenance system's ID for the DMP
         - AttributeName: 'dmphub_provenance_identifier'
           AttributeType: 'S'
-        # DMPHub attribute that stores the id of the provenance user/system
-        - AttributeName: 'dmphub_provenance_id'
-          AttributeType: 'S'
 
       GlobalSecondaryIndexes:
         # An index to help us quickly fetch all of the DMPs for a specific date range
@@ -106,7 +103,7 @@ Resources:
               KeyType: 'RANGE'
           Projection:
             ProjectionType: 'INCLUDE'
-            NonKeyAttributes: ['SK', 'title', 'description', 'contact']
+            NonKeyAttributes: ['SK', 'title', 'description', 'created', 'modified', 'contact', 'contributor', 'project', 'dmproadmap_assertion_needed']
           ContributorInsightsSpecification:
             Enabled: !Ref DynamoEnableContributorInsights
           ProvisionedThroughput:
@@ -122,7 +119,7 @@ Resources:
               KeyType: 'RANGE'
           Projection:
             ProjectionType: 'INCLUDE'
-            NonKeyAttributes: ['SK', 'title', 'description', 'contact']
+            NonKeyAttributes: ['SK', 'title', 'description', 'created', 'modified', 'contact', 'contributor', 'project', 'dmproadmap_assertion_needed']
           ContributorInsightsSpecification:
             Enabled: !Ref DynamoEnableContributorInsights
           ProvisionedThroughput:
@@ -138,7 +135,7 @@ Resources:
               KeyType: 'RANGE'
           Projection:
             ProjectionType: 'INCLUDE'
-            NonKeyAttributes: ['SK', 'title', 'description', 'contact']
+            NonKeyAttributes: ['SK', 'title', 'description', 'created', 'modified', 'contact', 'contributor', 'project', 'dmproadmap_assertion_needed']
           ContributorInsightsSpecification:
             Enabled: !Ref DynamoEnableContributorInsights
           ProvisionedThroughput:
@@ -154,23 +151,7 @@ Resources:
               KeyType: 'RANGE'
           Projection:
             ProjectionType: 'INCLUDE'
-            NonKeyAttributes: ['PK', 'SK', 'title', 'description', 'contact', 'modified', 'project']
-          ContributorInsightsSpecification:
-            Enabled: !Ref DynamoEnableContributorInsights
-          ProvisionedThroughput:
-            ReadCapacityUnits: !Ref DynamoReadCapacityUnits
-            WriteCapacityUnits: !Ref DynamoWriteCapacityUnits
-
-        # An index to help us quickly fetch all of the DMPs for a specific provenance
-        - IndexName: 'dmphub_provenance_id_gsi'
-          KeySchema:
-            - AttributeName: 'dmphub_provenance_id'
-              KeyType: 'HASH'
-            - AttributeName: 'PK'
-              KeyType: 'RANGE'
-          Projection:
-            ProjectionType: 'INCLUDE'
-            NonKeyAttributes: ['title', 'description', 'contact', 'modified']
+            NonKeyAttributes: ['PK', 'SK', 'title']
           ContributorInsightsSpecification:
             Enabled: !Ref DynamoEnableContributorInsights
           ProvisionedThroughput:

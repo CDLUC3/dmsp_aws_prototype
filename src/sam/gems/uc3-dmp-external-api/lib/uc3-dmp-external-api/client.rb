@@ -18,11 +18,11 @@ module Uc3DmpExternalApi
     class << self
       # Call the specified URL using the specified HTTP method, body and headers
       # rubocop:disable Metrics/AbcSize
-      def call(url:, method: :get, body: '', additional_headers: {}, debug: false)
+      def call(url:, method: :get, body: '', basic_auth: {}, additional_headers: {}, logger: nil)
         uri = URI(url)
         # Skip the body if we are doing a get
         body = nil if method.to_sym == :get
-        opts = _options(body: body, additional_headers: additional_headers, debug: debug)
+        opts = _options(body: body, basic_auth: basic_auth, additional_headers: additional_headers, logger: logger)
         resp = HTTParty.send(method.to_sym, uri, opts)
 
         if resp.code != 200
@@ -62,17 +62,18 @@ module Uc3DmpExternalApi
       end
 
       # Prepare the HTTParty gem options
-      def _options(body:, additional_headers: {}, debug: false)
+      def _options(body:, additional_headers: {}, logger: nil)
         hdrs = _headers(additional_headers: additional_headers)
         opts = {
           headers: hdrs,
           follow_redirects: true,
           limit: 6
         }
+        opts[:basic_auth] = basic_auth if basic_auth.is_a?(Hash)
         # If the body is not already JSON and we intend to send JSON, convert it
         opts[:body] = body.is_a?(Hash) && hdrs['Content-Type'] == 'application/json' ? body.to_json : body
         # If debug is enabled then tap into the HTTParty gem's debug option
-        opts[:debug_output] = $stdout if debug
+        opts[:debug_output] = $stdout if logger&.level == 'debug'
         opts
       end
     end

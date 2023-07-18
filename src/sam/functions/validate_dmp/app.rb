@@ -7,6 +7,7 @@ my_gem_path = Dir['/opt/ruby/gems/**/lib/']
 $LOAD_PATH.unshift(*my_gem_path)
 
 require 'uc3-dmp-api-core'
+require 'uc3-dmp-cloudwatch'
 require 'uc3-dmp-id'
 
 module Functions
@@ -16,13 +17,12 @@ module Functions
 
     # rubocop:disable Metrics/AbcSize
     def self.process(event:, context:)
-      body = event.fetch('body', '')
+      # Setup the Logger
+      log_level = ENV.fetch('LOG_LEVEL', 'error')
+      req_id = context.aws_request_id if context.is_a?(LambdaContext)
+      logger = Uc3DmpCloudwatch::Logger.new(source: SOURCE, request_id: req_id, event: event, level: log_level)
 
-      # Debug, output the incoming Event and Context
-      debug = Uc3DmpApiCore::SsmReader.debug_mode?
-      puts event if debug
-      puts context.inspect if debug
-      puts "BODY: #{body}" if debug
+      body = event.fetch('body', '')
 
       # Validate the DMP JSON
       errors = Uc3DmpId::Validator.validate(mode: 'author', json: body)
@@ -30,9 +30,7 @@ module Functions
                                                                                                   errors.empty?
       _respond(status: 400, errors: errors, event: event)
     rescue StandardError => e
-      # Just do a print here (ends up in CloudWatch) in case it was the Uc3DmpApiCore::Responder that failed
-      puts "#{SOURCE} FATAL: #{e.message}"
-      puts e.backtrace
+      logger.error(message: e.message, details: e.backtrace)
       { statusCode: 500, body: { errors: [Uc3DmpApiCore::MSG_SERVER_ERROR] }.to_json }
     end
     # rubocop:enable Metrics/AbcSize

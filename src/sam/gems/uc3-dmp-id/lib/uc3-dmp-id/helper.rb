@@ -90,7 +90,7 @@ module Uc3DmpId
         dmp_id = format_dmp_id(value: json['identifier'].to_s)
         return nil if dmp_id.nil? || dmp_id == ''
 
-        append_pk_prefix(p_key: dmp_id)
+        append_pk_prefix(p_key: dmp_id.gsub(%r{https?://}, ''))
       end
 
       # Derive the DMP ID by removing the :PK prefix
@@ -126,7 +126,7 @@ module Uc3DmpId
         b = deep_copy_dmp(obj: dmp_b)
 
         # ignore some of the attributes before comparing
-        %w[SK dmphub_modification_day dmphub_updated_at dmphub_created_at].each do |key|
+        %w[SK dmphub_modification_day dmphub_updated_at dmphub_created_at dmphub_assertions].each do |key|
         a['dmp'].delete(key) unless a['dmp'][key].nil?
         b['dmp'].delete(key) unless b['dmp'][key].nil?
         end
@@ -212,7 +212,7 @@ module Uc3DmpId
         return json.map { |obj| cleanse_dmp_json(json: obj) }.compact if json.is_a?(Array)
 
         cleansed = {}
-        allowable = %w[dmphub_versions]
+        allowable = %w[dmphub_versions dmphub_updated_at]
         json.each_key do |key|
           next if (key.to_s.start_with?('dmphub') && !allowable.include?(key)) || %w[PK SK].include?(key.to_s)
 

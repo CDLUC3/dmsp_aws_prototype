@@ -11,7 +11,7 @@ module Uc3DmpId
     MSG_UNABLE_TO_MINT = 'Unable to mint a unique DMP ID.'
 
     class << self
-      def create(provenance:, json:, debug: false)
+      def create(provenance:, json:, logger: nil)
         raise CreatorError, MSG_NO_SHOULDER if ENV['DMP_ID_SHOULDER'].nil?
         raise CreatorError, MSG_NO_BASE_URL if ENV['DMP_ID_BASE_URL'].nil?
 
@@ -28,39 +28,39 @@ module Uc3DmpId
 
         # TODO: Swap this out with the Finder search once the Dynamo indexes are working
         # Try to find it first and Fail if found
-        result = Finder.by_json(json: json, debug: debug)
+        result = Finder.by_json(json: json, logger: logger)
         raise CreatorError, Uc3DmpId::MSG_DMP_EXISTS if result.is_a?(Hash)
         # raise CreatorError, Uc3DmpId::MSG_DMP_EXISTS unless json['PK'].nil?
 
-        client = Uc3DmpDynamo::Client.new(debug: debug)
-        p_key = _preregister_dmp_id(client: client, provenance: provenance, json: json, debug: debug)
+        client = Uc3DmpDynamo::Client.new
+        p_key = _preregister_dmp_id(client: client, provenance: provenance, json: json, logger: logger)
         raise CreatorError, MSG_UNABLE_TO_MINT if p_key.nil?
 
         # Add the DMPHub specific attributes and then save
         annotated = Helper.annotate_dmp_json(provenance: provenance, p_key: p_key, json: json['dmp'])
-        puts "CREATING DMP ID:" if debug
-        puts annotated if debug
+        logger.info(message: "Creating DMP ID: #{p_key}") if logger.respond_to?(:debug)
 
         # Create the item
-        resp = client.put_item(json: annotated, debug: debug)
+        resp = client.put_item(json: annotated, logger: logger)
         raise CreatorError, Uc3DmpId::MSG_DMP_NO_DMP_ID if resp.nil?
 
-        _post_process(json: annotated, debug: debug)
+        _post_process(json: annotated, logger: logger)
         Helper.cleanse_dmp_json(json: JSON.parse({ dmp: annotated }.to_json))
       end
 
       private
 
-      def _preregister_dmp_id(client:, provenance:, json:, debug: false)
+      def _preregister_dmp_id(client:, provenance:, json:, logger: nil)
         # Use the specified DMP ID if the provenance has permission
         existing = json.fetch('dmp', {}).fetch('dmp_id', {})
-        id = existing['identifier'].gsub(%r{https?://}, Helper::PK_DMP_PREFIX) if existing.is_a?(Hash) &&
-                                                                                  !existing['identifier'].nil?
-        return id if !id.nil? &&
-                     existing.fetch('type', 'other').to_s.downcase == 'doi' &&
-                     provenance.fetch('seedingWithLiveDmpIds', false).to_s.downcase == 'true' &&
-                     !Finder.exists?(client: client, p_key: id)
+        seed_id = json.fetch('dmp', {})['dmproadmap_external_system_identifier']
 
+        # If we are seeding already registered DMP IDs from the Provenance system, then return the original DMP ID
+        return seed_id.gsub(%r{https?://}, '') if existing.fetch('type', 'other') == 'url' &&
+                                                  !seed_id.nil? &&
+                                                  provenance.fetch('seedingWithLiveDmpIds', false).to_s.downcase == 'true'
+
+        #Generate a new DMP ID
         dmp_id = ''
         counter = 0
         while dmp_id == '' && counter <= 10
@@ -71,23 +71,22 @@ module Uc3DmpId
         # Something went wrong and it was unable to identify a unique id
         raise CreatorError, MSG_UNABLE_TO_MINT if counter >= 10
 
-        puts "Uc3DmpId::Creator._pregister_dmp_id - registering DMP ID: #{dmp_id}" if debug
+        logger.debug(message: "Preregistration DMP ID: #{dmp_id}") if logger.respond_to?(:debug)
         url = ENV['DMP_ID_BASE_URL'].gsub(%r{https?://}, '')
         "#{Helper::PK_DMP_PREFIX}#{url.end_with?('/') ? url : "#{url}/"}#{dmp_id}"
       end
       # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
-      # Once the DMP has been created, we need to register it's DMP ID and download any
-      # PDF if applicable
+      # Once the DMP has been created, we need to register it's DMP ID
       # -------------------------------------------------------------------------
-      def _post_process(json:, debug: false)
+      def _post_process(json:, logger: nil)
         return false unless json.is_a?(Hash)
 
         # We are creating, so this is always true
         json['dmphub_updater_is_provenance'] = true
         # Publish the change to the EventBridge
         publisher = Uc3DmpEventBridge::Publisher.new
-        publisher.publish(source: 'DmpCreator', dmp: json, debug: debug)
+        publisher.publish(source: 'DmpCreator', dmp: json, logger: logger)
         true
       end
     end

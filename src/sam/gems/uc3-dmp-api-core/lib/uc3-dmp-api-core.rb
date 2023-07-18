@@ -4,7 +4,6 @@
 require 'aws-sdk-sns'
 require 'aws-sdk-ssm'
 
-require 'uc3-dmp-api-core/log_writer'
 require 'uc3-dmp-api-core/notifier'
 require 'uc3-dmp-api-core/paginator'
 require 'uc3-dmp-api-core/responder'

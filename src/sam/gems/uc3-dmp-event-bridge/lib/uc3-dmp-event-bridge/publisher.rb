@@ -27,7 +27,7 @@ module Uc3DmpEventBridge
 
     # Publish an event to the EventBus so that other Lambdas can do their thing
     # rubocop:disable Metrics/AbcSize
-    def publish(source:, dmp:, event_type: DEFAULT_EVENT_TYPE, debug: false)
+    def publish(source:, dmp:, event_type: DEFAULT_EVENT_TYPE, logger: nil)
       source = "#{source} -> #{SOURCE}.publish"
 
       message = {
@@ -39,14 +39,14 @@ module Uc3DmpEventBridge
           event_bus_name: ENV.fetch('EVENT_BUS_NAME', nil)
         }]
       }
-      puts "#{SOURCE}.publish - Publishing event -> details: #{message}" if debug
+      logger.debug(message: "#{SOURCE} published event", details: message) if logger.respond_to?(:debug)
       resp = client.put_events(message)
       return true unless resp.failed_entry_count.nil? || resp.failed_entry_count.positive?
 
       # The EventBridge returned errors, so log the error
       raise PublisherError, _generate_failure(source: source, response: resp, payload: payload)
     rescue Aws::Errors::ServiceError => e
-      puts "#{SOURCE} - #{MSG_BUS_ERROR % { msg: e.message, trace: e.backtrace }}"
+      logger.error(message: "#{SOURCE} #{e.message}", details: e.backtrace) if logger.respond_to?(:debug)
       raise PublisherError, MSG_BUS_ERROR % { msg: e.message }
     end
     # rubocop:enable Metrics/AbcSize

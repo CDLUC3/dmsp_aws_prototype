@@ -1,0 +1,3 @@
+template:
+  path: 'apigateway-cloudwatch.yaml'
+  type: 'file'

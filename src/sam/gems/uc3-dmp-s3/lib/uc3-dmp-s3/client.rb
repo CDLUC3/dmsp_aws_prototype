@@ -29,12 +29,12 @@ module Uc3DmpS3
         return nil if !document.is_a?(String) || document.strip.empty? || ENV['S3_BUCKET'].nil?
 
         key = "#{NARRATIVE_KEY_PREFIX}#{SecureRandom.hex(8)}.pdf"
-        tg = dmp_id.nil? ? "PRE-DMP_ID=#{Time.now.strftime('%Y-%m-%d')}" : "DMP_ID=#{CGI.escape(dmp_id)}"
+        tg = "DMP_ID=#{CGI.escape(dmp_id)}" unless dmp_id.nil?
         body = base64 ? Base64.decode64(document) : document
 
         _put_object(key: key, tags: tg, payload: body)
       rescue Aws::Errors::ServiceError => e
-        msg = "Unable to write PDF narrative to S3 bucket (dmp_id: #{dmp_id.nil? ? 'PRE-DMP_ID' : dmp_id})"
+        msg = "Unable to write PDF narrative to S3 bucket (dmp_id: #{dmp_id})"
         raise ClientError, "#{msg} - #{e.message}"
       end
       # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity

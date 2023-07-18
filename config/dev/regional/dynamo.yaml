@@ -27,7 +27,7 @@ hooks:
     # Once the Dynamo table has been created, we can deploy our Lambdas and
     # the API Gateway which are managed by AWS SAM.
     #     Args are: environment, domain, build the Lambda layer (boolean)
-    - !cmd 'cd ./src/sam && ruby sam_build_deploy.sh dev true true'
+    - !cmd 'cd ./src/sam && ruby sam_build_deploy.rb dev true true'
 
     # Build and deploy the Swagger UI (gets deployed to the CloudFront distro as https://[domain]/api-docs)
     # Args are: environment swagger-ui version

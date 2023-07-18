@@ -6,11 +6,11 @@ require 'json-schema'
 
 require 'uc3-dmp-event-bridge'
 
+require 'uc3-dmp-id/asserter'
 require 'uc3-dmp-id/creator'
 require 'uc3-dmp-id/deleter'
 require 'uc3-dmp-id/finder'
 require 'uc3-dmp-id/helper'
-require 'uc3-dmp-id/splicer'
 require 'uc3-dmp-id/updater'
 require 'uc3-dmp-id/validator'
 require 'uc3-dmp-id/versioner'

@@ -114,11 +114,11 @@ def build_deploy_overrides
   overrides
 end
 
-# Expected 3 arguments: environment, run a SAM build?, run a SAM deploy?
+# Expected 3-4 arguments: environment, run a SAM build?, run a SAM deploy?, log level (default is 'error')
 #    For example: `ruby sam_build_deploy.rb dev true false`.
 #
 # NOTE: Setting the last 2 arguments to false will trigger a `sam delete`.
-if ARGV.length == 3
+if ARGV.length >= 3
   @program = 'uc3'
   @service = 'dmp'
   @subservice = 'hub'
@@ -145,9 +145,12 @@ if ARGV.length == 3
   @stack_exports = @stack_exports.flatten
 
   if ARGV[1].to_s.downcase.strip == 'true' || ARGV[2].to_s.downcase.strip == 'true'
+    log_level = ARGV[3].nil? ? 'error' : ARGV[3]
+
     # Define the parameters required by the template.yaml
     @static_params = [
       { template_param_name: 'Env', value: ARGV[0] },
+      { template_param_name: 'DebugLevel', value: log_level },
       { template_param_name: 'LogRetentionDays', value: 14 }
     ]
 

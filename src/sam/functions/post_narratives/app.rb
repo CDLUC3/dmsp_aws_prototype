@@ -7,6 +7,7 @@ my_gem_path = Dir['/opt/ruby/gems/**/lib/']
 $LOAD_PATH.unshift(*my_gem_path)
 
 require 'uc3-dmp-api-core'
+require 'uc3-dmp-cloudwatch'
 require 'uc3-dmp-id'
 require 'uc3-dmp-provenance'
 require 'uc3-dmp-s3'
@@ -20,39 +21,38 @@ module Functions
     MSG_UNABLE_TO_ATTACH = 'Unable to save the narrative document and attach it to the DMP ID.'
 
     def self.process(event:, context:)
+      # Setup the Logger
+      log_level = ENV.fetch('LOG_LEVEL', 'error')
+      req_id = context.aws_request_id if context.is_a?(LambdaContext)
+      logger = Uc3DmpCloudwatch::Logger.new(source: SOURCE, request_id: req_id, event: event, level: log_level)
+
       params = _parse_params(event: event)
       continue = params[:dmp_id].length.positive? && params[:payload].length.positive?
       return _respond(status: 400, errors: [MSG_BAD_ARGS], event: event) unless continue
 
-      # Debug, output the incoming Event and Context
-      debug = Uc3DmpApiCore::SsmReader.debug_mode?
-      pp event if debug
-      pp context if debug
-      puts "In Debug mode: #{debug}"
-
-      _set_env
+      _set_env(logger: logger)
 
       # Fail if the Provenance could not be loaded
       claim = event.fetch('requestContext', {}).fetch('authorizer', {})['claims']
-      provenance = Uc3DmpProvenance::Finder.from_lambda_cotext(identity: claim)
+      provenance = Uc3DmpProvenance::Finder.from_lambda_cotext(identity: claim, logger: logger)
       return _respond(status: 403, errors: Uc3DmpId::MSG_DMP_FORBIDDEN, event: event) if provenance.nil?
 
       # Make sure there is a DMP ID for the narrative to be attached to!
-      dmp = Uc3DmpId::Finder.by_pk(p_key: params[:dmp_id], debug: debug)
+      dmp = Uc3DmpId::Finder.by_pk(p_key: params[:dmp_id], logger: logger)
       return _respond(status: 403, errors: [Uc3DmpId::MSG_DMP_FORBIDDEN], event: event) if dmp.nil?
 
       # Store the document in S3 Bucket
-      object_key = Uc3DmpS3::Client.put_narrative(document: params[:payload], base64: params[:base64encoded])
+      object_key = Uc3DmpS3::Client.put_narrative(document: params[:payload], dmp_id: params[:dmp_id], base64: params[:base64encoded])
       return _respond(status: 500, errors: Uc3DmpS3::Client::MSG_S3_FAILURE, event: event) if object_key.nil?
 
-      # Attache the S3 access URL to the DMP ID record
-      url = "#{Uc3DmpApiCore::SsmReader.get_ssm_value(key: :api_base_url)}/#{object_key}"
-      attached = Uc3DmpId::Updater.attach_narrative(provenance: provenance, p_key: params[:dmp_id], url: url, debug: debug)
+      # Attach the S3 access URL to the DMP ID record
+      url = "#{Uc3DmpApiCore::SsmReader.get_ssm_value(key: :api_base_url, logger: logger)}/#{object_key}"
+      attached = Uc3DmpId::Updater.attach_narrative(provenance: provenance, p_key: params[:dmp_id], url: url, logger: logger)
       return _respond(status: 500, errors: [MSG_UNABLE_TO_ATTACH], event: event) unless attached
 
       # Reload the DMP ID and return it. It should now have a new dmproadmap_related_identifier pointing to the PDF
-      Uc3DmpApiCore::LogWriter.log_message(source: SOURCE, message: "Added #{object_key} to S3") if debug
-      dmp = Uc3DmpId::Finder.by_pk(p_key: params[:dmp_id], debug: debug)
+      logger.debug(message: "Added #{object_key} to S3", details: attached) if debug
+      dmp = Uc3DmpId::Finder.by_pk(p_key: params[:dmp_id], logger: logger)
       _respond(status: 201, items: [dmp], event: event)
     rescue Aws::Errors::ServiceError => e
       _respond(status: 500, errors: [Uc3DmpApiCore::MSG_SERVER_ERROR], event: event)
@@ -60,8 +60,7 @@ module Functions
       _respond(status: 400, errors: [e.message], event: event)
     rescue StandardError => e
       # Just do a print here (ends up in CloudWatch) in case it was the Uc3DmpApiCore::Responder.rb that failed
-      puts "#{SOURCE} FATAL: #{e.message}"
-      puts e.backtrace
+      logger.error(message: e.message, details: e.backtrace)
       { statusCode: 500, body: { errors: [Uc3DmpApiCore::MSG_SERVER_ERROR] }.to_json }
     end
 
@@ -69,10 +68,10 @@ module Functions
 
     class << self
       # Set the Cognito User Pool Id and DyanmoDB Table name for the downstream Uc3DmpCognito and Uc3DmpDynamo
-      def _set_env
+      def _set_env(logger: nil)
         ENV['COGNITO_USER_POOL_ID'] = ENV['COGNITO_USER_POOL_ID']&.split('/')&.last
-        ENV['DMP_ID_SHOULDER'] = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :dmp_id_shoulder)
-        ENV['DMP_ID_BASE_URL'] = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :dmp_id_base_url)
+        ENV['DMP_ID_SHOULDER'] = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :dmp_id_shoulder, logger: logger)
+        ENV['DMP_ID_BASE_URL'] = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :dmp_id_base_url, logger: logger)
       end
 
       # Parse the incoming query string arguments

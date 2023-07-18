@@ -25,7 +25,7 @@ module Uc3DmpApiCore
       # Returns a hash that is a valid Lambda API response
       # --------------------------------------------------------------------------------
       # rubocop:disable Metrics/AbcSize
-      def respond(status: DEFAULT_STATUS_CODE, items: [], errors: [], **args)
+      def respond(status: DEFAULT_STATUS_CODE, logger: nil, items: [], errors: [], **args)
         url = _url_from_event(event: args[:event]) || SsmReader.get_ssm_value(key: 'api_base_url')
         return _standard_error(url: url) if url.nil?
 
@@ -44,12 +44,14 @@ module Uc3DmpApiCore
         body = body.merge(Paginator.pagination_meta(url: url, item_count: item_count, params: args))
 
         # If this is a server error, then notify the administrator!
-        LogWriter.log_error(source: url, message: errors, details: body, event: args[:event]) if status.to_s[0] == '5'
+        if status.to_s[0] == '5' && !logger.nil?
+          logger.error(message: errors, details: body)
+          Notifier.notify_administrator(source: logger.source, details: body, event: logger.event)
+        end
 
         { statusCode: status.to_i, body: body.compact.to_json, headers: headers }
       rescue StandardError => e
-        puts "Uc3DmpApiCore.Responder.respond - #{e.message}"
-        puts " - STACK: #{e.backtrace}"
+        logger.error(message: e.message, details: e.backtrace) unless logger.nil?
         _standard_error(url: url)
       end
       # rubocop:enable Metrics/AbcSize

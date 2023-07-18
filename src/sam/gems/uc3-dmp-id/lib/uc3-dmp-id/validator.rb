@@ -45,7 +45,7 @@ module Uc3DmpId
       # ------------------------------------------------------------------------------------
       def _load_schema(mode:)
         # Instatiate the matching schema
-        schema = "Uc3DmpId::Schemas::#{mode.to_s.downcase.capitalize}".split('::').inject(Object) { |o,c| p o; o.const_get c }
+        schema = "Uc3DmpId::Schemas::#{mode.to_s.downcase.capitalize}".split('::').inject(Object) { |o,c| o.const_get c }
         schema.respond_to?(:load) ? schema.load : nil
       end
 

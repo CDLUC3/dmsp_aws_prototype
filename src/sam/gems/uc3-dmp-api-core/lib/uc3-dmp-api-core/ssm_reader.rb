@@ -9,7 +9,7 @@ module Uc3DmpApiCore
   # Shared helper methods for accessing SSM parameters
   # ----------------------------------------------------
   class SsmReader
-    SOURCE = 'SsmReader gem'
+    SOURCE = 'Uc3DmpApiCore::SsmReader'
 
     class << self
       # Return all of the available keys
@@ -20,37 +20,27 @@ module Uc3DmpApiCore
       # Fetch the value for the specified :key
       # ----------------------------------------------------
       # rubocop:disable Metrics/AbcSize
-      def get_ssm_value(key:, provenance_name: nil)
+      def get_ssm_value(key:, provenance_name: nil, logger: nil)
         full_key = _ssm_keys[:"#{key.downcase}"] unless key.nil?
+        logger.debug(message: "Looking for SSM Key: #{full_key}") unless logger.nil?
         return nil if full_key.nil?
 
         key_vals = { env: ENV.fetch('LAMBDA_ENV', 'dev').to_s.downcase }
         # Swap in the provenance name if applicable
         key_vals[:provenance] = provenance_name unless provenance_name.nil? ||
                                                        !full_key.include?('%{provenance}')
-        fetch_value(key: format(full_key, key_vals))
+        fetch_value(key: format(full_key, key_vals), logger: logger)
       rescue Aws::Errors::ServiceError => e
-        LogWriter.log_error(
-          source: "#{SOURCE} - looking for #{key}", message: e.message, details: e.backtrace
-        )
+        logger.error(message: "Looking for SSM Key: #{key} - #{e.message}", details: e.backtrace) unless logger.nil?
         nil
       end
       # rubocop:enable Metrics/AbcSize
 
       # Call SSM to get the value for the specified key
-      def fetch_value(key:)
+      def fetch_value(key:, logger: nil)
         resp = Aws::SSM::Client.new.get_parameter(name: key, with_decryption: true)
+        logger.debug(message: "Searching for SSM Key: #{key}, Found: '#{resp&.parameter&.value}'") unless logger.nil?
         resp.nil? || resp.parameter.nil? ? nil : resp.parameter.value
-      end
-
-      # Checks to see if debug mode has been enabled in SSM
-      # ----------------------------------------------------
-      def debug_mode?
-
-puts "Checking to see if we are in debug mode."
-puts "Key: #{_ssm_keys[:debug_mode]}, Val: #{get_ssm_value(key: _ssm_keys[:debug_mode])}, Downcased: #{get_ssm_value(key: _ssm_keys[:debug_mode])&.to_s&.downcase&.strip} "
-
-        get_ssm_value(key: _ssm_keys[:debug_mode])&.to_s&.downcase&.strip == 'true'
       end
 
       private
@@ -63,7 +53,6 @@ puts "Key: #{_ssm_keys[:debug_mode]}, Val: #{get_ssm_value(key: _ssm_keys[:debug
           administrator_email: '/uc3/dmp/hub/%{env}/AdminEmail',
           api_base_url: '/uc3/dmp/hub/%{env}/ApiBaseUrl',
           base_url: '/uc3/dmp/hub/%{env}/BaseUrl',
-          debug_mode: '/uc3/dmp/hub/%{env}/Debug',
 
           dmp_id_api_url: '/uc3/dmp/hub/%{env}/EzidApiUrl',
           dmp_id_base_url: '/uc3/dmp/hub/%{env}/EzidBaseUrl',

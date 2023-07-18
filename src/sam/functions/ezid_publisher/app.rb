@@ -6,31 +6,25 @@
 my_gem_path = Dir['/opt/ruby/gems/**/lib/']
 $LOAD_PATH.unshift(*my_gem_path)
 
-require 'aws-sdk-dynamodb'
-require 'aws-sdk-eventbridge'
-require 'aws-sdk-sns'
-require 'cgi'
-require 'httparty'
-require 'logger'
-
-require 'dmp_finder'
-require 'key_helper'
-require 'messages'
-require 'provenance_finder'
-require 'responder'
-require 'ssm_reader'
+require 'uc3-dmp-api-core'
+require 'uc3-dmp-cloudwatch'
+require 'uc3-dmp-event-bridge'
+require 'uc3-dmp-external-api'
+require 'uc3-dmp-id'
 
 module Functions
   # Lambda function that is invoked by SNS and communicates with EZID to register/update DMP IDs
   # rubocop:disable Metrics/ClassLength
   class EzidPublisher
-    SOURCE = 'EventBridge - Publish EZID'
+    SOURCE = 'EzidPublisher'
 
-    APPLICATION_NAME = 'DmpHub'
+    APPLICATION_NAME = 'DmpTool'
     DEFAULT_CONTRIBUTOR_ROLE = 'ProjectLeader'
     DEFAULT_LANGUAGE = 'en'
     DEFAULT_RESOURCE_TYPE = 'Data Management Plan'
     DOI_URL = 'http://doi.org'
+
+    MSG_EZID_FAILURE = 'Communication issue with the EZID API.'
 
     # TODO: get the correct Fundref scheme from DataCite
     SCHEMES = {
@@ -85,51 +79,45 @@ module Functions
       # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
       # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
       def process(event:, context:)
+        # Setup the Logger
+        log_level = ENV.fetch('LOG_LEVEL', 'error')
+        req_id = context.aws_request_id if context.is_a?(LambdaContext)
+        logger = Uc3DmpCloudwatch::Logger.new(source: SOURCE, request_id: req_id, event: event, level: log_level)
+
         # No need to validate the source and detail-type because that is done by the EventRule
         detail = event.fetch('detail', {})
         json = detail.is_a?(Hash) ? detail : JSON.parse(detail)
         provenance_pk = json['dmphub_provenance_id']
         dmp_pk = json['PK']
+        _respond(status: 400, errors: [Uc3DmpApiCore::MSG_INVALID_ARGS], event: event) if provenance_pk.nil? || dmp_pk.nil?
 
         # Check the SSM Variable that will disable interaction with EZID (specifically used for
         # tests in production to verify that we are sending a valid payload to EZID)
-        skip_ezid = SsmReader.get_ssm_value(key: SsmReader::DMP_ID_DEBUG_MODE).to_s.downcase == 'true'
-
+        skip_ezid = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :dmp_id_debug_mode, logger: logger)&.to_s&.downcase == 'true'
         # Check the SSM Variable that will pause interaction with EZID (specifically used for
         # periods when EZID will be down for an extended period)
-        paused = SsmReader.get_ssm_value(key: SsmReader::DMP_ID_PAUSED).to_s.downcase == 'true'
-
-        # Debug, output the incoming Event and Context
-        debug = SsmReader.debug_mode?
-        pp "EVENT: #{event}" if debug
-        pp "CONTEXT: #{context.inspect}" if debug
-
-        if provenance_pk.nil? || dmp_pk.nil?
-          return Responder.respond(status: 400, errors: Messages::MSG_INVALID_ARGS,
-                                   event: event)
-        end
+        paused = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :dmp_id_paused, logger: logger)&.to_s&.downcase == 'true'
 
         # If submissions are paused, toss the event into the EventBridge archive where it can be
         # replayed at a later time
         if paused
-          puts "SUBMISSIONS PAUSED: Placing event #{event['id']} in the EventBridge archive."
-          puts "Event: #{payload}"
-          EventPublisher.publish(source: 'EzidPublisher', dmp: json, event_type: 'paused', debug: @debug)
-          return Responder.respond(status: 200, items: [], event: event)
+          logger.info("SUBMISSIONS PAUSED: Placing event #{event['id']} in the EventBridge archive.", details: payload)
+          Uc3DmpEventBridge.publish(source: SOURCE, dmp: json, event_type: 'paused', logger: logger)
+          _respond(status: 200, items: [], event: event)
         end
 
         # Load the DMP metadata
-        table = SsmReader.get_ssm_value(key: SsmReader::TABLE_NAME)
-        client = Aws::DynamoDB::Client.new(region: ENV.fetch('AWS_REGION', nil))
-        dmp = load_dmp(provenance_pk: provenance_pk, dmp_pk: dmp_pk, table: table, client: client, debug: debug)
-        if dmp.nil?
-          return Responder.respond(status: 404, errors: Messages::MSG_DMP_NOT_FOUND,
-                                   event: event)
-        end
+        dmp = Uc3DmpId::Finder.by_pk(p_key: dmp_pk, logger: logger)
+        _respond(status: 404, errors: [Uc3DmpId::MSG_DMP_NOT_FOUND], event: event) if dmp.nil?
 
-        dmp_id = dmp['PK'].match(KeyHelper::DOI_REGEX).to_s
-        url = "#{SsmReader.get_ssm_value(key: SsmReader::DMP_ID_API_URL)}/id/doi:#{dmp_id}?update_if_exists=yes"
-        landing_page_url = "#{SsmReader.get_ssm_value(key: SsmReader::BASE_URL)}/dmps/#{dmp_id}"
+        dmp_id = dmp.fetch('dmp', {}).fetch('dmp_id', {})['identifier'].gsub(/https?:\/\//, '').gsub(ENV[DMP_ID_BASE_URL], '')
+        api_url = "#{ENV['API_BASE_URL']}/dmps/#{dmp_id}"
+
+        ezid_url = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :dmp_id_api_url, logger: logger)
+        base_url = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :base_url, logger: logger)
+
+        url = "#{ezid_url}/id/doi:#{dmp_id}?update_if_exists=yes"
+        landing_page_url = "#{base_url}/dmps/#{dmp_id}"
 
         datacite_xml = dmp_to_datacite_xml(dmp_id: dmp_id, dmp: dmp).gsub(/[\r\n]/, ' ')
 
@@ -137,68 +125,48 @@ module Functions
           _target: #{landing_page_url}
           datacite: #{datacite_xml}
         TEXT
+        logger.debug(message: 'Prepared DMP ID metadata for EZID.', details: payload)
 
         if skip_ezid
-          puts 'EZID IS IN DEBUG MODE:'
-          puts "Payload: #{payload}"
-          return Responder.respond(status: 200, items: [], event: event)
+          logger.info(message: 'EZID is currently in Debug mode.', details: payload)
+          _respond(status: 200, items: [], event: event)
         end
 
-        opts = {
-          headers: {
-            'Content-Type': 'text/plain',
-            Accept: 'text/plain',
-            'User-Agent': 'DMPHub (dmphub.cdlib.org)'
-          },
-          basic_auth: {
-            username: SsmReader.get_ssm_value(key: SsmReader::DMP_ID_CLIENT_ID),
-            password: SsmReader.get_ssm_value(key: SsmReader::DMP_ID_CLIENT_SECRET)
-          },
-          follow_redirects: true, limit: 6, body: payload.to_s
+        headers = {
+          'Content-Type': 'text/plain',
+          'Accept': 'text/plain'
         }
-        opts[:debug_output] = Logger.new($stdout) if debug
+        auth = {
+          username: Uc3DmpApiCore::SsmReader.get_ssm_value(key: :dmp_id_client_id, logger: logger),
+          password: Uc3DmpApiCore::SsmReader.get_ssm_value(key: :dmp_id_client_secret, logger: logger)
+        }
 
-        resp = HTTParty.put(url, opts)
-        unless [200, 201].include?(resp.code)
-          return Responder.respond(status: 500, errors: "#{Messages::MSG_EZID_FAILURE} - #{resp.code}",
-                                   event: event)
-        end
+        resp = Uc3DmpExternalApi.call(url: url, method: :put, body: payload.to_s, basic_auth: auth,
+                                      additional_headers: headers, logger: logger)
+        _respond(status: 500, errors: MSG_EZID_FAILURE, event: event) if resp.nil?
 
-        Responder.respond(status: 200, errors: Messages::MSG_SUCCESS, event: event)
-      rescue JSON::ParserError
-        Responder.log_error(source: SOURCE, message: Messages::MSG_INVALID_JSON)
-        Responder.respond(status: 500, errors: Messages::MSG_INVALID_JSON, event: event)
-      rescue Aws::Errors::ServiceError => e
-        Responder.respond(status: 500, errors: "#{Messages::MSG_SERVER_ERROR} - #{e.message}", event: event)
+        _respond(status: 200, items: [], event: event)
+      rescue Uc3DmpId::FinderError => e
+        logger.error(message: e.message, details: e.backtrace)
+        _respond(status: 500, errors: [e.message], event: event)
+      rescue Uc3DmpExternalApi::ExternalApiError => e
+        _respond(status: 500, errors: [e.message], event: event)
       rescue StandardError => e
-        # Just do a print here (ends up in CloudWatch) in case it was the responder.rb that failed
-        puts "FATAL -- DMP ID: #{dmp_id}, MESSAGE: #{e.message}"
-        puts e.backtrace
-        { statusCode: 500, body: { errors: [Messages::MSG_SERVER_ERROR] }.to_json }
+        logger.error(message: e.message, details: e.backtrace)
+        { statusCode: 500, body: { errors: [Uc3DmpApiCore::MSG_SERVER_ERROR] }.to_json }
       end
       # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
       # rubocop:enable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
       private
 
-      # Fetch the DMP JSON from the DyanamoDB Table
-      # --------------------------------------------------------------------------------
-      # rubocop:disable Metrics/AbcSize
-      def load_dmp(provenance_pk:, dmp_pk:, table:, client:, debug: false)
-        return nil if table.nil? || client.nil? || provenance_pk.nil? || dmp_pk.nil?
-
-        # Fetch the Provenance first
-        prov_finder = ProvenanceFinder.new(table_name: table, client: client, debug_mode: debug)
-        response = prov_finder.provenance_from_pk(p_key: provenance_pk)
-        return nil unless response[:status] == 200
-
-        # Fetch the DMP
-        provenance = response[:items].first
-        dmp_finder = DmpFinder.new(provenance: provenance, table_name: table, client: client, debug_mode: debug)
-        response = dmp_finder.find_dmp_by_pk(p_key: dmp_pk, s_key: KeyHelper::DMP_LATEST_VERSION)
-        response[:status] == 200 ? response[:items].first['dmp'] : nil
+      # Send the output to the Responder
+      def _respond(status:, items: [], errors: [], event: {}, params: {})
+        Uc3DmpApiCore::Responder.respond(
+          status: status, items: items, errors: errors, event: event,
+          page: params['page'], per_page: params['per_page']
+        )
       end
-      # rubocop:enable Metrics/AbcSize
 
       # Convert the DMP JSON into Datacite XML
       # --------------------------------------------------------------------------------

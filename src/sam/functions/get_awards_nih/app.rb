@@ -7,6 +7,7 @@ my_gem_path = Dir['/opt/ruby/gems/**/lib/']
 $LOAD_PATH.unshift(*my_gem_path)
 
 require 'uc3-dmp-api-core'
+require 'uc3-dmp-cloudwatch'
 require 'uc3-dmp-external-api'
 require 'uc3-dmp-provenance'
 
@@ -28,14 +29,14 @@ module Functions
     MSG_EMPTY_RESPONSE = 'NIH API returned an empty resultset'
 
     def self.process(event:, context:)
+      # Setup the Logger
+      log_level = ENV.fetch('LOG_LEVEL', 'error')
+      req_id = context.aws_request_id if context.is_a?(LambdaContext)
+      logger = Uc3DmpCloudwatch::Logger.new(source: SOURCE, request_id: req_id, event: event, level: log_level)
+
       params = _parse_params(event: event)
       continue = params[:project_num].length.positive? || params[:pi_names].length.positive?
       return _respond(status: 400, errors: [MSG_BAD_ARGS], event: event) unless continue
-
-      # Debug, output the incoming Event and Context
-      debug = Uc3DmpApiCore::SsmReader.debug_mode?
-      pp event if debug
-      pp context if debug
 
       body = _prepare_data(
         years: params[:fiscal_years],
@@ -44,12 +45,14 @@ module Functions
         project_nums: [params[:project_num]]
       )
 
-      resp = Uc3DmpExternalApi::Client.call(url: API_BASE_URL, method: :post, body: body, debug: true) # debug)
+      logger.debug(message: "Calling NIH Award API: #{API_BASE_URL} with body:", details: body) if logger.respond_to?(:debug)
+      resp = Uc3DmpExternalApi::Client.call(url: API_BASE_URL, method: :post, body: body, logger: logger)
       if resp.nil? || resp.to_s.strip.empty?
-        Uc3DmpApiCore::Responder.log_error(source: SOURCE, message: MSG_EMPTY_RESPONSE, details: resp)
+        logger.error(message: MSG_EMPTY_RESPONSE, details: resp)
         return _respond(status: 404, items: [], event: event)
       end
 
+      logger.debug(message: 'Found the following results:', details: resp) if logger.respond_to?(:debug)
       results = _transform_response(response_body: resp)
       _respond(status: 200, items: results.compact.uniq, event: event, params: params)
     rescue Uc3DmpExternalApi::ExternalApiError => e
@@ -57,9 +60,7 @@ module Functions
     rescue Aws::Errors::ServiceError => e
       _respond(status: 500, errors: [Uc3DmpApiCore::MSG_SERVER_ERROR], event: event)
     rescue StandardError => e
-      # Just do a print here (ends up in CloudWatch) in case it was the Uc3DmpApiCore::Responder.rb that failed
-      puts "#{SOURCE} FATAL: #{e.message}"
-      puts e.backtrace
+      logger.error(message: e.message, details: e.backtrace) unless logger.nil?
       { statusCode: 500, body: { errors: [Uc3DmpApiCore::MSG_SERVER_ERROR] }.to_json }
     end
 
