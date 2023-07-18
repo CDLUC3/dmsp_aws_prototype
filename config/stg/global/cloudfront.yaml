@@ -1,0 +1,27 @@
+template:
+  path: 'cloudfront.yaml'
+  type: 'file'
+
+dependencies:
+  - 'stg/regional/s3.yaml'
+
+# NOTE: CloudFront can be slow to finish the creation/update process. The Distribution will go into
+#       a pending status and then can take some time before it is deployed. If your sceptre command
+#       appears to be stuck, this is most likely why, and you should let it complete.
+parameters:
+  Domain: !stack_attr sceptre_user_data.domain
+
+  SsmPath: !stack_attr sceptre_user_data.ssm_path
+
+  CertificateArn: !stack_output stg/global/cert.yaml::CertificateArn
+
+  WafArn: !stack_output stg/global/waf.yaml::WafArn
+
+  S3LogBucketId: !stack_output stg/regional/s3.yaml::S3LogBucketId
+
+  S3CloudFrontBucketId: !stack_output stg/regional/s3.yaml::S3CloudFrontBucketId
+  S3CloudFrontBucketArn: !stack_output stg/regional/s3.yaml::S3CloudFrontBucketArn
+
+  CacheDefaultTtlSeconds: '180'
+  CacheMinTtlSeconds: '30'
+  CacheMaxTtlSeconds: '300' # 5 minutes

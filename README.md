@@ -32,7 +32,7 @@ Directory structure:
      |            |
      |             ----- global              # Resources that will be created in the us-east-1 region
      |            |
-     |             ----- regional            # Resources that will be created in the us-west-2 region
+     |             ----- regional            # Resources that will be created in the local region
      |
      docs                                    # Diagrams and documentation
      |

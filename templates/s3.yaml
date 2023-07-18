@@ -29,6 +29,9 @@ Resources:
           - ExpirationInDays: !Ref LogBucketObjectLifeSpan
             Status: 'Enabled'
       AccessControl: 'Private'
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: ObjectWriter
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true

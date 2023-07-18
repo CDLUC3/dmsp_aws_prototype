@@ -187,6 +187,7 @@ Resources:
   DmptoolUserPoolClient:
     Type: 'AWS::Cognito::UserPoolClient'
     DeletionPolicy: Retain
+    DependsOn: UserPoolResourceServer
     Properties:
       ClientName: !Ref DmptoolClientName
       UserPoolId: !Ref UserPool
