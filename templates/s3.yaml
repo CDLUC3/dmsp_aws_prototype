@@ -1,9 +1,12 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Transform: 'AWS::Serverless-2016-10-31'
 
 Description: 'S3 buckets both public (app files) and private (CodePipeline, CodeBuild, etc.)'
 
 Parameters:
+  Env:
+    Type: 'String'
+    Default: 'dev'
+
   SsmPath:
     Type: 'String'
 
@@ -87,6 +90,8 @@ Outputs:
     Value: !Sub "s3://${S3LogBucket}"
   S3LogBucketArn:
     Value: !GetAtt S3LogBucket.Arn
+    Export:
+      Name: !Sub '${Env}-S3LogBucketArn'
 
   S3CloudFrontBucketId:
     Value: !Ref S3CloudFrontBucket
@@ -94,10 +99,16 @@ Outputs:
     Value: !Sub "s3://${S3CloudFrontBucket}"
   S3CloudFrontBucketArn:
     Value: !GetAtt S3CloudFrontBucket.Arn
+    Export:
+      Name: !Sub '${Env}-S3CloudFrontBucketArn'
 
   S3PrivateBucketId:
     Value: !Ref S3PrivateBucket
+    Export:
+      Name: !Sub '${Env}-S3PrivateBucketId'
   S3PrivateBucketUri:
     Value: !Sub "s3://${S3PrivateBucket}"
   S3PrivateBucketArn:
     Value: !GetAtt S3PrivateBucket.Arn
+    Export:
+      Name: !Sub '${Env}-S3PrivateBucketArn'

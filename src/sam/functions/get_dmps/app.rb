@@ -6,77 +6,94 @@
 my_gem_path = Dir['/opt/ruby/gems/**/lib/']
 $LOAD_PATH.unshift(*my_gem_path)
 
-require 'aws-sdk-dynamodb'
-
-require 'dmp_finder'
-require 'key_helper'
-require 'messages'
-require 'provenance_finder'
-require 'responder'
-require 'ssm_reader'
+require 'uc3-dmp-api-core'
+require 'uc3-dmp-cloudwatch'
+require 'uc3-dmp-id'
+require 'uc3-dmp-provenance'
 
 module Functions
   # The handler for: GET /dmps
+  #
+  # Search criteria expects at least one of the following in the QueryString
+  #    owner_orcid        - The :contact ORCID (e.g. `?owner_orcid=0000-0000-0000-000X`)
+  #    owner_org_ror      - The :contact :affiliation ROR (e.g. `?owner_org_ror=8737548t`)
+  #    modification_day   - The date of the modification (e.g. `?modification_day=2023-06-05`)
+  #
+  # The caller can also specify pagination params for :page and :per_page
   class GetDmps
     SOURCE = 'GET /dmps'
 
+    MSG_INVALID_SEARCH = 'Invalid search criteria. Please specify at least one of the following: \
+                          [`?owner_orcid=0000-0000-0000-0000`, `?owner_org_ror=abcd1234`, `?modification_day=2023-06-05`]'
+
     # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
     def self.process(event:, context:)
-      # Sample pure Lambda function
+      # Setup the Logger
+      log_level = ENV.fetch('LOG_LEVEL', 'error')
+      req_id = context.aws_request_id if context.is_a?(LambdaContext)
+      logger = Uc3DmpCloudwatch::Logger.new(source: SOURCE, request_id: req_id, event: event, level: log_level)
 
-      # Parameters
-      # ----------
-      # event: Hash, required
-      #     API Gateway Lambda Proxy Input Format
-      #     Event doc: https://docs.aws.amazon.com/apigateway/latest/developerguide/set-up-lambda-proxy-integrations.html#api-gateway-simple-proxy-for-lambda-input-format
+      params = _process_params(event: event)
+      return _respond(status: 400, errors: MSG_INVALID_SEARCH, event: event) if params['owner_orcid'].nil? &&
+                                                                                params['owner_org_ror'].nil? &&
+                                                                                params['modification_day'].nil?
 
-      # context: object, required
-      #     Lambda Context runtime methods and attributes
-      #     Context doc: https://docs.aws.amazon.com/lambda/latest/dg/ruby-context.html
+      _set_env(logger: logger)
+      logger.info(message: "DMP ID Search Criteria: #{params}") if logger.respond_to?(:debug)
 
-      # Returns
-      # ------
-      # API Gateway Lambda Proxy Output Format: dict
-      #     'statusCode' and 'body' are required
-      #     # api-gateway-simple-proxy-for-lambda-output-format
-      #     Return doc: https://docs.aws.amazon.com/apigateway/latest/developerguide/set-up-lambda-proxy-integrations.html
+      # Fail if the Provenance could not be loaded
+      claim = event.fetch('requestContext', {}).fetch('authorizer', {})['claims']
+      provenance = Uc3DmpProvenance::Finder.from_lambda_cotext(identity: claim, logger: logger)
+      return _respond(status: 403, errors: Uc3DmpId::MSG_DMP_FORBIDDEN, event: event) if provenance.nil?
 
-      # begin
-      #   response = HTTParty.get('http://checkip.amazonaws.com/')
-      # rescue HTTParty::Error => error
-      #   puts error.inspect
-      #   raise error
-      # end
+      resp = Uc3DmpId::Finder.search_dmps(args: params, logger: logger)
+      return _respond(status: 400, errors: Uc3DmpId::MSG_DMP_NO_DMP_ID) if resp.nil?
+      return _respond(status: 404, errors: Uc3DmpId::MSG_DMP_NOT_FOUND) if resp.empty?
 
-      params = event.fetch('queryStringParameters', {})
-      page = params.fetch('page', Responder::DEFAULT_PAGE)
-      page = Responder::DEFAULT_PAGE if page <= 1
-      per_page = params.fetch('per_page', Responder::DEFAULT_PER_PAGE)
-      per_page = Responder::DEFAULT_PER_PAGE if per_page >= Responder::MAXIMUM_PER_PAGE || per_page <= 1
-
-      # Debug, output the incoming Event and Context
-      debug = SsmReader.debug_mode?
-      pp event if debug
-      pp context if debug
-
-      client = Aws::DynamoDB::Client.new(region: ENV.fetch('AWS_REGION', nil))
-      table = SsmReader.get_ssm_value(key: SsmReader::TABLE_NAME)
-
-      # Get the DMP
-      finder = DmpFinder.new(client: client, table_name: table, debug_mode: debug)
-      resp = finder.search_dmps(page: page, per_page: per_page)
-      return Responder.respond(status: resp[:status], errors: resp[:error], event: event) unless resp[:status] == 200
-
-      Responder.respond(status: 200, items: resp[:items], event: event)
-    rescue Aws::Errors::ServiceError => e
-      Responder.log_error(source: SOURCE, message: e.message, details: e.backtrace)
-      { statusCode: 500, body: { status: 500, errors: [Messages::MSG_SERVER_ERROR] } }
+      logger.debug(message: 'Found the following results:', details: resp) if logger.respond_to?(:debug)
+      _respond(status: 200, items: [resp], event: event)
+    rescue Uc3DmpId::FinderError => e
+      _respond(status: 400, errors: [Uc3DmpId::MSG_DMP_NO_DMP_ID, e.message], event: event)
     rescue StandardError => e
-      # Just do a print here (ends up in CloudWatch) in case it was the responder.rb that failed
-      puts "#{SOURCE} FATAL: #{e.message}"
-      puts e.backtrace
-      { statusCode: 500, body: { errors: [Messages::MSG_SERVER_ERROR] }.to_json }
+      logger.error(message: e.message, details: e.backtrace)
+      { statusCode: 500, body: { errors: [Uc3DmpApiCore::MSG_SERVER_ERROR] }.to_json }
     end
     # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
+
+    private
+
+    class << self
+      def _process_params(event:)
+        params = event.fetch('queryStringParameters', {})
+        return params unless params.keys.any?
+
+        numeric = %r{^\d+$}
+        max_per_page = Uc3DmpApiCore::Paginator::MAXIMUM_PER_PAGE
+
+        params['page'] = Uc3DmpApiCore::Paginator::DEFAULT_PAGE if params['page'].nil? ||
+                                                                   (params['page'].to_s =~ numeric).nil? ||
+                                                                   params['page'].to_i <= 0
+        params['per_page'] = Uc3DmpApiCore::Paginator::DEFAULT_PER_PAGE if params['per_page'].nil? ||
+                                                                           (params['per_page'].to_s =~ numeric).nil? ||
+                                                                           params['per_page'].to_i <= 0 ||
+                                                                           params['per_page'].to_i >= max_per_page
+        params
+      end
+
+      # Set the Cognito User Pool Id and DyanmoDB Table name for the downstream Uc3DmpCognito and Uc3DmpDynamo
+      def _set_env(logger:)
+        ENV['COGNITO_USER_POOL_ID'] = ENV['COGNITO_USER_POOL_ID']&.split('/')&.last
+        ENV['DMP_ID_SHOULDER'] = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :dmp_id_shoulder, logger: logger)
+        ENV['DMP_ID_BASE_URL'] = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :dmp_id_base_url, logger: logger)
+      end
+
+      # Send the output to the Responder
+      def _respond(status:, items: [], errors: [], event: {}, params: {})
+        Uc3DmpApiCore::Responder.respond(
+          status: status, items: items, errors: errors, event: event,
+          page: params['page'], per_page: params['per_page']
+        )
+      end
+    end
   end
 end

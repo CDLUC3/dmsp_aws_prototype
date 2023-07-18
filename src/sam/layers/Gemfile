@@ -2,10 +2,21 @@
 
 source 'https://rubygems.org'
 
+ruby '>= 2.7'
+
 # No need to include any AWS SDK gems here since the Lambda functions have access
 # to them by default
 gem 'httparty'
 gem 'json-schema'
+
+# Unfortunately you cannot include gems by path here because AWS doesn't have access when it builds the layer
+# so the gems must exist in RubyGems
+gem 'uc3-dmp-api-core'
+gem 'uc3-dmp-cloudwatch'
+gem 'uc3-dmp-external-api'
+gem 'uc3-dmp-id'
+gem 'uc3-dmp-provenance'
+gem 'uc3-dmp-s3'
 
 # This is required to sign events published to EventBridge. The aws-crt is not automatically
 # available to the Lambdas so we install here in the layer
@@ -18,7 +29,7 @@ group :test do
   gem 'aws-sdk-cognitoidentityprovider'
   gem 'aws-sdk-dynamodb'
   gem 'aws-sdk-eventbridge'
-  # gem 'aws-sdk-s3'
+  gem 'aws-sdk-s3'
   gem 'aws-sdk-sns'
   gem 'aws-sdk-ssm'
 end

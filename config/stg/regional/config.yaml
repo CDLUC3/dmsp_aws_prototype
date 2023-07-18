@@ -19,4 +19,3 @@ sceptre_user_data:
   #domain: 'dmphub-stg.cdlib.org'
   domain: 'dmphub.uc3stg.cdlib.org'
   ssm_path: '/uc3/dmp/hub/stg/'
-  code_build_email: 'brian.riley@ucop.edu'

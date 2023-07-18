@@ -20,5 +20,3 @@ sceptre_user_data:
   env: 'dev'
   domain: 'dmphub-dev.cdlib.org'
   ssm_path: '/uc3/dmp/hub/dev/'
-
-  code_build_email: 'brian.riley@ucop.edu'

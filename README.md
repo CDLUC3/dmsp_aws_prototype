@@ -7,19 +7,18 @@
                     |_|
 
 This repository manages both the application logic and the infrastructure for the DMPHub metadata repository.
-It works in conjunction with the [dmp-hub-ui repository](https://github.com/CDLUC3/dmp-hub-ui) which contains the source code for the React UI.
 
 It is designed specifically for the Amazon Web Services (AWS) ecosystem. Please note that you must have an AWS account and that building the system will create resources in your account that may incur charges!
 
 <img src="docs/architecture.png?raw=true">
 
-You can run `./resources-ls.sh` to see what AWS resources have been created by these CloudFormation templates.
+Once all of your AWS resources have been built, you can run `./resources-ls.sh` to see what AWS resources have been created by these CloudFormation templates.
 
 ## Directory layout
 
 This repository uses the [AWS Serverless Application Model (SAM)](https://aws.amazon.com/serverless/sam/) to manage the AWS API Gateway, Lambda functions and other related resources (e.g. IAM policies). It uses [Sceptre](https://github.com/Sceptre/sceptre) to manage the remaining resources (e.g. CloudFront, DynamoDB, etc.) via [AWS CloudFormation](https://aws.amazon.com/cloudformation/).
 
-The entire build process is managed by Sceptre. Sceptre has a hook that will build the SAM application once the resources it depends on (e.g. DynamoDb Table, Cognito, etc.) have been created.
+The Sceptre template for the Dynamo resources contains hooks to: seed the database, run SAM build+deploy and also build the Swagger API documentation and deploy it to the CloudFront S3 bucket.
 
 Directory structure:
 ```
@@ -39,9 +38,27 @@ Directory structure:
      |
      src
      |  |
+     |   ----- swagger
+     |  |        |
+     |  |         ----- assets               # The Swagger UI CSS and Images
+     |  |        |
+     |  |         ----- build_openapi_spec.rb # Ruby script that pulls in the latest version of the DMP metadata schema and then deploys the Swagger bundle to the CloudFront S3 bucket which can be accessed via https://dmphub-[env].cdlib.org/api-docs
+     |  |        |
+     |  |         ----- default_index.html   # The Swagger UI homepage
+     |  |        |
+     |  |         ----- Gemfile              # The dependencies required to run the Ruby script
+     |  |        |
+     |  |         ----- package.json         # The dependencies to run the JSON schema to OpenApi converter
+     |  |        |
+     |  |         ----- v0-api-docs.json     # The Swagger entrypoint
+     |  |        |
+     |  |         ----- v0-openapi-template.json     # The open API doc (the DMP JSON schema is spliced into this document)
+     |  |
      |   ----- sam                           # The SAM managed code
      |           |
      |            ----- functions            # The lambda functions
+     |           |
+     |            ----- gems                 # The ruby gems that support the functions (they are loaded into the layers)
      |           |
      |            ----- layers               # The lambda layers
      |           |
@@ -51,16 +68,30 @@ Directory structure:
      |           |
      |            ----- template.yaml        # The SAM Cloud Formation template
      |           |
-     |            ----- sam_build_deploy.sh  # A shell script that can be used to build and deploy your SAM resources (auto-run by dynamo.yaml config)
+     |            ----- Gemfile              # The dependencies for the Ruby script that runs SAM build and deploy
+     |           |
+     |            ----- sam_build_deploy.rb  # A Ruby script that can be used to build and deploy your SAM resources (auto-run by Sceptre's dynamo.yaml config)
      |
      templates                               # The Cloud Formation templates (each template corresponds to a config)
 ```
 
 ## Installation and Setup
 
-This repository uses [Sceptre](https://docs.sceptre-project.org/3.2.0/) to orchestrate the creation, update and deletion of [AWS Cloud Formation](https://aws.amazon.com/cloudformation/) stacks. See below for notes about Sceptre if this is your first time using this technology.
+This repository uses [Sceptre](https://docs.sceptre-project.org/3.2.0/) to orchestrate the creation of the entire system. See below for notes about Sceptre if this is your first time using this technology.
 
-For instructions on installing and setting up the system, please refer to [our installation wiki](https://github.com/CDLUC3/dmp-hub-cfn/wiki/installation-and-setup)
+For instructions on installing and setting up the system, please refer to [our installation wiki](https://github.com/CDLUC3/dmp-hub-cfn/wiki/Installation,-Updating-and-Deleting-AWS-resources)
+
+## SAM
+
+AWS SAM is used to manage the API Gateway and all of the Lambda resources. It also contains various Ruby gems used by the Lambda code.
+
+The Sceptre template for Dynamo has a hook that will perform the initial creation of all the SAM managed resources. If you want to make updates or delete these resources you will need to manually run the `cd src/sam && ruby sam_build_deploy.rb dev true true` script. The first arg is the environment, the second boolean arg indicates whether or not to run SAM build and the third boolean arg is whether or not to run SAM deploy.
+
+If you need to update one of the Ruby gems located in `src/samgems` then you will need to:
+1. Update the `[gem_dir]/lib/uc3-dmp-[gem_name]/version.rb` file to increment the gem version
+2. Run the following from that gem's directory (note you will need to be logged into RubyGems): `rm *.gem && gem build uc3-dmp-[gem_name].gemspec && gem push uc3-dmp-[gem_name]-[version].gem`
+3. Once the gem has been uploaded to RubyGems, you can then run cd `src/sam/layers && bundle update uc3-dmp-[gem_name]` to update the LambdaLayer.
+4. Then run `cd src/sam && ruby sam_build_deploy.rb [env] true true` to rebuild the LambdaLayer and Functions and deploy them
 
 ## Swagger
 
@@ -80,25 +111,11 @@ Sceptre allows you to test your templates and config prior to building the Cloud
 
 Note that Sceptre always shows you the change set and asks you to confirm before it will make any changes to your AWS environment.
 
-To test the Lambda functions and Lambda Layer, you can run `./src/sam/test.sh`. This will build the Lambda Layer (The Lambda functions require the layer code to be zipped up) and then execute Rubocop checks followed by the RSpec tests for both the layer and the functions.
+Tests for the Lambda code and the API Gateway are coming soon ...
 
 ## Database
 
 For details about the structure of DynamoDB items and DMP versioning logic, please refer to [our database documentation wiki page](https://github.com/CDLUC3/dmp-hub-cfn/wiki/database)
-
-
-## Notes about SAM
-
-You can update and deploy the AWS SAM managed Lambdas and the API Gateway independently. To do that please use the supplied shell script which will make AWS CLI calls to fetch the ARNs for various resources that were created/managed by Sceptre and CloudFormation.
-
-To run the script you must supply 3 arguments. For example: `./src/sam/sam_build_deploy.sh dev dmphub-dev.cdlib.org true`
-- The 1st arg is the environment you wish to use. The environment must match a defined environment in the `src/sam/samconfig.toml` file.
-- The 2nd arg is the domain name. The API Gateway will automatically append the `api.` subdomain.
-- The 3rd arg is a boolean that indicates whether or not the LambdaLayer should be compiled. Set this to false if you are not updating the layer to speed things up.
-
-Note that the there is an `after_create` Sceptre hook on the `config/[env]/regional/dynamo.yaml` that will execute this shell script.
-
-If you want to delete the entire Lambda and API Gateway stack you can run `cd src/sam && sam delete --config-env [env]`
 
 ## Notes about Sceptre
 

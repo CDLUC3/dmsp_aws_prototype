@@ -1,5 +1,4 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Transform: AWS::Serverless-2016-10-31
 
 Description: 'Cognito resources for accessing the API'
 
@@ -18,6 +17,7 @@ Parameters:
 
   Env:
     Type: 'String'
+    Default: 'dev'
 
   TagProgram:
     Type: 'String'
@@ -286,6 +286,8 @@ Outputs:
 
   UserPoolId:
     Value: !Ref UserPool
+    Export:
+      Name: !Sub "${Env}-UserPoolId"
 
   UserPoolResourceServerId:
     Value: !Ref UserPoolResourceServer
@@ -293,4 +295,4 @@ Outputs:
   UserPoolArn:
     Value: !GetAtt UserPool.Arn
     Export:
-      Name: !Sub '${AWS::StackName}-UserPoolArn'
+      Name: !Sub '${Env}-CognitoUserPoolArn'

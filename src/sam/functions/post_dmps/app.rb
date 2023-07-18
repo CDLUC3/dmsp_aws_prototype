@@ -6,20 +6,11 @@
 my_gem_path = Dir['/opt/ruby/gems/**/lib/']
 $LOAD_PATH.unshift(*my_gem_path)
 
-require 'aws-sdk-cognitoidentityprovider'
-require 'aws-sdk-dynamodb'
-require 'aws-sdk-eventbridge'
-require 'aws-sdk-sns'
-
-require 'dmp_creator'
-require 'dmp_finder'
-require 'dmp_helper'
-require 'key_helper'
-require 'messages'
-require 'provenance_finder'
-require 'responder'
-require 'ssm_reader'
-require 'validator'
+require 'uc3-dmp-api-core'
+require 'uc3-dmp-cloudwatch'
+require 'uc3-dmp-event-bridge'
+require 'uc3-dmp-id'
+require 'uc3-dmp-provenance'
 
 module Functions
   # The lambda handler for: POST /dmps
@@ -28,72 +19,53 @@ module Functions
 
     # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
     def self.process(event:, context:)
-      # Sample pure Lambda function
-
-      # Parameters
-      # ----------
-      # event: Hash, required
-      #     API Gateway Lambda Proxy Input Format
-      #     Event doc: https://docs.aws.amazon.com/apigateway/latest/developerguide/set-up-lambda-proxy-integrations.html#api-gateway-simple-proxy-for-lambda-input-format
-
-      # context: object, required
-      #     Lambda Context runtime methods and attributes
-      #     Context doc: https://docs.aws.amazon.com/lambda/latest/dg/ruby-context.html
-
-      # Returns
-      # ------
-      # API Gateway Lambda Proxy Output Format: dict
-      #     'statusCode' and 'body' are required
-      #     # api-gateway-simple-proxy-for-lambda-output-format
-      #     Return doc: https://docs.aws.amazon.com/apigateway/latest/developerguide/set-up-lambda-proxy-integrations.html
-
-      # begin
-      #   response = HTTParty.get('http://checkip.amazonaws.com/')
-      # rescue HTTParty::Error => error
-      #   puts error.inspect
-      #   raise error
-      # end
+      # Setup the Logger
+      log_level = ENV.fetch('LOG_LEVEL', 'error')
+      req_id = context.aws_request_id if context.is_a?(LambdaContext)
+      logger = Uc3DmpCloudwatch::Logger.new(source: SOURCE, request_id: req_id, event: event, level: log_level)
 
       body = event.fetch('body', '')
+      return _respond(status: 400, errors: Uc3DmpId::Validator::MSG_EMPTY_JSON, event: event) if body.to_s.strip.empty?
+      json = Uc3DmpId::Helper.parse_json(json: body)
 
-      # Debug, output the incoming Event and Context
-      debug = SsmReader.debug_mode?
-      pp event if debug
-      pp context if debug
-
-      # Fail if the JSON is invalid
-      validation = Validator.validate(mode: 'author', json: body)
-      return Responder.respond(status: 400, errors: validation[:errors], event: event) unless validation[:valid]
-
-      client = Aws::DynamoDB::Client.new(region: ENV.fetch('AWS_REGION', nil))
-      table = SsmReader.get_ssm_value(key: SsmReader::TABLE_NAME)
+      _set_env(logger: logger)
 
       # Fail if the Provenance could not be loaded
-      p_finder = ProvenanceFinder.new(client: client, table_name: table, debug_mode: debug)
       claim = event.fetch('requestContext', {}).fetch('authorizer', {})['claims']
-      resp = p_finder.provenance_from_lambda_cotext(identity: claim)
-      provenance = resp[:items].first if resp[:status] == 200
-      return Responder.respond(status: 403, errors: Messages::MSG_DMP_FORBIDDEN, event: event) if provenance.nil?
+      provenance = Uc3DmpProvenance::Finder.from_lambda_cotext(identity: claim, logger: logger)
+      return _respond(status: 403, errors: Uc3DmpId::MSG_DMP_FORBIDDEN, event: event) if provenance.nil?
 
-      # Get the DMP
-      creator = DmpCreator.new(provenance: provenance, client: client, table_name: table, debug_mode: debug)
-      resp = creator.create_dmp(json: body)
-      return Responder.respond(status: resp[:status], errors: resp[:error], event: event) unless resp[:status] == 201
+      # Register a new DMP ID
+      resp = Uc3DmpId::Creator.create(provenance: provenance, json: json, logger: logger)
+      return _respond(status: 400, errors: Uc3DmpId::MSG_DMP_NO_DMP_ID) if resp.nil?
 
-      # Append the dmphub_versions array to each item
-      finder = DmpFinder.new(client: client, table_name: table, debug_mode: debug)
-      items = resp[:items].map { |item| finder.append_versions(p_key: item['PK'], dmp: item) }
-
-      Responder.respond(status: 201, items: items, event: event)
-    rescue Aws::Errors::ServiceError => e
-      Responder.log_error(source: SOURCE, message: e.message, details: e.backtrace)
-      { statusCode: 500, body: { status: 500, errors: [Messages::MSG_SERVER_ERROR] } }
+      _respond(status: 201, items: [resp], event: event)
+    rescue Uc3DmpId::CreatorError => e
+      _respond(status: 400, errors: [Uc3DmpId::MSG_DMP_NO_DMP_ID, e.message], event: event)
     rescue StandardError => e
-      # Just do a print here (ends up in CloudWatch) in case it was the responder.rb that failed
-      puts "#{SOURCE} FATAL: #{e.message}"
-      puts e.backtrace
-      { statusCode: 500, body: { errors: [Messages::MSG_SERVER_ERROR] }.to_json }
+      logger.error(message: e.message, details: e.backtrace)
+      { statusCode: 500, body: { errors: [Uc3DmpApiCore::MSG_SERVER_ERROR] }.to_json }
     end
     # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
+
+    private
+
+    class << self
+
+      # Set the Cognito User Pool Id and DyanmoDB Table name for the downstream Uc3DmpCognito and Uc3DmpDynamo
+      def _set_env(logger: nil)
+        ENV['COGNITO_USER_POOL_ID'] = ENV['COGNITO_USER_POOL_ID']&.split('/')&.last
+        ENV['DMP_ID_SHOULDER'] = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :dmp_id_shoulder, logger: logger)
+        ENV['DMP_ID_BASE_URL'] = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :dmp_id_base_url, logger: logger)
+      end
+
+      # Send the output to the Responder
+      def _respond(status:, items: [], errors: [], event: {}, params: {})
+        Uc3DmpApiCore::Responder.respond(
+          status: status, items: items, errors: errors, event: event,
+          page: params['page'], per_page: params['per_page']
+        )
+      end
+    end
   end
 end

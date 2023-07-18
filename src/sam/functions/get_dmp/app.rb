@@ -6,14 +6,9 @@
 my_gem_path = Dir['/opt/ruby/gems/**/lib/']
 $LOAD_PATH.unshift(*my_gem_path)
 
-require 'aws-sdk-dynamodb'
-
-require 'dmp_finder'
-require 'key_helper'
-require 'messages'
-require 'provenance_finder'
-require 'responder'
-require 'ssm_reader'
+require 'uc3-dmp-api-core'
+require 'uc3-dmp-cloudwatch'
+require 'uc3-dmp-id'
 
 module Functions
   # The handler for: GET /dmps/{dmp_id+}
@@ -23,79 +18,68 @@ module Functions
     # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
     # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
     def self.process(event:, context:)
-      # Sample pure Lambda function
-
-      # Parameters
-      # ----------
-      # event: Hash, required
-      #     API Gateway Lambda Proxy Input Format
-      #     Event doc: https://docs.aws.amazon.com/apigateway/latest/developerguide/set-up-lambda-proxy-integrations.html#api-gateway-simple-proxy-for-lambda-input-format
-
-      # context: object, required
-      #     Lambda Context runtime methods and attributes
-      #     Context doc: https://docs.aws.amazon.com/lambda/latest/dg/ruby-context.html
-
-      # Returns
-      # ------
-      # API Gateway Lambda Proxy Output Format: dict
-      #     'statusCode' and 'body' are required
-      #     # api-gateway-simple-proxy-for-lambda-output-format
-      #     Return doc: https://docs.aws.amazon.com/apigateway/latest/developerguide/set-up-lambda-proxy-integrations.html
-
-      # begin
-      #   response = HTTParty.get('http://checkip.amazonaws.com/')
-      # rescue HTTParty::Error => error
-      #   puts error.inspect
-      #   raise error
-      # end
+      # Setup the Logger
+      log_level = ENV.fetch('LOG_LEVEL', 'error')
+      req_id = context.aws_request_id if context.is_a?(LambdaContext)
+      logger = Uc3DmpCloudwatch::Logger.new(source: SOURCE, request_id: req_id, event: event, level: log_level)
 
       params = event.fetch('pathParameters', {})
+      qs_params = event.fetch('queryStringParameters', {})
+      request_id = context.aws_request_id if context.is_a?(LambdaContext)
+
       dmp_id = params['dmp_id']
-      version = params['version']
-
-      # Rails' ActiveResource won't pass query strings, so see if its part of the path
-      ver_param = '%3Fversion%3D'
-      version = dmp_id.split(ver_param).last if version.nil? && dmp_id&.include?(ver_param)
-      version = CGI.unescape(version).gsub(' ', '+') unless version.nil?
-
-      # Debug, output the incoming Event and Context
-      debug = SsmReader.debug_mode?
-      pp event if debug
-      pp context if debug
-
-      # Fail if there was no DMP ID specified
-      return Responder.respond(status: 404, errors: Messages::MSG_DMP_NOT_FOUND, event: event) if dmp_id.nil?
+      s_key = qs_params&.fetch('version', _version_from_path(dmp_id: dmp_id)) unless dmp_id.nil?
+      s_key = Uc3DmpId::Helper.append_sk_prefix(s_key: s_key) unless s_key.nil?
+      return _respond(status: 400, errors: [Uc3DmpApiCore::MSG_INVALID_ARGS], event: event) if dmp_id.nil?
 
       # Fail if the DMP ID is not a valid DMP ID
-      p_key = KeyHelper.path_parameter_to_pk(param: dmp_id)
-      return Responder.respond(status: 400, errors: Messages::MSG_DMP_INVALID_DMP_ID, event: event) if p_key.nil?
+      p_key = Uc3DmpId::Helper.path_parameter_to_pk(param: dmp_id)
+      p_key = Uc3DmpId::Helper.append_pk_prefix(p_key: p_key) unless p_key.nil?
+      return _respond(status: 400, errors: Uc3DmpId::MSG_DMP_INVALID_DMP_ID, event: event) if p_key.nil?
 
-      # Get the Version specified (if any) and validate that its the correct format
-      version = nil if version == KeyHelper::DMP_LATEST_VERSION.gsub(KeyHelper::SK_DMP_PREFIX, '')
-      valid_sk = "#{KeyHelper::SK_DMP_PREFIX}#{version}" =~ KeyHelper::SK_DMP_REGEX unless version.nil?
-      s_key = "#{KeyHelper::SK_DMP_PREFIX}#{version}" if !version.nil? &&
-                                                         (!valid_sk.nil? && valid_sk.zero?)
-
-      client = Aws::DynamoDB::Client.new(region: ENV.fetch('AWS_REGION', nil))
-      table = SsmReader.get_ssm_value(key: SsmReader::TABLE_NAME)
+      # Fetch SSM parameters and set them in the ENV
+      _set_env(logger: logger)
 
       # Get the DMP
-      finder = DmpFinder.new(client: client, table_name: table, debug_mode: debug)
-      resp = finder.find_dmp_by_pk(p_key: p_key, s_key: s_key)
-      return Responder.respond(status: resp[:status], errors: resp[:error], event: event) unless resp[:status] == 200
-
-      items = resp[:items].map { |item| finder.append_versions(p_key: p_key, dmp: item) }
-      Responder.respond(status: 200, items: items, event: event)
-    rescue Aws::Errors::ServiceError => e
-      Responder.log_error(source: SOURCE, message: e.message, details: e.backtrace)
-      { statusCode: 500, body: { status: 500, errors: [Messages::MSG_SERVER_ERROR] } }
+      logger.debug(message: "Searching for PK: #{p_key}, SK: #{s_key}") if logger.respond_to?(:debug)
+      result = Uc3DmpId::Finder.by_pk(p_key: p_key, s_key: s_key, logger: logger)
+      logger.debug(message: 'Found the following result:', details: result) if logger.respond_to?(:debug)
+      _respond(status: 200, items: [result], event: event, params: params)
+    rescue Uc3DmpId::FinderError => e
+      logger.error(message: e.message, details: e.backtrace)
+      _respond(status: 500, errors: [Uc3DmpApiCore::MSG_SERVER_ERROR], event: event)
     rescue StandardError => e
-      # Just do a print here (ends up in CloudWatch) in case it was the responder.rb that failed
-      puts "#{SOURCE} FATAL: #{e.message}"
-      puts e.backtrace
-      { statusCode: 500, body: { errors: [Messages::MSG_SERVER_ERROR] }.to_json }
+      logger.error(message: e.message, details: e.backtrace)
+      { statusCode: 500, body: { errors: [Uc3DmpApiCore::MSG_SERVER_ERROR] }.to_json }
     end
     # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
     # rubocop:enable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+
+    private
+
+    class << self
+      # Rails' ActiveResource won't pass query strings, so see if its part of the path
+      def _version_from_path(dmp_id:)
+        ver_param = '%3Fversion%3D'
+        return nil unless dmp_id&.include?(ver_param)
+
+        CGI.unescape(dmp_id.split(ver_param).last)
+      end
+
+      # Set the Cognito User Pool Id and DyanmoDB Table name for the downstream Uc3DmpCognito and Uc3DmpDynamo
+      def _set_env(logger:)
+        ENV['COGNITO_USER_POOL_ID'] = ENV['COGNITO_USER_POOL_ID']&.split('/')&.last
+        ENV['DMP_ID_SHOULDER'] = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :dmp_id_shoulder, logger: logger)
+        ENV['DMP_ID_BASE_URL'] = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :dmp_id_base_url, logger: logger)
+      end
+
+      # Send the output to the Responder
+      def _respond(status:, items: [], errors: [], event: {}, params: {})
+        Uc3DmpApiCore::Responder.respond(
+          status: status, items: items, errors: errors, event: event,
+          page: params['page'], per_page: params['per_page']
+        )
+      end
+    end
   end
 end

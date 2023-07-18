@@ -3,7 +3,10 @@ template:
   type: file
 
 parameters:
+  Env: !stack_attr sceptre_user_data.env
+
   Domain: !stack_attr sceptre_user_data.domain
+
   SsmPath: !stack_attr sceptre_user_data.ssm_path
 
   # Dynamo settings
@@ -18,12 +21,14 @@ parameters:
 hooks:
   after_create:
     # Add Provenance items to the Dynamo Table
-    #- !cmd './seed_dynamo.sh stg DMPTool dmptool-stg.cdlib.org'
-    #- !cmd './seed_dynamo.sh stg DMPHub dmphub-stg.cdlib.org'
-    - !cmd './seed_dynamo.sh stg DMPTool dmptool.uc3stg.cdlib.org'
-    - !cmd './seed_dynamo.sh stg DMPHub dmphub.uc3stg.cdlib.org'
+    - !cmd './seed_dynamo.sh dev DMPTool dmptool-stg.cdlib.org'
+    - !cmd './seed_dynamo.sh dev DMPHub dmphub-dev.cdlib.org'
 
     # Once the Dynamo table has been created, we can deploy our Lambdas and
     # the API Gateway which are managed by AWS SAM.
-    #- !cmd './src/sam/sam_build_deploy.sh stg dmphub-stg.cdlib.org'
-    - !cmd './src/sam/sam_build_deploy.sh stg dmphub.uc3stg.cdlib.org true'
+    #     Args are: environment, domain, build the Lambda layer (boolean)
+    - !cmd 'cd ./src/sam && ruby sam_build_deploy.rb dev true true'
+
+    # Build and deploy the Swagger UI (gets deployed to the CloudFront distro as https://[domain]/api-docs)
+    # Args are: environment swagger-ui version
+    - !cmd 'cd ./src/swagger && ruby build_openapi_spec.rb dev 4.18.1'
