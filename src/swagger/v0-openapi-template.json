@@ -113,17 +113,17 @@
     },
 
     "securitySchemes": {
-      "Authorizer": {
+      "SystemAuthorizer": {
         "type": "oauth2",
         "description": "OAuth2 Client Credentials",
         "flows": {
           "clientCredentials": {
             "tokenUrl": "https://auth.dmphub-dev.cdlib.org/oauth2/token",
             "scopes": {
-              "https://auth.dmphub-dev.cdlib.org/dev.delete": "Tombstone a DMP",
-              "https://auth.dmphub-dev.cdlib.org/dev.read": "Read or modify a DMP",
-              "https://auth.dmphub-dev.cdlib.org/dev.upload": "Create or modify a DMP",
-              "https://auth.dmphub-dev.cdlib.org/dev.write": "Create or modify a DMP"
+              "https://auth.dmphub-dev.cdlib.org/dev.delete": "Delete an item",
+              "https://auth.dmphub-dev.cdlib.org/dev.read": "Fetch an item",
+              "https://auth.dmphub-dev.cdlib.org/dev.upload": "Upload an object",
+              "https://auth.dmphub-dev.cdlib.org/dev.write": "Create or update an item"
             }
           }
         }
@@ -215,6 +215,33 @@
     "schemas": {
       "Dmp": {},
 
+      "PdfMetadata": {
+        "type": "object",
+        "properties": {
+          "descriptor": {
+            "type": "string",
+            "title": "How the DMP ID relates to the PDF document (currently only supports is_metadata_for)",
+            "example": "is_metadata_for"
+          },
+          "work_type": {
+            "type": "string",
+            "title": "The type of PDF document (currently only supports output_management_plan)",
+            "example": "output_management_plan"
+          },
+          "type": {
+            "type": "string",
+            "title": "The type of identifier (currently only supports url)",
+            "example": "url"
+          },
+          "identifier": {
+            "type": "string",
+            "title": "The download uri for the PDF document",
+            "example": "https://api.dmphub-dev.cdlib.org/narratives/1234567890.pdf"
+          }
+        },
+        "required": ["descriptor", "work_type", "type", "identifier"]
+      },
+
       "User": {
         "type": "object",
         "title": "A DMPTool user",
@@ -257,6 +284,12 @@
             "title": "The Mailbox Schema",
             "description": "User's E-mail address",
             "example": "cc@example.com"
+          },
+          "token": {
+            "type": "string",
+            "title": "The user token",
+            "description": "User's token",
+            "example": "8734yyt94j5u457u57u"
           },
           "name": {
             "type": "string",
@@ -375,68 +408,86 @@
         "required": ["name", "affiliation_id"]
       },
 
-      "Repository": {
+      "Contact": {
         "type": "object",
-        "title": "A repository for reasearch outputs (e.g. datasets, audio visual files, software, etc.)",
+        "description": "The primary principal investigator",
         "properties": {
-          "title": {
+          "name": {
             "type": "string",
-            "description": "Title of the repository",
-            "example": "Dryad"
+            "description": "The contact's name",
+            "example": "Doe, Jane A."
           },
-          "description": {
+          "mbox": {
             "type": "string",
-            "description": "A description of the repository",
-            "example": "Dryad is an international repository of data …"
+            "format": "email",
+            "description": "The contact's email address",
+            "example": "jdoe@example.com"
           },
-          "url": {
-            "type": "string",
-            "description": "The homepage of the repository",
-            "example": "https://datadryad.org"
+          "dmproadmap_affiliation": {
+            "$ref": "#/components/schemas/Affiliation"
           },
-          "dmproadmap_host_id": {
+          "contact_id": {
             "type": "object",
-            "description": "A unique identifier for the repository from a registry system",
+            "description": "A unique identifier for the contact",
             "properties": {
               "identifier": {
                 "type": "string",
                 "description": "The value of the identifier",
-                "example": "https://www.re3data.org/repository/r3d100000044"
+                "example": "https://orcid.org/0000-0000-0000-000X"
               },
               "type": {
                 "type": "string",
-                "enum": ["url", "other"],
-                "description": "Identifier type. Allowed values: url, other",
-                "example": "url"
+                "enum": ["orcid"],
+                "description": "Identifier type. Allowed values: orcid",
+                "example": "orcid"
               }
             },
             "required": ["identifier", "type"]
           }
-        },
-        "required": ["name", "url"]
+        }
       },
 
-      "ContributorRole": {
-        "type": "object",
-        "title": "A role that the contributor plays on the research project",
-        "properties": {
-          "label": {
-            "type": "string",
-            "description": "The human readable name for the role",
-            "example": "Principal Investigator"
-          },
-          "value": {
-            "type": "string",
-            "description": "The unique identifier of the role",
-            "example": "https://credit.niso.org/contributor-roles/investigation"
-          },
-          "default": {
-            "type": "string",
-            "description": "Whether or not the role is a default",
-            "enum": ["true", "false"]
+      "Contributor": {
+        "type": "array",
+        "description": "The other contributors to the research project",
+        "items": {
+          "type": "object",
+          "description": "A project contributor",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "The contact's name",
+              "example": "Doe, Jane A."
+            },
+            "mbox": {
+              "type": "string",
+              "format": "email",
+              "description": "The contact's email address",
+              "example": "jdoe@example.com"
+            },
+            "dmproadmap_affiliation": {
+              "$ref": "#/components/schemas/Affiliation"
+            },
+            "contributor_id": {
+              "type": "object",
+              "description": "A unique identifier for the contact",
+              "properties": {
+                "identifier": {
+                  "type": "string",
+                  "description": "The value of the identifier",
+                  "example": "https://orcid.org/0000-0000-0000-000X"
+                },
+                "type": {
+                  "type": "string",
+                  "enum": ["orcid"],
+                  "description": "Identifier type. Allowed values: orcid",
+                  "example": "orcid"
+                }
+              },
+              "required": ["identifier", "type"]
+            }
           }
-        },
-        "required": ["label", "value"]
+        }
       },
 
       "Project": {
@@ -507,84 +558,10 @@
             }
           },
           "contact": {
-            "type": "object",
-            "description": "The primary principal investigator",
-            "properties": {
-              "name": {
-                "type": "string",
-                "description": "The contact's name",
-                "example": "Doe, Jane A."
-              },
-              "mbox": {
-                "type": "string",
-                "format": "email",
-                "description": "The contact's email address",
-                "example": "jdoe@example.com"
-              },
-              "dmproadmap_affiliation": {
-                "$ref": "#/components/schemas/Affiliation"
-              },
-              "contact_id": {
-                "type": "object",
-                "description": "A unique identifier for the contact",
-                "properties": {
-                  "identifier": {
-                    "type": "string",
-                    "description": "The value of the identifier",
-                    "example": "https://orcid.org/0000-0000-0000-000X"
-                  },
-                  "type": {
-                    "type": "string",
-                    "enum": ["orcid"],
-                    "description": "Identifier type. Allowed values: orcid",
-                    "example": "orcid"
-                  }
-                },
-                "required": ["identifier", "type"]
-              }
-            }
+            "$ref": "#/components/schemas/Contact"
           },
           "contributor": {
-            "type": "array",
-            "description": "The other contributors to the research project",
-            "items": {
-              "type": "object",
-              "description": "A project contributor",
-              "properties": {
-                "name": {
-                  "type": "string",
-                  "description": "The contact's name",
-                  "example": "Doe, Jane A."
-                },
-                "mbox": {
-                  "type": "string",
-                  "format": "email",
-                  "description": "The contact's email address",
-                  "example": "jdoe@example.com"
-                },
-                "dmproadmap_affiliation": {
-                  "$ref": "#/components/schemas/Affiliation"
-                },
-                "contributor_id": {
-                  "type": "object",
-                  "description": "A unique identifier for the contact",
-                  "properties": {
-                    "identifier": {
-                      "type": "string",
-                      "description": "The value of the identifier",
-                      "example": "https://orcid.org/0000-0000-0000-000X"
-                    },
-                    "type": {
-                      "type": "string",
-                      "enum": ["orcid"],
-                      "description": "Identifier type. Allowed values: orcid",
-                      "example": "orcid"
-                    }
-                  },
-                  "required": ["identifier", "type"]
-                }
-              }
-            }
+            "$ref": "#/components/schemas/Contributor"
           }
         }
       },
@@ -701,111 +678,6 @@
         ]
       },
 
-      "UserResponse": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/StandardResponse"
-          },
-          {
-            "type": "object",
-            "required": ["items"],
-            "properties": {
-              "items": {
-                "type": "array",
-                "description": "The user",
-                "items": {
-                  "$ref": "#/components/schemas/User"
-                }
-              }
-            }
-          }
-        ]
-      },
-
-      "FunderResponse": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/StandardResponse"
-          },
-          {
-            "type": "object",
-            "required": ["items"],
-            "properties": {
-              "items": {
-                "type": "array",
-                "description": "The funder organization",
-                "items": {
-                  "$ref": "#/components/schemas/Funder"
-                }
-              }
-            }
-          }
-        ]
-      },
-
-      "AffiliationResponse": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/StandardResponse"
-          },
-          {
-            "type": "object",
-            "required": ["items"],
-            "properties": {
-              "items": {
-                "type": "array",
-                "description": "The organization or institution",
-                "items": {
-                  "$ref": "#/components/schemas/Affiliation"
-                }
-              }
-            }
-          }
-        ]
-      },
-
-      "RepositoryResponse": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/StandardResponse"
-          },
-          {
-            "type": "object",
-            "required": ["items"],
-            "properties": {
-              "items": {
-                "type": "array",
-                "description": "The repository metadata",
-                "items": {
-                  "$ref": "#/components/schemas/Repository"
-                }
-              }
-            }
-          }
-        ]
-      },
-
-      "ContributorRoleResponse": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/StandardResponse"
-          },
-          {
-            "type": "object",
-            "required": ["items"],
-            "properties": {
-              "items": {
-                "type": "array",
-                "description": "The role the person perfoms on the research project",
-                "items": {
-                  "$ref": "#/components/schemas/ContributorRole"
-                }
-              }
-            }
-          }
-        ]
-      },
-
       "AwardResponse": {
         "allOf": [
           {
@@ -825,206 +697,32 @@
             }
           }
         ]
+      },
+
+      "PdfResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/StandardResponse"
+          },
+          {
+            "type": "object",
+            "required": ["items"],
+            "properties": {
+              "items": {
+                "type": "array",
+                "description": "The uploaded PDF's metadata",
+                "items": {
+                  "$ref": "#/components/schemas/PdfMetadata"
+                }
+              }
+            }
+          }
+        ]
       }
     }
   },
 
   "paths": {
-    "/funders": {
-      "servers": [
-        {
-          "description": "DMPHub development instance",
-          "url": "https://api.dmphub-dev.cdlib.org"
-        }
-      ],
-      "get": {
-        "tags": [
-          "UI support operations"
-        ],
-        "operationId": "GetFunders",
-        "description": "Performs a search for funders whose name/alias match the search term",
-        "parameters": [
-          { "$ref": "#/components/parameters/searchParam" },
-          { "$ref": "#/components/parameters/pageParam" },
-          { "$ref": "#/components/parameters/perPageParam" }
-        ],
-        "security": [
-          {
-            "Authorizer": [
-              "https://auth.dmphub-dev.cdlib.org/dev.read"
-            ]
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "The Funder's name, unique id, and information about its API (if applicable)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FunderResponse"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StandardErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/orgs": {
-      "servers": [
-        {
-          "description": "DMPHub development instance",
-          "url": "https://api.dmphub-dev.cdlib.org"
-        }
-      ],
-      "get": {
-        "tags": [
-          "UI support operations"
-        ],
-        "operationId": "GetOrgs",
-        "description": "Performs a search for instituions/organizations whose name/alias match the search term",
-        "parameters": [
-          { "$ref": "#/components/parameters/searchParam" },
-          { "$ref": "#/components/parameters/pageParam" },
-          { "$ref": "#/components/parameters/perPageParam" }
-        ],
-        "security": [
-          {
-            "Authorizer": [
-              "https://auth.dmphub-dev.cdlib.org/dev.read"
-            ]
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "The Affiliation's name and unique identifier",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AffiliationResponse"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StandardErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/repositories": {
-      "servers": [
-        {
-          "description": "DMPHub development instance",
-          "url": "https://api.dmphub-dev.cdlib.org"
-        }
-      ],
-      "get": {
-        "tags": [
-          "UI support operations"
-        ],
-        "operationId": "GetRepositories",
-        "description": "Performs a search for repositories whose name/alias match the search term",
-        "parameters": [
-          { "$ref": "#/components/parameters/searchParam" },
-          { "$ref": "#/components/parameters/pageParam" },
-          { "$ref": "#/components/parameters/perPageParam" }
-        ],
-        "security": [
-          {
-            "Authorizer": [
-              "https://auth.dmphub-dev.cdlib.org/dev.read"
-            ]
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "The Repository title, description, url and unique identifier",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RepositoryResponse"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StandardErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/contributor_roles": {
-      "servers": [
-        {
-          "description": "DMPHub development instance",
-          "url": "https://api.dmphub-dev.cdlib.org"
-        }
-      ],
-      "get": {
-        "tags": [
-          "UI support operations"
-        ],
-        "operationId": "GetContributorRoles",
-        "description": "Fetches all of the possible roles for the contributor",
-        "parameters": [
-          { "$ref": "#/components/parameters/pageParam" },
-          { "$ref": "#/components/parameters/perPageParam" }
-        ],
-        "security": [
-          {
-            "Authorizer": [
-              "https://auth.dmphub-dev.cdlib.org/dev.read"
-            ]
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "The label, value and whether or not the role is a default role",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ContributorRoleResponse"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StandardErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/awards/crossref/{funderId}": {
       "servers": [
         {
@@ -1053,11 +751,13 @@
           { "$ref": "#/components/parameters/projectNbrParam" },
           { "$ref": "#/components/parameters/opportunityNbrParam" },
           { "$ref": "#/components/parameters/piNamesParam" },
-          { "$ref": "#/components/parameters/yearsParam" }
+          { "$ref": "#/components/parameters/yearsParam" },
+          { "$ref": "#/components/parameters/pageParam" },
+          { "$ref": "#/components/parameters/perPageParam" }
         ],
         "security": [
           {
-            "Authorizer": [
+            "SystemAuthorizer": [
               "https://auth.dmphub-dev.cdlib.org/dev.read"
             ]
           }
@@ -1104,11 +804,13 @@
           { "$ref": "#/components/parameters/projectNbrParam" },
           { "$ref": "#/components/parameters/opportunityNbrParam" },
           { "$ref": "#/components/parameters/piNamesParam" },
-          { "$ref": "#/components/parameters/yearsParam" }
+          { "$ref": "#/components/parameters/yearsParam" },
+          { "$ref": "#/components/parameters/pageParam" },
+          { "$ref": "#/components/parameters/perPageParam" }
         ],
         "security": [
           {
-            "Authorizer": [
+            "SystemAuthorizer": [
               "https://auth.dmphub-dev.cdlib.org/dev.read"
             ]
           }
@@ -1155,11 +857,13 @@
           { "$ref": "#/components/parameters/projectNbrParam" },
           { "$ref": "#/components/parameters/opportunityNbrParam" },
           { "$ref": "#/components/parameters/piNamesParam" },
-          { "$ref": "#/components/parameters/yearsParam" }
+          { "$ref": "#/components/parameters/yearsParam" },
+          { "$ref": "#/components/parameters/pageParam" },
+          { "$ref": "#/components/parameters/perPageParam" }
         ],
         "security": [
           {
-            "Authorizer": [
+            "SystemAuthorizer": [
               "https://auth.dmphub-dev.cdlib.org/dev.read"
             ]
           }
@@ -1188,7 +892,8 @@
         }
       }
     },
-    "/me": {
+
+    "/narratives/{narrativeId}": {
       "servers": [
         {
           "description": "DMPHub development instance",
@@ -1199,22 +904,28 @@
         "tags": [
           "UI support operations"
         ],
-        "operationId": "GetMe",
-        "description": "Fetches the user info for the logged in user.<br><br><strong>Note:</strong> this endpoint currently returns stubbed data.",
-        "security": [
+        "operationId": "GetNarrative",
+        "description": "Download the DMP narrative document",
+        "parameters": [
           {
-            "Authorizer": [
-              "https://auth.dmphub-dev.cdlib.org/dev.read"
-            ]
+            "name": "narrativeId",
+            "in": "path",
+            "description": "The Narrative Id",
+            "example": "abcdefg12345.pdf",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "The user's name, email, affiliation and ORCID.",
+            "description": "The DMP narrative document",
             "content": {
-              "application/json": {
+              "application/pdf": {
                 "schema": {
-                  "$ref": "#/components/schemas/UserResponse"
+                  "type": "string",
+                  "format": "base64"
                 }
               }
             }
@@ -1232,6 +943,67 @@
         }
       }
     },
+
+    "/narratives": {
+      "servers": [
+        {
+          "description": "DMPHub development instance",
+          "url": "https://api.dmphub-dev.cdlib.org"
+        }
+      ],
+      "post": {
+        "tags": [
+          "UI support operations"
+        ],
+        "operationId": "PostNarratives",
+        "description": "Uploads the specified PDF document",
+        "security": [
+          {
+            "SystemAuthorizer": [
+              "https://auth.dmphub-dev.cdlib.org/dev.write"
+            ]
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The metadata of the uploaded PDF document including its download URL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PdfResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StandardErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+
     "/dmps": {
       "servers": [
         {
@@ -1258,7 +1030,7 @@
         },
         "security": [
           {
-            "Authorizer": [
+            "SystemAuthorizer": [
               "https://auth.dmphub-dev.cdlib.org/dev.write"
             ]
           }
@@ -1365,7 +1137,7 @@
         ],
         "security": [
           {
-            "Authorizer": [
+            "SystemAuthorizer": [
               "https://auth.dmphub-dev.cdlib.org/dev.write"
             ]
           }
@@ -1477,7 +1249,7 @@
         },
         "security": [
           {
-            "Authorizer": [
+            "SystemAuthorizer": [
               "https://auth.dmphub-dev.cdlib.org/dev.write"
             ]
           }

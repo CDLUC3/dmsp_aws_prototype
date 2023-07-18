@@ -6,10 +6,9 @@
 my_gem_path = Dir['/opt/ruby/gems/**/lib/']
 $LOAD_PATH.unshift(*my_gem_path)
 
-require 'messages'
-require 'responder'
-require 'ssm_reader'
-require 'validator'
+require 'uc3-dmp-api-core'
+require 'uc3-dmp-cloudwatch'
+require 'uc3-dmp-id'
 
 module Functions
   # The handler for POST /dmps/validate
@@ -18,54 +17,34 @@ module Functions
 
     # rubocop:disable Metrics/AbcSize
     def self.process(event:, context:)
-      # Sample pure Lambda function
-
-      # Parameters
-      # ----------
-      # event: Hash, required
-      #     API Gateway Lambda Proxy Input Format
-      #     Event doc: https://docs.aws.amazon.com/apigateway/latest/developerguide/set-up-lambda-proxy-integrations.html#api-gateway-simple-proxy-for-lambda-input-format
-
-      # context: object, required
-      #     Lambda Context runtime methods and attributes
-      #     Context doc: https://docs.aws.amazon.com/lambda/latest/dg/ruby-context.html
-
-      # Returns
-      # ------
-      # API Gateway Lambda Proxy Output Format: dict
-      #     'statusCode' and 'body' are required
-      #     # api-gateway-simple-proxy-for-lambda-output-format
-      #     Return doc: https://docs.aws.amazon.com/apigateway/latest/developerguide/set-up-lambda-proxy-integrations.html
-
-      # begin
-      #   response = HTTParty.get('http://checkip.amazonaws.com/')
-      # rescue HTTParty::Error => error
-      #   puts error.inspect
-      #   raise error
-      # end
+      # Setup the Logger
+      log_level = ENV.fetch('LOG_LEVEL', 'error')
+      req_id = context.aws_request_id if context.is_a?(LambdaContext)
+      logger = Uc3DmpCloudwatch::Logger.new(source: SOURCE, request_id: req_id, event: event, level: log_level)
 
       body = event.fetch('body', '')
 
-      # Debug, output the incoming Event and Context
-      debug = SsmReader.debug_mode?
-      pp "EVENT: #{event}" if debug
-      pp "CONTEXT: #{context}" if debug
-      pp "BODY: #{body}" if debug
-      # Debug, output the incoming Event and Context
-
-      validation = Validator.validate(mode: 'author', json: body)
-      return Responder.respond(status: 200, items: [Messages::MSG_VALID_JSON], event: event) if validation[:valid]
-
-      Responder.respond(status: 400, errors: validation[:errors], event: event)
-    rescue Aws::Errors::ServiceError => e
-      Responder.log_error(source: SOURCE, message: e.message, details: e.backtrace)
-      { statusCode: 500, body: { status: 500, errors: [Messages::MSG_SERVER_ERROR] } }
+      # Validate the DMP JSON
+      errors = Uc3DmpId::Validator.validate(mode: 'author', json: body)
+      return _respond(status: 200, items: [Uc3DmpId::Validator::MSG_VALID_JSON], event: event) if errors.is_a?(Array) &&
+                                                                                                  errors.empty?
+      _respond(status: 400, errors: errors, event: event)
     rescue StandardError => e
-      # Just do a print here (ends up in CloudWatch) in case it was the responder.rb that failed
-      puts "#{SOURCE} FATAL: #{e.message}"
-      puts e.backtrace
-      { statusCode: 500, body: { errors: [Messages::MSG_SERVER_ERROR] }.to_json }
+      logger.error(message: e.message, details: e.backtrace)
+      { statusCode: 500, body: { errors: [Uc3DmpApiCore::MSG_SERVER_ERROR] }.to_json }
     end
     # rubocop:enable Metrics/AbcSize
+
+    private
+
+    class << self
+      # Send the output to the Responder
+      def _respond(status:, items: [], errors: [], event: {}, params: {})
+        Uc3DmpApiCore::Responder.respond(
+          status: status, items: items, errors: errors, event: event,
+          page: params['page'], per_page: params['per_page']
+        )
+      end
+    end
   end
 end

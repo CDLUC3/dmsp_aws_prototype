@@ -4,8 +4,6 @@ require 'active_record'
 require 'bundler/setup'
 require 'ostruct'
 
-require 'uc3-dmp-api-core'
-
 Dir["#{Dir.getwd}/lib/uc3-dmp-rds/*.rb"].sort.each { |f| require f }
 
 require_relative 'support/shared'

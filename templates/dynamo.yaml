@@ -1,9 +1,12 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Transform: 'AWS::Serverless-2016-10-31'
 
 Description: 'DynamoDB that backs the API dmp-hub-sam'
 
 Parameters:
+  Env:
+    Type: 'String'
+    Default: 'dev'
+
   Domain:
     Type: 'String'
 
@@ -80,16 +83,19 @@ Resources:
         # DMPHub attribute that stores the mod date as YYYY-MM-DD for fast date range retrievals
         - AttributeName: 'dmphub_modification_day'
           AttributeType: 'S'
+        # DMPHub attribute that stores the ORCID id of the contact
+        - AttributeName: 'dmphub_owner_id'
+          AttributeType: 'S'
+        # DMPHub attribute that stores the ROR id of the contact
+        - AttributeName: 'dmphub_owner_org'
+          AttributeType: 'S'
         # The originating provenance system's ID for the DMP
         - AttributeName: 'dmphub_provenance_identifier'
-          AttributeType: 'S'
-        # DMPHub attribute that stores the id of the provenance user/system
-        - AttributeName: 'dmphub_provenance_id'
           AttributeType: 'S'
 
       GlobalSecondaryIndexes:
         # An index to help us quickly fetch all of the DMPs for a specific date range
-        - IndexName: 'modification_day_gsi'
+        - IndexName: 'dmphub_modification_day_gsi'
           KeySchema:
             - AttributeName: 'dmphub_modification_day'
               KeyType: 'HASH'
@@ -97,7 +103,39 @@ Resources:
               KeyType: 'RANGE'
           Projection:
             ProjectionType: 'INCLUDE'
-            NonKeyAttributes: ['SK', 'title', 'contact', 'dmphub_affiliation_ids']
+            NonKeyAttributes: ['SK', 'title', 'description', 'created', 'modified', 'contact', 'contributor', 'project', 'dmproadmap_assertion_needed']
+          ContributorInsightsSpecification:
+            Enabled: !Ref DynamoEnableContributorInsights
+          ProvisionedThroughput:
+            ReadCapacityUnits: !Ref DynamoReadCapacityUnits
+            WriteCapacityUnits: !Ref DynamoWriteCapacityUnits
+
+        # An index to help us quickly fetch all of the DMPs for a specific organization
+        - IndexName: 'dmphub_owner_id_gsi'
+          KeySchema:
+            - AttributeName: 'dmphub_owner_id'
+              KeyType: 'HASH'
+            - AttributeName: 'PK'
+              KeyType: 'RANGE'
+          Projection:
+            ProjectionType: 'INCLUDE'
+            NonKeyAttributes: ['SK', 'title', 'description', 'created', 'modified', 'contact', 'contributor', 'project', 'dmproadmap_assertion_needed']
+          ContributorInsightsSpecification:
+            Enabled: !Ref DynamoEnableContributorInsights
+          ProvisionedThroughput:
+            ReadCapacityUnits: !Ref DynamoReadCapacityUnits
+            WriteCapacityUnits: !Ref DynamoWriteCapacityUnits
+
+        # An index to help us quickly fetch all of the DMPs for a specific organization
+        - IndexName: 'dmphub_owner_org_gsi'
+          KeySchema:
+            - AttributeName: 'dmphub_owner_org'
+              KeyType: 'HASH'
+            - AttributeName: 'PK'
+              KeyType: 'RANGE'
+          Projection:
+            ProjectionType: 'INCLUDE'
+            NonKeyAttributes: ['SK', 'title', 'description', 'created', 'modified', 'contact', 'contributor', 'project', 'dmproadmap_assertion_needed']
           ContributorInsightsSpecification:
             Enabled: !Ref DynamoEnableContributorInsights
           ProvisionedThroughput:
@@ -109,27 +147,11 @@ Resources:
           KeySchema:
             - AttributeName: 'dmphub_provenance_identifier'
               KeyType: 'HASH'
-            - AttributeName: 'PK'
+            - AttributeName: 'dmphub_modification_day'
               KeyType: 'RANGE'
           Projection:
             ProjectionType: 'INCLUDE'
-            NonKeyAttributes: ['PK', 'SK']
-          ContributorInsightsSpecification:
-            Enabled: !Ref DynamoEnableContributorInsights
-          ProvisionedThroughput:
-            ReadCapacityUnits: !Ref DynamoReadCapacityUnits
-            WriteCapacityUnits: !Ref DynamoWriteCapacityUnits
-
-        # An index to help us quickly fetch all of the DMPs for a specific provenance
-        - IndexName: 'provenance_dmps_gsi'
-          KeySchema:
-            - AttributeName: 'dmphub_provenance_id'
-              KeyType: 'HASH'
-            - AttributeName: 'PK'
-              KeyType: 'RANGE'
-          Projection:
-            ProjectionType: 'INCLUDE'
-            NonKeyAttributes: ['title', 'contact', 'modified']
+            NonKeyAttributes: ['PK', 'SK', 'title']
           ContributorInsightsSpecification:
             Enabled: !Ref DynamoEnableContributorInsights
           ProvisionedThroughput:
@@ -159,20 +181,24 @@ Resources:
       Type: 'String'
       Value: !Sub "https://${Domain}"
 
-  # Add the Table name to SSM so that our Lambdas can access it
   TableNameParameter:
     Type: 'AWS::SSM::Parameter'
     Properties:
-      Description: !Sub "${AWS::StackName} DynamoTable"
+      Description: !Sub "${AWS::StackName} DynamoDb Table"
       Name: !Sub "${SsmPath}DynamoTableName"
-      # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
       Type: 'String'
       Value: !Select [1, !Split ['/', !GetAtt DynamoTable.Arn]]
 
 Outputs:
   DynamoTableName:
     Value: !Select [1, !Split ['/', !GetAtt DynamoTable.Arn]]
+    Export:
+      Name: !Sub '${Env}-DynamoTableName'
+
   DynamoTableId:
     Value: !Ref DynamoTable
+
   DynamoTableArn:
     Value: !GetAtt DynamoTable.Arn
+    Export:
+      Name: !Sub '${Env}-DynamoTableArn'

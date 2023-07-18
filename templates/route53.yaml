@@ -1,11 +1,14 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Transform: 'AWS::Serverless-2016-10-31'
 
 Description: 'DNS for the Fargate cluster, API and Cognito'
 
 Parameters:
   HostedZoneId:
     Type: 'AWS::Route53::HostedZone::Id'
+
+  Env:
+    Type: 'String'
+    Default: 'dev'
 
   Domain:
     Type: 'String'
@@ -54,5 +57,12 @@ Resources:
         # EvaluateTargetHealth: true
 
 Outputs:
+  HostedZoneId:
+    Value: !Ref HostedZoneId
+    Export:
+      Name: !Sub '${Env}-HostedZoneId'
+
   DomainName:
     Value: !Ref RecordSet
+    Export:
+      Name: !Sub '${Env}-DomainName'

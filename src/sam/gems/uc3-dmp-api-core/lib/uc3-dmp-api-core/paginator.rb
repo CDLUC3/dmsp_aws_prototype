@@ -46,10 +46,10 @@ module Uc3DmpApiCore
 
       # Fetch the current :page and :per_page from the params or use the defaults
       def _current_page(item_count: 0, params: {})
-        page = params.fetch('page', DEFAULT_PAGE)
-        page = DEFAULT_PAGE if page.nil? || page <= 1
-        per_page = params.fetch('per_page', DEFAULT_PER_PAGE)
-        per_page = DEFAULT_PER_PAGE if per_page.nil? || per_page >= MAXIMUM_PER_PAGE || per_page < 1
+        page = params.fetch('page', DEFAULT_PAGE).to_i
+        page = DEFAULT_PAGE if page.nil? || page.to_i <= 1
+        per_page = params.fetch('per_page', DEFAULT_PER_PAGE).to_i
+        per_page = DEFAULT_PER_PAGE if per_page.nil? || per_page.to_i >= MAXIMUM_PER_PAGE || per_page.to_i < 1
 
         total_pages = _page_count(total: item_count, per_page: per_page)
         page = total_pages if page > total_pages

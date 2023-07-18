@@ -1,5 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: 'AWS::Serverless-2016-10-31'
+
 Description: >
   dmp-hub-sam
 
@@ -12,19 +13,7 @@ Globals:
     Tracing: 'Active'
 
 Parameters:
-  VpcId:
-    Type: 'AWS::EC2::VPC::Id'
-  SubnetA:
-    Type: 'AWS::EC2::Subnet::Id'
-  SubnetB:
-    Type: 'AWS::EC2::Subnet::Id'
-  SubnetC:
-    Type: 'AWS::EC2::Subnet::Id'
-
   HostedZoneId:
-    Type: 'String'
-
-  DbSecGroupId:
     Type: 'String'
 
   EventBusArn:
@@ -33,6 +22,14 @@ Parameters:
   Env:
     Type: 'String'
     Default: 'dev'
+
+  DebugLevel:
+    Type: 'String'
+    Default: 'error'
+    AllowedValues:
+      - 'error'
+      - 'info'
+      - 'debug'
 
   CertificateArn:
     Type: 'String'
@@ -46,7 +43,13 @@ Parameters:
   DynamoTableArn:
     Type: 'String'
 
+  DynamoTableName:
+    Type: 'String'
+
   S3CloudFrontBucketArn:
+    Type: 'String'
+
+  S3PrivateBucketId:
     Type: 'String'
 
   SnsEmailTopicArn:
@@ -55,24 +58,13 @@ Parameters:
   DeadLetterQueueArn:
     Type: 'String'
 
-  RdsHost:
-    Type: 'String'
-
-  RdsPort:
-    Type: 'String'
-    Default: '3306'
-
-  RdsDbName:
-    Type: 'String'
-    Default: 'dmp'
-
   LogRetentionDays:
     Type: 'Number'
-    Default: 7
+    Default: 14
 
-  CorsHeaders:
-    Type: 'String'
-    Default: 'Accept, Authorization, Content-Type, Origin, Referer, User-Agent'
+Conditions:
+  IsDev:
+    !Equals [!Ref Env, 'dev']
 
 Resources:
   # -----------------------------------------------------------
@@ -127,6 +119,7 @@ Resources:
             - 'dynamodb:PutItem'
             - 'dynamodb:BatchWriteItem'
             - 'dynamodb:PartiQLInsert'
+            - 'dynamodb:Query'
           Resource:
             - !Ref DynamoTableArn
             - !Sub '${DynamoTableArn}/index/*'
@@ -178,47 +171,6 @@ Resources:
             - !Ref S3CloudFrontBucketArn
             - !Sub "${S3CloudFrontBucketArn}/*"
 
-  # -----------------------------------------------------------
-  # EC2 Security Groups for use with Lambdas that need to talk to the RDS database
-  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-security-group.html
-  # -----------------------------------------------------------
-  LambdaSecGroup:
-    Type: 'AWS::EC2::SecurityGroup'
-    Properties:
-      GroupDescription: !Sub 'RDS security group for Lambdas that will access RDS'
-      GroupName: !Sub "${DomainName}-lambda-sec-grp"
-      VpcId: !Ref VpcId
-
-  LambdaSecGroupIngress:
-    Type: 'AWS::EC2::SecurityGroupIngress'
-    Properties:
-      Description: !Sub "${DomainName} Ingress rule to Lambda"
-      GroupId: !GetAtt LambdaSecGroup.GroupId
-      CidrIp: '0.0.0.0/0'
-      IpProtocol: 'tcp'
-      FromPort: '0'
-      ToPort: '65535'
-
-  LambdaSecGroupEgress:
-    Type: 'AWS::EC2::SecurityGroupEgress'
-    Properties:
-      Description: !Sub "${DomainName} Egress rule from Lambda to API Gateway"
-      GroupId: !GetAtt LambdaSecGroup.GroupId
-      CidrIp: '0.0.0.0/0'
-      IpProtocol: 'tcp'
-      FromPort: '0'
-      ToPort: '65535'
-
-  LambdaToRdsSecGroupIngress:
-    Type: 'AWS::EC2::SecurityGroupIngress'
-    Properties:
-      Description: !Sub "${DomainName} Ingress rule to Lambda"
-      GroupId: !Ref DbSecGroupId
-      SourceSecurityGroupId: !GetAtt LambdaSecGroup.GroupId
-      IpProtocol: 'tcp'
-      FromPort: '3306'
-      ToPort: '3306'
-
   # ----------------------------------------------------
   # CloudWatch LogGroup
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_Logs.html
@@ -237,19 +189,23 @@ Resources:
     Properties:
       AccessLogSetting:
         DestinationArn: !GetAtt ApiAccessLogGroup.Arn
-        Format: '{"requestId":"$context.requestId","ip": "$context.identity.sourceIp","caller":"$context.identity.caller","user":"$context.identity.user","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath","status":"$context.status","protocol":"$context.protocol","responseLength":"$context.responseLength"}'
+        Format: '{"requestTime":"$context.requestTime","requestId":"$context.requestId","httpMethod":"$context.httpMethod","path":"$context.path","resourcePath":"$context.resourcePath","xrayTraceId":"$context.xrayTraceId","status":$context.status,"responseLatency":$context.responseLatency,"responseLength":"$context.responseLength","integrationRequestId":"$context.integration.requestId","integrationResponseStatus":"$context.integration.status","integrationLatency": "$context.integration.latency","ip": "$context.identity.sourceIp","userAgent": "$context.identity.userAgent","cognitoUser": "$context.identity.cognitoIdentityId"}'
+
       # TODO: Consider enabling caching in prod
       # Cache @ 0.5GB is $0.02 per hour! -> $0.48 per day -> roughly $15 per month
       # CacheClusterEnabled: true
       # CacheClusterSize: '0.5' # .5 GB
 
+      # Values here need to be wrapped in single quotes, but the ENV variables passed into the
+      # Lambdas do not! For example, "'GET,PUT'" defined here should be "GET, PUT" when passed
+      # into the Lambdas as an ENV!
       Cors:
-        # Values here need to be wrapped in single quotes, but the ENV variables passed into the
-        # Lambdas do not! For example, "'GET,PUT'" defined here should be "GET, PUT" when passed
-        # into the Lambdas as an ENV!
-        AllowOrigin: !Sub "'https://${DomainName}'"
-        AllowHeaders: !Sub "'${CorsHeaders}'"
-        AllowMethods: "'DELETE, GET, OPTIONS, PATCH, POST, PUT'"
+        AllowHeaders: !Sub "'Accept, Authorization, Content-Type, Origin, Referer, User-Agent'"
+        AllowMethods: "'GET, PUT, POST, DELETE, OPTIONS'"
+        AllowOrigin: !If
+        - IsDev
+        - "'*'"
+        - !Sub "'https://${DomainName}'"
 
       DisableExecuteApiEndpoint: true
       Domain:
@@ -265,6 +221,9 @@ Resources:
       StageName: 'v0'
       OpenApiVersion: '3.0.1'
       TracingEnabled: true
+      BinaryMediaTypes:
+        - 'application/pdf'
+        - 'multipart/form-data'
       Auth:
         AddDefaultAuthorizerToCorsPreflight: false
         Authorizers:
@@ -301,10 +260,16 @@ Resources:
     Properties:
       LayerName: !Sub '${AWS::StackName}-lambda-layer'
       Description: !Sub 'Core Lambda Layer for DMPHub ${Env}'
-      ContentUri: 'layers/uc3-dmp-hub-lambda-layer.zip'
+      ContentUri: !Sub 'layers'
+        # Bucket: !Ref S3PrivateBucketId
+        # Key: !Sub 'lambdas/uc3-dmp-hub-${Env}-sam-resources-lambda-layer.zip'
       CompatibleRuntimes:
         - 'ruby2.7'
       RetentionPolicy: 'Delete'
+    Metadata:
+      BuildMethod: 'makefile'
+      BuildArchitecture: 'x86_64'
+
 
   # ----------------------------------------------------
   # API Lambdas
@@ -334,12 +299,17 @@ Resources:
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env
+          LOG_LEVEL: !Ref DebugLevel # 'debug'
           DOMAIN: !Ref DomainName
+          DMP_ID_BASE_URL: 'doi.org'
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
           EVENT_BUS_NAME: !Ref EventBusArn
-          CORS_METHODS: 'DELETE'
-          CORS_HEADERS: !Ref CorsHeaders
-          CORS_ORIGIN: !Sub "https://${DomainName}"
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolArn
+          DYNAMO_TABLE: !Ref DynamoTableName
+          CORS_ORIGIN: !If
+            - IsDev
+            - "*"
+            - !Sub "https://${DomainName}"
       Events:
         DeleteDmps:
           # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
@@ -355,190 +325,14 @@ Resources:
               AuthorizationScopes:
                 - !Sub 'https://auth.${DomainName}/${Env}.delete'
 
-  # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
-  GetDmpFunction:
-    Type: 'AWS::Serverless::Function'
+  DeleteDmpLogGroup:
+    Type: 'AWS::Logs::LogGroup'
     Properties:
-      CodeUri: 'functions/get_dmp/'
-      Handler: 'app.Functions::GetDmp.process'
-      Runtime: 'ruby2.7'
-      Timeout: 5
-      Architectures:
-        - 'x86_64'
-      Layers:
-        - !Ref LambdaLayer
-      Policies:
-        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
-        - !Ref DmpHubDynamoTableReadPolicy
-        - !Ref S3BucketPolicy
-      DeadLetterQueue:
-        Type: 'SQS'
-        TargetArn: !Ref DeadLetterQueueArn
-      Environment:
-        Variables:
-          LAMBDA_ENV: !Ref Env
-          SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
-          CORS_METHODS: 'GET'
-          CORS_HEADERS: !Ref CorsHeaders
-          CORS_ORIGIN: !Sub "https://${DomainName}"
-      Events:
-        GetDmp:
-          # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
-          Type: 'Api'
-          Properties:
-            RestApiId: !Ref DmpHubRestApi
-            Path: '/dmps/{dmp_id+}'
-            Method: 'get'
-            Auth:
-              Authorizer: 'NONE'
+      LogGroupName: !Sub "/aws/lambda/${DeleteDmpFunction}"
+      # Explicit retention time
+      RetentionInDays: !Ref LogRetentionDays
 
-  # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
-  GetFundersFunction:
-    Type: 'AWS::Serverless::Function'
-    Properties:
-      PackageType: 'Image'
-      Timeout: 60
-      Architectures:
-        - 'x86_64'
-      Policies:
-        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
-        - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
-        - 'arn:aws:iam::aws:policy/AmazonRDSDataFullAccess'
-      DeadLetterQueue:
-        Type: 'SQS'
-        TargetArn: !Ref DeadLetterQueueArn
-      Environment:
-        Variables:
-          DATABASE_HOST: !Ref RdsHost
-          DATABASE_PORT: !Ref RdsPort
-          DATABASE_NAME: !Ref RdsDbName
-          CORS_METHODS: 'GET'
-          CORS_HEADERS: !Ref CorsHeaders
-          CORS_ORIGIN: !Sub "https://${DomainName}"
-      VpcConfig:
-        SecurityGroupIds:
-          - !Ref LambdaSecGroup
-        SubnetIds:
-          - !Ref SubnetA
-          - !Ref SubnetB
-          - !Ref SubnetC
-      Events:
-        GetFunders:
-          # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
-          Type: 'Api'
-          Properties:
-            RestApiId: !Ref DmpHubRestApi
-            Path: '/funders'
-            Method: 'get'
-            Auth:
-              Authorizer: 'DmpHubCognitoAuthorizer'
-              AuthorizationScopes:
-                - !Sub 'https://auth.${DomainName}/${Env}.read'
-    Metadata:
-      DockerTag: 'getFunders-v0'
-      DockerContext: 'functions/get_funders/'
-      Dockerfile: 'Dockerfile'
-      DockerBuildArgs:
-        "--platform": 'linux/arm64/v8'
-
-  # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
-  GetOrgsFunction:
-    Type: 'AWS::Serverless::Function'
-    Properties:
-      PackageType: 'Image'
-      Timeout: 60
-      Architectures:
-        - 'x86_64'
-      Policies:
-        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
-        - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
-        - 'arn:aws:iam::aws:policy/AmazonRDSDataFullAccess'
-      DeadLetterQueue:
-        Type: 'SQS'
-        TargetArn: !Ref DeadLetterQueueArn
-      Environment:
-        Variables:
-          DATABASE_HOST: !Ref RdsHost
-          DATABASE_PORT: !Ref RdsPort
-          DATABASE_NAME: !Ref RdsDbName
-          CORS_METHODS: 'GET'
-          CORS_HEADERS: !Ref CorsHeaders
-          CORS_ORIGIN: !Sub "https://${DomainName}"
-      VpcConfig:
-        SecurityGroupIds:
-          - !Ref LambdaSecGroup
-        SubnetIds:
-          - !Ref SubnetA
-          - !Ref SubnetB
-          - !Ref SubnetC
-      Events:
-        GetFunders:
-          # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
-          Type: 'Api'
-          Properties:
-            RestApiId: !Ref DmpHubRestApi
-            Path: '/orgs'
-            Method: 'get'
-            Auth:
-              Authorizer: 'DmpHubCognitoAuthorizer'
-              AuthorizationScopes:
-                - !Sub 'https://auth.${DomainName}/${Env}.read'
-    Metadata:
-      DockerTag: 'getOrgs-v0'
-      DockerContext: 'functions/get_orgs/'
-      Dockerfile: 'Dockerfile'
-      DockerBuildArgs:
-        "--platform": 'linux/arm64/v8'
-
-  # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
-  GetrepositoriesFunction:
-    Type: 'AWS::Serverless::Function'
-    Properties:
-      PackageType: 'Image'
-      Timeout: 60
-      Architectures:
-        - 'x86_64'
-      Policies:
-        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
-        - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
-        - 'arn:aws:iam::aws:policy/AmazonRDSDataFullAccess'
-      DeadLetterQueue:
-        Type: 'SQS'
-        TargetArn: !Ref DeadLetterQueueArn
-      Environment:
-        Variables:
-          DATABASE_HOST: !Ref RdsHost
-          DATABASE_PORT: !Ref RdsPort
-          DATABASE_NAME: !Ref RdsDbName
-          CORS_METHODS: 'GET'
-          CORS_HEADERS: !Ref CorsHeaders
-          CORS_ORIGIN: !Sub "https://${DomainName}"
-      VpcConfig:
-        SecurityGroupIds:
-          - !Ref LambdaSecGroup
-        SubnetIds:
-          - !Ref SubnetA
-          - !Ref SubnetB
-          - !Ref SubnetC
-      Events:
-        GetFunders:
-          # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
-          Type: 'Api'
-          Properties:
-            RestApiId: !Ref DmpHubRestApi
-            Path: '/repositories'
-            Method: 'get'
-            Auth:
-              Authorizer: 'DmpHubCognitoAuthorizer'
-              AuthorizationScopes:
-                - !Sub 'https://auth.${DomainName}/${Env}.read'
-    Metadata:
-      DockerTag: 'getRepositories-v0'
-      DockerContext: 'functions/get_repositories/'
-      Dockerfile: 'Dockerfile'
-      DockerBuildArgs:
-        "--platform": 'linux/arm64/v8'
-
+  # Proxy for searching the Crossref Grant registry
   GetAwardsCrossrefApiFunction:
     Type: 'AWS::Serverless::Function'
     Properties:
@@ -560,12 +354,15 @@ Resources:
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env
+          LOG_LEVEL: !Ref DebugLevel # 'debug'
+          DOMAIN: !Ref DomainName
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
-          CORS_METHODS: 'GET'
-          CORS_HEADERS: !Ref CorsHeaders
-          CORS_ORIGIN: !Sub "https://${DomainName}"
+          CORS_ORIGIN: !If
+            - IsDev
+            - "*"
+            - !Sub "https://${DomainName}"
       Events:
-        GetAwardsNsf:
+        GetAwardsCrossref:
           # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
           Type: 'Api'
           Properties:
@@ -577,7 +374,14 @@ Resources:
               AuthorizationScopes:
                 - !Sub 'https://auth.${DomainName}/${Env}.read'
 
-  # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+  GetAwardsCrossrefLogGroup:
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${GetAwardsCrossrefApiFunction}"
+      # Explicit retention time
+      RetentionInDays: !Ref LogRetentionDays
+
+  # Proxy for searching the NIH Award API
   GetAwardsNihApiFunction:
     Type: 'AWS::Serverless::Function'
     Properties:
@@ -599,10 +403,13 @@ Resources:
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env
+          LOG_LEVEL: !Ref DebugLevel # 'debug'
+          DOMAIN: !Ref DomainName
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
-          CORS_METHODS: 'GET'
-          CORS_HEADERS: !Ref CorsHeaders
-          CORS_ORIGIN: !Sub "https://${DomainName}"
+          CORS_ORIGIN: !If
+            - IsDev
+            - "*"
+            - !Sub "https://${DomainName}"
       Events:
         GetAwardsNih:
           # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
@@ -616,6 +423,14 @@ Resources:
               AuthorizationScopes:
                 - !Sub 'https://auth.${DomainName}/${Env}.read'
 
+  GetAwardsNihLogGroup:
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${GetAwardsNihApiFunction}"
+      # Explicit retention time
+      RetentionInDays: !Ref LogRetentionDays
+
+  # Proxy for searching the NSF Awards API
   GetAwardsNsfApiFunction:
     Type: 'AWS::Serverless::Function'
     Properties:
@@ -637,10 +452,13 @@ Resources:
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env
+          LOG_LEVEL: !Ref DebugLevel # 'debug'
+          DOMAIN: !Ref DomainName
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
-          CORS_METHODS: 'GET'
-          CORS_HEADERS: !Ref CorsHeaders
-          CORS_ORIGIN: !Sub "https://${DomainName}"
+          CORS_ORIGIN: !If
+            - IsDev
+            - "*"
+            - !Sub "https://${DomainName}"
       Events:
         GetAwardsNsf:
           # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
@@ -654,72 +472,113 @@ Resources:
               AuthorizationScopes:
                 - !Sub 'https://auth.${DomainName}/${Env}.read'
 
-  # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
-  GetMeFunction:
+  GetAwardsNsfLogGroup:
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${GetAwardsNsfApiFunction}"
+      # Explicit retention time
+      RetentionInDays: !Ref LogRetentionDays
+
+  # Fetch the specified DMP ID
+  GetDmpFunction:
     Type: 'AWS::Serverless::Function'
     Properties:
-      CodeUri: 'functions/get_me/'
-      Handler: 'app.Functions::GetMe.process'
+      CodeUri: 'functions/get_dmp/'
+      Handler: 'app.Functions::GetDmp.process'
       Runtime: 'ruby2.7'
       Timeout: 5
       Architectures:
         - 'x86_64'
       Layers:
         - !Ref LambdaLayer
+      Policies:
+        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
+        - !Ref DmpHubDynamoTableReadPolicy
+        - !Ref S3BucketPolicy
       DeadLetterQueue:
         Type: 'SQS'
         TargetArn: !Ref DeadLetterQueueArn
       Environment:
         Variables:
-          CORS_METHODS: 'GET'
-          CORS_HEADERS: !Ref CorsHeaders
-          CORS_ORIGIN: !Sub "https://${DomainName}"
+          LAMBDA_ENV: !Ref Env
+          LOG_LEVEL: !Ref DebugLevel # 'debug'
+          DMP_ID_BASE_URL: 'doi.org'
+          DYNAMO_TABLE: !Ref DynamoTableName
+          SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
+          CORS_ORIGIN: !If
+            - IsDev
+            - "*"
+            - !Sub "https://${DomainName}"
       Events:
-        GetMe:
+        GetDmp:
           # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
           Type: 'Api'
           Properties:
             RestApiId: !Ref DmpHubRestApi
-            Path: '/me'
+            Path: '/dmps/{dmp_id+}'
             Method: 'get'
             Auth:
-              Authorizer: 'DmpHubCognitoAuthorizer'
-              AuthorizationScopes:
-                - !Sub 'https://auth.${DomainName}/${Env}.read'
+              Authorizer: 'NONE'
 
-  # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
-  GetContributorRolesFunction:
+  GetDmpLogGroup:
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${GetDmpFunction}"
+      # Explicit retention time
+      RetentionInDays: !Ref LogRetentionDays
+
+  # Search for DMP IDs
+  GetDmpsFunction:
     Type: 'AWS::Serverless::Function'
     Properties:
-      CodeUri: 'functions/get_contributor_roles/'
-      Handler: 'app.Functions::GetContributorRoles.process'
+      CodeUri: 'functions/get_dmps/'
+      Handler: 'app.Functions::GetDmps.process'
       Runtime: 'ruby2.7'
       Timeout: 5
       Architectures:
         - 'x86_64'
       Layers:
         - !Ref LambdaLayer
+      Policies:
+        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonS3FullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonCognitoReadOnly'
+        - !Ref DmpHubDynamoTableReadPolicy
       DeadLetterQueue:
         Type: 'SQS'
         TargetArn: !Ref DeadLetterQueueArn
       Environment:
         Variables:
-          CORS_METHODS: 'GET'
-          CORS_HEADERS: !Ref CorsHeaders
-          CORS_ORIGIN: !Sub "https://${DomainName}"
+          LAMBDA_ENV: !Ref Env
+          LOG_LEVEL: !Ref DebugLevel # 'debug'
+          SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolArn
+          DYNAMO_TABLE: !Ref DynamoTableName
+          CORS_ORIGIN: !If
+            - IsDev
+            - "*"
+            - !Sub "https://${DomainName}"
       Events:
-        GetMe:
-          # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+        GetDmps:
           Type: 'Api'
           Properties:
             RestApiId: !Ref DmpHubRestApi
-            Path: '/contributor_roles'
+            Path: '/dmps'
             Method: 'get'
             Auth:
               Authorizer: 'DmpHubCognitoAuthorizer'
               AuthorizationScopes:
                 - !Sub 'https://auth.${DomainName}/${Env}.read'
 
+  GetDmpsLogGroup:
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${GetDmpsFunction}"
+      # Explicit retention time
+      RetentionInDays: !Ref LogRetentionDays
+
+  # Register a new DMP ID
   PostDmpsFunction:
     Type: 'AWS::Serverless::Function'
     Properties:
@@ -737,19 +596,23 @@ Resources:
         - 'arn:aws:iam::aws:policy/AmazonSQSFullAccess'
         - !Ref DmpHubDynamoTableWritePolicy
         - !Ref EventBusPolicy
-        - !Ref CognitoPolicy
+        - 'arn:aws:iam::aws:policy/AmazonCognitoReadOnly'
       DeadLetterQueue:
         Type: 'SQS'
         TargetArn: !Ref DeadLetterQueueArn
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env
+          LOG_LEVEL: !Ref DebugLevel # 'debug'
           DOMAIN: !Ref DomainName
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
           EVENT_BUS_NAME: !Ref EventBusArn
-          CORS_METHODS: 'POST'
-          CORS_HEADERS: !Ref CorsHeaders
-          CORS_ORIGIN: !Sub "https://${DomainName}"
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolArn
+          DYNAMO_TABLE: !Ref DynamoTableName
+          CORS_ORIGIN: !If
+            - IsDev
+            - "*"
+            - !Sub "https://${DomainName}"
       Events:
         PostDmps:
           # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
@@ -765,6 +628,68 @@ Resources:
               AuthorizationScopes:
                 - !Sub 'https://auth.${DomainName}/${Env}.write'
 
+  PostDmpsLogGroup:
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${PostDmpsFunction}"
+      # Explicit retention time
+      RetentionInDays: !Ref LogRetentionDays
+
+  # Upload a PDF narrative document and attach it to the specified DMP ID
+  PostNarrativesFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      CodeUri: 'functions/post_narratives/'
+      Handler: 'app.Functions::PostNarratives.process'
+      Runtime: 'ruby2.7'
+      Timeout: 5
+      Architectures:
+        - 'x86_64'
+      Layers:
+        - !Ref LambdaLayer
+      Policies:
+        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonS3FullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonCognitoReadOnly'
+        - !Ref DmpHubDynamoTableWritePolicy
+      DeadLetterQueue:
+        Type: 'SQS'
+        TargetArn: !Ref DeadLetterQueueArn
+      Environment:
+        Variables:
+          LAMBDA_ENV: !Ref Env
+          LOG_LEVEL: !Ref DebugLevel # 'debug'
+          S3_BUCKET: !Ref S3CloudFrontBucketArn
+          SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
+          EVENT_BUS_NAME: !Ref EventBusArn
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolArn
+          DYNAMO_TABLE: !Ref DynamoTableName
+          CORS_ORIGIN: !If
+            - IsDev
+            - "*"
+            - !Sub "https://${DomainName}"
+      Events:
+        PostNarratives:
+          # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Type: 'Api'
+          Properties:
+            RestApiId: !Ref DmpHubRestApi
+            Path: '/narratives'
+            Method: 'post'
+            Auth:
+              Authorizer: 'DmpHubCognitoAuthorizer'
+              AuthorizationScopes:
+                - !Sub 'https://auth.${DomainName}/${Env}.write'
+
+  PostNarrativesLogGroup:
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${PostNarrativesFunction}"
+      # Explicit retention time
+      RetentionInDays: !Ref LogRetentionDays
+
+  # Update a DMP ID
   PutDmpFunction:
     Type: 'AWS::Serverless::Function'
     Properties:
@@ -789,12 +714,17 @@ Resources:
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env
+          LOG_LEVEL: !Ref DebugLevel # 'debug'
           DOMAIN: !Ref DomainName
+          DMP_ID_BASE_URL: 'doi.org'
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
           EVENT_BUS_NAME: !Ref EventBusArn
-          CORS_METHODS: 'PUT'
-          CORS_HEADERS: !Ref CorsHeaders
-          CORS_ORIGIN: !Sub "https://${DomainName}"
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolArn
+          DYNAMO_TABLE: !Ref DynamoTableName
+          CORS_ORIGIN: !If
+            - IsDev
+            - "*"
+            - !Sub "https://${DomainName}"
       Events:
         PutDmps:
           # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
@@ -809,6 +739,13 @@ Resources:
               Authorizer: 'DmpHubCognitoAuthorizer'
               AuthorizationScopes:
                 - !Sub 'https://auth.${DomainName}/${Env}.write'
+
+  PutDmpLogGroup:
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${PutDmpFunction}"
+      # Explicit retention time
+      RetentionInDays: !Ref LogRetentionDays
 
   ValidateDmpFunction:
     Type: 'AWS::Serverless::Function'
@@ -829,10 +766,12 @@ Resources:
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env
+          LOG_LEVEL: !Ref DebugLevel # 'debug'
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
-          CORS_METHODS: 'POST'
-          CORS_HEADERS: !Ref CorsHeaders
-          CORS_ORIGIN: !Sub "https://${DomainName}"
+          CORS_ORIGIN: !If
+            - IsDev
+            - "*"
+            - !Sub "https://${DomainName}"
       Events:
         ValidateDmp:
           # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
@@ -843,6 +782,13 @@ Resources:
             Method: 'post'
             Auth:
               Authorizer: 'NONE'
+
+  ValidateLogGroup:
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${ValidateDmpFunction}"
+      # Explicit retention time
+      RetentionInDays: !Ref LogRetentionDays
 
   # ----------------------------------------------------
   # EventBridge Lambdas
@@ -870,8 +816,13 @@ Resources:
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env
+          LOG_LEVEL: 'debug'
           DOMAIN: !Ref DomainName
+          DMP_ID_BASE_URL: 'doi.org'
+          API_BASE_URL: !Sub 'https://api.${DomainName}'
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
+          EVENT_BUS_NAME: !Ref EventBusArn
+          DYNAMO_TABLE: !Ref DynamoTableName
       Events:
         EzidPublishEvent:
           Type: 'EventBridgeRule'
@@ -907,121 +858,104 @@ Resources:
       - EzidPublisherFunction
     Properties:
       LogGroupName: !Sub "/aws/lambda/${EzidPublisherFunction}"
-      RetentionInDays: 14
+      RetentionInDays: !Ref LogRetentionDays
 
-  # Lambda responsible for fetching PDFs from the provenance systems (e.g. DMPTool)
-  PdfDownloaderFunction:
-    Type: 'AWS::Serverless::Function'
+  # Scheduled events to keep some of the API lambdas warm
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-events-rule.html#cfn-events-rule-scheduleexpression
+  LambdaDmpWarmerRule:
+    Type: 'AWS::Events::Rule'
     Properties:
-      CodeUri: 'functions/pdf_downloader/'
-      Handler: 'app.Functions::PdfDownloader.process'
-      Runtime: 'ruby2.7'
-      Timeout: 120 # DMPTool can be a bit slow producing these
-      Architectures:
-        - 'x86_64'
-      Layers:
-        - !Ref LambdaLayer
-      Policies:
-        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
-        - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
-        - 'arn:aws:iam::aws:policy/AmazonSQSFullAccess'
-        - 'arn:aws:iam::aws:policy/AmazonS3FullAccess'
-        - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
-        - !Ref DmpHubDynamoTableWritePolicy
-        - !Ref S3BucketPolicy
-      Environment:
-        Variables:
-          LAMBDA_ENV: !Ref Env
-          DOMAIN: !Ref DomainName
-          # ACCOUNT_ID: !Ref AWS::AccountId
-          SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
-          S3_BUCKET: !Ref S3CloudFrontBucketArn
-      Events:
-        PdfDownloadEvent:
-          Type: 'EventBridgeRule'
-          Properties:
-            DeadLetterConfig:
-              Arn: !Ref DeadLetterQueueArn
-            EventBusName: !Ref EventBusArn
-            Pattern: !Sub >
-              {
-                "source": ["${DomainName}:lambda:event_publisher"],
-                "detail-type": ["DMP change"],
-                "detail": {
-                  "SK": ["VERSION#latest"],
-                  "dmproadmap_links": {
-                    "download": [ { "exists": true } ]
-                  }
-                }
-              }
-            RetryPolicy:
-              MaximumEventAgeInSeconds: 360
-              MaximumRetryAttempts: 2
-            State: 'ENABLED'  # 'DISABLED'
+      ScheduleExpression: 'rate(20 minutes)'
+      Targets:
+        - Id: !Ref DeleteDmpFunction
+          Arn: !GetAtt DeleteDmpFunction.Arn
+        - Id: !Ref GetDmpFunction
+          Arn: !GetAtt GetDmpFunction.Arn
+        - Id: !Ref PostDmpsFunction
+          Arn: !GetAtt PostDmpsFunction.Arn
+        - Id: !Ref PutDmpFunction
+          Arn: !GetAtt PutDmpFunction.Arn
+        - Id: !Ref ValidateDmpFunction
+          Arn: !GetAtt ValidateDmpFunction.Arn
 
-  # Annoyingly, SAM does not auto-generate LogGroup for a non-API tiggered lambda and
-  # it expects a specific name :/
-  PdfDownloaderFunctionLogGroup:
-    Type: 'AWS::Logs::LogGroup'
-    DependsOn:
-      - PdfDownloaderFunction
+  # Lambda Permissions to allow the pre-warmer scheduled event to invoke the API Lambdas
+  DeleteDmpWarmerPermission:
+    Type: 'AWS::Lambda::Permission'
     Properties:
-      LogGroupName: !Sub "/aws/lambda/${PdfDownloaderFunction}"
-      RetentionInDays: 14
+      FunctionName: !GetAtt DeleteDmpFunction.Arn
+      Action: 'lambda:InvokeFunction'
+      Principal: 'events.amazonaws.com'
+      SourceArn: !GetAtt LambdaDmpWarmerRule.Arn
 
-  # Lambda responsible for letting the provenance system (owner of the DMP ID) know when another
-  # system has modified one of their DMP IDs
-  ProvenanceNotifierFunction:
-    Type: 'AWS::Serverless::Function'
+  GetDmpWarmerPermission:
+    Type: 'AWS::Lambda::Permission'
     Properties:
-      CodeUri: 'functions/provenance_notifier/'
-      Handler: 'app.Functions::ProvenanceNotifier.process'
-      Runtime: 'ruby2.7'
-      Timeout: 30
-      Architectures:
-        - 'x86_64'
-      Layers:
-        - !Ref LambdaLayer
-      Policies:
-        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
-        - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
-        - 'arn:aws:iam::aws:policy/AmazonSQSFullAccess'
-        - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
-        - !Ref DmpHubDynamoTableWritePolicy
-      Environment:
-        Variables:
-          LAMBDA_ENV: !Ref Env
-          DOMAIN: !Ref DomainName
-          SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
-      Events:
-        ProvenanceNotifyEvent:
-          Type: 'EventBridgeRule'
-          Properties:
-            DeadLetterConfig:
-              Arn: !Ref DeadLetterQueueArn
-            EventBusName: !Ref EventBusArn
-            Pattern: !Sub >
-              {
-                "source": ["${DomainName}:lambda:event_publisher"],
-                "detail-type": ["DMP change"],
-                "detail": {
-                  "SK": ["VERSION#latest"],
-                  "updater_not_provenance": [true]
-                }
-              }
-            RetryPolicy:
-              MaximumEventAgeInSeconds: 180
-              MaximumRetryAttempts: 3
-            State: 'ENABLED'  # 'DISABLED'
+      FunctionName: !GetAtt GetDmpFunction.Arn
+      Action: 'lambda:InvokeFunction'
+      Principal: 'events.amazonaws.com'
+      SourceArn: !GetAtt LambdaDmpWarmerRule.Arn
 
-  # Annoyingly, SAM does not auto-generate LogGroup for a non-API tiggered lambda
-  ProvenanceNotifierFunctionLogGroup:
-    Type: 'AWS::Logs::LogGroup'
-    DependsOn:
-      - ProvenanceNotifierFunction
+  PostDmpsWarmerPermission:
+    Type: 'AWS::Lambda::Permission'
     Properties:
-      LogGroupName: !Sub "/aws/lambda/${ProvenanceNotifierFunction}"
-      RetentionInDays: 14
+      FunctionName: !GetAtt PostDmpsFunction.Arn
+      Action: 'lambda:InvokeFunction'
+      Principal: 'events.amazonaws.com'
+      SourceArn: !GetAtt LambdaDmpWarmerRule.Arn
+
+  PutDmpWarmerPermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      FunctionName: !GetAtt PutDmpFunction.Arn
+      Action: 'lambda:InvokeFunction'
+      Principal: 'events.amazonaws.com'
+      SourceArn: !GetAtt LambdaDmpWarmerRule.Arn
+
+  ValidateDmpWarmerPermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      FunctionName: !GetAtt ValidateDmpFunction.Arn
+      Action: 'lambda:InvokeFunction'
+      Principal: 'events.amazonaws.com'
+      SourceArn: !GetAtt LambdaDmpWarmerRule.Arn
+
+  # Warmer for the Awards API Lambdas
+  LambdaAwardWarmerRule:
+    Type: 'AWS::Events::Rule'
+    Properties:
+      ScheduleExpression: 'rate(20 minutes)'
+      Targets:
+        - Id: !Ref GetAwardsCrossrefApiFunction
+          Arn: !GetAtt GetAwardsCrossrefApiFunction.Arn
+        - Id: !Ref GetAwardsNihApiFunction
+          Arn: !GetAtt GetAwardsNihApiFunction.Arn
+        - Id: !Ref GetAwardsNsfApiFunction
+          Arn: !GetAtt GetAwardsNsfApiFunction.Arn
+
+  # Lambda Permissions to allow the pre-warmer scheduled event to invoke the API Lambdas
+  GetAwardsCrossrefWarmerPermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      FunctionName: !GetAtt GetAwardsCrossrefApiFunction.Arn
+      Action: 'lambda:InvokeFunction'
+      Principal: 'events.amazonaws.com'
+      SourceArn: !GetAtt LambdaAwardWarmerRule.Arn
+
+  GetAwardsNihWarmerPermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      FunctionName: !GetAtt GetAwardsNihApiFunction.Arn
+      Action: 'lambda:InvokeFunction'
+      Principal: 'events.amazonaws.com'
+      SourceArn: !GetAtt LambdaAwardWarmerRule.Arn
+
+  GetAwardsNsfWarmerPermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      FunctionName: !GetAtt GetAwardsNsfApiFunction.Arn
+      Action: 'lambda:InvokeFunction'
+      Principal: 'events.amazonaws.com'
+      SourceArn: !GetAtt LambdaAwardWarmerRule.Arn
 
 Outputs:
   DmpHubDynamoTableReadPolicyArn:
@@ -1031,36 +965,26 @@ Outputs:
   S3BucketPolicyArn:
     Value: !Ref S3BucketPolicy
 
-  LambdaSecGroupId:
-    Value: !Ref LambdaSecGroup
-
   DeleteDmpFunctionArn:
     Value: !GetAtt DeleteDmpFunction.Arn
-    Export:
-      Name: DeleteDmpFunctionArn
+  GetAwardsCrossrefFunctionArn:
+    Value: !GetAtt GetAwardsCrossrefApiFunction.Arn
+  GetAwardsNihunctionArn:
+    Value: !GetAtt GetAwardsNihApiFunction.Arn
+  GetAwardsNsfFunctionArn:
+    Value: !GetAtt GetAwardsNsfApiFunction.Arn
   GetDmpFunctionArn:
     Value: !GetAtt GetDmpFunction.Arn
-    Export:
-      Name: GetDmpFunctionArn
   PostDmpsFunctionArn:
     Value: !GetAtt PostDmpsFunction.Arn
-    Export:
-      Name: PostDmpsFunctionArn
+  PostNarrativeFunctionArn:
+    Value: !GetAtt PostNarrativesFunction.Arn
   PutDmpFunctionArn:
     Value: !GetAtt PutDmpFunction.Arn
-    Export:
-      Name: PutDmpFunctionArn
   ValidateDmpFunctionArn:
     Value: !GetAtt ValidateDmpFunction.Arn
-    Export:
-      Name: ValidateDmpFunctionArn
-
   EzidPublisherFunctionArn:
     Value: !GetAtt EzidPublisherFunction.Arn
-  PdfDownloaderFunctionArn:
-    Value: !GetAtt PdfDownloaderFunction.Arn
-  ProvenanceNotifierFunctionArn:
-    Value: !GetAtt ProvenanceNotifierFunction.Arn
 
   # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
   # Find out more about other implicit resources you can reference within SAM
