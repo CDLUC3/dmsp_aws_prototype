@@ -42,10 +42,10 @@ module Functions
       title = params.fetch('keyword', '')
       years = params.fetch('years', (Date.today.year..Date.today.year - 3).to_a.join(','))
       years = years.split(',').map(&:to_i)
-      return _respond(status: 400, errors: [MSG_BAD_ARGS], event: event) if (title.nil? || title.empty?) &&
-                                                                            (pi_names.nil? || pi_names.empty?)
+      return _respond(status: 400, errors: [MSG_BAD_ARGS], event: event) if (project_num.nil? || project_num.empty?) &&
+                                                                            (years.nil? || years.empty?)
 
-      url = "#{project_num}" unless project_num.nil? || project_num.empty?
+      url = "/#{project_num}" unless project_num.nil? || project_num.empty?
       url = "?#{_prepare_query_string(funder: funder, pi_names: pi_names, title: title, years: years)}" if url.nil?
       url = "#{API_BASE_URL}#{url}"
       logger.debug(message: "Calling Crossref Award API: #{url}") if logger.respond_to?(:debug)
@@ -60,8 +60,10 @@ module Functions
       results = _transform_response(response_body: resp)
       _respond(status: 200, items: results.compact.uniq, event: event, params: params)
     rescue Uc3DmpExternalApi::ExternalApiError => e
+      logger.error(message: e.message, details: e.backtrace)
       _respond(status: 500, errors: [Uc3DmpApiCore::MSG_SERVER_ERROR], event: event)
     rescue Aws::Errors::ServiceError => e
+      logger.error(message: e.message, details: e.backtrace)
       _respond(status: 500, errors: [Uc3DmpApiCore::MSG_SERVER_ERROR], event: event)
     rescue StandardError => e
       logger.error(message: e.message, details: e.backtrace)

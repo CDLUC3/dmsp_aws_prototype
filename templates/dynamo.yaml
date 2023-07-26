@@ -48,6 +48,10 @@ Parameters:
     Type: 'String'
     Default: 'none'
 
+Conditions:
+  PreventDelete:
+    !Equals [!Ref Env, 'prd']
+
 Resources:
   # ----------------------------------------------
   # DynamoDB polymorphic table
@@ -55,7 +59,10 @@ Resources:
   # ----------------------------------------------
   DynamoTable:
     Type: 'AWS::DynamoDB::Table'
-    DeletionPolicy: Retain
+    DeletionPolicy: !If
+      - PreventDelete
+      - 'Retain'
+      - 'Delete'
     Properties:
       # The base table's Partition key and Sort Key define both the DMP ID and version
       # There are 3 potential variants of these keys:

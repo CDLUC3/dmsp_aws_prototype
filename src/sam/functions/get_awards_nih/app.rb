@@ -35,7 +35,7 @@ module Functions
       logger = Uc3DmpCloudwatch::Logger.new(source: SOURCE, request_id: req_id, event: event, level: log_level)
 
       params = _parse_params(event: event)
-      continue = params[:project_num].length.positive? || params[:pi_names].length.positive?
+      continue = params[:project_num].length.positive? || params[:fiscal_years].length.positive?
       return _respond(status: 400, errors: [MSG_BAD_ARGS], event: event) unless continue
 
       body = _prepare_data(
@@ -56,8 +56,10 @@ module Functions
       results = _transform_response(response_body: resp)
       _respond(status: 200, items: results.compact.uniq, event: event, params: params)
     rescue Uc3DmpExternalApi::ExternalApiError => e
+      logger.error(message: e.message, details: e.backtrace)
       _respond(status: 500, errors: [Uc3DmpApiCore::MSG_SERVER_ERROR], event: event)
     rescue Aws::Errors::ServiceError => e
+      logger.error(message: e.message, details: e.backtrace)
       _respond(status: 500, errors: [Uc3DmpApiCore::MSG_SERVER_ERROR], event: event)
     rescue StandardError => e
       logger.error(message: e.message, details: e.backtrace) unless logger.nil?

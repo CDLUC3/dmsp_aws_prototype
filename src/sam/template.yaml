@@ -58,6 +58,10 @@ Parameters:
   DeadLetterQueueArn:
     Type: 'String'
 
+  CacheSizeGb:
+    Type: 'String'
+    Default: '0.5'
+
   LogRetentionDays:
     Type: 'Number'
     Default: 14
@@ -191,10 +195,12 @@ Resources:
         DestinationArn: !GetAtt ApiAccessLogGroup.Arn
         Format: '{"requestTime":"$context.requestTime","requestId":"$context.requestId","httpMethod":"$context.httpMethod","path":"$context.path","resourcePath":"$context.resourcePath","xrayTraceId":"$context.xrayTraceId","status":$context.status,"responseLatency":$context.responseLatency,"responseLength":"$context.responseLength","integrationRequestId":"$context.integration.requestId","integrationResponseStatus":"$context.integration.status","integrationLatency": "$context.integration.latency","ip": "$context.identity.sourceIp","userAgent": "$context.identity.userAgent","cognitoUser": "$context.identity.cognitoIdentityId"}'
 
-      # TODO: Consider enabling caching in prod
-      # Cache @ 0.5GB is $0.02 per hour! -> $0.48 per day -> roughly $15 per month
-      # CacheClusterEnabled: true
-      # CacheClusterSize: '0.5' # .5 GB
+      # Cache @ 0.5GB is $0.02 per hour -> $0.48 per day -> roughly $15 per month
+      CacheClusterEnabled: !If
+        - IsDev
+        - false
+        - true
+      CacheClusterSize: !Ref CacheSizeGb
 
       # Values here need to be wrapped in single quotes, but the ENV variables passed into the
       # Lambdas do not! For example, "'GET,PUT'" defined here should be "GET, PUT" when passed
@@ -354,7 +360,7 @@ Resources:
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env
-          LOG_LEVEL: !Ref DebugLevel # 'debug'
+          LOG_LEVEL: 'debug' # !Ref DebugLevel # 'debug'
           DOMAIN: !Ref DomainName
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
           CORS_ORIGIN: !If
@@ -403,7 +409,7 @@ Resources:
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env
-          LOG_LEVEL: !Ref DebugLevel # 'debug'
+          LOG_LEVEL: 'debug' # !Ref DebugLevel # 'debug'
           DOMAIN: !Ref DomainName
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
           CORS_ORIGIN: !If
@@ -452,7 +458,7 @@ Resources:
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env
-          LOG_LEVEL: !Ref DebugLevel # 'debug'
+          LOG_LEVEL: 'debug' # !Ref DebugLevel # 'debug'
           DOMAIN: !Ref DomainName
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
           CORS_ORIGIN: !If
