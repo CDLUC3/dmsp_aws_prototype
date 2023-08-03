@@ -118,12 +118,12 @@
         "description": "OAuth2 Client Credentials",
         "flows": {
           "clientCredentials": {
-            "tokenUrl": "https://auth.dmphub-dev.cdlib.org/oauth2/token",
+            "tokenUrl": "https://auth.dmphub.uc3dev.cdlib.net/oauth2/token",
             "scopes": {
-              "https://auth.dmphub-dev.cdlib.org/dev.delete": "Delete an item",
-              "https://auth.dmphub-dev.cdlib.org/dev.read": "Fetch an item",
-              "https://auth.dmphub-dev.cdlib.org/dev.upload": "Upload an object",
-              "https://auth.dmphub-dev.cdlib.org/dev.write": "Create or update an item"
+              "https://auth.dmphub.uc3dev.cdlib.net/dev.delete": "Delete an item",
+              "https://auth.dmphub.uc3dev.cdlib.net/dev.read": "Fetch an item",
+              "https://auth.dmphub.uc3dev.cdlib.net/dev.upload": "Upload an object",
+              "https://auth.dmphub.uc3dev.cdlib.net/dev.write": "Create or update an item"
             }
           }
         }
@@ -236,7 +236,7 @@
           "identifier": {
             "type": "string",
             "title": "The download uri for the PDF document",
-            "example": "https://api.dmphub-dev.cdlib.org/narratives/1234567890.pdf"
+            "example": "https://api.dmphub.uc3dev.cdlib.net/narratives/1234567890.pdf"
           }
         },
         "required": ["descriptor", "work_type", "type", "identifier"]
@@ -350,7 +350,7 @@
           "funder_api": {
             "type": "string",
             "description": "The AJAX target for the funder's API. Can be used to back a search field on an HTML form",
-            "example": "https://api.dmphub-dev.cdlib.org/awards/nih"
+            "example": "https://api.dmphub.uc3dev.cdlib.net/awards/nih"
           },
           "funder_api_query_fields": {
             "type": "object",
@@ -727,7 +727,7 @@
       "servers": [
         {
           "description": "DMPHub development instance",
-          "url": "https://api.dmphub-dev.cdlib.org"
+          "url": "https://api.dmphub.uc3dev.cdlib.net"
         }
       ],
       "get": {
@@ -758,7 +758,7 @@
         "security": [
           {
             "SystemAuthorizer": [
-              "https://auth.dmphub-dev.cdlib.org/dev.read"
+              "https://auth.dmphub.uc3dev.cdlib.net/dev.read"
             ]
           }
         ],
@@ -790,7 +790,7 @@
       "servers": [
         {
           "description": "DMPHub development instance",
-          "url": "https://api.dmphub-dev.cdlib.org"
+          "url": "https://api.dmphub.uc3dev.cdlib.net"
         }
       ],
       "get": {
@@ -811,7 +811,7 @@
         "security": [
           {
             "SystemAuthorizer": [
-              "https://auth.dmphub-dev.cdlib.org/dev.read"
+              "https://auth.dmphub.uc3dev.cdlib.net/dev.read"
             ]
           }
         ],
@@ -843,7 +843,7 @@
       "servers": [
         {
           "description": "DMPHub development instance",
-          "url": "https://api.dmphub-dev.cdlib.org"
+          "url": "https://api.dmphub.uc3dev.cdlib.net"
         }
       ],
       "get": {
@@ -864,7 +864,7 @@
         "security": [
           {
             "SystemAuthorizer": [
-              "https://auth.dmphub-dev.cdlib.org/dev.read"
+              "https://auth.dmphub.uc3dev.cdlib.net/dev.read"
             ]
           }
         ],
@@ -897,7 +897,7 @@
       "servers": [
         {
           "description": "DMPHub development instance",
-          "url": "https://api.dmphub-dev.cdlib.org"
+          "url": "https://api.dmphub.uc3dev.cdlib.net"
         }
       ],
       "get": {
@@ -948,7 +948,7 @@
       "servers": [
         {
           "description": "DMPHub development instance",
-          "url": "https://api.dmphub-dev.cdlib.org"
+          "url": "https://api.dmphub.uc3dev.cdlib.net"
         }
       ],
       "post": {
@@ -960,7 +960,7 @@
         "security": [
           {
             "SystemAuthorizer": [
-              "https://auth.dmphub-dev.cdlib.org/dev.write"
+              "https://auth.dmphub.uc3dev.cdlib.net/dev.write"
             ]
           }
         ],
@@ -1008,7 +1008,7 @@
       "servers": [
         {
           "description": "DMPHub development instance",
-          "url": "https://api.dmphub-dev.cdlib.org"
+          "url": "https://api.dmphub.uc3dev.cdlib.net"
         }
       ],
       "post": {
@@ -1031,7 +1031,7 @@
         "security": [
           {
             "SystemAuthorizer": [
-              "https://auth.dmphub-dev.cdlib.org/dev.write"
+              "https://auth.dmphub.uc3dev.cdlib.net/dev.write"
             ]
           }
         ],
@@ -1064,7 +1064,7 @@
       "servers": [
         {
           "description": "DMPHub development instance",
-          "url": "https://api.dmphub-dev.cdlib.org"
+          "url": "https://api.dmphub.uc3dev.cdlib.net"
         }
       ],
       "post": {
@@ -1113,7 +1113,7 @@
       "servers": [
         {
           "description": "DMPHub development instance",
-          "url": "https://api.dmphub-dev.cdlib.org"
+          "url": "https://api.dmphub.uc3dev.cdlib.net"
         }
       ],
 
@@ -1138,7 +1138,7 @@
         "security": [
           {
             "SystemAuthorizer": [
-              "https://auth.dmphub-dev.cdlib.org/dev.write"
+              "https://auth.dmphub.uc3dev.cdlib.net/dev.write"
             ]
           }
         ],
@@ -1250,7 +1250,7 @@
         "security": [
           {
             "SystemAuthorizer": [
-              "https://auth.dmphub-dev.cdlib.org/dev.write"
+              "https://auth.dmphub.uc3dev.cdlib.net/dev.write"
             ]
           }
         ],

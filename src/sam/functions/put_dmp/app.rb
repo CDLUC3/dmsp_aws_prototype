@@ -30,9 +30,6 @@ module Functions
       body = event.fetch('body', '')
       return _respond(status: 400, errors: Uc3DmpId::Validator::MSG_EMPTY_JSON, event: event) if body.to_s.strip.empty?
 
-puts "BODY IN:"
-puts body
-
       json = Uc3DmpId::Helper.parse_json(json: body)
       # Fail if the DMP ID is not a valid DMP ID
       p_key = Uc3DmpId::Helper.path_parameter_to_pk(param: dmp_id)
@@ -45,9 +42,6 @@ puts body
       claim = event.fetch('requestContext', {}).fetch('authorizer', {})['claims']
       provenance = Uc3DmpProvenance::Finder.from_lambda_cotext(identity: claim, logger: logger)
       return _respond(status: 403, errors: Uc3DmpId::MSG_DMP_FORBIDDEN, event: event) if provenance.nil?
-
-puts "PARSED IN:"
-puts json
 
       logger.debug(message: "Attempting update to PK: #{p_key}", details: json)
 

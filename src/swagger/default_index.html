@@ -4,12 +4,12 @@
   <head>
     <meta charset="UTF-8">
     <title>DMPHub API Documentation</title>
-    <link rel="stylesheet" type="text/css" href="./api-docs/swagger-ui.css" >
+    <link rel="stylesheet" type="text/css" href="./swagger-ui.css" >
 
-    <link rel="icon" type="image/png" href="./api-docs/favicon.ico" sizes="32x32" />
-    <link rel="icon" type="image/png" href="./api-docs/favicon.ico" sizes="16x16" />
+    <link rel="icon" type="image/png" href="./assets/favicon.ico" sizes="32x32" />
+    <link rel="icon" type="image/png" href="./assets/favicon.ico" sizes="16x16" />
 
-    <link rel="stylesheet" type="text/css" href="./api-docs/dmphub.css" >
+    <link rel="stylesheet" type="text/css" href="./assets/dmphub.css" >
 
     <style>
       html
@@ -37,8 +37,8 @@
   <body>
     <div id="swagger-ui"></div>
 
-    <script src="./api-docs/swagger-ui-bundle.js"> </script>
-    <script src="./api-docs/swagger-ui-standalone-preset.js"> </script>
+    <script src="./swagger-ui-bundle.js"> </script>
+    <script src="./swagger-ui-standalone-preset.js"> </script>
 
     <script>
       window.onload = function() {
@@ -61,7 +61,7 @@
           rawFile.send();
         }
 
-        readTextFile("./api-docs/docs-list.json")
+        readTextFile("./docs-list.json")
 
         const ui = SwaggerUIBundle({
           urls:JSON.parse(allText),
@@ -94,7 +94,7 @@
         // Replace the default Swagger logo with ours
         var images = getImagesByAlt('Swagger UI');
         if (images !== undefined && images[0] !== undefined) {
-          images[0].src="./api-docs/DMPTool_logo_blue_shades_v1b3b_no_tag.svg"
+          images[0].src="./assets/DMPTool_logo_blue_shades_v1b3b_no_tag.svg"
         }
 
         // Replace the 'default' label at the top of the endpoint list with our text

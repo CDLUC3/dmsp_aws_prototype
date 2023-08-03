@@ -48,13 +48,19 @@ module Uc3DmpId
 
       # Return the base URL for a DMP ID
       def dmp_id_base_url
-        url = ENV.fetch('DMP_ID_BASE_URL', 'https://dmptool-dev.cdlib.org/dmps/')
+        url = ENV.fetch('DMP_ID_BASE_URL', 'https://dmphub.uc3dev.cdlib.net/dmps/')
+        url&.end_with?('/') ? url : "#{url}/"
+      end
+
+      # The landing page URL (NOT the DOI URL)
+      def landing_page_url
+        url = ENV.fetch('DMP_ID_LANDING_URL', 'https://dmphub.uc3dev.cdlib.net/dmps/')
         url&.end_with?('/') ? url : "#{url}/"
       end
 
       # Return the base URL for the API
       def api_base_url
-        url = ENV.fetch('DMP_ID_BASE_URL', 'https://api.dmptool-dev.cdlib.org/dmps/')
+        url = ENV.fetch('DMP_ID_BASE_URL', 'https://api.dmphub.uc3dev.cdlib.net/dmps/')
         url&.end_with?('/') ? url : "#{url}/"
       end
 
@@ -126,7 +132,7 @@ module Uc3DmpId
         b = deep_copy_dmp(obj: dmp_b)
 
         # ignore some of the attributes before comparing
-        %w[SK dmphub_modification_day dmphub_updated_at dmphub_created_at dmphub_assertions].each do |key|
+        %w[SK dmphub_modification_day modified created dmphub_assertions].each do |key|
         a['dmp'].delete(key) unless a['dmp'][key].nil?
         b['dmp'].delete(key) unless b['dmp'][key].nil?
         end
@@ -161,6 +167,7 @@ module Uc3DmpId
       # Add DMPHub specific fields to the DMP ID JSON
       def annotate_dmp_json(provenance:, p_key:, json:)
         json = parse_json(json: json)
+        bool_vals = [1, '1', true, 'true', 'yes']
         return json if provenance.nil? || p_key.nil? || !json.is_a?(Hash)
 
         # Fail the json as is if the :PK does not match the :dmp_id if the json has a :PK
@@ -177,13 +184,13 @@ module Uc3DmpId
         owner_id = extract_owner_id(json: json)
         owner_org = extract_owner_org(json: json)
 
+        # Set the :dmproadmap_featured flag appropriately
+        annotated['dmproadmap_featured'] = bool_vals.include?(annotated['dmproadmap_featured']&.downcase) ? 1 : 0
+
         # Update the modification timestamps
         annotated['dmphub_modification_day'] = Time.now.strftime('%Y-%m-%d')
         annotated['dmphub_owner_id'] = owner_id unless owner_id.nil?
         annotated['dmphub_owner_org'] = owner_org unless owner_org.nil?
-        annotated['dmphub_updated_at'] = Time.now.iso8601
-        # Only add the Creation date if it is blank
-        annotated['dmphub_created_at'] = Time.now.iso8601 if json['dmphub_created_at'].nil?
         return annotated unless json['dmphub_provenance_id'].nil?
 
         annotated['dmphub_provenance_id'] = provenance.fetch('PK', '')
@@ -212,7 +219,7 @@ module Uc3DmpId
         return json.map { |obj| cleanse_dmp_json(json: obj) }.compact if json.is_a?(Array)
 
         cleansed = {}
-        allowable = %w[dmphub_versions dmphub_updated_at]
+        allowable = %w[dmphub_versions]
         json.each_key do |key|
           next if (key.to_s.start_with?('dmphub') && !allowable.include?(key)) || %w[PK SK].include?(key.to_s)
 

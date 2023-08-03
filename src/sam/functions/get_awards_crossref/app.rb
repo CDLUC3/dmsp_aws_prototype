@@ -12,19 +12,21 @@ require 'uc3-dmp-external-api'
 require 'uc3-dmp-provenance'
 
 module Functions
-  # A Proxy service that queries the NSF Awards API and transforms the results into a common format
+  # A Proxy service that queries the Crossref Grants API and transforms the results into a common format
   class GetAwardsCrossref
     SOURCE = 'GET /awards/crossref'
 
-    # Documentation can be found here: https://api.reporter.nih.gov
+    # Documentation can be found here: https://api.crossref.org/swagger-ui/index.html
     API_BASE_URL = 'https://api.crossref.org/works'
 
     LANDING_BASE_URL = 'https://doi.org/'
 
     MSG_NO_FUNDER = 'You must specify the funder id as part of the path (e.g. /awards/crossref/10.13039/100000015)'
-    MSG_BAD_ARGS = 'You must specify an award DOI (e.g. project=10.46936/cpcy.proj.2019.50733/60006578), /
-                    PI names (e.g "pi_names=Jane Doe,Van Buren,John Smith"); a project title (e.g. title=); and /
-                    applicable award years (optional) (e.g. years=2023,2021)'
+    MSG_BAD_ARGS = 'You must specify an award id (e.g. project=10.46936/cpcy.proj.2019.50733/60006578) /
+                    OR at least one of the following:
+                    a comma separate list of PI names (e.g "pi_names=Jane Doe,Van Buren,John Smith"), /
+                    title keywords (e.g. keyword=genetic+mRna), /
+                    a comma separated list of award years (optional) (e.g. years=2023,2021)'
     MSG_EMPTY_RESPONSE = 'Crossref API returned an empty resultset'
 
     def self.process(event:, context:)
@@ -43,6 +45,8 @@ module Functions
       years = params.fetch('years', (Date.today.year..Date.today.year - 3).to_a.join(','))
       years = years.split(',').map(&:to_i)
       return _respond(status: 400, errors: [MSG_BAD_ARGS], event: event) if (project_num.nil? || project_num.empty?) &&
+                                                                            (title.nil? || title.empty?) &&
+                                                                            (pi_names.nil? || pi_names.empty?) &&
                                                                             (years.nil? || years.empty?)
 
       url = "/#{project_num}" unless project_num.nil? || project_num.empty?

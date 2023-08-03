@@ -29,7 +29,7 @@ ssm_path: '/uc3/dmp/hub/stg/'
 
 agould@localhost:~/git/github/cdluc3/dmp-hub-cfn/config/stg> ssm-param-put /uc3/CodeStarConnectionArn AQICAHhUgNDinhYKoQ5ogHS0diBImbeueT7MYCH/D1dwALHOzQFBXH8i7qYkquL3zgZX23vcAAAAxTCBwgYJKoZIhvcNAQcGoIG0MIGxAgEAMIGrBgkqhkiG9w0BBwEwHgYJYIZIAWUDBAEuMBEEDKMhwHT5qDvE7et4pQIBEIB+9zIy8guEshutaCKQy93FA7WzZ1TppjjHTR4ukO7FplE+Hgov5umEBBuJuobHjd+AG839MxrOj1todzjVJc+g8pb7o3/YoMh3V3a5S/dJbopjmGhuSwLcoXoDoFn6jSDkDF/baE3rkHG+ZCzczfv8OwjuT2VLthamfgVakY+C
 
-agould@localhost:~> route53-hz-show-id uc3stg.cdlib.org | json2yaml.py 
+agould@localhost:~> route53-hz-show-id uc3stg.cdlib.org | json2yaml.py
 - Id: /hostedzone/Z09062843G453TTT9OC0N
   PrivateZone: false
 
@@ -77,7 +77,7 @@ Questions
   ¦ ¦ ¦ ¦ - DomainName: !Sub "${S3CloudFrontBucketId}.s3.amazonaws.com"
 [cut]
   ¦ ¦ ¦ Aliases:
-  ¦ ¦ ¦ ¦ - 'dmphub-dev.cdlib.org'
+  ¦ ¦ ¦ ¦ - 'dmphub.uc3dev.cdlib.net'
 
 I ended up setting this as a var. see in errors below.
 
@@ -92,7 +92,7 @@ in this account (i.e. stg and prd):
   ¦ ¦ ClientName: 'dmphub'
 
 
-4) Do you really need to add Transform: 'AWS::Serverless-2016-10-31' to all templates?  I 
+4) Do you really need to add Transform: 'AWS::Serverless-2016-10-31' to all templates?  I
 think that is strictly a SAM thing.
 
 
@@ -110,7 +110,7 @@ https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/AccessLogs.ht
 
   Permissions required to configure standard logging and to access your log files
   Important
-  
+
   Starting in April 2023, you will need to enable S3 access control lists
   (ACLs) for new S3 buckets being used for CloudFront standard logs.
 
@@ -125,7 +125,7 @@ https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/AccessLogs.ht
 
 https://docs.aws.amazon.com/AmazonS3/latest/userguide/managing-acls.html
   Important
-  
+
   If your bucket uses the bucket owner enforced setting for S3 Object Ownership,
   you must use policies to grant access to your bucket and the objects in it.
   Requests to set ACLs or update ACLs fail and return the
@@ -137,7 +137,7 @@ https://docs.aws.amazon.com/AmazonS3/latest/userguide/managing-acls.html
   you need to control access for each object individually. With Object Ownership,
   you can disable ACLs and rely on policies for access control. When you disable
   ACLs, you can easily maintain a bucket with objects uploaded by different AWS
-  accounts. 
+  accounts.
 
 
 https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-ownership-new-bucket.html
@@ -147,23 +147,23 @@ https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-ownership-new-bucke
   bucket, simplifying access management for data stored in Amazon S3. We
   recommend that you disable ACLs unless you to need to control access at the
   individual object level.
-  
+
   Object Ownership has three settings that you can use to control ownership of
   objects uploaded to your bucket and to disable or enable ACLs:
-  
+
   ACLs disabled
-  
+
       Bucket owner enforced (recommended) – ACLs are disabled, and the bucket
       owner automatically owns and has full control over every object in the bucket.
       ACLs no longer affect permissions to data in the S3 bucket. The bucket uses
       policies to define access control.
-  
+
   ACLs enabled
-  
+
       Bucket owner preferred – The bucket owner owns and has full control over
       new objects that other accounts write to the bucket with the
       bucket-owner-full-control canned ACL.
-  
+
       Object writer (default) – The AWS account that uploads an object owns the
       object, has full control over it, and can grant other users access to it
       through ACLs.
@@ -172,9 +172,9 @@ https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-ownership-new-bucke
 https://docs.aws.amazon.com/AmazonS3/latest/userguide/about-object-ownership.html
 
   Re-enabling ACLs
-  
+
   You can re-enable ACLs by changing from the bucket owner enforced setting to
-  another Object Ownership setting at any time. 
+  another Object Ownership setting at any time.
 
 links on s3 and cloudformation
 
@@ -203,7 +203,7 @@ index 4bee15c..3cbfd42 100644
            Bucket: !Sub "${S3LogBucketId}.s3.amazonaws.com"
            Prefix: 'cloudfront'
          Aliases:
--          - 'dmphub-dev.cdlib.org'
+-          - 'dmphub.uc3dev.cdlib.net'
 +          - !Ref Domain
 
 ________________________________________________________________________________
@@ -240,7 +240,7 @@ Resources:
   ¦ ¦ Name: !Ref Domain
   ¦ ¦ Type: !Ref RecordType
   ¦ ¦ Region: !Ref TargetRegion
-  ¦ ¦ SetIdentifier: !If 
+  ¦ ¦ SetIdentifier: !If
   ¦ ¦ ¦ - UseSetIdentifier
   ¦ ¦ ¦ - !Ref SetIdentifier
   ¦ ¦ ¦ - !Ref AWS::NoValue
@@ -257,4 +257,3 @@ adding DependsOn resource attribute:
   ¦ Type: 'AWS::Cognito::UserPoolClient'
   ¦ DeletionPolicy: Retain
   ¦ DependsOn: UserPoolResourceServer
-

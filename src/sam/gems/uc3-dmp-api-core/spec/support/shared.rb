@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'ostruct'
+require 'time'
 
 # Mock AWS SSM Parameter Store Resources
 SsmClient = Struct.new('SsmClient', :get_parameter)
@@ -72,7 +73,7 @@ def aws_event_bridge_event(args: {})
     'detail-type': args.fetch(:detail_type, 'DMP change'),
     source: args.fetch(:source, 'dmphub-dev.cdlib.org:lambda:event_publisher'),
     account: '1234567890',
-    time: Time.now.iso8601,
+    time: Time.now.utc.iso8601,
     region: 'us-west-2',
     resources: args.fetch(:resources, []),
     detail: details

@@ -173,15 +173,15 @@ RSpec.describe 'DmpSplicer' do
           grant_id: { type: 'url', identifier: owner_existing } },
 
         # Other non-system of provenance fundings
-        { name: 'name-only', funding_status: 'applied', dmphub_created_at: Time.now.iso8601,
+        { name: 'name-only', funding_status: 'applied', created: Time.now.iso8601,
           dmphub_provenance_id: "#{KeyHelper::PK_PROVENANCE_PREFIX}other" },
         { name: 'rejected', funder_id: other_funder_id, funding_status: 'rejected',
           dmphub_provenance_id: "#{KeyHelper::PK_PROVENANCE_PREFIX}other",
-          dmphub_created_at: Time.now.iso8601 },
+          created: Time.now.iso8601 },
         { name: 'granted', funder_id: funder_id, funding_status: 'granted',
           grant_id: { type: 'url', identifier: other_existing },
           dmphub_provenance_id: "#{KeyHelper::PK_PROVENANCE_PREFIX}other",
-          dmphub_created_at: Time.now.iso8601 }
+          created: Time.now.iso8601 }
       ].to_json)
     end
 
@@ -246,7 +246,7 @@ RSpec.describe 'DmpSplicer' do
       expect(result['funding_status']).to eql('granted')
       expect(result['grant_id']['type']).to eql(mods.first['grant_id']['type'])
       expect(result['grant_id']['identifier']).to eql(mods.first['grant_id']['identifier'])
-      expect(result['grant_id']['dmphub_created_at'].nil?).to be(false)
+      expect(result['grant_id']['created'].nil?).to be(false)
       expect(result['grant_id']['dmphub_provenance_id']).to eql(updater)
     end
     # rubocop:enable RSpec/ExampleLength, RSpec/MultipleExpectations
@@ -266,7 +266,7 @@ RSpec.describe 'DmpSplicer' do
       expect(result['funding_status']).to eql('granted')
       expect(result['grant_id']['type']).to eql(mods.first['grant_id']['type'])
       expect(result['grant_id']['identifier']).to eql(mods.first['grant_id']['identifier'])
-      expect(result['grant_id']['dmphub_created_at'].nil?).to be(false)
+      expect(result['grant_id']['created'].nil?).to be(false)
       expect(result['grant_id']['dmphub_provenance_id']).to eql(updater)
     end
     # rubocop:enable RSpec/ExampleLength, RSpec/MultipleExpectations
@@ -285,7 +285,7 @@ RSpec.describe 'DmpSplicer' do
       expect(result['funding_status']).to eql('granted')
       expect(result['grant_id']['type']).to eql(mods.first['grant_id']['type'])
       expect(result['grant_id']['identifier']).to eql(mods.first['grant_id']['identifier'])
-      expect(result['grant_id']['dmphub_created_at'].nil?).to be(false)
+      expect(result['grant_id']['created'].nil?).to be(false)
       expect(result['grant_id']['dmphub_provenance_id']).to eql(updater)
     end
     # rubocop:enable RSpec/ExampleLength, RSpec/MultipleExpectations

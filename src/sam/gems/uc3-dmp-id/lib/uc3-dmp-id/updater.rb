@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'securerandom'
+require 'time'
 
 module Uc3DmpId
   class UpdaterError < StandardError; end
@@ -41,6 +42,10 @@ module Uc3DmpId
         # Splice the assertions
         version = _process_modifications(owner: owner, updater: updater, version: version, mods: mods, note: note,
                                          logger: logger)
+
+        # Set the :modified timestamps
+        now = Time.now.utc.iso8601
+        version['modified'] = now
 
         # Save the changes
         resp = client.put_item(json: version, logger: logger)

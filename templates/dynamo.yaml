@@ -99,6 +99,9 @@ Resources:
         # The originating provenance system's ID for the DMP
         - AttributeName: 'dmphub_provenance_identifier'
           AttributeType: 'S'
+        # The featured flag
+        - AttributeName: 'dmproadmap_featured'
+          AttributeType: 'N'
 
       GlobalSecondaryIndexes:
         # An index to help us quickly fetch all of the DMPs for a specific date range
@@ -159,6 +162,22 @@ Resources:
           Projection:
             ProjectionType: 'INCLUDE'
             NonKeyAttributes: ['PK', 'SK', 'title']
+          ContributorInsightsSpecification:
+            Enabled: !Ref DynamoEnableContributorInsights
+          ProvisionedThroughput:
+            ReadCapacityUnits: !Ref DynamoReadCapacityUnits
+            WriteCapacityUnits: !Ref DynamoWriteCapacityUnits
+
+        # An index to help us quickly fetch the DMP IDs that have been 'featured'
+        - IndexName: 'dmproadmap_featured_gsi'
+          KeySchema:
+            - AttributeName: 'dmproadmap_featured'
+              KeyType: 'HASH'
+            - AttributeName: 'SK'
+              KeyType: 'RANGE'
+          Projection:
+            ProjectionType: 'INCLUDE'
+            NonKeyAttributes: ['PK', 'SK', 'title', 'description', 'created', 'modified', 'contact', 'contributor', 'project', 'dmproadmap_assertion_needed']
           ContributorInsightsSpecification:
             Enabled: !Ref DynamoEnableContributorInsights
           ProvisionedThroughput:

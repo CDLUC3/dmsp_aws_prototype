@@ -21,11 +21,10 @@ module Functions
 
     LANDING_BASE_URL = 'https://reporter.nih.gov/project-details/'
 
-    MSG_BAD_ARGS = 'You must specify a project id (e.g. project=12345) OR a comma separate list of:
-                    PI names (e.g "pi_names=Jane Doe,Van Buren,John Smith"); /
-                    title keywords (optional) (e.g. keyword=genetic); /
-                    a funding opportunity number (optional) (e.g. "opportunity=PA-18-484") and /
-                    applicable award years (optional) (e.g. years=2023,2021)'
+    MSG_BAD_ARGS = 'You must specify an award id (e.g. project=2223141) OR at least one of the following:
+                    a comma separate list of PI names (e.g "pi_names=Jane Doe,Van Buren,John Smith"), /
+                    title keywords (e.g. keyword=genetic+mRna), /
+                    a comma separated list of award years (optional) (e.g. years=2023,2021)'
     MSG_EMPTY_RESPONSE = 'NIH API returned an empty resultset'
 
     def self.process(event:, context:)
@@ -35,7 +34,9 @@ module Functions
       logger = Uc3DmpCloudwatch::Logger.new(source: SOURCE, request_id: req_id, event: event, level: log_level)
 
       params = _parse_params(event: event)
-      continue = params[:project_num].length.positive? || params[:fiscal_years].length.positive?
+      continue = params[:project_num].length.positive? || params[:fiscal_years].length.positive? ||
+                 params[:pi_names].length.positive? || params[:opportunity_nbr].length.positive? ||
+                 params[:title].length.positive?
       return _respond(status: 400, errors: [MSG_BAD_ARGS], event: event) unless continue
 
       body = _prepare_data(
@@ -43,6 +44,7 @@ module Functions
         pi_names: _prepare_pi_names_for_search(pi_names: params[:pi_names]),
         opportunity_nbrs: [params[:opportunity_nbr]],
         project_nums: [params[:project_num]]
+        title: params[:title]
       )
 
       logger.debug(message: "Calling NIH Award API: #{API_BASE_URL} with body:", details: body) if logger.respond_to?(:debug)
@@ -93,14 +95,15 @@ module Functions
       end
 
       # Prepare the API payload
-      def _prepare_data(years:, pi_names: [], opportunity_nbrs: [], project_nums: [])
+      def _prepare_data(years: [], title: '', pi_names: [], opportunity_nbrs: [], project_nums: [])
         {
           criteria: {
             use_relevance: true,
             fiscal_years: years,
             pi_names: pi_names,
             foa: opportunity_nbrs,
-            project_nums: project_nums
+            project_nums: project_nums,
+            advancedTextSearch: { searchText: title }
           },
           offset: 0,
           limit: 25

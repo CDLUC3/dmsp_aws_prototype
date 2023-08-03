@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'time'
+
 module Uc3DmpId
   class DeleterError < StandardError; end
 
@@ -27,9 +29,13 @@ module Uc3DmpId
 
         # Annotate the DMP ID
         dmp['dmp']['SK'] = Helper::DMP_TOMBSTONE_VERSION
-        dmp['dmp']['dmphub_tombstoned_at'] = Time.now.iso8601
+        dmp['dmp']['dmphub_tombstoned_at'] = Time.now.utc.iso8601
         dmp['dmp']['title'] = "OBSOLETE: #{dmp['title']}"
         logger.info(message: "Tomstoning DMP ID: #{p_key}") if logger.respond_to?(:debug)
+
+        # Set the :modified timestamps
+        now = Time.now.utc.iso8601
+        dmp['modified'] = now
 
         # Create the Tombstone version
         resp = client.put_item(json: dmp, logger: logger)
