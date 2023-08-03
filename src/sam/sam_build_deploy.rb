@@ -79,6 +79,9 @@ def deploy_args(guided: false)
     '--disable-rollback false'
   ]
 
+  # Add the CF Role if this is not development
+  args << "--role-arn #{@cf_role}" if ARGV[0] != 'dev'
+
   # Add the S3 or ECR details depending on what we're working with
   args << "--s3-bucket #{locate_value(key: @s3_arn_key_suffix)&.gsub('arn:aws:s3:::', '')}" unless @s3_arn_key_suffix.nil?
   args << "--s3-prefix lambdas" unless @s3_arn_key_suffix.nil?
@@ -87,9 +90,6 @@ def deploy_args(guided: false)
   args << "--guided" if guided
   args << "--tags #{sam_tags.join(' ')}"
   args << "--parameter-overrides #{build_deploy_overrides.join(' ')}"
-
-pp args
-
   args.join(' ')
 end
 
@@ -144,6 +144,13 @@ if ARGV.length >= 3
   @stack_exports << cf_client.list_exports.exports
   @stack_exports = @stack_exports.flatten
 
+  if ARGV[0] != 'dev'
+    @cf_roles = @stack_exports.select do |export|
+      export.exporting_stack_id.include?('uc3-ops-aws-prd-iam') && export.name == 'uc3-prd-ops-cfn-service-role'
+    end
+    @cf_role = @cf_roles.first&.value
+  end
+
   if ARGV[1].to_s.downcase.strip == 'true' || ARGV[2].to_s.downcase.strip == 'true'
     log_level = ARGV[3].nil? ? 'error' : ARGV[3]
 
@@ -181,6 +188,8 @@ if ARGV.length >= 3
     @s3_arn_key_suffix = "#{@cf_export_prefix}S3PrivateBucketArn"
     @ecr_uri_key_suffix = nil
     @admin_email_ssm_key_suffix = 'AdminEmail'
+
+pp deploy_args(guided: false)
 
     puts "Deploying SAM artifacts and building CloudFormation stack #{@stack_name} ..."
     system("sam deploy #{deploy_args(guided: false)}")

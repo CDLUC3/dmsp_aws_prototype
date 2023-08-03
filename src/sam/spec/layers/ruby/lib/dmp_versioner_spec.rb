@@ -56,8 +56,8 @@ RSpec.describe 'DmpVersioner' do
       timestamp = Time.now.iso8601
       prior['SK'] = "#{KeyHelper::SK_DMP_PREFIX}#{timestamp}"
       prior['dmphub_modification_day'] = timestamp.split('T').first
-      prior['dmphub_updated_at'] = timestamp
       prior['modified'] = timestamp
+      prior['created'] = timestamp
       allow(described_class).to receive(:_generate_version).and_return(prior)
       expect(described_class.new_version(p_key: p_key, dmp: json)).to eql(prior)
     end
@@ -83,7 +83,7 @@ RSpec.describe 'DmpVersioner' do
     it 'appends the :dmphub_versions array when there is only one version' do
       json['SK'] = KeyHelper::DMP_LATEST_VERSION
       json['dmphub_modification_day'] = json['modified'].split('T').first
-      json['dmphub_updated_at'] = json['modified']
+      json['modified'] = json['modified']
       allow_any_instance_of(DmpFinder).to receive(:find_dmp_versions).and_return({ status: 200, items: [json] })
       expected = JSON.parse(
         [
@@ -101,13 +101,12 @@ RSpec.describe 'DmpVersioner' do
     it 'appends the :dmphub_versions array when there are multiple versions' do
       json['SK'] = KeyHelper::DMP_LATEST_VERSION
       json['dmphub_modification_day'] = json['modified'].split('T').first
-      json['dmphub_updated_at'] = json['modified']
+      json['modified'] = json['created']
 
       prior = json.clone
       timestamp = Time.now.iso8601
       prior['SK'] = "#{KeyHelper::SK_DMP_PREFIX}#{timestamp}"
       prior['dmphub_modification_day'] = timestamp.split('T').first
-      prior['dmphub_updated_at'] = timestamp
       prior['modified'] = timestamp
 
       allow_any_instance_of(DmpFinder).to receive(:find_dmp_versions).and_return({ status: 200, items: [json, prior] })
@@ -156,20 +155,20 @@ RSpec.describe 'DmpVersioner' do
       expect(result).to eql(dmp)
     end
 
-    it 'returns the :latest_version as-is if the change is from the same hour as :dmphub_updated_at' do
-      dmp['dmphub_updated_at'] = Time.now.iso8601
+    it 'returns the :latest_version as-is if the change is from the same hour as :modified' do
+      dmp['modified'] = Time.now.iso8601
       result = described_class.send(:_generate_version, latest_version: dmp, owner: owner, updater: owner)
       expect(result).to eql(dmp)
     end
 
     it 'creates a new version if the chnage occured more than an hour before this update' do
-      dmp['dmphub_updated_at'] = '2023-01-01T12:23:34+00:00'
+      dmp['modified'] = '2023-01-01T12:23:34+00:00'
       result = described_class.send(:_generate_version, latest_version: dmp, owner: owner, updater: owner)
       expect(result).to eql(dmp)
     end
 
     it 'returns nil if the Version could not be created' do
-      dmp['dmphub_updated_at'] = '2023-01-01T12:23:34+00:00'
+      dmp['modified'] = '2023-01-01T12:23:34+00:00'
       described_class.client = mock_dynamodb(item_array: [], success: false)
       result = described_class.send(:_generate_version, latest_version: dmp, owner: owner, updater: owner)
       expect(result).to be_nil
@@ -177,9 +176,9 @@ RSpec.describe 'DmpVersioner' do
     end
 
     it 'returns the properly ammended :latest_version' do
-      dmp['dmphub_updated_at'] = '2023-01-01T12:23:34+00:00'
+      dmp['modified'] = '2023-01-01T12:23:34+00:00'
       result = described_class.send(:_generate_version, latest_version: dmp, owner: owner, updater: owner)
-      expect(result['SK']).to eql("#{KeyHelper::SK_DMP_PREFIX}#{dmp['dmphub_updated_at']}")
+      expect(result['SK']).to eql("#{KeyHelper::SK_DMP_PREFIX}#{dmp['modified']}")
     end
   end
 

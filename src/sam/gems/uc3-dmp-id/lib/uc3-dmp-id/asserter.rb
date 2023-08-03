@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'time'
+
 module Uc3DmpId
   class AsserterError < StandardError; end
 
@@ -38,7 +40,7 @@ puts "MODIFIED_VERSION ASSERTIONS: #{modified_version['dmphub_assertions']}"
 
         # Return the modified_version if the timestamps are the same (meaning no new assertions were made while the
         # user was working on the DMP ID) OR neither version has assertions
-        return modified_version if latest_version['dmphub_updated_at'] == modified_version['dmphub_updated_at'] ||
+        return modified_version if latest_version['modified'] == modified_version['modified'] ||
                                    (latest_version.fetch('dmphub_assertions', []).empty? &&
                                     modified_version.fetch('dmphub_assertions', []).empty?)
 
@@ -48,9 +50,9 @@ puts "MODIFIED_VERSION ASSERTIONS: #{modified_version['dmphub_assertions']}"
         logger.debug(message: "Existing assertions", details: existing_assertions) if logger.respond_to?(:debug)
         logger.debug(message: "Incoming modifications", details: incoming_assertions) if logger.respond_to?(:debug)
 
-        # Keep any assetions that were made after the dmphub_updated_at on the incoming changes
+        # Keep any assetions that were made after the modified on the incoming changes
         modified_version['dmphub_assertions'] = existing_assertions.select do |entry|
-          !entry['timestamp'].nil? && Time.parse(entry['timestamp']) > Time.parse(modified_version['dmphub_updated_at'])
+          !entry['timestamp'].nil? && Time.parse(entry['timestamp']) > Time.parse(modified_version['modified'])
         end
         return modified_version unless incoming_assertions.any?
 
@@ -105,7 +107,7 @@ puts "MODIFIED_VERSION ASSERTIONS: #{modified_version['dmphub_assertions']}"
         JSON.parse({
           id: SecureRandom.hex(4).upcase,
           provenance: updater.gsub('PROVENANCE#', ''),
-          timestamp: Time.now.iso8601,
+          timestamp: Time.now.utc.iso8601,
           status: 'new',
           note: note,
           assertions: mods

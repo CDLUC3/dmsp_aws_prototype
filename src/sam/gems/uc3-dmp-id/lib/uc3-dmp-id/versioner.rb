@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'uc3-dmp-dynamo'
+require 'time'
 
 module Uc3DmpId
   class VersionerError < StandardError; end
@@ -26,12 +27,12 @@ module Uc3DmpId
         client.query(args: args, logger: logger)
       end
 
-      # Generate a snapshot of the current latest version of the DMP ID using the existing :dmphub_updated_at as
+      # Generate a snapshot of the current latest version of the DMP ID using the existing :modified as
       # the new SK.
       # rubocop:disable Metrics/AbcSize,  Metrics/CyclomaticComplexity,  Metrics/PerceivedComplexity
       def generate_version(client:, latest_version:, owner:, updater:, logger: nil)
         # Only create a version if the Updater is not the Owner OR the changes have happened on a different day
-        mod_time = Time.parse(latest_version.fetch('dmphub_updated_at', Time.now.iso8601))
+        mod_time = Time.parse(latest_version.fetch('modified', Time.now.utc.iso8601))
         now = Time.now
         if mod_time.nil? || !(now - mod_time).is_a?(Float)
           logger.error(message: "#{SOURCE} unable to determine mod time: #{mod_time}") if logger.respond_to?(:debug)
@@ -47,10 +48,10 @@ module Uc3DmpId
           return latest_version
         end
 
-        # Make a copy of the latest_version and then update it's SK to the :dmphub_updated_at to mark it in a point of time
+        # Make a copy of the latest_version and then update it's SK to the :modified to mark it in a point of time
         # We essentially make a snapshot of the record before making changes
         prior = Helper.deep_copy_dmp(obj: latest_version)
-        prior['SK'] = "#{Helper::SK_DMP_PREFIX}#{latest_version['dmphub_updated_at'] || Time.now.iso8601}"
+        prior['SK'] = "#{Helper::SK_DMP_PREFIX}#{latest_version['modified'] || Time.now.utc.iso8601}"
         # Create the prior version record ()
         client = client.nil? ? Uc3DmpDynamo::Client.new : client
         resp = client.put_item(json: prior, logger: logger)
@@ -58,7 +59,6 @@ module Uc3DmpId
 
         msg = "#{SOURCE} created version PK: #{prior['PK']} SK: #{prior['SK']}"
         logger.info(message: msg, details: prior) if logger.respond_to?(:debug)
-        # Return the latest version
         latest_version
       end
       # rubocop:enable Metrics/AbcSize,  Metrics/CyclomaticComplexity,  Metrics/PerceivedComplexity
@@ -76,7 +76,7 @@ module Uc3DmpId
           next if ver['modified'].nil?
           {
             timestamp: ver['modified'],
-            url: "#{Helper.api_base_url}dmps/#{Helper.remove_pk_prefix(p_key: p_key)}?version=#{ver['modified']}"
+            url: "#{Helper.landing_page_url}#{Helper.remove_pk_prefix(p_key: p_key)}?version=#{ver['modified']}"
           }
         end
         json['dmp']['dmphub_versions'] = JSON.parse(versions.to_json)

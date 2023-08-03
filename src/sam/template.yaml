@@ -353,7 +353,6 @@ Resources:
       Policies:
         - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
         - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
-        - 'arn:aws:iam::aws:policy/AmazonRDSDataFullAccess'
       DeadLetterQueue:
         Type: 'SQS'
         TargetArn: !Ref DeadLetterQueueArn
@@ -402,7 +401,6 @@ Resources:
       Policies:
         - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
         - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
-        - 'arn:aws:iam::aws:policy/AmazonRDSDataFullAccess'
       DeadLetterQueue:
         Type: 'SQS'
         TargetArn: !Ref DeadLetterQueueArn
@@ -451,7 +449,6 @@ Resources:
       Policies:
         - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
         - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
-        - 'arn:aws:iam::aws:policy/AmazonRDSDataFullAccess'
       DeadLetterQueue:
         Type: 'SQS'
         TargetArn: !Ref DeadLetterQueueArn
@@ -720,7 +717,7 @@ Resources:
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env
-          LOG_LEVEL: !Ref DebugLevel # 'debug'
+          LOG_LEVEL: 'debug' # !Ref DebugLevel # 'debug'
           DOMAIN: !Ref DomainName
           DMP_ID_BASE_URL: 'doi.org'
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn

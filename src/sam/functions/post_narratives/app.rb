@@ -46,7 +46,7 @@ module Functions
       return _respond(status: 500, errors: Uc3DmpS3::Client::MSG_S3_FAILURE, event: event) if object_key.nil?
 
       # Attach the S3 access URL to the DMP ID record
-      url = "#{Uc3DmpApiCore::SsmReader.get_ssm_value(key: :api_base_url, logger: logger)}/#{object_key}"
+      url = "#{Uc3DmpApiCore::SsmReader.get_ssm_value(key: :api_base_url, logger: logger).gsub('api.', '')}/#{object_key}"
       attached = Uc3DmpId::Updater.attach_narrative(provenance: provenance, p_key: params[:dmp_id], url: url, logger: logger)
       return _respond(status: 500, errors: [MSG_UNABLE_TO_ATTACH], event: event) unless attached
 

@@ -5,5 +5,6 @@ region: 'us-east-1'
 #   my_variable: !stack_attr sceptre_user_data.[variable]
 sceptre_user_data:
   env: 'dev'
-  domain: 'dmphub-dev.cdlib.org'
+  domain: 'dmphub.uc3dev.cdlib.net'
+  hosted_zone: !ssm_parameter /uc3/dmp/hub/dev/HostedZoneId
   ssm_path: '/uc3/dmp/hub/dev/'

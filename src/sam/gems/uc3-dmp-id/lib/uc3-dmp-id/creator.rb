@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'securerandom'
+require 'time'
 
 module Uc3DmpId
   class CreatorError < StandardError; end
@@ -39,6 +40,11 @@ module Uc3DmpId
         # Add the DMPHub specific attributes and then save
         annotated = Helper.annotate_dmp_json(provenance: provenance, p_key: p_key, json: json['dmp'])
         logger.info(message: "Creating DMP ID: #{p_key}") if logger.respond_to?(:debug)
+
+        # Set the :created and :modified timestamps
+        now = Time.now.utc.iso8601
+        annotated['created'] = now
+        annotated['modified'] = now
 
         # Create the item
         resp = client.put_item(json: annotated, logger: logger)

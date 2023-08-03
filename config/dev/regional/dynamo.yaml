@@ -22,7 +22,7 @@ hooks:
   after_create:
     # Add Provenance items to the Dynamo Table
     - !cmd './seed_dynamo.sh dev DMPTool dmptool-dev.cdlib.org'
-    - !cmd './seed_dynamo.sh dev DMPHub dmphub-dev.cdlib.org'
+    - !cmd './seed_dynamo.sh dev DMPHub dmphub.uc3dev.cdlib.net'
 
     # Once the Dynamo table has been created, we can deploy our Lambdas and
     # the API Gateway which are managed by AWS SAM.
@@ -32,3 +32,7 @@ hooks:
     # Build and deploy the Swagger UI (gets deployed to the CloudFront distro as https://[domain]/api-docs)
     # Args are: environment swagger-ui version
     - !cmd 'cd ./src/swagger && ruby build_openapi_spec.rb dev 4.18.1'
+
+    # Build and deploy the React based DMP ID Landing Page to the CloudFront S3 bucket
+    # Args are: environment
+    - !cmd 'cd ./src/landing_page && ruby build_deply.sh dev'

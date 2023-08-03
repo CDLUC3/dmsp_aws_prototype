@@ -24,11 +24,14 @@ module Functions
       logger = Uc3DmpCloudwatch::Logger.new(source: SOURCE, request_id: req_id, event: event, level: log_level)
 
       params = event.fetch('pathParameters', {})
-      qs_params = event.fetch('queryStringParameters', {})
       request_id = context.aws_request_id if context.is_a?(LambdaContext)
 
-      dmp_id = params['dmp_id']
-      s_key = qs_params&.fetch('version', _version_from_path(dmp_id: dmp_id)) unless dmp_id.nil?
+      # API Gateway isn't passing query strings though, so see the caller is currently escaping the question mark
+      # and equal sign. We should eventually revist this.
+      path_parts = params['dmp_id']&.split('%3Fversion%3D') || []
+      dmp_id = path_parts.first
+
+      s_key = path_parts.length == 2 ? path_parts.last : nil
       s_key = Uc3DmpId::Helper.append_sk_prefix(s_key: s_key) unless s_key.nil?
       return _respond(status: 400, errors: [Uc3DmpApiCore::MSG_INVALID_ARGS], event: event) if dmp_id.nil?
 
@@ -58,19 +61,13 @@ module Functions
     private
 
     class << self
-      # Rails' ActiveResource won't pass query strings, so see if its part of the path
-      def _version_from_path(dmp_id:)
-        ver_param = '%3Fversion%3D'
-        return nil unless dmp_id&.include?(ver_param)
-
-        CGI.unescape(dmp_id.split(ver_param).last)
-      end
-
       # Set the Cognito User Pool Id and DyanmoDB Table name for the downstream Uc3DmpCognito and Uc3DmpDynamo
       def _set_env(logger:)
         ENV['COGNITO_USER_POOL_ID'] = ENV['COGNITO_USER_POOL_ID']&.split('/')&.last
         ENV['DMP_ID_SHOULDER'] = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :dmp_id_shoulder, logger: logger)
         ENV['DMP_ID_BASE_URL'] = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :dmp_id_base_url, logger: logger)
+        landing_url = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :api_base_url, logger: logger)
+        ENV['DMP_ID_LANDING_URL'] = "#{landing_url&.gsub('api.', '')}/dmps"
       end
 
       # Send the output to the Responder

@@ -16,15 +16,15 @@ module Functions
   class GetAwardsNsf
     SOURCE = 'GET /awards/nsf'
 
-    # Documentation can be found here: https://api.reporter.nih.gov
+    # Documentation can be found here: https://resources.research.gov/common/webapi/awardapisearch-v1.htm
     API_BASE_URL = 'https://api.nsf.gov/services/v1/awards.json'
 
     LANDING_BASE_URL = 'https://www.nsf.gov/awardsearch/showAward?AWD_ID=:id&HistoricalAwards=false'
 
-    MSG_BAD_ARGS = 'You must specify an award id (e.g. project=2223141) OR a comma separated list of:
-                    PI names (e.g "pi_names=Jane Doe,Van Buren,John Smith"); /
-                    title keywords (optional) (e.g. keyword=genetic); and /
-                    applicable award years (optional) (e.g. years=2023,2021)'
+    MSG_BAD_ARGS = 'You must specify an award id (e.g. project=2223141) OR at least one of the following:
+                    a comma separate list of PI names (e.g "pi_names=Jane Doe,Van Buren,John Smith"), /
+                    title keywords (e.g. keyword=genetic+mRna), /
+                    a comma separated list of award years (optional) (e.g. years=2023,2021)'
     MSG_EMPTY_RESPONSE = 'NSF API returned an empty resultset'
 
     def self.process(event:, context:)
@@ -41,13 +41,15 @@ module Functions
       years = params.fetch('years', (Date.today.year..Date.today.year - 3).to_a.join(','))
       years = years.split(',').map(&:to_i)
       return _respond(status: 400, errors: [MSG_BAD_ARGS], event: event) if (project_num.nil? || project_num.empty?) &&
+                                                                            (title.nil? || title.empty?) &&
+                                                                            (pi_names.nil? || pi_names.empty?) &&
                                                                             (years.nil? || years.empty?)
 
 
       url = "#{API_BASE_URL.gsub('.json', "/#{project_num}.json")}" unless project_num.nil? || project_num.empty?
       url = "#{API_BASE_URL}?#{_prepare_query_string(pi_names: pi_names, title: title, years: years)}" if url.nil?
 
-      logger.info(message: "Calling NSF Api: #{url}") if logger.respond_to?(:debug) if logger.respond_to?(:debug)
+      logger.info(message: "Calling NSF Api: #{url}") if logger.respond_to?(:debug)
       resp = Uc3DmpExternalApi::Client.call(url: url, method: :get, logger: logger)
       if resp.nil? || resp.to_s.strip.empty?
         logger.error(message: MSG_EMPTY_RESPONSE, details: resp)
@@ -81,27 +83,18 @@ module Functions
 
       # Prepare the query string for the API call
       def _prepare_query_string(pi_names: [], title: '', years: [])
-
-puts "QS PREP - pi_names: '#{pi_names}', title: '#{title}', years: '#{years}'"
-
         qs = []
         years = years.map(&:to_s).reject { |yr| yr.length != 4 }.sort if years.is_a?(Array)
         pi_name = pi_names.split(',').first&.to_s&.strip&.gsub(%r{\s}, '+') unless pi_names.is_a?(Array)
 
         qs << _sanitize_params(str: 'keyword=:title', params: { title: title }) unless title.to_s.strip.empty?
         qs << _sanitize_params(str: 'pdPIName=:name', params: { name: pi_name }) unless pi_name.to_s.strip.empty?
-
-puts qs.join('&')
-
         return qs.join('&') if years.empty?
 
         start_date = "01/01/#{years.first}"
         end_date = "12/31/#{years.last}"
         qs << _sanitize_params(str: 'dateStart=:start', params: { start: start_date }) unless years.first.nil?
         qs << _sanitize_params(str: 'dateEnd=:end', params: { end: end_date }) unless years.last.nil?
-
-puts qs.join('&')
-
         qs.join('&')
       end
 
