@@ -91,7 +91,9 @@ if ARGV.length == 2
       FileUtils.cp('default_index.html', "#{swagger_dir}/dist/index.html")
 
       output = File.open("#{swagger_dir}/dist/docs/v0-openapi-spec.json", 'w+')
-      output.write(openapi_spec.to_json)
+      json_out = openapi_spec.to_json
+      json_out = json_out.gsub('uc3dev', "uc3#{ARGV[0]}")
+      output.write(json_out)
       output.close
 
       # Push Swagger UI distro to S3 using CLI because SDK doesn't have 'sync'

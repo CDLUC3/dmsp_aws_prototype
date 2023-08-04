@@ -17,7 +17,7 @@ function Work(props) {
 
   return (
     <li key={idx + 'li'}>
-      <Link href={work.identifier} remote='true' key={idx + 'li a'}/>
+      <Link href={work.identifier} remote='true' key={idx + 'li a'}/> No citation available.
     </li>
   );
 }
@@ -33,14 +33,16 @@ function Works(props) {
         <h2>Other works associated with this research project</h2>
 
         {Object.keys(works).map((category, idx) => (
-          <div key={'work-cat' + idx}>
-            <h3 key={'work-cat' + idx + 'h3'}>{category[0].toUpperCase() + category.slice(1).replace('_', ' ')}</h3>
-            <ul className="landing-list" key={'work-cat' + idx + 'ul'}>
-              {works[category].map((work, idx2) => (
-                <Work work={work} index={'work-cat' + idx + idx2}/>
-              ))}
-            </ul>
-          </div>
+          <ul className="landing-list" key={'work-cat' + idx}>
+            <li>
+              <h3 key={'work-cat' + idx + 'h3'}>{category[0].toUpperCase() + category.slice(1).replace('_', ' ')}</h3>
+              <ul className="landing-list" key={'work-cat' + idx + 'ul'}>
+                {works[category].map((work, idx2) => (
+                  <Work work={work} index={'work-cat' + idx + idx2}/>
+                ))}
+              </ul>
+            </li>
+          </ul>
         ))}
       </div>
     );
