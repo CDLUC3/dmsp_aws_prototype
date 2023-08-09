@@ -43,7 +43,7 @@ module Functions
       provenance = Uc3DmpProvenance::Finder.from_lambda_cotext(identity: claim, logger: logger)
       return _respond(status: 403, errors: Uc3DmpId::MSG_DMP_FORBIDDEN, event: event) if provenance.nil?
 
-      logger.debug(message: "Attempting update to PK: #{p_key}", details: json)
+      logger.debug(message: "Attempting update to PK: #{p_key}", details: json) if logger.respond_to?(:debug)
 
       # Update the DMP ID
       resp = Uc3DmpId::Updater.update(logger: logger, provenance: provenance, p_key: p_key, json: json)

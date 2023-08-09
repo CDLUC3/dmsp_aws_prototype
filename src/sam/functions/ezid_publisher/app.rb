@@ -18,7 +18,7 @@ module Functions
   class EzidPublisher
     SOURCE = 'EzidPublisher'
 
-    APPLICATION_NAME = 'DmpTool'
+    APPLICATION_NAME = 'DMPTool'
     DEFAULT_CONTRIBUTOR_ROLE = 'ProjectLeader'
     DEFAULT_LANGUAGE = 'en'
     DEFAULT_RESOURCE_TYPE = 'Data Management Plan'
@@ -110,16 +110,16 @@ module Functions
         dmp = Uc3DmpId::Finder.by_pk(p_key: dmp_pk, logger: logger)
         _respond(status: 404, errors: [Uc3DmpId::MSG_DMP_NOT_FOUND], event: event) if dmp.nil?
 
-        dmp_id = dmp.fetch('dmp', {}).fetch('dmp_id', {})['identifier'].gsub(/https?:\/\//, '').gsub(ENV[DMP_ID_BASE_URL], '')
-        api_url = "#{ENV['API_BASE_URL']}/dmps/#{dmp_id}"
-
+        dmp_id = dmp.fetch('dmp', {}).fetch('dmp_id', {})['identifier'].gsub(/https?:\/\//, '').gsub(ENV['DMP_ID_BASE_URL'], '')
+        dmp_id = dmp_id.start_with?('/') ? dmp_id[1..dmp_id.length] : dmp_id
         ezid_url = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :dmp_id_api_url, logger: logger)
+        ezid_url = ezid_url.end_with?('/') ? ezid_url : "#{ezid_url}/"
         base_url = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :base_url, logger: logger)
 
-        url = "#{ezid_url}/id/doi:#{dmp_id}?update_if_exists=yes"
+        url = "#{ezid_url}id/doi:#{dmp_id}?update_if_exists=yes"
         landing_page_url = "#{base_url}/dmps/#{dmp_id}"
-
-        datacite_xml = dmp_to_datacite_xml(dmp_id: dmp_id, dmp: dmp).gsub(/[\r\n]/, ' ')
+        datacite_xml = dmp_to_datacite_xml(dmp_id: dmp_id, dmp: dmp['dmp'])&.gsub(/[\r\n]/, ' ')
+        logger.error(message: "Failed to build DatCite XML for #{dmp_id}", details: dmp) if datacite_xml.nil?
 
         payload = <<~TEXT
           _target: #{landing_page_url}
@@ -140,9 +140,10 @@ module Functions
           username: Uc3DmpApiCore::SsmReader.get_ssm_value(key: :dmp_id_client_id, logger: logger),
           password: Uc3DmpApiCore::SsmReader.get_ssm_value(key: :dmp_id_client_secret, logger: logger)
         }
-
-        resp = Uc3DmpExternalApi.call(url: url, method: :put, body: payload.to_s, basic_auth: auth,
-                                      additional_headers: headers, logger: logger)
+        logger.debug(message: "Sending DMP ID metadata to EZID for #{dmp_id}",
+                     details: { url: url, headers: headers, payload: payload.to_s })
+        resp = Uc3DmpExternalApi::Client.call(url: url, method: :put, body: payload.to_s, basic_auth: auth,
+                                              additional_headers: headers, logger: logger)
         _respond(status: 500, errors: MSG_EZID_FAILURE, event: event) if resp.nil?
 
         _respond(status: 200, items: [], event: event)
@@ -173,7 +174,7 @@ module Functions
       # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
       # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
       def dmp_to_datacite_xml(dmp_id:, dmp:)
-        return nil if dmp_id.nil? || dmp.nil? || dmp['PK'].nil? ||
+        return nil if dmp_id.nil? || dmp.nil? ||
                       dmp.fetch('contact', {}).fetch('contact_id', {})['identifier'].nil?
 
         contributors = [
@@ -193,7 +194,8 @@ module Functions
           id = fund.fetch('funder_id', {})
           {
             name: fund['name'],
-            identifier: id['type'].downcase == 'fundref' ? id['identifier'] : nil,
+            type: id['type'],
+            identifier: %w[fundref ror].include?(id['type'].downcase) ? id['identifier'] : nil,
             grant: id['grant_id'],
             title: dmp['title']
           }
@@ -217,7 +219,7 @@ module Functions
           #{TAB}<resource xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
           #{TAB * 4}  xmlns="http://datacite.org/schema/kernel-4"
           #{TAB * 4}  xsi:schemaLocation="http://datacite.org/schema/kernel-4 http://schema.datacite.org/meta/kernel-4.4/metadata.xsd">
-          #{TAB * 2}<identifier identifierType="DOI">#{dmp_id.match(KeyHelper::DOI_REGEX)}</identifier>
+          #{TAB * 2}<identifier identifierType="DOI">#{dmp_id.match(Uc3DmpId::Helper::DOI_REGEX)}</identifier>
           #{TAB * 2}<creators>
           #{person_to_xml(json: dmp['contact'], tab_count: 3)}#{TAB * 2}</creators>
           #{TAB * 2}<titles>
@@ -233,6 +235,7 @@ module Functions
           #{TAB * 3}</description>
           #{TAB * 2}</descriptions>
         XML
+
         unless contributors.empty?
           xml += <<~XML
             #{TAB * 2}<contributors>
@@ -388,8 +391,9 @@ module Functions
         XML
 
         unless json[:identifier].nil?
+          scheme_type = json[:type] == 'ror' ? 'ROR' : 'Crossref Funder ID'
           xml += <<~XML
-            #{tabs}#{TAB}<funderIdentifier funderIdentifierType="Crossref Funder ID">#{json[:identifier]}</funderIdentifier>
+            #{tabs}#{TAB}<funderIdentifier funderIdentifierType="#{scheme_type}">#{json[:identifier]}</funderIdentifier>
           XML
         end
 
@@ -433,16 +437,16 @@ module Functions
         scheme_type = json['type'].upcase unless scheme_uri.nil?
 
         id = json['identifier'].to_s.gsub(%r{https?://}, '')
-                               .gsub(KeyHelper.dmp_id_base_url.gsub(%r{https?://}, ''), '')
+                               .gsub(Uc3DmpId::Helper.dmp_id_base_url.gsub(%r{https?://}, ''), '')
         id = id[1..id.length] if id.start_with?('/')
 
         scheme_type = 'DOI' if scheme_type.nil? &&
-                               !id.match(KeyHelper::DOI_REGEX).nil? &&
-                               id.match(KeyHelper::DOI_REGEX).to_s.strip != ''
+                               !id.match(Uc3DmpId::Helper::DOI_REGEX).nil? &&
+                               id.match(Uc3DmpId::Helper::DOI_REGEX).to_s.strip != ''
 
         scheme_type = 'URL' if scheme_type.nil? &&
-                               !json['identifier'].to_s.match(KeyHelper::URL_REGEX).nil? &&
-                               json['identifier'].to_s.match(KeyHelper::URL_REGEX).to_s.strip != ''
+                               !json['identifier'].to_s.match(Uc3DmpId::Helper::URL_REGEX).nil? &&
+                               json['identifier'].to_s.match(Uc3DmpId::Helper::URL_REGEX).to_s.strip != ''
         scheme_type
       end
       # rubocop:enable Metrics/AbcSize

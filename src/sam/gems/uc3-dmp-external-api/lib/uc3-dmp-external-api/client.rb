@@ -62,7 +62,7 @@ module Uc3DmpExternalApi
       end
 
       # Prepare the HTTParty gem options
-      def _options(body:, additional_headers: {}, logger: nil)
+      def _options(body:, basic_auth: nil, additional_headers: {}, logger: nil)
         hdrs = _headers(additional_headers: additional_headers)
         opts = {
           headers: hdrs,

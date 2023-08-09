@@ -51,7 +51,7 @@ module Functions
       return _respond(status: 500, errors: [MSG_UNABLE_TO_ATTACH], event: event) unless attached
 
       # Reload the DMP ID and return it. It should now have a new dmproadmap_related_identifier pointing to the PDF
-      logger.debug(message: "Added #{object_key} to S3", details: attached) if debug
+      logger.debug(message: "Added #{object_key} to S3", details: attached) if logger.respond_to?(:debug)
       dmp = Uc3DmpId::Finder.by_pk(p_key: params[:dmp_id], logger: logger)
       _respond(status: 201, items: [dmp], event: event)
     rescue Aws::Errors::ServiceError => e

@@ -62,6 +62,7 @@ function Landing() {
           //console.log(dmp);
 
           setFormData({
+            json_url: api.getUrl(),
             title: getValue(dmp, "title", ""),
             description: getValue(dmp, "description", ""),
             dmp_id: getValue(dmp, "dmp_id.identifier", ""),
@@ -134,8 +135,9 @@ function Landing() {
       </header>
 
       <div className="t-step__landing-title">
-        <div className="dmp-title">
-          <p>This page describes a data management plan written for the <FunderLink/> using the <DmptoolLink/>.</p>
+        <div className={isPublic() ? 'dmp-title' : 'dmp-title-wide'}>
+          <p>This page describes a data management plan written for the <FunderLink/> using the <DmptoolLink/>.
+             You can access this infomation as <Link href={formData.json_url} label='json here.' remote='true'/></p>
           <h1>{formData.title === '' ? formData.project_title : formData.title}</h1>
         </div>
         {isPublic() && narrativeUrl() && (

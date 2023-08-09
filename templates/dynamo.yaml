@@ -101,7 +101,7 @@ Resources:
           AttributeType: 'S'
         # The featured flag
         - AttributeName: 'dmproadmap_featured'
-          AttributeType: 'N'
+          AttributeType: 'S'
 
       GlobalSecondaryIndexes:
         # An index to help us quickly fetch all of the DMPs for a specific date range
