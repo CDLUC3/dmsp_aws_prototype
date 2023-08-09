@@ -58,13 +58,12 @@ module Uc3DmpId
 
       def _preregister_dmp_id(client:, provenance:, json:, logger: nil)
         # Use the specified DMP ID if the provenance has permission
-        existing = json.fetch('dmp', {}).fetch('dmp_id', {})
+        seeding = provenance.fetch('seedingWithLiveDmpIds', false).to_s.downcase == 'true'
         seed_id = json.fetch('dmp', {})['dmproadmap_external_system_identifier']
 
         # If we are seeding already registered DMP IDs from the Provenance system, then return the original DMP ID
-        return seed_id.gsub(%r{https?://}, '') if existing.fetch('type', 'other') == 'url' &&
-                                                  !seed_id.nil? &&
-                                                  provenance.fetch('seedingWithLiveDmpIds', false).to_s.downcase == 'true'
+        logger.debug(message: "Seeding DMP ID with #{seed_id.gsub(%r{https?://}, '')}") if seeding && !seed_id.nil?
+        return seed_id.gsub(%r{https?://}, '') if seeding && !seed_id.nil?
 
         #Generate a new DMP ID
         dmp_id = ''

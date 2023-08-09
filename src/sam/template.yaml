@@ -359,7 +359,7 @@ Resources:
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env
-          LOG_LEVEL: 'debug' # !Ref DebugLevel # 'debug'
+          LOG_LEVEL: !Ref DebugLevel # 'debug'
           DOMAIN: !Ref DomainName
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
           CORS_ORIGIN: !If
@@ -407,7 +407,7 @@ Resources:
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env
-          LOG_LEVEL: 'debug' # !Ref DebugLevel # 'debug'
+          LOG_LEVEL: !Ref DebugLevel # 'debug'
           DOMAIN: !Ref DomainName
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
           CORS_ORIGIN: !If
@@ -455,7 +455,7 @@ Resources:
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env
-          LOG_LEVEL: 'debug' # !Ref DebugLevel # 'debug'
+          LOG_LEVEL: !Ref DebugLevel # 'debug'
           DOMAIN: !Ref DomainName
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
           CORS_ORIGIN: !If
@@ -717,7 +717,7 @@ Resources:
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env
-          LOG_LEVEL: 'debug' # !Ref DebugLevel # 'debug'
+          LOG_LEVEL: !Ref DebugLevel # 'debug'
           DOMAIN: !Ref DomainName
           DMP_ID_BASE_URL: 'doi.org'
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
@@ -819,7 +819,7 @@ Resources:
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env
-          LOG_LEVEL: 'debug'
+          LOG_LEVEL: !Ref DebugLevel # 'debug'
           DOMAIN: !Ref DomainName
           DMP_ID_BASE_URL: 'doi.org'
           API_BASE_URL: !Sub 'https://api.${DomainName}'

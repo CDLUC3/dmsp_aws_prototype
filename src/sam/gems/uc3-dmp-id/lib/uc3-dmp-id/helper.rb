@@ -185,7 +185,8 @@ module Uc3DmpId
         owner_org = extract_owner_org(json: json)
 
         # Set the :dmproadmap_featured flag appropriately
-        annotated['dmproadmap_featured'] = bool_vals.include?(annotated['dmproadmap_featured']&.downcase) ? 1 : 0
+        featured = annotated.fetch('dmproadmap_featured', 'no')
+        annotated['dmproadmap_featured'] = bool_vals.include?(featured.to_s.downcase) ? '1' : '0'
 
         # Update the modification timestamps
         annotated['dmphub_modification_day'] = Time.now.strftime('%Y-%m-%d')

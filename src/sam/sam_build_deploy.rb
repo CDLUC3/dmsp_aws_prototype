@@ -188,16 +188,18 @@ if ARGV.length >= 3
     @s3_arn_key_suffix = "#{@cf_export_prefix}S3PrivateBucketArn"
     @ecr_uri_key_suffix = nil
     @admin_email_ssm_key_suffix = 'AdminEmail'
-
-pp deploy_args(guided: false)
-
     puts "Deploying SAM artifacts and building CloudFormation stack #{@stack_name} ..."
     system("sam deploy #{deploy_args(guided: false)}")
   end
 
   if ARGV[1].to_s.downcase.strip == 'false' && ARGV[2].to_s.downcase.strip == 'false'
+    args = ["--stack-name #{@stack_name}"]
+
+    # Add the CF Role if this is not development
+    # args << "--role-arn #{@cf_role}" if ARGV[0] != 'dev'
+
     puts "Deleting SAM CloudFormation stack #{@stack_name} ..."
-    system("sam delete")
+    system("sam delete #{args.join(' ')}")
   end
 else
   p 'Expected 3 arguments: environment, run a SAM build?, run a SAM deploy?'

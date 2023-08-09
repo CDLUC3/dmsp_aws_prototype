@@ -18,13 +18,16 @@ Once all of your AWS resources have been built, you can run `./resources-ls.sh` 
 
 This repository uses the [AWS Serverless Application Model (SAM)](https://aws.amazon.com/serverless/sam/) to manage the AWS API Gateway, Lambda functions and other related resources (e.g. IAM policies). It uses [Sceptre](https://github.com/Sceptre/sceptre) to manage the remaining resources (e.g. CloudFront, DynamoDB, etc.) via [AWS CloudFormation](https://aws.amazon.com/cloudformation/).
 
-The Sceptre template for the Dynamo resources contains hooks to: seed the database, run SAM build+deploy and also build the Swagger API documentation and deploy it to the CloudFront S3 bucket.
+
+The Sceptre template for the Dynamo resources contains hooks to: seed the database, run SAM build+deploy, build the React JS landing page (for the DMP ID landing pages) and also build the Swagger API documentation and deploy it to the CloudFront S3 bucket (Note that the Swagger UI is not deployed in the production environment).
 
 Directory structure:
 ```
      resources-ls.sh                         # A shell script that will show all existing AWS resources for this project
      |
      seed_dynamo.sh                          # A shell script that will seed provenance records in the DynamoDB Table (auto-run by dynamo.yaml config)
+     |
+     templates                               # The Cloud Formation templates (each template corresponds to a config)
      |
      config
      |  |
@@ -37,6 +40,18 @@ Directory structure:
      docs                                    # Diagrams and documentation
      |
      src
+     |  |
+     |   ----- landing_page
+     |  |        |
+     |  |         ----- public               # Static assets used by the landing page
+     |  |        |
+     |  |         ----- src                  # The React JS code
+     |  |        |
+     |  |         ----- build_deploy.rb      # A Ruby script that will perfomr the Node build and deploy to S3
+     |  |        |
+     |  |         ----- Gemfile              # The dependencies required to run the Ruby script
+     |  |        |
+     |  |         ----- package.json         # The dependencies for the React JS page
      |  |
      |   ----- swagger
      |  |        |
@@ -71,8 +86,6 @@ Directory structure:
      |            ----- Gemfile              # The dependencies for the Ruby script that runs SAM build and deploy
      |           |
      |            ----- sam_build_deploy.rb  # A Ruby script that can be used to build and deploy your SAM resources (auto-run by Sceptre's dynamo.yaml config)
-     |
-     templates                               # The Cloud Formation templates (each template corresponds to a config)
 ```
 
 ## Installation and Setup
@@ -92,6 +105,15 @@ If you need to update one of the Ruby gems located in `src/samgems` then you wil
 2. Run the following from that gem's directory (note you will need to be logged into RubyGems): `rm *.gem && gem build uc3-dmp-[gem_name].gemspec && gem push uc3-dmp-[gem_name]-[version].gem`
 3. Once the gem has been uploaded to RubyGems, you can then run cd `src/sam/layers && bundle update uc3-dmp-[gem_name]` to update the LambdaLayer.
 4. Then run `cd src/sam && ruby sam_build_deploy.rb [env] true true` to rebuild the LambdaLayer and Functions and deploy them
+
+## Landing Page
+
+The DMP ID landing page is a static React JS webspage that makes an API call to the API Gateway to fetch the JSON for the DMP ID. The JSON is then used to render the page.
+
+For development, you can run `npm start` to compile (and watch) the JS and SCSS files and view the site in your local browser. You will need to know the DMP ID of a valid DMP that currently exists in your development environment.
+For example, `http://loclhost:3000/dmps/10.12345/ABCD1234` will fetch the JSON metadata for the latest version of the `10.12345/ABCD1234` DMP ID and render the landing page. If the DMP ID could not be found then React will render a 'Not Found' page.
+
+To build and deploy the ladning page run `ruby build_deploy.rb [env]`
 
 ## Swagger
 

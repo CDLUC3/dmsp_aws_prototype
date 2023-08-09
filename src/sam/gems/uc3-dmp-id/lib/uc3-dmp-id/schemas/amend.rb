@@ -294,6 +294,7 @@ module Uc3DmpId
                                         "type": "string",
                                         "title": "The Funding Grant ID Type Schema",
                                         "enum": [
+                                          "doi",
                                           "url",
                                           "other"
                                         ],
