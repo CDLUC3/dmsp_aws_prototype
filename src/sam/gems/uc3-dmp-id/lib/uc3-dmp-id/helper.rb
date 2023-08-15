@@ -15,7 +15,7 @@ module Uc3DmpId
     SK_DMP_REGEX = /VERSION#\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\+\d{2}:\d{2}/.freeze
 
     # TODO: Verify the assumed structure of the DOI is valid
-    DOI_REGEX = %r{[0-9]{2}\.[0-9]{5}/[a-zA-Z0-9/_.-]+}.freeze
+    DOI_REGEX = %r{[0-9]{2}\.[0-9]{4,}/[a-zA-Z0-9/_.-]+}.freeze
     URL_REGEX = %r{(https?://)?([a-zA-Z0-9\-_]\.)+[a-zA-Z0-9\-_]{2,3}(:[0-9]+)?/?}.freeze
 
     DMP_LATEST_VERSION = "#{SK_DMP_PREFIX}latest"
@@ -231,6 +231,19 @@ module Uc3DmpId
         cleansed.keys.any? ? cleansed : nil
       end
       # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+
+      # Extracts the related identifiers that we can fetch a citation for
+      def citable_related_identifiers(dmp:)
+        return [] unless dmp.is_a?(Hash)
+
+        related_identifiers = dmp.fetch('dmproadmap_related_identifiers', [])
+        # Ignore the identifier that points to the narrative PDF document and any identifiers that
+        # we have already fetched the citation for
+        related_identifiers.reject do |id|
+          (id['work_type'] == 'output_management_plan' && id['descriptor'] == 'is_metadata_for') ||
+            (id['type'] == 'doi' && !id['citation'].nil?)
+        end
+      end
 
       # Ruby's clone/dup methods do not clone/dup the children, so we need to do it here
       # --------------------------------------------------------------

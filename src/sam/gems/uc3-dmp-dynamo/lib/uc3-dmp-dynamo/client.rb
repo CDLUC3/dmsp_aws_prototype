@@ -86,7 +86,8 @@ module Uc3DmpDynamo
       raise ClientError, MSG_INVALID_KEY unless json.is_a?(Hash) && !json['PK'].nil? && !json['SK'].nil?
 
       resp = @connection.put_item(
-        { table_name: @table,
+        {
+          table_name: @table,
           item: json,
           return_consumed_capacity: logger&.level == 'debug' ? 'TOTAL' : 'NONE'
         }

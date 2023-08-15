@@ -126,10 +126,11 @@ module Functions
         response_body.fetch('response', {}).fetch('award', []).map do |award|
           next if award['title'].nil? || award['id'].nil? || award['piLastName'].nil?
 
+          date_parts = award.fetch('date', '').split('/')
           {
             project: {
               title: award['title'],
-              start: award.fetch('date', '').split('/').reverse.join('-'),
+              start: date_parts.length == 3 ? [date_parts[2], date_parts[0], date_parts[1]].join('-') : '',
               funding: [
                 dmproadmap_award_amount: award['fundsObligatedAmt'],
                 dmproadmap_project_number: award['id'],

@@ -92,6 +92,19 @@ module Uc3DmpId
         # Publish the change to the EventBridge
         publisher = Uc3DmpEventBridge::Publisher.new
         publisher.publish(source: 'DmpCreator', dmp: json, logger: logger)
+
+        # Determine if there are any related identifiers that we should try to fetch a citation for
+        citable_identifiers = Helper.citable_related_identifiers(dmp: json)
+        return true if citable_identifiers.empty?
+
+        # Process citations
+        citer_detail = {
+          PK: json['PK'],
+          SK: json['SK'],
+          dmproadmap_related_identifiers: citable_identifiers
+        }
+        logger.debug(message: "Fetching citations", details: citable_identifiers)
+        publisher.publish(source: 'DmpUpdater', dmp: json, event_type: 'Citation Fetch', detail: citer_detail, logger: logger)
         true
       end
     end

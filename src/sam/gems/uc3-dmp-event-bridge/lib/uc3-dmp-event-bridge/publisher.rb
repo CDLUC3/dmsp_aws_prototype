@@ -27,15 +27,16 @@ module Uc3DmpEventBridge
 
     # Publish an event to the EventBus so that other Lambdas can do their thing
     # rubocop:disable Metrics/AbcSize
-    def publish(source:, dmp:, event_type: DEFAULT_EVENT_TYPE, logger: nil)
+    def publish(source:, dmp:, event_type: DEFAULT_EVENT_TYPE, detail: nil, logger: nil)
       source = "#{source} -> #{SOURCE}.publish"
+      detail = detail.nil? ? _generate_detail(dmp: dmp).to_json : (detail.is_a?(Hash) ?  detail.to_json : detail.to_s)
 
       message = {
         entries: [{
           time: Time.now,
           source: "#{ENV.fetch('DOMAIN', nil)}:lambda:event_publisher",
           detail_type: event_type.to_s,
-          detail: _generate_detail(dmp: dmp).to_json,
+          detail: detail,
           event_bus_name: ENV.fetch('EVENT_BUS_NAME', nil)
         }]
       }

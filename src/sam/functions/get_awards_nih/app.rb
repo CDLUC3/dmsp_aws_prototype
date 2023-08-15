@@ -43,7 +43,7 @@ module Functions
         years: params[:fiscal_years],
         pi_names: _prepare_pi_names_for_search(pi_names: params[:pi_names]),
         opportunity_nbrs: [params[:opportunity_nbr]],
-        project_nums: [params[:project_num]]
+        project_nums: [params[:project_num]],
         title: params[:title]
       )
 
@@ -79,7 +79,7 @@ module Functions
           project_num: params.fetch('project', ''),
           opportunity_nbr: params.fetch('opportunity', ''),
           pi_names: params.fetch('pi_names', ''),
-          title: params.fetch('keyword', ''),
+          title: params.fetch('keywords', ''),
           fiscal_years: fiscal_years.split(',').map(&:to_i)
         }
       end

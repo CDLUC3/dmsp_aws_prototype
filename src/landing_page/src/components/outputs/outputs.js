@@ -57,12 +57,11 @@ function LicenseLink(props) {
   let licenses = props?.licenses || [];
   let idx = props?.index;
 
+  // DMPTool only allows for one license, so just display the first one
   return (
     <span key={idx + 'attr-license-s'}>
-      {licenses.map((license, index) => (
-        <Link href={license?.license_ref} label={license?.license_ref?.split('/').at(-1).replace('.json', '')}
-              remote='true' key={idx + 'attr-license-s' + index}/>
-      ))}
+      <Link href={licenses[0]?.license_ref} label={licenses[0]?.license_ref?.split('/').at(-1).replace('.json', '')}
+            remote='true' key={idx + 'attr-license-s'}/>
     </span>
   );
 }

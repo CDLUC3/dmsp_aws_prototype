@@ -39,6 +39,9 @@ module Uc3DmpId
                                              logger: logger)
         raise UpdaterError, MSG_DMP_UNABLE_TO_VERSION if version.nil?
 
+        # Remove the version info because we don't want to save it on the record
+        version.delete('dmphub_versions')
+
         # Splice the assertions
         version = _process_modifications(owner: owner, updater: updater, version: version, mods: mods, note: note,
                                          logger: logger)
@@ -141,6 +144,19 @@ module Uc3DmpId
         # Publish the change to the EventBridge
         publisher = Uc3DmpEventBridge::Publisher.new
         publisher.publish(source: 'DmpUpdater', dmp: json, logger: logger)
+
+        # Determine if there are any related identifiers that we should try to fetch a citation for
+        citable_identifiers = Helper.citable_related_identifiers(dmp: json)
+        return true if citable_identifiers.empty?
+
+        # Process citations
+        citer_detail = {
+          PK: json['PK'],
+          SK: json['SK'],
+          dmproadmap_related_identifiers: citable_identifiers
+        }
+        logger.debug(message: "Fetching citations", details: citable_identifiers)
+        publisher.publish(source: 'DmpUpdater', dmp: json, event_type: 'Citation Fetch', detail: citer_detail, logger: logger)
         true
       end
     end

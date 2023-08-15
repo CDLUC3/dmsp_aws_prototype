@@ -46,7 +46,7 @@ module Functions
     #         "version": "0",
     #         "id": "5c9a3747-293c-59d7-dcee-a2210ac034fc",
     #         "detail-type": "DMP change",
-    #         "source": "dmphub-dev.cdlib.org:lambda:event_publisher",
+    #         "source": "dmphub.uc3dev.cdlib.net:lambda:event_publisher",
     #         "account": "1234567890",
     #         "time": "2023-02-14T16:42:06Z",
     #         "region": "us-west-2",
@@ -101,7 +101,7 @@ module Functions
         # If submissions are paused, toss the event into the EventBridge archive where it can be
         # replayed at a later time
         if paused
-          logger.info("SUBMISSIONS PAUSED: Placing event #{event['id']} in the EventBridge archive.", details: payload)
+          logger.info(message: "SUBMISSIONS PAUSED: Placing event #{event['id']} in the EventBridge archive.", details: json)
           Uc3DmpEventBridge.publish(source: SOURCE, dmp: json, event_type: 'paused', logger: logger)
           _respond(status: 200, items: [], event: event)
         end

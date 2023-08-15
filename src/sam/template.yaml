@@ -359,7 +359,7 @@ Resources:
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env
-          LOG_LEVEL: !Ref DebugLevel # 'debug'
+          LOG_LEVEL: 'debug' # !Ref DebugLevel # 'debug'
           DOMAIN: !Ref DomainName
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
           CORS_ORIGIN: !If
@@ -797,6 +797,73 @@ Resources:
   # EventBridge Lambdas
   #   See: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-property-function-sns.html
   # ----------------------------------------------------
+  # Lambda responsible for communications with EZID
+  CiterFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      CodeUri: 'functions/citer/'
+      Handler: 'app.Functions::Citer.process'
+      Runtime: 'ruby2.7'
+      # Depending on the DMP ID, there may be a lot of citations so we timeout after 5 minutes
+      Timeout: 300
+      Architectures:
+        - 'x86_64'
+      Layers:
+        - !Ref LambdaLayer
+      Policies:
+        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSQSFullAccess'
+        - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
+        - !Ref DmpHubDynamoTableWritePolicy
+        - !Ref EventBusPolicy
+      Environment:
+        Variables:
+          LAMBDA_ENV: !Ref Env
+          LOG_LEVEL: 'debug' # !Ref DebugLevel # 'debug'
+          DOMAIN: !Ref DomainName
+          DMP_ID_BASE_URL: 'doi.org'
+          API_BASE_URL: !Sub 'https://api.${DomainName}'
+          SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
+          EVENT_BUS_NAME: !Ref EventBusArn
+          DYNAMO_TABLE: !Ref DynamoTableName
+      Events:
+        CiterEvent:
+          Type: 'EventBridgeRule'
+          Properties:
+            DeadLetterConfig:
+              Arn: !Ref DeadLetterQueueArn
+            EventBusName: !Ref EventBusArn
+            Pattern: !Sub >
+              {
+                "source": ["${DomainName}:lambda:event_publisher"],
+                "detail-type": ["Citation Fetch"],
+                "detail": {
+                  "SK": ["VERSION#latest"]
+                }
+              }
+            RetryPolicy:
+              MaximumEventAgeInSeconds: 180
+              MaximumRetryAttempts: 3
+            State: 'ENABLED'  # 'DISABLED'
+
+  CiterPermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      FunctionName: !Ref CiterFunction
+      Action: 'lambda:InvokeFunction'
+      Principal: 'events.amazonaws.com'
+      # SourceArn: !GetAtt CiterEventRule.Arn
+
+  # Annoyingly, SAM does not auto-generate LogGroup for a non-API tiggered lambda
+  CiterFunctionLogGroup:
+    Type: 'AWS::Logs::LogGroup'
+    DependsOn:
+      - CiterFunction
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${CiterFunction}"
+      RetentionInDays: !Ref LogRetentionDays
+
   # Lambda responsible for communications with EZID
   EzidPublisherFunction:
     Type: 'AWS::Serverless::Function'

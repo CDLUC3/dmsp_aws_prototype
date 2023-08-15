@@ -1,5 +1,5 @@
 # frozen_string_literal: true
 
 module Uc3DmpId
-  VERSION = '0.0.127'
+  VERSION = '0.0.137'
 end

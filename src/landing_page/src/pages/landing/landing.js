@@ -117,7 +117,11 @@ function Landing() {
     }
   }
   function filterWorks(works) {
-    return works.filter((work) => work?.work_type !== 'output_management_plan' );
+    if (works !== undefined) {
+      return works.filter((work) => work?.work_type !== 'output_management_plan' );
+    } else {
+      return [];
+    }
   }
 
   return (
@@ -137,7 +141,7 @@ function Landing() {
       <div className="t-step__landing-title">
         <div className={isPublic() ? 'dmp-title' : 'dmp-title-wide'}>
           <p>This page describes a data management plan written for the <FunderLink/> using the <DmptoolLink/>.
-             You can access this infomation as <Link href={formData.json_url} label='json here.' remote='true'/></p>
+             You can access this infomation as <Link href={formData.json_url} label='json' remote='true'/> here.</p>
           <h1>{formData.title === '' ? formData.project_title : formData.title}</h1>
         </div>
         {isPublic() && narrativeUrl() && (

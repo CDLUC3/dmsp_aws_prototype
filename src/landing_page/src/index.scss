@@ -312,6 +312,10 @@ code {
    margin-right: 10px;
   }
 
+  main .landing-list p {
+    line-height: var(--dmptool-brand-line-height1);
+  }
+
   // ***** List item separators ***** //
   li.comma-separated a:not(:last-child) {
     &::after {
