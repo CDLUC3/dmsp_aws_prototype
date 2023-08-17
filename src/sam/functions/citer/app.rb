@@ -72,56 +72,55 @@ module Functions
         json = detail.is_a?(Hash) ? detail : JSON.parse(detail)
         dmp_pk = json['PK']
         dmp_sk = json.fetch('SK', Uc3DmpId::Helper::DMP_LATEST_VERSION)
-        _respond(status: 400, errors: [Uc3DmpApiCore::MSG_INVALID_ARGS], event: event) if dmp_pk.nil? || dmp_sk.nil?
 
-        # Load the DMP metadata
-        dmp = Uc3DmpId::Finder.by_pk(p_key: dmp_pk, s_key: dmp_sk, cleanse: false, logger: logger)
-        _respond(status: 404, errors: [Uc3DmpId::MSG_DMP_NOT_FOUND], event: event) if dmp.nil?
+        if !dmp_pk.nil? && !dmp_sk.nil?
+          # Load the DMP metadata
+          dmp = Uc3DmpId::Finder.by_pk(p_key: dmp_pk, s_key: dmp_sk, cleanse: false, logger: logger)
+          if !dmp.nil?
+            # Get all of the related identifiers that are DOIs and are un-cited
+            identifiers = dmp.fetch('dmp', {}).fetch('dmproadmap_related_identifiers', [])
+            uncited = Uc3DmpId::Helper.citable_related_identifiers(dmp: dmp['dmp'])
 
-        # Get all of the related identifiers that are DOIs and are un-cited
-        identifiers = dmp.fetch('dmp', {}).fetch('dmproadmap_related_identifiers', [])
-        uncited = Uc3DmpId::Helper.citable_related_identifiers(dmp: dmp['dmp'])
-        _respond(status: 200, items: [], event: event) if identifiers.empty? || uncited.empty?
+            if identifiers.any? && uncited.any?
+              existing_citations = identifiers.reject { |id| uncited.include?(id) }
+              headers = { Accept: 'application/x-bibtex' }
 
-        existing_citations = identifiers.reject { |id| uncited.include?(id) }
-        headers = { Accept: 'application/x-bibtex' }
+              processed = []
+              uncited.each do |identifier|
+                uri = _doi_to_uri(doi: identifier['identifier']&.strip)
+                if !uri.nil? && !uri.blank?
+                  logger.debug(message: "Fetching BibTeX from: #{uri}")
+                  resp = Uc3DmpExternalApi::Client.call(url: uri, method: :get, additional_headers: headers, logger: logger)
 
-        processed = []
-        uncited.each do |identifier|
-          uri = _doi_to_uri(doi: identifier['identifier']&.strip)
-          if !uri.nil? && !uri.blank?
-            logger.debug(message: "Fetching BibTeX from: #{uri}")
-            resp = Uc3DmpExternalApi::Client.call(url: uri, method: :get, additional_headers: headers, logger: logger)
+                  unless resp.nil? || resp.to_s.strip.empty?
+                    bibtex = BibTeX.parse(_cleanse_bibtex(text: resp))
+                    work_type = identifier['work_type'].nil? ? determine_work_type(bibtex: bibtex) :  identifier['work_type']
+                    identifier['citation'] = _bibtex_to_citation(uri: uri, work_type: work_type, bibtex: bibtex)
+                  end
+                end
 
-            unless resp.nil? || resp.to_s.strip.empty?
-              bibtex = BibTeX.parse(_cleanse_bibtex(text: resp))
-              work_type = identifier['work_type'].nil? ? determine_work_type(bibtex: bibtex) :  identifier['work_type']
-              identifier['citation'] = _bibtex_to_citation(uri: uri, work_type: work_type, bibtex: bibtex)
+                processed << identifier
+              end
+
+              logger.debug(message: 'Results of citation retrieval', details: processed)
+              dmp['dmp']['dmproadmap_related_identifiers'] = existing_citations + processed
+
+              # Remove the version info because we don't want to save it on the record
+              dmp['dmp'].delete('dmphub_versions')
+
+              client = Uc3DmpDynamo::Client.new
+              resp = client.put_item(json: dmp['dmp'], logger: logger)
             end
           end
-
-          processed << identifier
         end
-
-        logger.debug(message: 'Results of citation retrieval', details: processed)
-        dmp['dmp']['dmproadmap_related_identifiers'] = existing_citations + processed
-
-        # Remove the version info because we don't want to save it on the record
-        dmp['dmp'].delete('dmphub_versions')
-
-        client = Uc3DmpDynamo::Client.new
-        resp = client.put_item(json: dmp['dmp'], logger: logger)
-        _respond(status: 500, errros: [MSG_UNABLE_TO_UPDATE], event: event) if resp.nil?
-
-        _respond(status: 200, items: [], event: event)
       rescue Uc3DmpId::FinderError => e
         logger.error(message: e.message, details: e.backtrace)
-        _respond(status: 500, errors: [e.message], event: event)
       rescue Uc3DmpExternalApi::ExternalApiError => e
-        _respond(status: 500, errors: [e.message], event: event)
+        logger.error(message: e.message, details: e.backtrace)
       rescue StandardError => e
         logger.error(message: e.message, details: e.backtrace)
-        { statusCode: 500, body: { errors: [Uc3DmpApiCore::MSG_SERVER_ERROR] }.to_json }
+        deets = { message: "Fatal error - #{e.message}", event_details: json}
+        Uc3DmpApiCore::Notifier.notify_administrator(source: SOURCE, details: deets, event: event)
       end
       # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
       # rubocop:enable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
@@ -138,9 +137,6 @@ module Functions
 
       # Will convert 'doi:10.1234/abcdefg' to 'http://doi.org/10.1234/abcdefg'
       def _doi_to_uri(doi:)
-
-puts "Matched? #{doi.match(Uc3DmpId::Helper::DOI_REGEX).to_s}"
-
         val = doi.match(Uc3DmpId::Helper::DOI_REGEX).to_s
         return nil if val.nil? || val.strip == ''
 
@@ -164,11 +160,13 @@ puts "Matched? #{doi.match(Uc3DmpId::Helper::DOI_REGEX).to_s}"
 
         # Remove any encoded HTML (e.g. "Regular text $\\lt$strong$\\gt$Bold text$\\lt$/strong$\\gt$")
         utf8 = utf8.gsub(%r{\$?\\\$?(less|lt|Lt)\$/?[a-zA-Z]+\$?\\\$?(greater|gt|Gt)\$}, '')
-        # Replace any special dash and quote characters with a minus sign or single/double quote
-        utf8.gsub(%r{\$?\\(T|t)ext[a-zA-Z]+dash\$?}, '-').gsub(%r{\{(T|t)ext[a-zA-Z]+dash\}}, '-')
-            .gsub(%r{\$?\\(M|m)athsemicolon\$?}, ':').gsub(%r{\{(M|m)semicolon\}}, ':')
-            .gsub(%r{\$?\\(T|t)extquotesingle\$?}, "'").gsub(%r{\{(T|t)extquotesingle\}}, "'")
-            .gsub(%r{\$?\\(T|t)extquotedouble\$?}, '"').gsub(%r{\{(T|t)extquotedouble\}}, '"')
+        # Replace any special dash, semicolon and quote characters with a minus sign or single/double quote
+        utf8 = utf8.gsub(%r{\$?\\(T|t)ext[a-zA-Z]+dash\$?}, '-').gsub(%r{\{(T|t)ext[a-zA-Z]+dash\}}, '-')
+                   .gsub(%r{\$?\\(M|m)athsemicolon\$?}, ':').gsub(%r{\{(M|m)semicolon\}}, ':')
+                   .gsub(%r{\$?\\(T|t)extquotesingle\$?}, "'").gsub(%r{\{(T|t)extquotesingle\}}, "'")
+                   .gsub(%r{\$?\\(T|t)extquotedouble\$?}, '"').gsub(%r{\{(T|t)extquotedouble\}}, '"')
+        # Remove any remaining `\v` entries which attempt to construct an accented character
+        utf8.gsub(%r{\\v}, '')
       end
 
       # Convert the BibTeX item to a citation

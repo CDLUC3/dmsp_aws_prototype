@@ -67,7 +67,7 @@ module Uc3DmpId
         json['dmphub_updater_is_provenance'] = true
         # Publish the change to the EventBridge
         publisher = Uc3DmpEventBridge::Publisher.new
-        publisher.publish(source: 'DmpDeleter', dmp: json, logger: logger)
+        publisher.publish(source: 'DmpDeleter', event_type: 'EZID update', dmp: json, logger: logger)
         true
       end
     end

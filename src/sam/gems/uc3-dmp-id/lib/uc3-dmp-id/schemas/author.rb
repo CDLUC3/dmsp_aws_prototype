@@ -640,7 +640,7 @@ module Uc3DmpId
                                     "start_date": {
                                       "$id": "#/properties/dmp/properties/dataset/items/properties/distribution/items/properties/license/items/properties/start_date",
                                       "type": "string",
-                                      "format": "date",
+                                      "format": "date-time",
                                       "title": "The Dataset Distribution License Start Date Schema",
                                       "description": "If date is set in the future, it indicates embargo period. Encoded using the relevant ISO 8601 Date and Time compliant string.",
                                       "examples": ["2019-06-30"]
@@ -669,7 +669,7 @@ module Uc3DmpId
                         "issued": {
                           "$id": "#/properties/dmp/properties/dataset/items/properties/issued",
                           "type": "string",
-                          "format": "date",
+                          "format": "date-time",
                           "title": "The Dataset Date of Issue Schema",
                           "description": "Issued. Encoded using the relevant ISO 8601 Date and Time compliant string.",
                           "examples": ["2019-06-30"]
@@ -953,6 +953,289 @@ module Uc3DmpId
                       "type"
                     ]
                   },
+                  "dmphub_modifications": {
+                    "$id": "#/properties/dmp/properties/dmphub_modifications",
+                    "type": "array",
+                    "title": "External modifications",
+                    "description": "Modifications made by an external system that does not own the DMP ID",
+                    "items": {
+                      "$id": "#/properties/dmp/properties/dmphub_modifications/items",
+                      "type": "object",
+                      "title": "An external modification",
+                      "properties": {
+                        "id": {
+                          "$id": "#/properties/dmp/properties/dmphub_modifications/items/properties/id",
+                          "type": "string",
+                          "title": "Modification identifier",
+                          "examples": ["12345ABCD"]
+                        },
+                        "provenance": {
+                          "$id": "#/properties/dmp/properties/dmphub_modifications/items/properties/provenance",
+                          "type": "string",
+                          "title": "Modifier",
+                          "examples": ["datacite"]
+                        },
+                        "timestamp": {
+                          "$id": "#/properties/dmp/properties/dmphub_modifications/items/properties/timestamp",
+                          "type": "string",
+                          "format": "date-time",
+                          "title": "The modification date and time",
+                          "examples": ["2023-07-27T15:08:32Z"]
+                        },
+                        "note": {
+                          "$id": "#/properties/dmp/properties/dmphub_modifications/items/properties/note",
+                          "type": "string",
+                          "title": "Descriptive note",
+                          "examples": ["data received from event data"]
+                        },
+                        "status": {
+                          "$id": "#/properties/dmp/properties/dmphub_modifications/items/properties/status",
+                          "type": "string",
+                          "title": "Modification status",
+                          "enum": [
+                            "accepted",
+                            "pending",
+                            "rejected"
+                          ]
+                        },
+                        "dmproadmap_related_identifier": {
+                          "$id": "#/properties/dmp/properties/dmphub_modifications/items/properties/dmproadmap_related_identifier",
+                          "type": "object",
+                          "title": "A related identifier",
+                          "properties": {
+                            "descriptor": {
+                              "$id": "#/properties/dmp/properties/dmphub_modifications/items/properties/dmproadmap_related_identifier/properties/descriptor",
+                              "type": "string",
+                              "enum": [
+                                "is_cited_by",
+                                "cites",
+                                "is_supplement_to",
+                                "is_supplemented_by",
+                                "is_described_by",
+                                "describes",
+                                "has_metadata",
+                                "is_metadata_for",
+                                "is_part_of",
+                                "has_part",
+                                "is_referenced_by",
+                                "references",
+                                "is_documented_by",
+                                "documents",
+                                "is_new_version_of",
+                                "is_previous_version_of"
+                              ]
+                            },
+                            "identifier": {
+                              "$id": "#/properties/dmp/properties/dmphub_modifications/items/properties/dmproadmap_related_identifier/properties/identifier",
+                              "type": "string",
+                              "title": "A unique identifier for the item",
+                              "description": "Identifier for a DMP",
+                              "examples": ["https://doi.org/10.1371/journal.pcbi.1006750"]
+                            },
+                            "type": {
+                              "$id": "#/properties/dmp/properties/dmphub_modifications/items/properties/dmproadmap_related_identifier/properties/type",
+                              "type": "string",
+                              "enum": [
+                                "handle",
+                                "doi",
+                                "ark",
+                                "url",
+                                "other"
+                              ]
+                            },
+                            "work_type": {
+                              "$id": "#/properties/dmp/properties/dmphub_modifications/items/properties/dmproadmap_related_identifier/properties/work_type",
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "descriptor",
+                            "identifier",
+                            "type",
+                            "work_type"
+                          ]
+                        },
+                        "funding": {
+                          "$id": "#/properties/dmp/properties/dmphub_modifications/items/properties/funding",
+                          "type": "object",
+                          "title": "A modification to Funding",
+                          "properties": {
+                            "dmproadmap_project_number": {
+                              "$id": "#/properties/dmp/properties/project/items/properties/funding/properties/dmproadmap_project_number",
+                              "type": "string",
+                              "title": "The funder's identifier for the research project",
+                              "description": "The funder's identifier used to identify the research project",
+                              "examples": ["prj-XYZ987-UCB"]
+                            },
+                            "funder_id": {
+                              "$id": "#/properties/dmp/properties/dmphub_modifications/items/properties/funding/properties/funder_id",
+                              "type": "object",
+                              "title": "The Funder ID Schema",
+                              "description": "Funder ID of the associated project",
+                              "properties": {
+                                "identifier": {
+                                  "$id": "#/properties/dmp/properties/dmphub_modifications/items/properties/funding/properties/funder_id/properties/identifier",
+                                  "type": "string",
+                                  "title": "The Funder ID Value Schema",
+                                  "description": "Funder ID, recommended to use CrossRef Funder Registry. See: https://www.crossref.org/services/funder-registry/",
+                                  "examples": ["501100002428"]
+                                },
+                                "type": {
+                                  "$id": "#/properties/dmp/properties/dmphub_modifications/items/properties/funding/properties/funder_id/properties/type",
+                                  "type": "string",
+                                  "enum": [
+                                    "fundref",
+                                    "ror",
+                                    "url",
+                                    "other"
+                                  ],
+                                  "title": "The Funder ID Type Schema",
+                                  "description": "Identifier type. Allowed values: fundref, url, other",
+                                  "examples": ["fundref"]
+                                }
+                              },
+                              "required": [
+                                "identifier",
+                                "type"
+                              ]
+                            },
+                            "funding_status": {
+                              "$id": "#/properties/dmp/properties/dmphub_modifications/items/properties/funding/properties/funding_status",
+                              "type": "string",
+                              "enum": [
+                                "planned",
+                                "applied",
+                                "granted",
+                                "rejected"
+                              ],
+                              "title": "The Funding Status Schema",
+                              "description": "To express different phases of project lifecycle. Allowed values: planned, applied, granted, rejected",
+                              "examples": ["granted"]
+                            },
+                            "grant_id": {
+                              "$id": "#/properties/dmp/properties/dmphub_modifications/items/properties/funding/properties/grant_id",
+                              "type": "object",
+                              "title": "The Funding Grant ID Schema",
+                              "description": "Grant ID of the associated project",
+                              "properties": {
+                                "identifier": {
+                                  "$id": "#/properties/dmp/properties/dmphub_modifications/items/properties/funding/properties/grant_id/properties/identifier",
+                                  "type": "string",
+                                  "title": "The Funding Grant ID Value Schema",
+                                  "description": "Grant ID",
+                                  "examples": ["776242"]
+                                },
+                                "type": {
+                                  "$id": "#/properties/dmp/properties/dmphub_modifications/items/properties/funding/properties/grant_id/properties/type",
+                                  "type": "string",
+                                  "title": "The Funding Grant ID Type Schema",
+                                  "enum": [
+                                    "doi",
+                                    "url",
+                                    "other"
+                                  ],
+                                  "description": "Identifier type. Allowed values: url, other",
+                                  "examples": ["other"]
+                                }
+                              },
+                              "required": [
+                                "identifier",
+                                "type"
+                              ]
+                            },
+                            "name": {
+                              "$id": "#/properties/dmp/properties/dmphub_modifications/items/properties/funding/properties/name",
+                              "type": "string",
+                              "title": "The name of the funding instituion / organization",
+                              "description": "Name",
+                              "examples": ["National Science Foundation"]
+                            }
+                          },
+                          "required": [
+                            "funding_status",
+                            "name"
+                          ]
+                        },
+                        "project": {
+                          "$id": "#/properties/dmp/properties/dmphub_modifications/project",
+                          "type": "object",
+                          "title": "The DMP Project Items Schema",
+                          "properties": {
+                            "description": {
+                              "$id": "#/properties/dmp/properties/dmphub_modifications/project/properties/description",
+                              "type": "string",
+                              "title": "The DMP Project Description Schema",
+                              "description": "Project description",
+                              "examples": ["Project develops novel..."]
+                            },
+                            "end": {
+                              "$id": "#/properties/dmp/properties/dmphub_modifications/project/properties/end",
+                              "type": "string",
+                              "format": "date-time",
+                              "title": "The DMP Project End Date Schema",
+                              "description": "Project end date. Encoded using the relevant ISO 8601 Date and Time compliant string.",
+                              "examples": ["2020-03-31T00:00:00Z"]
+                            },
+                            "start": {
+                              "$id": "#/properties/dmp/properties/dmphub_modifications/project/properties/start",
+                              "type": "string",
+                              "format": "date-time",
+                              "title": "The DMP Project Start Date Schema",
+                              "description": "Project start date. Encoded using the relevant ISO 8601 Date and Time compliant string.",
+                              "examples": ["2019-04-01T00:00:00Z"]
+                            },
+                            "title": {
+                              "$id": "#/properties/dmp/properties/dmphub_modifications/project/properties/title",
+                              "type": "string",
+                              "title": "The DMP Project Title Schema",
+                              "description": "Project title",
+                              "examples": ["Our New Project"]
+                            }
+                          },
+                          "required": [
+                            "title"
+                          ]
+                        }
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "provenance",
+                      "status",
+                      "timestamp"
+                    ]
+                  },
+                  "dmphub_versions": {
+                    "$id": "#/properties/dmp/properties/dmphub_versions",
+                    "type": "array",
+                    "title": "DMP ID versions",
+                    "description": "Links to all of the DMPs versions",
+                    "items": {
+                      "$id": "#/properties/dmp/properties/dmphub_versions/items",
+                      "type": "object",
+                      "title": "DMP version",
+                      "properties": {
+                        "timestamp": {
+                          "$id": "#/properties/dmp/properties/dmphub_versions/items/properties/timestamp",
+                          "type": "string",
+                          "format": "date-time",
+                          "title": "The version date and time",
+                          "examples": ["2023-08-17T16:14:39Z"]
+                        },
+                        "url": {
+                          "$id": "#/properties/dmp/properties/dmphub_versions/items/properties/url",
+                          "type": "string",
+                          "format": "uri",
+                          "title": "The URL to retrieve the specified version",
+                          "examples": ["https://somesite.org/dmps/doi.org/10.1234/A1B2C3D4?version=2023-08-17T16:14:39Z"]
+                        }
+                      }
+                    },
+                    "required": [
+                      "timestamp",
+                      "url"
+                    ]
+                  },
                   "dmproadmap_related_identifiers": {
                     "$id": "#/properties/dmp/properties/dmproadmap_related_identifiers",
                     "type": "array",
@@ -1005,21 +1288,7 @@ module Uc3DmpId
                         },
                         "work_type": {
                           "$id": "#/properties/dmp/properties/dmproadmap_related_identifiers/items/properties/work_type",
-                          "type": "string",
-                          "enum": [
-                            "article",
-                            "book",
-                            "dataset",
-                            "metadata_template",
-                            "other",
-                            "output_management_plan",
-                            "paper",
-                            "preprint",
-                            "preregistration",
-                            "protocol",
-                            "software",
-                            "supplemental_information"
-                          ]
+                          "type": "string"
                         }
                       },
                       "required": [
@@ -1169,7 +1438,7 @@ module Uc3DmpId
                         "end": {
                           "$id": "#/properties/dmp/properties/project/items/properties/end",
                           "type": "string",
-                          "format": "date",
+                          "format": "date-time",
                           "title": "The DMP Project End Date Schema",
                           "description": "Project end date. Encoded using the relevant ISO 8601 Date and Time compliant string.",
                           "examples": ["2020-03-31"]
@@ -1342,7 +1611,7 @@ module Uc3DmpId
                         "start": {
                           "$id": "#/properties/dmp/properties/project/items/properties/start",
                           "type": "string",
-                          "format": "date",
+                          "format": "date-time",
                           "title": "The DMP Project Start Date Schema",
                           "description": "Project start date. Encoded using the relevant ISO 8601 Date and Time compliant string.",
                           "examples": ["2019-04-01"]

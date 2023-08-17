@@ -59,12 +59,18 @@ module Functions
       _respond(status: 200, items: results.compact.uniq, event: event, params: params)
     rescue Uc3DmpExternalApi::ExternalApiError => e
       logger.error(message: e.message, details: e.backtrace)
+      deets = { message: e.message, query_string: params }
+      Uc3DmpApiCore::Notifier.notify_administrator(source: SOURCE, details: deets, event: event)
       _respond(status: 500, errors: [Uc3DmpApiCore::MSG_SERVER_ERROR], event: event)
     rescue Aws::Errors::ServiceError => e
       logger.error(message: e.message, details: e.backtrace)
+      deets = { message: e.message, query_string: params }
+      Uc3DmpApiCore::Notifier.notify_administrator(source: SOURCE, details: deets, event: event)
       _respond(status: 500, errors: [Uc3DmpApiCore::MSG_SERVER_ERROR], event: event)
     rescue StandardError => e
       logger.error(message: e.message, details: e.backtrace) unless logger.nil?
+      deets = { message: e.message, query_string: params }
+      Uc3DmpApiCore::Notifier.notify_administrator(source: SOURCE, details: deets, event: event)
       { statusCode: 500, body: { errors: [Uc3DmpApiCore::MSG_SERVER_ERROR] }.to_json }
     end
 

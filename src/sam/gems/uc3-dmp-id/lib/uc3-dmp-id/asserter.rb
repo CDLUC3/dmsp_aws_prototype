@@ -22,42 +22,42 @@ puts "ADDING ASSERTIONS: #{mods}"
         # Return the DMP ID as-is if there are no assertable changes
         return dmp if contact.nil? && contributor.empty? && project.empty?
 
-        # Clone any existing assertions on the current DMP ID so we can manipulate them
-        assertions = Helper.deep_copy_dmp(obj: dmp.fetch('dmphub_assertions', []))
+        # Clone any existing pending_assertions on the current DMP ID so we can manipulate them
+        assertions = Helper.deep_copy_dmp(obj: dmp.fetch('dmphub_modifications', []))
         # Return the DMP ID as-is if the assertion is already on the record
-        return dmp if assertions.select { |entry| entry['provenance'] == updater && entry['assertions'] == mods }
+        return dmp if assertions.select { |entry| entry['provenance'] == updater && entry['pending_assertions'] == mods }
 
         assertions << _generate_assertion(updater: updater, mods: mods, note: note)
-        dmp['dmphub_assertions'] = assertions.flatten
+        dmp['dmphub_modifications'] = assertions.flatten
         dmp
       end
 
       # Splice together assertions made while the user was updating the DMP ID
       def splice(latest_version:, modified_version:, logger: nil)
 
-puts "LATEST_VERSION ASSERTIONS: #{latest_version['dmphub_assertions']}"
-puts "MODIFIED_VERSION ASSERTIONS: #{modified_version['dmphub_assertions']}"
+puts "LATEST_VERSION ASSERTIONS: #{latest_version['dmphub_modifications']}"
+puts "MODIFIED_VERSION ASSERTIONS: #{modified_version['dmphub_modifications']}"
 
         # Return the modified_version if the timestamps are the same (meaning no new assertions were made while the
         # user was working on the DMP ID) OR neither version has assertions
         return modified_version if latest_version['modified'] == modified_version['modified'] ||
-                                   (latest_version.fetch('dmphub_assertions', []).empty? &&
-                                    modified_version.fetch('dmphub_assertions', []).empty?)
+                                   (latest_version.fetch('dmphub_modifications', []).empty? &&
+                                    modified_version.fetch('dmphub_modifications', []).empty?)
 
         # Clone any existing assertions on the current DMP ID so we can manipulate them
-        existing_assertions = Helper.deep_copy_dmp(obj: latest_version.fetch('dmphub_assertions', []))
-        incoming_assertions = Helper.deep_copy_dmp(obj: modified_version.fetch('dmphub_assertions', []))
+        existing_assertions = Helper.deep_copy_dmp(obj: latest_version.fetch('dmphub_modifications', []))
+        incoming_assertions = Helper.deep_copy_dmp(obj: modified_version.fetch('dmphub_modifications', []))
         logger.debug(message: "Existing assertions", details: existing_assertions) if logger.respond_to?(:debug)
         logger.debug(message: "Incoming modifications", details: incoming_assertions) if logger.respond_to?(:debug)
 
         # Keep any assetions that were made after the modified on the incoming changes
-        modified_version['dmphub_assertions'] = existing_assertions.select do |entry|
+        modified_version['dmphub_modifications'] = existing_assertions.select do |entry|
           !entry['timestamp'].nil? && Time.parse(entry['timestamp']) > Time.parse(modified_version['modified'])
         end
         return modified_version unless incoming_assertions.any?
 
         # Add any of the assertions still on the incoming record back to the latest record
-        incoming_assertions.each { |entry| modified_version['dmphub_assertions'] << entry }
+        incoming_assertions.each { |entry| modified_version['dmphub_modifications'] << entry }
         modified_version
       end
 
@@ -70,7 +70,7 @@ puts "MODIFIED_VERSION ASSERTIONS: #{modified_version['dmphub_assertions']}"
       #    "provenance": "dmphub",
       #    "timestamp": "2023-07-07T14:50:23+00:00",
       #    "note": "data received from the NIH API",
-      #    "assertions": {
+      #    "pending_assertions": {
       #      "contact": {
       #        "name": "Wrong Person"
       #      },
@@ -78,6 +78,14 @@ puts "MODIFIED_VERSION ASSERTIONS: #{modified_version['dmphub_assertions']}"
       #        {
       #          "name": "Jane Doe",
       #          "role": ["Investigation"]
+      #        }
+      #      ],
+      #      "dmproadmap_related_identifiers": [
+      #        {
+      #          "work_type": "article",
+      #          "descriptor": "is_cited_by",
+      #          "type": "doi",
+      #          "identifier": "https://dx.doi.org/99.9876/ZYX987.V6"
       #        }
       #      ],
       #      "project": [
@@ -110,7 +118,7 @@ puts "MODIFIED_VERSION ASSERTIONS: #{modified_version['dmphub_assertions']}"
           timestamp: Time.now.utc.iso8601,
           status: 'new',
           note: note,
-          assertions: mods
+          pending_assertions: mods
         }.to_json)
       end
     end

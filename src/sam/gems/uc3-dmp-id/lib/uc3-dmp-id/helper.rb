@@ -220,7 +220,7 @@ module Uc3DmpId
         return json.map { |obj| cleanse_dmp_json(json: obj) }.compact if json.is_a?(Array)
 
         cleansed = {}
-        allowable = %w[dmphub_versions]
+        allowable = %w[dmphub_modifications dmphub_versions]
         json.each_key do |key|
           next if (key.to_s.start_with?('dmphub') && !allowable.include?(key)) || %w[PK SK].include?(key.to_s)
 

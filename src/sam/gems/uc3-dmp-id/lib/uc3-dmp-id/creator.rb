@@ -91,7 +91,7 @@ module Uc3DmpId
         json['dmphub_updater_is_provenance'] = true
         # Publish the change to the EventBridge
         publisher = Uc3DmpEventBridge::Publisher.new
-        publisher.publish(source: 'DmpCreator', dmp: json, logger: logger)
+        publisher.publish(source: 'DmpCreator', event_type: 'EZID update', dmp: json, logger: logger)
 
         # Determine if there are any related identifiers that we should try to fetch a citation for
         citable_identifiers = Helper.citable_related_identifiers(dmp: json)

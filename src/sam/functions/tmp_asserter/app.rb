@@ -8,14 +8,14 @@ $LOAD_PATH.unshift(*my_gem_path)
 
 require 'uc3-dmp-api-core'
 require 'uc3-dmp-cloudwatch'
-require 'uc3-dmp-event-bridge'
+require 'uc3-dmp-dynamo'
 require 'uc3-dmp-id'
 require 'uc3-dmp-provenance'
 
 module Functions
-  # The handler for PUT /dmps/{dmp_id+}
-  class PutDmp
-    SOURCE = 'PUT /dmps/{dmp_id+}'
+  # The handler for PUT /tmp/{dmp_id+}
+  class TmpAsserter
+    SOURCE = 'PUT /tmp/{dmp_id+}'
 
     # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
     def self.process(event:, context:)
@@ -27,10 +27,8 @@ module Functions
       # Get the params
       params = event.fetch('pathParameters', {})
       dmp_id = params['dmp_id']
-      body = event.fetch('body', '')
-      return _respond(status: 400, errors: Uc3DmpId::Validator::MSG_EMPTY_JSON, event: event) if body.to_s.strip.empty?
+      json = JSON.parse(event.fetch('body', '{"works":2}'))
 
-      json = Uc3DmpId::Helper.parse_json(json: body)
       # Fail if the DMP ID is not a valid DMP ID
       p_key = Uc3DmpId::Helper.path_parameter_to_pk(param: dmp_id)
       p_key = Uc3DmpId::Helper.append_pk_prefix(p_key: p_key) unless p_key.nil?
@@ -43,19 +41,55 @@ module Functions
       provenance = Uc3DmpProvenance::Finder.from_lambda_cotext(identity: claim, logger: logger)
       return _respond(status: 403, errors: Uc3DmpId::MSG_DMP_FORBIDDEN, event: event) if provenance.nil?
 
-      logger.debug(message: "Attempting update to PK: #{p_key}", details: json) if logger.respond_to?(:debug)
+      # Fetch the DMP ID
+      logger.debug(message: "Searching for PK: #{p_key}, SK: #{s_key}") if logger.respond_to?(:debug)
+      result = Uc3DmpId::Finder.by_pk(p_key: p_key, s_key: s_key, logger: logger)
+
+      work_count = json.fetch('works', '2').to_s.strip.to_i
+      grant_ror = json.fetch('grant', 'https://ror.org/01bj3aw27').to_s.downcase.strip
+
+      mods = []
+      work_count.times do
+        prov = %w[crossref datacite openaire].sample
+
+        mods << {
+          id: SecureRandom.hex(8),
+          provenance: prov,
+          timstamp: Time.now.iso8601,
+          note: "data received from #{prov} API",
+          status: "pending",
+          dmproadmap_related_identifier: _add_work
+        }
+      end
+      unless grant_ror.nil?
+        funders = [
+          { name: "National Institutes of Health", ror: "https://ror.org/01cwqze88", acronym: 'NIH' },
+          { name: "National Science Foundation", ror: "https://ror.org/021nxhr62", acronym: 'NSF' },
+          { name: "United States Department of Energy", ror: "https://ror.org/01bj3aw27", acronym: 'Crossref' },
+        ]
+        funder = funders.select { |funder| funder[:ror] == ror }.first
+
+        mods << {
+          id: SecureRandom.hex(8),
+          provenance: funder[:acronym],
+          timstamp: Time.now.iso8601,
+          note: "data received from #{funder[:acronym]} API",
+          status: "pending",
+          funding: [_add_grant(funder: funder)]
+        }
+      end
+      mods = { dmphub_modifications: mods }
+      logger.debug(message: "Tmp Asserter update to PK: #{p_key}", details: { requested: json, mods: mods })
 
       # Update the DMP ID
-      resp = Uc3DmpId::Updater.update(logger: logger, provenance: provenance, p_key: p_key, json: json)
-      return _respond(status: 400, errors: Uc3DmpId::MSG_DMP_NO_DMP_ID) if resp.nil?
+      # resp = Uc3DmpId::Updater.update(logger: logger, provenance: provenance, p_key: p_key, json: json)
+      # return _respond(status: 400, errors: Uc3DmpId::MSG_DMP_NO_DMP_ID) if resp.nil?
 
       _respond(status: 200, items: [resp], event: event)
     rescue Uc3DmpId::UpdaterError => e
       _respond(status: 400, errors: [Uc3DmpId::MSG_DMP_NO_DMP_ID, e.message], event: event)
     rescue StandardError => e
       logger.error(message: e.message, details: e.backtrace)
-      deets = { message: e.message, dmp_id: p_key, body: body }
-      Uc3DmpApiCore::Notifier.notify_administrator(source: SOURCE, details: deets, event: event)
       { statusCode: 500, body: { errors: [Uc3DmpApiCore::MSG_SERVER_ERROR] }.to_json }
     end
     # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
@@ -76,6 +110,32 @@ module Functions
           status: status, items: items, errors: errors, event: event,
           page: params['page'], per_page: params['per_page']
         )
+      end
+
+      def _add_grant(funder:)
+        return nil if funder.nil?
+
+        {
+          "name": funder[:name],
+          "funder_id": {
+            "type": "ror",
+            "identifier": funder[:ror]
+          },
+          "funding_status": "granted",
+          "grant_id": {
+            "identifier": "https://doi.org/11.1111/#{SecureRandom.hex(6)}",
+            "type": "doi"
+          }
+        }
+      end
+
+      def _add_work
+        {
+          "work_type": %w[dataset article data_paper software].sample,
+          "descriptor": %w[references cites is_part_of].sample,
+          "type": "doi",
+          "identifier": "https://dx.doi.org/77.6666/#{SecureRandom.hex(4)}"
+        }
       end
     end
   end

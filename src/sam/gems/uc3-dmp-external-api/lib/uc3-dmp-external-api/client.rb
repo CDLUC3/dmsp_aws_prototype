@@ -25,7 +25,7 @@ module Uc3DmpExternalApi
         opts = _options(body: body, basic_auth: basic_auth, additional_headers: additional_headers, logger: logger)
         resp = HTTParty.send(method.to_sym, uri, opts)
 
-        if resp.code != 200
+        if ![200, 201].include?(resp.code)
           msg = "status: #{resp&.code}, body: #{resp&.body}"
           raise ExternalApiError, "#{format(MSG_ERROR_FROM_EXTERNAL_API, url: url)} - #{msg}"
         end
