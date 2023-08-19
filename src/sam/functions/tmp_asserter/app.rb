@@ -43,7 +43,7 @@ module Functions
 
       # Fetch the DMP ID
       logger.debug(message: "Searching for PK: #{p_key}, SK: #{s_key}") if logger.respond_to?(:debug)
-      result = Uc3DmpId::Finder.by_pk(p_key: p_key, s_key: s_key, logger: logger)
+      dmp = Uc3DmpId::Finder.by_pk(p_key: p_key, s_key: s_key, logger: logger)
 
       work_count = json.fetch('works', '2').to_s.strip.to_i
       grant_ror = json.fetch('grant', 'https://ror.org/01bj3aw27').to_s.downcase.strip
@@ -78,12 +78,13 @@ module Functions
           funding: [_add_grant(funder: funder)]
         }
       end
-      mods = { dmphub_modifications: mods }
+      dmp['dmp']['dmphub_modifications'] = mods
       logger.debug(message: "Tmp Asserter update to PK: #{p_key}", details: { requested: json, mods: mods })
 
       # Update the DMP ID
-      # resp = Uc3DmpId::Updater.update(logger: logger, provenance: provenance, p_key: p_key, json: json)
-      # return _respond(status: 400, errors: Uc3DmpId::MSG_DMP_NO_DMP_ID) if resp.nil?
+      client = Uc3DmpDynamo::Client.new
+      resp = client.put_item(json: dmp['dmp'], logger: logger)
+      return _respond(status: 500, errors: ["Unable to add dmphub_modifications!"], event: event) if resp.nil?
 
       _respond(status: 200, items: [resp], event: event)
     rescue Uc3DmpId::UpdaterError => e

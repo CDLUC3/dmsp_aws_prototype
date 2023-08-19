@@ -21,6 +21,9 @@ module Uc3DmpId
     DMP_LATEST_VERSION = "#{SK_DMP_PREFIX}latest"
     DMP_TOMBSTONE_VERSION = "#{SK_DMP_PREFIX}tombstone"
 
+    DEFAULT_API_URL = 'https://api.dmphub.uc3dev.cdlib.net/dmps/'
+    DEFAULT_LANDING_PAGE_URL = 'https://dmphub.uc3dev.cdlib.net/dmps/'
+
     class << self
       # Append the PK prefix for the object
       # -------------------------------------------------------------------------------------
@@ -48,19 +51,13 @@ module Uc3DmpId
 
       # Return the base URL for a DMP ID
       def dmp_id_base_url
-        url = ENV.fetch('DMP_ID_BASE_URL', 'https://dmphub.uc3dev.cdlib.net/dmps/')
+        url = ENV.fetch('DMP_ID_BASE_URL', DEFAULT_LANDING_PAGE_URL)
         url&.end_with?('/') ? url : "#{url}/"
       end
 
       # The landing page URL (NOT the DOI URL)
       def landing_page_url
-        url = ENV.fetch('DMP_ID_LANDING_URL', 'https://dmphub.uc3dev.cdlib.net/dmps/')
-        url&.end_with?('/') ? url : "#{url}/"
-      end
-
-      # Return the base URL for the API
-      def api_base_url
-        url = ENV.fetch('DMP_ID_BASE_URL', 'https://api.dmphub.uc3dev.cdlib.net/dmps/')
+        url = ENV.fetch('DMP_ID_LANDING_URL', DEFAULT_LANDING_PAGE_URL)
         url&.end_with?('/') ? url : "#{url}/"
       end
 
@@ -69,7 +66,7 @@ module Uc3DmpId
         dmp_id = value.match(DOI_REGEX).to_s
         return nil if dmp_id.nil? || dmp_id == ''
         # If it's already a URL, return it as is
-        return value if value.start_with?('http')
+        return with_protocol ? value : value.gsub(%r{https?://}, '') if value.start_with?('http')
 
         dmp_id = dmp_id.gsub('doi:', '')
         dmp_id = dmp_id.start_with?('/') ? dmp_id[1..dmp_id.length] : dmp_id
@@ -90,7 +87,7 @@ module Uc3DmpId
 
       # Append the :PK prefix to the :dmp_id
       def dmp_id_to_pk(json:)
-        return nil if json.nil? || json['identifier'].nil?
+        return nil if !json.is_a?(Hash) || json['identifier'].nil?
 
         # If it's a DOI format it correctly
         dmp_id = format_dmp_id(value: json['identifier'].to_s)
@@ -132,9 +129,9 @@ module Uc3DmpId
         b = deep_copy_dmp(obj: dmp_b)
 
         # ignore some of the attributes before comparing
-        %w[SK dmphub_modification_day modified created dmphub_assertions].each do |key|
-        a['dmp'].delete(key) unless a['dmp'][key].nil?
-        b['dmp'].delete(key) unless b['dmp'][key].nil?
+        %w[SK dmphub_modification_day modified created dmphub_versions].each do |key|
+          a['dmp'].delete(key) unless a['dmp'][key].nil?
+          b['dmp'].delete(key) unless b['dmp'][key].nil?
         end
         a == b
       end
@@ -147,7 +144,7 @@ module Uc3DmpId
         id = dmp.fetch('contact', {}).fetch('contact_id', {})['identifier']
         return id unless id.nil?
 
-        dmp.fetch('contributor', []).map { |contributor| contributor.fetch('contact_id', {})['identifier'] }.first
+        dmp.fetch('contributor', []).map { |contributor| contributor.fetch('contributor_id', {})['identifier'] }.first
       end
 
       # Extract the Contact's affiliaiton ROR ID
@@ -179,7 +176,7 @@ module Uc3DmpId
         annotated['SK'] = DMP_LATEST_VERSION
 
         # Ensure that the :dmp_id matches the :PK
-        annotated['dmp_id'] = pk_to_dmp_id(p_key: remove_pk_prefix(p_key: annotated['PK']))
+        annotated['dmp_id'] = JSON.parse(pk_to_dmp_id(p_key: remove_pk_prefix(p_key: annotated['PK'])).to_json)
 
         owner_id = extract_owner_id(json: json)
         owner_org = extract_owner_org(json: json)

@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    uc3-dmp-id (0.0.123)
+    uc3-dmp-id (0.0.140)
       json (~> 2.6)
       json-schema (~> 3.0)
       uc3-dmp-dynamo (~> 0.0)

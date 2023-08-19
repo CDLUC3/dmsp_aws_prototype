@@ -6,7 +6,7 @@ GEM
     ast (2.4.2)
     aws-eventstream (1.2.0)
     aws-partitions (1.805.0)
-    aws-sdk-cognitoidentityprovider (1.79.0)
+    aws-sdk-cognitoidentityprovider (1.80.0)
       aws-sdk-core (~> 3, >= 3.177.0)
       aws-sigv4 (~> 1.1)
     aws-sdk-core (3.180.3)
@@ -23,7 +23,7 @@ GEM
     aws-sdk-kms (1.71.0)
       aws-sdk-core (~> 3, >= 3.177.0)
       aws-sigv4 (~> 1.1)
-    aws-sdk-s3 (1.132.0)
+    aws-sdk-s3 (1.132.1)
       aws-sdk-core (~> 3, >= 3.179.0)
       aws-sdk-kms (~> 1)
       aws-sigv4 (~> 1.6)
@@ -85,7 +85,8 @@ GEM
       diff-lcs (>= 1.2.0, < 2.0)
       rspec-support (~> 3.12.0)
     rspec-support (3.12.1)
-    rubocop (1.55.1)
+    rubocop (1.56.0)
+      base64 (~> 0.1.1)
       json (~> 2.3)
       language_server-protocol (>= 3.17.0)
       parallel (~> 1.10)
@@ -102,7 +103,7 @@ GEM
       rubocop (~> 1.41)
     rubocop-factory_bot (2.23.1)
       rubocop (~> 1.33)
-    rubocop-rspec (2.23.0)
+    rubocop-rspec (2.23.2)
       rubocop (~> 1.33)
       rubocop-capybara (~> 2.17)
       rubocop-factory_bot (~> 2.22)
@@ -112,6 +113,7 @@ GEM
       aws-sdk-ssm (~> 1.150)
       json (~> 2.6)
       logger (~> 1.4)
+    uc3-dmp-citation (0.0.5)
     uc3-dmp-cloudwatch (0.0.3)
     uc3-dmp-cognito (0.0.6)
       aws-sdk-cognitoidentityprovider (~> 1.73)
@@ -163,6 +165,7 @@ DEPENDENCIES
   rubocop
   rubocop-rspec
   uc3-dmp-api-core
+  uc3-dmp-citation
   uc3-dmp-cloudwatch
   uc3-dmp-external-api
   uc3-dmp-id

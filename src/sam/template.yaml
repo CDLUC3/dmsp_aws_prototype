@@ -344,7 +344,7 @@ Resources:
       CodeUri: 'functions/delete_dmp/'
       Handler: 'app.Functions::DeleteDmp.process'
       Runtime: 'ruby2.7'
-      Timeout: 5
+      Timeout: 15
       Architectures:
         - 'x86_64'
       Layers:
@@ -638,6 +638,56 @@ Resources:
       # Explicit retention time
       RetentionInDays: !Ref LogRetentionDays
 
+  # Get Citations for the DOIs
+  PostCitationsFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      CodeUri: 'functions/post_citations/'
+      Handler: 'app.Functions::PostCitations.process'
+      Runtime: 'ruby2.7'
+      Timeout: 60
+      Architectures:
+        - 'x86_64'
+      Layers:
+        - !Ref LambdaLayer
+      Policies:
+        - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSQSFullAccess'
+      DeadLetterQueue:
+        Type: 'SQS'
+        TargetArn: !Ref DeadLetterQueueArn
+      Environment:
+        Variables:
+          LAMBDA_ENV: !Ref Env
+          LOG_LEVEL: 'debug' # !Ref DebugLevel # 'debug'
+          DOMAIN: !Ref DomainName
+          SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
+          CORS_ORIGIN: !If
+            - IsDev
+            - "*"
+            - !Sub "https://${DomainName}"
+      Events:
+        PostCitations:
+          # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Type: 'Api'
+          Properties:
+            RestApiId: !Ref DmpHubRestApi
+            Path: '/citations'
+            Method: 'post'
+            RequestParameters:
+              - 'method.request.header.Authorization'
+            Auth:
+              Authorizer: 'DmpHubCognitoAuthorizer'
+              AuthorizationScopes:
+                - !Sub 'https://auth.${DomainName}/${Env}.read'
+
+  PostCitationsLogGroup:
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${PostCitationsFunction}"
+      # Explicit retention time
+      RetentionInDays: !Ref LogRetentionDays
+
   # Register a new DMP ID
   PostDmpsFunction:
     Type: 'AWS::Serverless::Function'
@@ -645,7 +695,7 @@ Resources:
       CodeUri: 'functions/post_dmps/'
       Handler: 'app.Functions::PostDmps.process'
       Runtime: 'ruby2.7'
-      Timeout: 5
+      Timeout: 15
       Architectures:
         - 'x86_64'
       Layers:
@@ -702,7 +752,7 @@ Resources:
       CodeUri: 'functions/post_narratives/'
       Handler: 'app.Functions::PostNarratives.process'
       Runtime: 'ruby2.7'
-      Timeout: 5
+      Timeout: 15
       Architectures:
         - 'x86_64'
       Layers:
@@ -756,7 +806,7 @@ Resources:
       CodeUri: 'functions/put_dmp/'
       Handler: 'app.Functions::PutDmp.process'
       Runtime: 'ruby2.7'
-      Timeout: 10
+      Timeout: 30
       Architectures:
         - 'x86_64'
       Layers:

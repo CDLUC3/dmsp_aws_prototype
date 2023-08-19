@@ -6,29 +6,17 @@
 my_gem_path = Dir['/opt/ruby/gems/**/lib/']
 $LOAD_PATH.unshift(*my_gem_path)
 
-require 'bibtex'
-require 'citeproc'
-require 'csl/styles'
-
 require 'uc3-dmp-api-core'
+require 'uc3-dmp-citation'
 require 'uc3-dmp-cloudwatch'
 require 'uc3-dmp-dynamo'
 require 'uc3-dmp-event-bridge'
-require 'uc3-dmp-external-api'
 require 'uc3-dmp-id'
 
 module Functions
   # Lambda function that is invoked by SNS and communicates with EZID to register/update DMP IDs
   class Citer
     SOURCE = 'Citer'
-
-    APPLICATION_NAME = 'DMPTool'
-    DEFAULT_CITATION_STYLE = 'chicago-author-date'
-    DEFAULT_DOI_URL = 'http://doi.org'
-    DEFAULT_WORK_TYPE = 'Dataset'
-
-    MSG_BIBTEX_FAILURE = 'Unable to fetch Bibtex for the specified DOI.'
-    MSG_UNABLE_TO_UPDATE = 'Unable to update the citations on the DMP ID.'
 
     # Parameters
     # ----------
@@ -83,22 +71,10 @@ module Functions
 
             if identifiers.any? && uncited.any?
               existing_citations = identifiers.reject { |id| uncited.include?(id) }
-              headers = { Accept: 'application/x-bibtex' }
-
               processed = []
               uncited.each do |identifier|
-                uri = _doi_to_uri(doi: identifier['identifier']&.strip)
-                if !uri.nil? && !uri.blank?
-                  logger.debug(message: "Fetching BibTeX from: #{uri}")
-                  resp = Uc3DmpExternalApi::Client.call(url: uri, method: :get, additional_headers: headers, logger: logger)
-
-                  unless resp.nil? || resp.to_s.strip.empty?
-                    bibtex = BibTeX.parse(_cleanse_bibtex(text: resp))
-                    work_type = identifier['work_type'].nil? ? determine_work_type(bibtex: bibtex) :  identifier['work_type']
-                    identifier['citation'] = _bibtex_to_citation(uri: uri, work_type: work_type, bibtex: bibtex)
-                  end
-                end
-
+                citation = Uc3DmpCitation::Citer.fetch_citation(doi: identifier['identifier']&.strip, logger: logger)
+                identifier['citation'] =  citation unless citation.nil?
                 processed << identifier
               end
 
@@ -114,6 +90,8 @@ module Functions
           end
         end
       rescue Uc3DmpId::FinderError => e
+        logger.error(message: e.message, details: e.backtrace)
+      rescue Uc3DmpCitation::CiterError => e
         logger.error(message: e.message, details: e.backtrace)
       rescue Uc3DmpExternalApi::ExternalApiError => e
         logger.error(message: e.message, details: e.backtrace)
@@ -133,73 +111,6 @@ module Functions
           status: status, items: items, errors: errors, event: event,
           page: params['page'], per_page: params['per_page']
         )
-      end
-
-      # Will convert 'doi:10.1234/abcdefg' to 'http://doi.org/10.1234/abcdefg'
-      def _doi_to_uri(doi:)
-        val = doi.match(Uc3DmpId::Helper::DOI_REGEX).to_s
-        return nil if val.nil? || val.strip == ''
-
-        doi.start_with?('http') ? doi : "#{DEFAULT_DOI_URL}/#{doi.gsub('doi:', '')}"
-      end
-
-      # If no :work_type was specified we can try to derive it from the BibTeX metadata
-      def _determine_work_type(bibtex:)
-        return '' if bibtex.nil? || bibtex.data.nil? || bibtex.data.first.nil?
-
-        return 'article' unless bibtex.data.first.journal.nil?
-
-        ''
-      end
-
-      def _cleanse_bibtex(text:)
-        return nil if text.nil? || text.to_s.strip == ''
-
-        # Make sure we're working with UTF8
-        utf8 = text.force_encoding('UTF-8')
-
-        # Remove any encoded HTML (e.g. "Regular text $\\lt$strong$\\gt$Bold text$\\lt$/strong$\\gt$")
-        utf8 = utf8.gsub(%r{\$?\\\$?(less|lt|Lt)\$/?[a-zA-Z]+\$?\\\$?(greater|gt|Gt)\$}, '')
-        # Replace any special dash, semicolon and quote characters with a minus sign or single/double quote
-        utf8 = utf8.gsub(%r{\$?\\(T|t)ext[a-zA-Z]+dash\$?}, '-').gsub(%r{\{(T|t)ext[a-zA-Z]+dash\}}, '-')
-                   .gsub(%r{\$?\\(M|m)athsemicolon\$?}, ':').gsub(%r{\{(M|m)semicolon\}}, ':')
-                   .gsub(%r{\$?\\(T|t)extquotesingle\$?}, "'").gsub(%r{\{(T|t)extquotesingle\}}, "'")
-                   .gsub(%r{\$?\\(T|t)extquotedouble\$?}, '"').gsub(%r{\{(T|t)extquotedouble\}}, '"')
-        # Remove any remaining `\v` entries which attempt to construct an accented character
-        utf8.gsub(%r{\\v}, '')
-      end
-
-      # Convert the BibTeX item to a citation
-      def _bibtex_to_citation(uri:, work_type: DEFAULT_WORK_TYPE, bibtex:, style: DEFAULT_CITATION_STYLE)
-        return nil unless uri.is_a?(String) && uri.strip != ''
-        return nil if bibtex.nil? || bibtex.data.nil? || bibtex.data.first.nil?
-
-        cp = CiteProc::Processor.new(style: style, format: 'html')
-        cp.import(bibtex.to_citeproc)
-        citation = cp.render(:bibliography, id: bibtex.data.first.id)
-        return nil unless citation.is_a?(Array) && citation.any?
-
-        # The CiteProc renderer has trouble with some things so fix them here
-        #   - For some reason words in all caps in the title get wrapped in curl brackets
-        citation = citation.first.gsub('{', '').gsub('}', '')
-
-        unless work_type.nil? || work_type.strip == ''
-          # This supports the :apa and :chicago-author-date styles
-          citation = citation.gsub(/\.”\s+/, "\.” [#{work_type.gsub('_', ' ').capitalize}]. ")
-                             .gsub(/<\/i>\.\s+/, "<\/i>\. [#{work_type.gsub('_', ' ').capitalize}]. ")
-        end
-
-        # Convert the URL into a link. Ensure that the trailing period is not a part of
-        # the link!
-        citation.gsub(URI.regexp) do |url|
-          if url.start_with?('http')
-            '<a href="%{url}" target="_blank">%{url}</a>.' % {
-              url: url.end_with?('.') ? uri : "#{uri}."
-            }
-          else
-            url
-          end
-        end
       end
     end
   end
