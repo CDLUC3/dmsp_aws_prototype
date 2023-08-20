@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'json-schema'
+
 module Uc3DmpId
   class Uc3DmpIdValidatorError < StandardError; end
 
@@ -47,6 +49,8 @@ module Uc3DmpId
         # Instatiate the matching schema
         schema = "Uc3DmpId::Schemas::#{mode.to_s.downcase.capitalize}".split('::').inject(Object) { |o,c| o.const_get c }
         schema.respond_to?(:load) ? schema.load : nil
+      rescue NameError
+        nil
       end
 
     end

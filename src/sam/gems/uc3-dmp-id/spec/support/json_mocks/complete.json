@@ -1,0 +1,286 @@
+{
+  "dmp": {
+    "title": "Example DMP",
+    "description": "An exceptional example of complete DMP metadata",
+    "created": "2021-11-08T19:06:04Z",
+    "modified": "2022-01-28T17:52:14Z",
+    "ethical_issues_description": "We may need to anonymize user data",
+    "ethical_issues_exist": "yes",
+    "ethical_issues_report": "https://example.edu/privacy_policy",
+    "dmp_id": {
+      "type": "doi",
+      "identifier": "https://doi.org/10.12345/ABCDEFG"
+    },
+    "contact": {
+      "name": "Jane Doe",
+      "mbox": "jane.doe@example.edu",
+      "dmproadmap_affiliation": {
+        "name": "Example University (example.edu)",
+        "affiliation_id": {
+          "type": "ror",
+          "identifier": "https://ror.org/1234567890"
+        }
+      },
+      "contact_id": {
+        "type": "orcid",
+        "identifier": "https://orcid.org/0000-0000-0000-000X"
+      }
+    },
+    "contributor": [
+      {
+        "name": "Jane Doe",
+        "mbox": "jane.doe@example.edu",
+        "role": [
+          "http://credit.niso.org/contributor-roles/data-curation",
+          "http://credit.niso.org/contributor-roles/investigation"
+        ],
+        "dmproadmap_affiliation": {
+          "name": "Example University (example.edu)",
+          "affiliation_id": {
+            "type": "ror",
+            "identifier": "https://ror.org/1234567890"
+          }
+        },
+        "contributor_id": {
+          "type": "orcid",
+          "identifier": "https://orcid.org/0000-0000-0000-000X"
+        }
+      }, {
+        "name":"Jennifer Smith",
+        "role": [
+          "http://credit.niso.org/contributor-roles/investigation"
+        ],
+        "dmproadmap_affiliation": {
+          "name": "University of Somewhere (somwhere.edu)",
+          "affiliation_id": {
+            "type": "ror",
+            "identifier": "https://ror.org/0987654321"
+          }
+        }
+      }, {
+        "name": "Sarah James",
+        "role": [
+          "http://credit.niso.org/contributor-roles/project_administration"
+        ]
+      }
+    ],
+    "cost": [
+      {
+        "currency_code": "USD",
+        "title": "Preservation costs",
+        "description": "The estimated costs for preserving our data for 20 years",
+        "value": 10000
+      }
+    ],
+    "dataset": [
+      {
+        "type": "dataset",
+        "title": "Odds and ends",
+        "description": "Collection of odds and ends",
+        "issued": "2022-03-15T00:00:00Z",
+        "keyword": [
+          "foo"
+        ],
+        "dataset_id": {
+          "type": "doi",
+          "identifier": "http://doi.org/10.99999/8888.7777"
+        },
+        "language": "eng",
+        "metadata": [
+          {
+            "description": "The industry standard!",
+            "language": "eng",
+            "metadata_standard_id": {
+              "type": "url",
+              "identifier": "https://example.com/metadata_standards/123"
+            }
+          }
+        ],
+        "personal_data": "no",
+        "data_quality_assurance": [
+          "We will ensure that the preserved copies are of high quality"
+        ],
+        "preservation_statement": "We are going to preserve this data for 20 years",
+        "security_and_privacy": [
+          {
+            "title": "Data security",
+            "description": "We're going to encrypt this one."
+          }
+        ],
+        "sensitive_data": "yes",
+        "technical_resource": [
+          {
+            "name": "Elctron microscope 1234",
+            "description": "A super electron microscope",
+            "dmproadmap_technical_resource_id": {
+              "type": "url",
+              "identifier": "https://rrids.example.org/98765"
+            }
+          }
+        ],
+        "distribution": [
+          {
+            "title": "Distribution of 'Odds and Ends' to 'Random repo'",
+            "access_url": "https://example.edu/datasets/00000",
+            "download_url": "https://example.edu/datasets/00000.pdf",
+            "available_until": "2052-03-15",
+            "byte_size": 1234567890,
+            "data_access": "shared",
+            "format": [
+              "application/vnd.ms-excel"
+            ],
+            "host": {
+              "title": "Random repo",
+              "url": "A generic data repository",
+              "dmproadmap_host_id": {
+                "type": "url",
+                "identifier": "https://hosts.example.org/765675"
+              }
+            },
+            "license": [
+              {
+                "license_ref": "https://licenses.example.org/zyxw",
+                "start_date": "2022-03-15T00:00:00Z"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "dmphub_modifications": [
+      {
+        "id": "ZYXW9876",
+        "provenance": "datacite",
+        "timestamp": "2023-07-27T15:08:32+07:00",
+        "note": "data received from event data",
+        "status": "pending",
+        "dmproadmap_related_identifier": {
+          "work_type": "dataset",
+          "descriptor": "references",
+          "type": "doi",
+          "identifier": "https://dx.doi.org/77.6666/H5H5H5"
+        }
+      }, {
+        "id": "ZYXW9878",
+        "provenance": "datacite",
+        "timestamp": "2023-07-27T15:08:52+07:00",
+        "note": "data received from event data",
+        "status": "accepted",
+        "dmproadmap_related_identifier": {
+          "work_type": "article",
+          "descriptor": "is_cited_by",
+          "type": "url",
+          "identifier": "https://doi.org/22.33333/pubmed.1242345234"
+        }
+      }, {
+        "id": "ZYXW9880",
+        "provenance": "datacite",
+        "timestamp": "2023-07-27T15:09:13+07:00",
+        "note": "data received from event data",
+        "status": "rejected",
+        "dmproadmap_related_identifier": {
+          "work_type": "paper",
+          "descriptor": "is_cited_by",
+          "type": "url",
+          "identifier": "https://academic.site/papers/123"
+        }
+      },
+      {
+        "id": "ABCD1234",
+        "provenance": "crossref",
+        "timestamp": "2023-07-13T09:25:23+07:00",
+        "note": "data received from the Crossref Grants API",
+        "status": "pending",
+        "funding": {
+          "name": "National Science Foundation",
+          "funder_id": {
+            "type": "ror",
+            "identifier": "https://ror.org/021nxhr62"
+          },
+          "funding_status": "granted",
+          "grant_id": {
+            "identifier": "https://doi.org/11.1111/2019.22702-3",
+            "type": "doi"
+          }
+        }
+      }
+    ],
+    "dmphub_versions": [
+      {
+        "timestamp": "2020-03-14T10:53:49+00:00",
+        "url": "https://doi.org/dmps/10.12345/ABCD1234?version=2020-03-14T10:53:49+00:00"
+      },
+      {
+        "timestamp": "2019-03-13T13:13:00+00:00",
+        "url": "https://doi.org/dmps/doi.org/10.12345/ABCD1234?version=2019-03-13T13:13:00+00:00"
+      }
+    ],
+    "dmproadmap_privacy": "public",
+    "dmproadmap_related_identifiers": [
+      {
+        "work_type": "article",
+        "identifier": "https://doi.org/10.1371/journal.pcbi.1006750",
+        "descriptor": "is_cited_by",
+        "type": "handle"
+      },
+      {
+        "work_type": "article",
+        "descriptor": "is_cited_by",
+        "type": "url",
+        "identifier": "https://doi.org/22.33333/pubmed.1242345234"
+      },
+      {
+        "descriptor": "is_metadata_for",
+        "identifier": "https://api.dmphub.uc3dev.cdlib.net/narratives/1234567890.pdf",
+        "type": "url",
+        "work_type": "output_management_plan"
+      }
+    ],
+    "dmproadmap_research_facilities": [
+      {
+        "name": "Example Research Lab",
+        "type": "field_station",
+        "facility_id": {
+          "type": "ror",
+          "identifier": "https://ror.org/03yrm5c26"
+        }
+      }
+    ],
+    "dmproadmap_template": {
+      "id": "38745623765",
+      "title": "Digital Curation Centre (português)"
+    },
+    "language": "eng",
+    "project": [
+      {
+        "title": "Example research project",
+        "description": "Abstract of what we're going to do.",
+        "start": "2015-05-12T00:00:00Z",
+        "end": "2024-05-24T11:32:21-07:00",
+        "funding": [
+          {
+            "name": "National Funding Organization",
+            "funder_id": {
+              "type": "fundref",
+              "identifier": "http://dx.doi.org/10.13039/100005595"
+            },
+            "funding_status": "granted",
+            "grant_id": {
+              "type": "url",
+              "identifier": "https://nfo.example.org/awards/098765"
+            },
+            "dmproadmap_funded_affiliations": [
+              {
+                "name": "Example University (example.edu)",
+                "affiliation_id": {
+                  "type": "ror",
+                  "identifier": "https://ror.org/1234567890"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

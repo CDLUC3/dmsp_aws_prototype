@@ -5,11 +5,6 @@ require 'spec_helper'
 RSpec.describe 'Uc3DmpId::Helper' do
   let!(:described_class) { Uc3DmpId::Helper }
 
-  before do
-    # mock_uc3_dmp_dynamo
-    # allow(described_class).to receive(:puts).and_return(true)
-  end
-
   describe 'append_pk_prefix(p_key:)' do
     it 'appends the prefix' do
       key = 'foo/bar'
@@ -346,7 +341,7 @@ RSpec.describe 'Uc3DmpId::Helper' do
         dmphub_provenance_id: provenance['PK']
       }.to_json)
       result = described_class.annotate_dmp_json(provenance: provenance, p_key: p_key, json: dmp)
-      expect(assert_dmps_match(obj_a: result, obj_b: expected)).to be(true)
+      expect(assert_dmps_match(obj_a: result, obj_b: expected, debug: false)).to be(true)
     end
     it 'properly translates :dmproadmap_featured' do
       dmp['dmproadmap_featured'] = 'yes'
@@ -363,7 +358,7 @@ RSpec.describe 'Uc3DmpId::Helper' do
         dmphub_provenance_id: provenance['PK']
       }.to_json)
       result = described_class.annotate_dmp_json(provenance: provenance, p_key: p_key, json: dmp)
-      expect(assert_dmps_match(obj_a: result, obj_b: expected)).to be(true)
+      expect(assert_dmps_match(obj_a: result, obj_b: expected, debug: false)).to be(true)
     end
     it 'adds the expected JSON if :dmphub_provenance_identifier if not defined in the :json' do
       dmp['dmproadmap_featured'] = 1
@@ -383,7 +378,7 @@ RSpec.describe 'Uc3DmpId::Helper' do
         dmphub_provenance_identifier: 'http://foo.bar/dmp/123'
       }.to_json)
       result = described_class.annotate_dmp_json(provenance: provenance, p_key: p_key, json: dmp)
-      expect(assert_dmps_match(obj_a: expected, obj_b: result)).to be(true)
+      expect(assert_dmps_match(obj_a: expected, obj_b: result, debug: false)).to be(true)
     end
     it 'retains the DMP ID specified if the provenance is :seedingWithLiveDmpIds' do
       provenance[:seedingWithLiveDmpIds] = true
@@ -399,11 +394,10 @@ RSpec.describe 'Uc3DmpId::Helper' do
         dmphub_modification_day: Time.now.strftime('%Y-%m-%d'),
         dmphub_owner_id: 'orcid123',
         dmphub_owner_org: 'ror123',
-        dmphub_provenance_id: provenance['PK'],
-        dmphub_provenance_identifier: 'http://foo.bar/dmp/123'
+        dmphub_provenance_id: provenance['PK']
       }.to_json)
       result = described_class.annotate_dmp_json(provenance: provenance, p_key: p_key, json: dmp)
-      expect(assert_dmps_match(obj_a: result, obj_b: expected)).to be(true)
+      expect(assert_dmps_match(obj_a: result, obj_b: expected, debug: false)).to be(true)
     end
     it 'does NOT retain the specified DMP ID if the provenance is not :seedingWithLiveDmpIds' do
       dmp['dmp_id'] = JSON.parse({ type: 'url', identifier: 'http://foo.bar/dmp/123' }.to_json)
@@ -422,7 +416,7 @@ RSpec.describe 'Uc3DmpId::Helper' do
         dmphub_provenance_identifier: 'http://foo.bar/dmp/123'
       }.to_json)
       result = described_class.annotate_dmp_json(provenance: provenance, p_key: p_key, json: dmp)
-      expect(assert_dmps_match(obj_a: expected, obj_b: result)).to be(true)
+      expect(assert_dmps_match(obj_a: expected, obj_b: result, debug: false)).to be(true)
     end
   end
 
@@ -462,7 +456,7 @@ RSpec.describe 'Uc3DmpId::Helper' do
       }.to_json)
 
       result = described_class.cleanse_dmp_json(json: dmp)
-      expect(assert_dmps_match(obj_a: expected, obj_b: result)).to be(true)
+      expect(assert_dmps_match(obj_a: expected, obj_b: result, debug: false)).to be(true)
     end
   end
 
@@ -483,7 +477,8 @@ RSpec.describe 'Uc3DmpId::Helper' do
         ]
       }.to_json)
       expected = dmp['dmproadmap_related_identifiers'].reject { |id| id['identifier'] == 'http://skip.me' }
-      expect(assert_dmps_match(obj_a: expected, obj_b: described_class.citable_related_identifiers(dmp: dmp))).to be(true)
+      result = described_class.citable_related_identifiers(dmp: dmp)
+      expect(assert_dmps_match(obj_a: expected, obj_b: result, debug: false)).to be(true)
     end
   end
 
@@ -499,7 +494,7 @@ RSpec.describe 'Uc3DmpId::Helper' do
           }
         }
       }.to_json)
-      expect(assert_dmps_match(obj_a: described_class.deep_copy_dmp(obj: obj), obj_b: obj)).to be(true)
+      expect(assert_dmps_match(obj_a: described_class.deep_copy_dmp(obj: obj), obj_b: obj, debug: false)).to be(true)
     end
   end
 end
