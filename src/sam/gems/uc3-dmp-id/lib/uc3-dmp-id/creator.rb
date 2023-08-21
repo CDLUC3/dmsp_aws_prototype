@@ -27,7 +27,7 @@ module Uc3DmpId
         # Fail if the provenance or owner affiliation are not defined
         raise CreatorError, MSG_NO_PROVENANCE_OWNER if provenance.nil?
 
-        # TODO: Swap this out with the Finder search once the Dynamo indexes are working
+        # TODO: Swap this out with the Finder.exists? once the Dynamo indexes are working
         # Try to find it first and Fail if found
         result = Finder.by_json(json: json, logger: logger)
         raise CreatorError, Uc3DmpId::MSG_DMP_EXISTS if result.is_a?(Hash)
