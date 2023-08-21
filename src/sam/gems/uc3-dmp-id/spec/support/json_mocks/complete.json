@@ -154,36 +154,33 @@
         "timestamp": "2023-07-27T15:08:32+07:00",
         "note": "data received from event data",
         "status": "pending",
-        "dmproadmap_related_identifier": {
-          "work_type": "dataset",
-          "descriptor": "references",
-          "type": "doi",
-          "identifier": "https://dx.doi.org/77.6666/H5H5H5"
-        }
+        "dmproadmap_related_identifiers": [
+          {
+            "work_type": "dataset",
+            "descriptor": "references",
+            "type": "doi",
+            "identifier": "https://dx.doi.org/77.6666/H5H5H5"
+          }
+        ]
       }, {
         "id": "ZYXW9878",
         "provenance": "datacite",
         "timestamp": "2023-07-27T15:08:52+07:00",
         "note": "data received from event data",
         "status": "accepted",
-        "dmproadmap_related_identifier": {
-          "work_type": "article",
-          "descriptor": "is_cited_by",
-          "type": "url",
-          "identifier": "https://doi.org/22.33333/pubmed.1242345234"
-        }
-      }, {
-        "id": "ZYXW9880",
-        "provenance": "datacite",
-        "timestamp": "2023-07-27T15:09:13+07:00",
-        "note": "data received from event data",
-        "status": "rejected",
-        "dmproadmap_related_identifier": {
-          "work_type": "paper",
-          "descriptor": "is_cited_by",
-          "type": "url",
-          "identifier": "https://academic.site/papers/123"
-        }
+        "dmproadmap_related_identifiers": [
+          {
+            "work_type": "article",
+            "descriptor": "is_cited_by",
+            "type": "url",
+            "identifier": "https://doi.org/22.33333/pubmed.1242345234"
+          }, {
+            "work_type": "paper",
+            "descriptor": "is_cited_by",
+            "type": "url",
+            "identifier": "https://academic.site/papers/123"
+          }
+        ]
       },
       {
         "id": "ABCD1234",
