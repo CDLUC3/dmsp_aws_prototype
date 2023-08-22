@@ -12,20 +12,20 @@ module Uc3DmpId
       # rubocop:disable Metrics/MethodLength, Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
       # -------------------------------------------------------------------------
       def tombstone(provenance:, p_key:, logger: nil)
-        raise DeleterError, MSG_DMP_INVALID_DMP_ID unless p_key.is_a?(String) && !p_key.strip.empty?
+        raise DeleterError, Helper::MSG_DMP_INVALID_DMP_ID unless p_key.is_a?(String) && !p_key.strip.empty?
 
         # Fail if the provenance is not defined
-        raise DeleterError, MSG_DMP_FORBIDDEN unless provenance.is_a?(Hash) && !provenance['PK'].nil?
+        raise DeleterError, Helper::MSG_DMP_FORBIDDEN unless provenance.is_a?(Hash) && !provenance['PK'].nil?
 
         # Fetch the latest version of the DMP ID by it's PK
         client = Uc3DmpDynamo::Client.new
         dmp = Finder.by_pk(p_key: p_key, client: client, logger: logger)
-        raise DeleterError, MSG_DMP_NOT_FOUND unless dmp.is_a?(Hash) && !dmp['dmp'].nil?
+        raise DeleterError, Helper::MSG_DMP_NOT_FOUND unless dmp.is_a?(Hash) && !dmp['dmp'].nil?
 
         # Only allow this if the provenance is the owner of the DMP!
-        raise DeleterError, MSG_DMP_FORBIDDEN if dmp['dmp']['dmphub_provenance_id'] != provenance['PK']
+        raise DeleterError, Helper::MSG_DMP_FORBIDDEN if dmp['dmp']['dmphub_provenance_id'] != provenance['PK']
         # Make sure they're not trying to update a historical copy of the DMP
-        raise DeleterError, MSG_DMP_NO_HISTORICALS if dmp['dmp']['SK'] != Helper::DMP_LATEST_VERSION
+        raise DeleterError, Helper::MSG_DMP_NO_HISTORICALS if dmp['dmp']['SK'] != Helper::DMP_LATEST_VERSION
 
         # Annotate the DMP ID
         dmp['dmp']['SK'] = Helper::DMP_TOMBSTONE_VERSION
@@ -39,7 +39,7 @@ module Uc3DmpId
 
         # Create the Tombstone version
         resp = client.put_item(json: dmp, logger: logger)
-        raise DeleterError, MSG_DMP_NO_TOMBSTONE if resp.nil?
+        raise DeleterError, Helper::MSG_DMP_NO_TOMBSTONE if resp.nil?
 
         # Delete the Latest version
         resp = client.delete_item(p_key: p_key, s_key: Helper::SK_DMP_PREFIX, logger: logger)
@@ -52,7 +52,7 @@ module Uc3DmpId
         Helper.cleanse_dmp_json(json: JSON.parse({ dmp: dmp }.to_json))
       rescue Aws::Errors::ServiceError => e
         logger.error(message: e.message, details: e.backtrace) unless logger.nil?
-        { status: 500, error: Messages::MSG_SERVER_ERROR }
+        { status: 500, error: Helper::MSG_SERVER_ERROR }
       end
       # rubocop:enable Metrics/MethodLength, Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
@@ -63,8 +63,6 @@ module Uc3DmpId
       def _post_process(json:, logger: nil)
         return false unless json.is_a?(Hash)
 
-        # Indicate whether or not the updater is the provenance system
-        json['dmphub_updater_is_provenance'] = true
         # Publish the change to the EventBridge
         publisher = Uc3DmpEventBridge::Publisher.new
         publisher.publish(source: 'DmpDeleter', event_type: 'EZID update', dmp: json, logger: logger)

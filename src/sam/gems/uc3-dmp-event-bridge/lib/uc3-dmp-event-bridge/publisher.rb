@@ -60,8 +60,7 @@ module Uc3DmpEventBridge
         PK: dmp['PK'],
         SK: dmp['SK'],
         dmphub_provenance_id: dmp.fetch('dmphub_provenance_id', nil),
-        dmproadmap_links: dmp.fetch('dmproadmap_links', {}),
-        dmphub_updater_is_provenance: dmp.fetch('dmphub_updater_is_provenance', false)
+        dmproadmap_links: dmp.fetch('dmproadmap_links', {})
       }
     end
 

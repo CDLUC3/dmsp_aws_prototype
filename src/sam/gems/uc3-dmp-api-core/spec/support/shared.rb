@@ -62,8 +62,7 @@ def aws_event_bridge_event(args: {})
     dmphub_provenance_id: 'PROVENANCE#foo',
     dmproadmap_links: {
       download: 'https://example.com/api/dmps/12345.pdf'
-    },
-    dmphub_updater_is_provenance: false
+    }
   }
   details = details.merge(args['detail']) unless args['detail'].nil?
 

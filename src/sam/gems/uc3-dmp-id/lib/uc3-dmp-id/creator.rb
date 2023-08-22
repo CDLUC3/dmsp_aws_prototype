@@ -17,7 +17,7 @@ module Uc3DmpId
         raise CreatorError, MSG_NO_BASE_URL if ENV['DMP_ID_BASE_URL'].nil?
 
         # Fail if the provenance is not defined
-        raise DeleterError, MSG_DMP_FORBIDDEN unless provenance.is_a?(Hash) && !provenance['PK'].nil?
+        raise DeleterError, Helper::MSG_DMP_FORBIDDEN unless provenance.is_a?(Hash) && !provenance['PK'].nil?
 
         # Validate the incoming JSON first
         json = Helper.parse_json(json: json)
@@ -25,12 +25,12 @@ module Uc3DmpId
         raise CreatorError, errs.join(', ') if errs.is_a?(Array) && errs.any? && errs.first != Validator::MSG_VALID_JSON
 
         # Fail if the provenance or owner affiliation are not defined
-        raise CreatorError, MSG_NO_PROVENANCE_OWNER if provenance.nil?
+        raise CreatorError, Helper::MSG_NO_PROVENANCE_OWNER if provenance.nil?
 
         # TODO: Swap this out with the Finder.exists? once the Dynamo indexes are working
         # Try to find it first and Fail if found
         result = Finder.by_json(json: json, logger: logger)
-        raise CreatorError, Uc3DmpId::MSG_DMP_EXISTS if result.is_a?(Hash)
+        raise CreatorError, Helper::MSG_DMP_EXISTS if result.is_a?(Hash)
         # raise CreatorError, Uc3DmpId::MSG_DMP_EXISTS unless json['PK'].nil?
 
         client = Uc3DmpDynamo::Client.new
@@ -48,7 +48,7 @@ module Uc3DmpId
 
         # Create the item
         resp = client.put_item(json: annotated, logger: logger)
-        raise CreatorError, Uc3DmpId::MSG_DMP_NO_DMP_ID if resp.nil?
+        raise CreatorError, Helper::MSG_DMP_NO_DMP_ID if resp.nil?
 
         _post_process(json: annotated, logger: logger)
         Helper.cleanse_dmp_json(json: JSON.parse({ dmp: annotated }.to_json))
@@ -87,8 +87,6 @@ module Uc3DmpId
       def _post_process(json:, logger: nil)
         return false unless json.is_a?(Hash)
 
-        # We are creating, so this is always true
-        json['dmphub_updater_is_provenance'] = true
         # Publish the change to the EventBridge
         publisher = Uc3DmpEventBridge::Publisher.new
         publisher.publish(source: 'DmpCreator', event_type: 'EZID update', dmp: json, logger: logger)

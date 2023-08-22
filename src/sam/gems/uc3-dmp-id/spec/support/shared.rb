@@ -3,8 +3,32 @@
 require 'ostruct'
 require 'securerandom'
 
+require 'uc3-dmp-dynamo'
+require 'uc3-dmp-event-bridge'
+
 # Mock S3 Resources
-Uc3DmpDynamoClient = Struct.new('S3Client', :get_item, :put_item, :delete_item, :query)
+Uc3DmpCloudwatchLogger = Struct.new('Uc3DmpCloudwatchLogger', :new, :debug, :info, :warn, :error)
+Uc3DmpDynamoClient = Struct.new('Uc3DmpDynamoClient', :get_item, :put_item, :delete_item, :query)
+Uc3DmpEventBridgePublisher = Struct.new('Uc3DmpEventBridgePublisher', :publish)
+
+def mock_dmp_id
+  domain = ENV.fetch('DMP_ID_BASE_URL', 'doi.org').gsub(%r{https?://}, '')
+  "#{domain}/#{rand(10...99)}.#{rand(10000...99999)}/#{SecureRandom.hex(6)}"
+end
+
+def mock_dmp(minimal: false)
+  JSON.parse(File.read("#{Dir.pwd}/spec/support/json_mocks/#{minimal ? 'minimal' : 'complete'}.json"))
+end
+
+def mock_logger(success: true)
+  lggr = Uc3DmpCloudwatchLogger.new
+  allow(lggr).to receive(:debug).and_return(success)
+  allow(lggr).to receive(:info).and_return(success)
+  allow(lggr).to receive(:warn).and_return(success)
+  allow(lggr).to receive(:error).and_return(success)
+  allow(Uc3DmpCloudwatch::Logger).to receive(:new).and_return(lggr)
+  lggr
+end
 
 def mock_uc3_dmp_dynamo(dmp: mock_dmp, success: true)
   client = Uc3DmpDynamoClient.new
@@ -18,13 +42,12 @@ def mock_uc3_dmp_dynamo(dmp: mock_dmp, success: true)
   client
 end
 
-def mock_dmp_id
-  domain = ENV.fetch('DMP_ID_BASE_URL', 'doi.org').gsub(%r{https?://}, '')
-  "#{domain}/#{rand(10...99)}.#{rand(10000...99999)}/#{SecureRandom.hex(6)}"
-end
+def mock_uc3_dmp_event_bridge(success: true)
+  publisher = Uc3DmpEventBridgePublisher.new
+  allow(publisher).to receive(:publish).and_return(success)
 
-def mock_dmp(minimal: false)
-  JSON.parse(File.read("#{Dir.pwd}/spec/support/json_mocks/#{minimal ? 'minimal' : 'complete'}.json"))
+  allow(Uc3DmpEventBridge::Publisher).to receive(:new).and_return(publisher)
+  publisher
 end
 
 # Helper to compare 2 hashes

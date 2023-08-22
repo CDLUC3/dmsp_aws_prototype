@@ -57,8 +57,7 @@ module Functions
     #           "dmphub_provenance_id": "PROVENANCE#example",
     #           "dmproadmap_links": {
     #             "download": "https://example.com/api/dmps/12345.pdf",
-    #           },
-    #           "dmphub_updater_is_provenance": false
+    #           }
     #         }
     #       }
     #
