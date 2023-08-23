@@ -17,19 +17,16 @@ module Uc3DmpId
         raise CreatorError, MSG_NO_BASE_URL if ENV['DMP_ID_BASE_URL'].nil?
 
         # Fail if the provenance is not defined
-        raise DeleterError, Helper::MSG_DMP_FORBIDDEN unless provenance.is_a?(Hash) && !provenance['PK'].nil?
+        raise CreatorError, Helper::MSG_DMP_FORBIDDEN unless provenance.is_a?(Hash) && !provenance['PK'].nil?
 
         # Validate the incoming JSON first
         json = Helper.parse_json(json: json)
         errs = Validator.validate(mode: 'author', json: json)
         raise CreatorError, errs.join(', ') if errs.is_a?(Array) && errs.any? && errs.first != Validator::MSG_VALID_JSON
 
-        # Fail if the provenance or owner affiliation are not defined
-        raise CreatorError, Helper::MSG_NO_PROVENANCE_OWNER if provenance.nil?
-
-        # TODO: Swap this out with the Finder.exists? once the Dynamo indexes are working
-        # Try to find it first and Fail if found
-        result = Finder.by_json(json: json, logger: logger)
+        # Try to find it by the :dmp_id first and Fail if found
+        dmp_id = Helper.dmp_id_to_pk(json: json.fetch('dmp', {})['dmp_id'])
+        result = Finder.exists?(json: dmp_id, logger: logger) unless dmp_id.nil?
         raise CreatorError, Helper::MSG_DMP_EXISTS if result.is_a?(Hash)
         # raise CreatorError, Uc3DmpId::MSG_DMP_EXISTS unless json['PK'].nil?
 
@@ -62,7 +59,8 @@ module Uc3DmpId
         seed_id = json.fetch('dmp', {})['dmproadmap_external_system_identifier']
 
         # If we are seeding already registered DMP IDs from the Provenance system, then return the original DMP ID
-        logger.debug(message: "Seeding DMP ID with #{seed_id.gsub(%r{https?://}, '')}") if seeding && !seed_id.nil?
+        logger.debug(message: "Seeding DMP ID with #{seed_id.gsub(%r{https?://}, '')}") if logger.respond_to?(:debug) &&
+                                                                                           seeding && !seed_id.nil?
         return seed_id.gsub(%r{https?://}, '') if seeding && !seed_id.nil?
 
         #Generate a new DMP ID
@@ -101,8 +99,8 @@ module Uc3DmpId
           SK: json['SK'],
           dmproadmap_related_identifiers: citable_identifiers
         }
-        logger.debug(message: "Fetching citations", details: citable_identifiers)
-        publisher.publish(source: 'DmpUpdater', dmp: json, event_type: 'Citation Fetch', detail: citer_detail, logger: logger)
+        logger.debug(message: "Fetching citations", details: citable_identifiers) if logger.respond_to?(:debug)
+        publisher.publish(source: 'DmpCreator', dmp: json, event_type: 'Citation Fetch', detail: citer_detail, logger: logger)
         true
       end
     end
