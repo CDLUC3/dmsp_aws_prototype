@@ -17,7 +17,7 @@ RSpec.describe 'Uc3DmpId::Deleter' do
   let!(:dmp) do
     record = mock_dmp
     record['dmp']['PK'] = p_key
-    record['dmp']['SK'] = "#{Uc3DmpId::Helper::DMP_LATEST_VERSION}"
+    record['dmp']['SK'] = Uc3DmpId::Helper::DMP_LATEST_VERSION
     record['dmp']['dmphub_provenance_id'] = owner['PK']
     record
   end
@@ -30,25 +30,32 @@ RSpec.describe 'Uc3DmpId::Deleter' do
     it 'raises an DeleterError when :p_key is not a String' do
       expect { described_class.tombstone(provenance: owner, p_key: 123) }.to raise_error(deleter_error)
     end
+
     it 'raises an DeleterError when :provenance is not a Hash' do
-      expect { described_class.tombstone(provenance: owner, p_key: p_key) }.to raise_error(deleter_error)
+      expect { described_class.tombstone(provenance: 123, p_key: p_key) }.to raise_error(deleter_error)
     end
+
     it 'raises an DeleterError when :provenance does not have a :PK' do
+      owner.delete('PK')
       expect { described_class.tombstone(provenance: owner, p_key: p_key) }.to raise_error(deleter_error)
     end
+
     it 'raises an DeleterError when the DMP ID could not be found' do
       allow(Uc3DmpId::Finder).to receive(:by_pk).and_return(nil)
       expect { described_class.tombstone(provenance: owner, p_key: p_key) }.to raise_error(deleter_error)
     end
+
     it 'raises an DeleterError when :provenance does not match the DMP ID\'s :dmphub_provenance_id' do
       allow(Uc3DmpId::Finder).to receive(:by_pk).and_return(dmp)
       expect { described_class.tombstone(provenance: updater, p_key: p_key) }.to raise_error(deleter_error)
     end
+
     it 'raises an DeleterError when it is not the latest version of the DMP ID' do
       dmp['dmp']['SK'] = "#{Uc3DmpId::Helper::SK_DMP_PREFIX}2020-03-15T11:22:33Z"
       allow(Uc3DmpId::Finder).to receive(:by_pk).and_return(dmp)
       expect { described_class.tombstone(provenance: owner, p_key: p_key) }.to raise_error(deleter_error)
     end
+
     it 'tombstones the DMP ID' do
       allow(Uc3DmpId::Finder).to receive(:by_pk).and_return(dmp)
       allow(client).to receive(:put_item).and_return(dmp['dmp'])
@@ -69,6 +76,7 @@ RSpec.describe 'Uc3DmpId::Deleter' do
     it 'returns false unless :json is a Hash' do
       expect(described_class.send(:_post_process, json: 123)).to be(false)
     end
+
     it 'publishes an `EZID update` event to EventBridge if the owner of the DMP ID is the one making the update' do
       described_class.send(:_post_process, json: dmp['dmp'])
       expected = {

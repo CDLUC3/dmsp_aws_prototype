@@ -5,12 +5,14 @@ require 'time'
 module Uc3DmpId
   class AsserterError < StandardError; end
 
+  # Class that handles changes to a DMP ID's :dmphub_modifications section
   class Asserter
     DEFAULT_DESCRIPTOR = 'references'
     DEFAULT_WORK_TYPE = 'other'
 
     class << self
       # Add assertions to a DMP ID - this is performed by non-provenance systems
+      # rubocop:disable Metrics/AbcSize, Metrics/PerceivedComplexity, Metrics/CyclomaticComplexity
       def add(updater:, latest_version:, modified_version:, note: nil, logger: nil)
         return latest_version unless latest_version.is_a?(Hash)
 
@@ -31,13 +33,14 @@ module Uc3DmpId
         end
         return latest_version unless !funding.nil? && funding.any?
 
-        latest_version = _add_funding_mod(updater: updater, latest_version: latest_version, funding: funding,
-                                          note: note, logger: logger)
-        latest_version
+        _add_funding_mod(updater: updater, latest_version: latest_version, funding: funding,
+                         note: note, logger: logger)
       end
+      # rubocop:enable Metrics/AbcSize, Metrics/PerceivedComplexity, Metrics/CyclomaticComplexity
 
       # Splice together assertions made by the owner of the DMP ID so that any :dmphub_modifications made to
       # the record while it was being updated are not lost
+      # rubocop:disable Metrics/AbcSize
       def splice(latest_version:, modified_version:, logger: nil)
         # Return the modified_version if the timestamps are the same OR neither version has :dmphub_modifications
         return modified_version if latest_version['modified'] == modified_version['modified'] ||
@@ -47,8 +50,14 @@ module Uc3DmpId
         # Clone any existing :dmphub_modifications on the current DMP ID so we can retain them
         existing_assertions = Helper.deep_copy_dmp(obj: latest_version.fetch('dmphub_modifications', []))
         incoming_assertions = Helper.deep_copy_dmp(obj: modified_version.fetch('dmphub_modifications', []))
-        logger.debug(message: "Existing dmphub_modifications", details: existing_assertions) if logger.respond_to?(:debug)
-        logger.debug(message: "Incoming dmphub_modifications", details: incoming_assertions) if logger.respond_to?(:debug)
+        if logger.respond_to?(:debug)
+          logger.debug(message: 'Existing dmphub_modifications',
+                       details: existing_assertions)
+        end
+        if logger.respond_to?(:debug)
+          logger.debug(message: 'Incoming dmphub_modifications',
+                       details: incoming_assertions)
+        end
 
         # Keep any :dmphub_modifications and then add the incoming to the Array
         modified_version['dmphub_modifications'] = existing_assertions
@@ -58,15 +67,22 @@ module Uc3DmpId
         incoming_assertions.each { |entry| modified_version['dmphub_modifications'] << entry }
         modified_version
       end
+      # rubocop:enable Metrics/AbcSize
 
       private
 
       # Verify that the DMP ID record does not already have the specified identifiers and then add them
       # to the :latest_version in the :dmphub_modifications Array
+      #
+      # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
+      # rubocop:disable Metrics/PerceivedComplexity, Metrics/CyclomaticComplexity
       def _add_related_identifier(updater:, latest_version:, identifiers:, note: '', logger: nil)
         return latest_version unless updater.is_a?(String) && latest_version.is_a?(Hash) && identifiers.is_a?(Array)
 
-        known_mods = latest_version['dmphub_modifications'].map { |mod| mod.fetch('dmproadmap_related_identifiers', []) }
+        latest_version['dmphub_modifications'] = [] if latest_version['dmphub_modifications'].nil?
+        known_mods = latest_version['dmphub_modifications'].map do |mod|
+          mod.fetch('dmproadmap_related_identifiers', [])
+        end
         known_mods = known_mods.flatten.compact.map { |mod| mod['identifier'].downcase.strip }.compact.uniq
 
         asserted = latest_version.fetch('dmproadmap_related_identifiers', [])
@@ -75,10 +91,13 @@ module Uc3DmpId
         additions = []
         identifiers.each do |related_identifier|
           # Skip if there is no :type or :identifier value
-          next if !related_identifier.is_a?(Hash) || related_identifier['type'].nil? || related_identifier['identifier'].nil?
+          if !related_identifier.is_a?(Hash) || related_identifier['type'].nil? || related_identifier['identifier'].nil?
+            next
+          end
 
           id = related_identifier['identifier'].downcase.strip
-          # Skip if the :identifier is already listed in :dmphub_modifications or the :dmproadmap_related_identifiers Arrays
+          # Skip if the :identifier is already listed in :dmphub_modifications or the
+          # :dmproadmap_related_identifiers Arrays
           next if known_mods.include?(id) || asserted.include?(id)
 
           related_identifier['work_type'] = DEFAULT_WORK_TYPE if related_identifier['work_type'].nil?
@@ -89,13 +108,21 @@ module Uc3DmpId
         latest_version['dmproadmap_related_identifiers'] = [] if latest_version['dmproadmap_related_identifiers'].nil?
         assertion = _generate_assertion(updater: updater, note: note,
                                         mods: JSON.parse({ dmproadmap_related_identifiers: additions }.to_json))
-        logger.debug(message: 'Adding change to :dmphub_modifications.', details: assertion) if logger.respond_to?(:debug)
+        if logger.respond_to?(:debug)
+          logger.debug(message: 'Adding change to :dmphub_modifications.',
+                       details: assertion)
+        end
         latest_version['dmphub_modifications'] << assertion
         latest_version
       end
+      # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
+      # rubocop:enable Metrics/PerceivedComplexity, Metrics/CyclomaticComplexity
 
       # Verify that the DMP ID record does not already have the specified funding change and then add it
       # to the :latest_version in the :dmphub_modifications Array
+      #
+      # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
+      # rubocop:disable Metrics/PerceivedComplexity, Metrics/CyclomaticComplexity
       def _add_funding_mod(updater:, latest_version:, funding:, note: '', logger: nil)
         return latest_version unless updater.is_a?(String) && latest_version.is_a?(Hash) && funding.is_a?(Array)
 
@@ -109,7 +136,7 @@ module Uc3DmpId
         asserted = latest_version.fetch('project', [])&.map do |project|
           next if project.nil?
 
-          project&.fetch('funding', []).first&.fetch('grant_id', {})['identifier']&.downcase&.strip
+          project&.fetch('funding', [])&.first&.fetch('grant_id', {})&.[]('identifier')&.downcase&.strip
         end
         asserted = asserted.flatten.compact.uniq
 
@@ -125,10 +152,15 @@ module Uc3DmpId
         mod = JSON.parse({ funding: fund }.to_json)
         mod['funding']['funding_status'] = 'granted'
         assertion = _generate_assertion(updater: updater, mods: mod, note: note)
-        logger.debug(message: 'Adding change to :dmphub_modifications.', details: assertion) if logger.respond_to?(:debug)
+        if logger.respond_to?(:debug)
+          logger.debug(message: 'Adding change to :dmphub_modifications.',
+                       details: assertion)
+        end
         latest_version['dmphub_modifications'] << assertion
         latest_version
       end
+      # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
+      # rubocop:enable Metrics/PerceivedComplexity, Metrics/CyclomaticComplexity
 
       # Generate an assertion entry. For example:
       #

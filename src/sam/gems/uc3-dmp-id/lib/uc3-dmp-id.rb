@@ -18,7 +18,7 @@ require 'uc3-dmp-id/versioner'
 require 'uc3-dmp-id/schemas/amend'
 require 'uc3-dmp-id/schemas/author'
 
+# Support for working with DMP IDs
 module Uc3DmpId
-
 end
 # rubocop:enable Naming/FileName

@@ -16,7 +16,7 @@ Gem::Specification.new do |spec|
   spec.license     = 'MIT'
 
   spec.files         = Dir['lib/**/*'] + Dir['schemas/*.json'] + %w[README.md]
-  spec.require_paths = ['lib', 'schemas']
+  spec.require_paths = %w[lib schemas]
   spec.required_ruby_version = '>= 2.7'
 
   spec.add_runtime_dependency('json', '~> 2.6')
@@ -25,11 +25,5 @@ Gem::Specification.new do |spec|
   spec.add_runtime_dependency('uc3-dmp-dynamo', '~> 0.0')
   spec.add_runtime_dependency('uc3-dmp-event-bridge', '~> 0.0')
 
-  # Requirements for running RSpec
-  spec.add_development_dependency('byebug', '11.1.3')
-  spec.add_development_dependency('rspec', '3.9.0')
-  spec.add_development_dependency('rubocop', '1.50.2')
-  spec.add_development_dependency('rubocop-rspec', '2.20.0')
-
-  spec.metadata['rubygems_mfa_required'] = 'false'
+  spec.metadata['rubygems_mfa_required'] = 'true'
 end

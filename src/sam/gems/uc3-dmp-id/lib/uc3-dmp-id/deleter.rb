@@ -19,7 +19,7 @@ module Uc3DmpId
 
         # Fetch the latest version of the DMP ID by it's PK
         client = Uc3DmpDynamo::Client.new
-        dmp = Finder.by_pk(p_key: p_key, client: client, logger: logger)
+        dmp = Finder.by_pk(p_key: p_key, client: client, cleanse: false, logger: logger)
         raise DeleterError, Helper::MSG_DMP_NOT_FOUND unless dmp.is_a?(Hash) && !dmp['dmp'].nil?
 
         # Only allow this if the provenance is the owner of the DMP!
@@ -30,7 +30,7 @@ module Uc3DmpId
         # Annotate the DMP ID
         dmp['dmp']['SK'] = Helper::DMP_TOMBSTONE_VERSION
         dmp['dmp']['title'] = "OBSOLETE: #{dmp['dmp']['title']}"
-        logger.info(message: "Tomstoning DMP ID: #{p_key}") if logger.respond_to?(:debug)
+        logger.info(message: "Tombstoning DMP ID: #{p_key}") if logger.respond_to?(:debug)
 
         # Set the :modified timestamps
         now = Time.now.utc.iso8601
@@ -42,7 +42,7 @@ module Uc3DmpId
         raise DeleterError, Helper::MSG_DMP_NO_TOMBSTONE if resp.nil?
 
         # Delete the Latest version
-        resp = client.delete_item(p_key: p_key, s_key: Helper::SK_DMP_PREFIX, logger: logger)
+        client.delete_item(p_key: p_key, s_key: Helper::DMP_LATEST_VERSION, logger: logger)
 
         # TODO: We should do a check here to see if it was successful!
 
@@ -52,8 +52,8 @@ module Uc3DmpId
         # Return the tombstoned record
         Helper.cleanse_dmp_json(json: dmp)
       rescue Aws::Errors::ServiceError => e
-        logger.error(message: e.message, details: e.backtrace) unless logger.nil?
-        { status: 500, error: Helper::MSG_SERVER_ERROR }
+        logger.error(message: e.message, details: e.backtrace) if logger.respond_to?(:error)
+        raise DeleterError, Helper::MSG_SERVER_ERROR
       end
       # rubocop:enable Metrics/MethodLength, Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 

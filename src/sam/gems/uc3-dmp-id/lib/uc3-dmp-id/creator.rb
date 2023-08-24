@@ -6,12 +6,15 @@ require 'time'
 module Uc3DmpId
   class CreatorError < StandardError; end
 
+  # Class that registers a new DMP ID
   class Creator
     MSG_NO_BASE_URL = 'No base URL found for DMP ID (e.g. `doi.org`)'
     MSG_NO_SHOULDER = 'No DOI shoulder found. (e.g. `10.12345/`)'
     MSG_UNABLE_TO_MINT = 'Unable to mint a unique DMP ID.'
 
     class << self
+      # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
+      # rubocop:disable Metrics/PerceivedComplexity, Metrics/CyclomaticComplexity
       def create(provenance:, json:, logger: nil)
         raise CreatorError, MSG_NO_SHOULDER if ENV['DMP_ID_SHOULDER'].nil?
         raise CreatorError, MSG_NO_BASE_URL if ENV['DMP_ID_BASE_URL'].nil?
@@ -26,8 +29,9 @@ module Uc3DmpId
 
         # Try to find it by the :dmp_id first and Fail if found
         dmp_id = Helper.dmp_id_to_pk(json: json.fetch('dmp', {})['dmp_id'])
-        result = Finder.exists?(json: dmp_id, logger: logger) unless dmp_id.nil?
+        result = Finder.exists?(p_key: dmp_id, logger: logger) unless dmp_id.nil?
         raise CreatorError, Helper::MSG_DMP_EXISTS if result.is_a?(Hash)
+
         # raise CreatorError, Uc3DmpId::MSG_DMP_EXISTS unless json['PK'].nil?
 
         client = Uc3DmpDynamo::Client.new
@@ -50,9 +54,12 @@ module Uc3DmpId
         _post_process(json: annotated, logger: logger)
         Helper.cleanse_dmp_json(json: JSON.parse({ dmp: annotated }.to_json))
       end
+      # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
+      # rubocop:enable Metrics/PerceivedComplexity, Metrics/CyclomaticComplexity
 
       private
 
+      # rubocop:disable Metrics/AbcSize, Metrics/PerceivedComplexity, Metrics/CyclomaticComplexity
       def _preregister_dmp_id(client:, provenance:, json:, logger: nil)
         # Use the specified DMP ID if the provenance has permission
         seeding = provenance.fetch('seedingWithLiveDmpIds', false).to_s.downcase == 'true'
@@ -63,11 +70,11 @@ module Uc3DmpId
                                                                                            seeding && !seed_id.nil?
         return seed_id.gsub(%r{https?://}, '') if seeding && !seed_id.nil?
 
-        #Generate a new DMP ID
+        # Generate a new DMP ID
         dmp_id = ''
         counter = 0
         while dmp_id == '' && counter <= 10
-          prefix = "#{ENV['DMP_ID_SHOULDER']}#{SecureRandom.hex(2).upcase}#{SecureRandom.hex(2)}"
+          prefix = "#{ENV.fetch('DMP_ID_SHOULDER', nil)}#{SecureRandom.hex(2).upcase}#{SecureRandom.hex(2)}"
           dmp_id = prefix unless Finder.exists?(client: client, p_key: prefix)
           counter += 1
         end
@@ -78,7 +85,7 @@ module Uc3DmpId
         url = ENV['DMP_ID_BASE_URL'].gsub(%r{https?://}, '')
         "#{Helper::PK_DMP_PREFIX}#{url.end_with?('/') ? url : "#{url}/"}#{dmp_id}"
       end
-      # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+      # rubocop:enable Metrics/AbcSize, Metrics/PerceivedComplexity, Metrics/CyclomaticComplexity
 
       # Once the DMP has been created, we need to register it's DMP ID
       # -------------------------------------------------------------------------
@@ -99,8 +106,9 @@ module Uc3DmpId
           SK: json['SK'],
           dmproadmap_related_identifiers: citable_identifiers
         }
-        logger.debug(message: "Fetching citations", details: citable_identifiers) if logger.respond_to?(:debug)
-        publisher.publish(source: 'DmpCreator', dmp: json, event_type: 'Citation Fetch', detail: citer_detail, logger: logger)
+        logger.debug(message: 'Fetching citations', details: citable_identifiers) if logger.respond_to?(:debug)
+        publisher.publish(source: 'DmpCreator', dmp: json, event_type: 'Citation Fetch', detail: citer_detail,
+                          logger: logger)
         true
       end
     end

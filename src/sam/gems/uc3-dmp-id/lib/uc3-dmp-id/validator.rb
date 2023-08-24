@@ -5,6 +5,7 @@ require 'json-schema'
 module Uc3DmpId
   class Uc3DmpIdValidatorError < StandardError; end
 
+  # Method that compares incoming JSON against our JSON Schema and provides detailed errors
   class Validator
     # Valid Validation modes are:
     #   - :author --> system of provenance is attempting to create or update
@@ -20,8 +21,7 @@ module Uc3DmpId
 
     class << self
       # Validate the specified DMP's :json against the schema for the specified :mode
-      #
-      # ------------------------------------------------------------------------------------
+      # rubocop:disable Metrics/AbcSize
       def validate(mode:, json:)
         json = Helper.parse_json(json: json)
         return [MSG_EMPTY_JSON] if json.nil? || !VALIDATION_MODES.include?(mode)
@@ -38,6 +38,7 @@ module Uc3DmpId
       rescue JSON::Schema::ValidationError => e
         ["#{MSG_INVALID_JSON} - #{e.message}"]
       end
+      # rubocop:enable Metrics/AbcSize
 
       # ------------------------------------------------------------------------------------
       # METHODS BELOW ARE ONLY MEANT TO BE INVOKED FROM WITHIN THIS MODULE
@@ -47,12 +48,13 @@ module Uc3DmpId
       # ------------------------------------------------------------------------------------
       def _load_schema(mode:)
         # Instatiate the matching schema
-        schema = "Uc3DmpId::Schemas::#{mode.to_s.downcase.capitalize}".split('::').inject(Object) { |o,c| o.const_get c }
+        schema = "Uc3DmpId::Schemas::#{mode.to_s.downcase.capitalize}".split('::').inject(Object) do |o, c|
+          o.const_get c
+        end
         schema.respond_to?(:load) ? schema.load : nil
       rescue NameError
         nil
       end
-
     end
   end
 end

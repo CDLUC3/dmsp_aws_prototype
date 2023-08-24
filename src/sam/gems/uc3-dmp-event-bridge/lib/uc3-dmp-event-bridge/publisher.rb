@@ -33,7 +33,7 @@ module Uc3DmpEventBridge
 
       message = {
         entries: [{
-          time: Time.now,
+          time: Time.now.utc.iso8601,
           source: "#{ENV.fetch('DOMAIN', nil)}:lambda:event_publisher",
           detail_type: event_type.to_s,
           detail: detail,

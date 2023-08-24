@@ -1,9 +1,7 @@
 # frozen_string_literal: true
 
-
 # TODO: Be sure to update the API functions so that they call cleanse_dmp_json before
 #       calling Uc3DmpApiCore::Responder.respond !!!!!!!!!!
-
 
 module Uc3DmpId
   # Helper functions for working with DMP IDs
@@ -129,6 +127,7 @@ module Uc3DmpId
       end
 
       # Compare the DMP IDs to see if they are the same
+      # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
       def eql?(dmp_a:, dmp_b:)
         return dmp_a == dmp_b unless dmp_a.is_a?(Hash) && !dmp_a['dmp'].nil? && dmp_b.is_a?(Hash) && !dmp_b['dmp'].nil?
 
@@ -167,7 +166,8 @@ module Uc3DmpId
         return nil unless json.is_a?(Hash)
 
         dmp = json['dmp'].nil? ? json : json['dmp']
-        owner_org = dmp.fetch('contact', {}).fetch('dmproadmap_affiliation', {}).fetch('affiliation_id', {})['identifier']
+        owner_org = dmp.fetch('contact', {}).fetch('dmproadmap_affiliation', {}).fetch('affiliation_id',
+                                                                                       {})['identifier']
         return owner_org unless owner_org.nil?
 
         orgs = dmp.fetch('contributor', []).map do |contributor|
@@ -175,8 +175,10 @@ module Uc3DmpId
         end
         orgs.compact.max_by { |i| orgs.count(i) }
       end
+      # rubocop:enable Metrics/AbcSize
 
       # Add DMPHub specific fields to the DMP ID JSON
+      # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
       def annotate_dmp_json(provenance:, p_key:, json:)
         json = parse_json(json: json)
         bool_vals = [1, '1', true, 'true', 'yes']
@@ -201,7 +203,7 @@ module Uc3DmpId
         annotated['dmproadmap_featured'] = bool_vals.include?(featured.to_s.downcase) ? '1' : '0'
 
         # Update the modification timestamps
-        annotated['dmphub_modification_day'] = Time.now.strftime('%Y-%m-%d')
+        annotated['dmphub_modification_day'] = Time.now.utc.strftime('%Y-%m-%d')
         annotated['dmphub_owner_id'] = owner_id unless owner_id.nil?
         annotated['dmphub_owner_org'] = owner_org unless owner_org.nil?
         return annotated unless json['dmphub_provenance_id'].nil?
@@ -222,6 +224,8 @@ module Uc3DmpId
         end
         annotated
       end
+      # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
+      # rubocop:enable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
       # Recursive method that strips out any DMPHub related metadata from a DMP record before sending
       # it to the caller
@@ -301,8 +305,8 @@ module Uc3DmpId
 
         # Remove the homepage or callbackUri because we will add this when needed. we just want the id
         val = value.downcase
-                  .gsub(provenance.fetch('callbackUri', '').downcase, '')
-                  .gsub(provenance.fetch('homepage', '').downcase, '')
+                   .gsub(provenance.fetch('callbackUri', '').downcase, '')
+                   .gsub(provenance.fetch('homepage', '').downcase, '')
         val = val.gsub(%r{https?://}, '')
         val = val[1..val.length] if val.start_with?('/')
         id = provenance['PK']&.gsub('PROVENANCE#', '')

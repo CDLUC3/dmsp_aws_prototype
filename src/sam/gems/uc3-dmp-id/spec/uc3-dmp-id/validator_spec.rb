@@ -114,7 +114,6 @@ RSpec.describe 'Uc3DmpId::Validator' do
       # The complete JSON should pass for all modes
       Uc3DmpId::Validator::VALIDATION_MODES.each do |mode|
         it "is valid for mode #{mode}" do
-          response = described_class.validate(mode: 'author', json: json)
           expect(described_class.validate(mode: 'author', json: json)).to eql([])
         end
       end
