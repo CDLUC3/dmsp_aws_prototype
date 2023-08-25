@@ -25,5 +25,5 @@ Gem::Specification.new do |spec|
   spec.add_runtime_dependency('uc3-dmp-dynamo', '~> 0.0')
   spec.add_runtime_dependency('uc3-dmp-event-bridge', '~> 0.0')
 
-  spec.metadata['rubygems_mfa_required'] = 'true'
+  spec.metadata['rubygems_mfa_required'] = 'false'
 end

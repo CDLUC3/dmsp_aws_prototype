@@ -85,7 +85,7 @@ function Landing() {
             contact: getValue(dmp, "contact", {}),
             contributors: getValue(dmp, "contributor", []),
             datasets: getValue(dmp, "dataset", []),
-            related_identifiers: filterWorks(getValue(dmp, "dmproadmap_related_identifiers", [])),
+            related_identifiers: getValue(dmp, "dmproadmap_related_identifiers", []),
             versions: getValue(dmp, "dmphub_versions", []),
           });
         } else {
@@ -190,7 +190,7 @@ function Landing() {
       }
 
       {(formData.related_identifiers && formData.related_identifiers.length > 0) &&
-        <Works works={formData.related_identifiers}/>
+        <Works works={filterWorks(formData.related_identifiers)}/>
       }
 
       <Footer/>
