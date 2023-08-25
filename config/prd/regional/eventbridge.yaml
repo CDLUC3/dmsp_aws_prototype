@@ -1,0 +1,14 @@
+template:
+  path: eventbridge.yaml
+  type: file
+
+parameters:
+  Env: !stack_attr sceptre_user_data.env
+
+  SsmPath: !stack_attr sceptre_user_data.ssm_path
+
+  DomainName: !stack_attr sceptre_user_data.domain
+
+  # Log and Archive retention
+  LogRetentionDays: '7'
+  ArchiveRetentionDays: '7'
