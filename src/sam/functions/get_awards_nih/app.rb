@@ -43,7 +43,7 @@ module Functions
         years: params[:fiscal_years],
         pi_names: _prepare_pi_names_for_search(pi_names: params[:pi_names]),
         opportunity_nbrs: [params[:opportunity_nbr]],
-        project_nums: [params[:project_num]]
+        project_nums: [params[:project_num]],
         title: params[:title]
       )
 
@@ -59,12 +59,18 @@ module Functions
       _respond(status: 200, items: results.compact.uniq, event: event, params: params)
     rescue Uc3DmpExternalApi::ExternalApiError => e
       logger.error(message: e.message, details: e.backtrace)
+      deets = { message: e.message, query_string: params }
+      Uc3DmpApiCore::Notifier.notify_administrator(source: SOURCE, details: deets, event: event)
       _respond(status: 500, errors: [Uc3DmpApiCore::MSG_SERVER_ERROR], event: event)
     rescue Aws::Errors::ServiceError => e
       logger.error(message: e.message, details: e.backtrace)
+      deets = { message: e.message, query_string: params }
+      Uc3DmpApiCore::Notifier.notify_administrator(source: SOURCE, details: deets, event: event)
       _respond(status: 500, errors: [Uc3DmpApiCore::MSG_SERVER_ERROR], event: event)
     rescue StandardError => e
       logger.error(message: e.message, details: e.backtrace) unless logger.nil?
+      deets = { message: e.message, query_string: params }
+      Uc3DmpApiCore::Notifier.notify_administrator(source: SOURCE, details: deets, event: event)
       { statusCode: 500, body: { errors: [Uc3DmpApiCore::MSG_SERVER_ERROR] }.to_json }
     end
 
@@ -79,7 +85,7 @@ module Functions
           project_num: params.fetch('project', ''),
           opportunity_nbr: params.fetch('opportunity', ''),
           pi_names: params.fetch('pi_names', ''),
-          title: params.fetch('keyword', ''),
+          title: params.fetch('keywords', ''),
           fiscal_years: fiscal_years.split(',').map(&:to_i)
         }
       end

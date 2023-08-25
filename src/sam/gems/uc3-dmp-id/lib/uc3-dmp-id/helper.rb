@@ -1,9 +1,7 @@
 # frozen_string_literal: true
 
-
 # TODO: Be sure to update the API functions so that they call cleanse_dmp_json before
 #       calling Uc3DmpApiCore::Responder.respond !!!!!!!!!!
-
 
 module Uc3DmpId
   # Helper functions for working with DMP IDs
@@ -15,11 +13,29 @@ module Uc3DmpId
     SK_DMP_REGEX = /VERSION#\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\+\d{2}:\d{2}/.freeze
 
     # TODO: Verify the assumed structure of the DOI is valid
-    DOI_REGEX = %r{[0-9]{2}\.[0-9]{5}/[a-zA-Z0-9/_.-]+}.freeze
+    DOI_REGEX = %r{[0-9]{2}\.[0-9]{4,}/[a-zA-Z0-9/_.-]+}.freeze
     URL_REGEX = %r{(https?://)?([a-zA-Z0-9\-_]\.)+[a-zA-Z0-9\-_]{2,3}(:[0-9]+)?/?}.freeze
 
     DMP_LATEST_VERSION = "#{SK_DMP_PREFIX}latest"
     DMP_TOMBSTONE_VERSION = "#{SK_DMP_PREFIX}tombstone"
+
+    DEFAULT_API_URL = 'https://api.dmphub.uc3dev.cdlib.net/dmps/'
+    DEFAULT_LANDING_PAGE_URL = 'https://dmphub.uc3dev.cdlib.net/dmps/'
+
+    MSG_DMP_EXISTS = 'DMP already exists. Try :update instead.'
+    MSG_DMP_FORBIDDEN = 'You do not have permission.'
+    MSG_DMP_INVALID_DMP_ID = 'Invalid DMP ID format.'
+    MSG_DMP_NO_DMP_ID = 'A DMP ID could not be registered at this time.'
+    MSG_DMP_NO_HISTORICALS = 'You cannot modify a historical version of the DMP.'
+    MSG_DMP_NO_TOMBSTONE = 'Unable to tombstone the DMP ID at this time.'
+    MSG_DMP_NO_UPDATE = 'Unable to update the DMP ID at this time.'
+    MSG_DMP_NOT_FOUND = 'DMP does not exist.'
+    MSG_DMP_UNABLE_TO_VERSION = 'Unable to version this DMP.'
+    MSG_DMP_UNKNOWN = 'DMP does not exist. Try :create instead.'
+    MSG_NO_CHANGE = 'The updated record has no changes.'
+    MSG_NO_OWNER_ORG = 'Could not determine ownership of the DMP ID.'
+    MSG_NO_PROVENANCE_OWNER = 'Unable to determine the provenance of the DMP ID.'
+    MSG_SERVER_ERROR = 'Something went wrong.'
 
     class << self
       # Append the PK prefix for the object
@@ -48,19 +64,13 @@ module Uc3DmpId
 
       # Return the base URL for a DMP ID
       def dmp_id_base_url
-        url = ENV.fetch('DMP_ID_BASE_URL', 'https://dmphub.uc3dev.cdlib.net/dmps/')
+        url = ENV.fetch('DMP_ID_BASE_URL', DEFAULT_LANDING_PAGE_URL)
         url&.end_with?('/') ? url : "#{url}/"
       end
 
       # The landing page URL (NOT the DOI URL)
       def landing_page_url
-        url = ENV.fetch('DMP_ID_LANDING_URL', 'https://dmphub.uc3dev.cdlib.net/dmps/')
-        url&.end_with?('/') ? url : "#{url}/"
-      end
-
-      # Return the base URL for the API
-      def api_base_url
-        url = ENV.fetch('DMP_ID_BASE_URL', 'https://api.dmphub.uc3dev.cdlib.net/dmps/')
+        url = ENV.fetch('DMP_ID_LANDING_URL', DEFAULT_LANDING_PAGE_URL)
         url&.end_with?('/') ? url : "#{url}/"
       end
 
@@ -69,7 +79,7 @@ module Uc3DmpId
         dmp_id = value.match(DOI_REGEX).to_s
         return nil if dmp_id.nil? || dmp_id == ''
         # If it's already a URL, return it as is
-        return value if value.start_with?('http')
+        return with_protocol ? value : value.gsub(%r{https?://}, '') if value.start_with?('http')
 
         dmp_id = dmp_id.gsub('doi:', '')
         dmp_id = dmp_id.start_with?('/') ? dmp_id[1..dmp_id.length] : dmp_id
@@ -90,7 +100,7 @@ module Uc3DmpId
 
       # Append the :PK prefix to the :dmp_id
       def dmp_id_to_pk(json:)
-        return nil if json.nil? || json['identifier'].nil?
+        return nil if !json.is_a?(Hash) || json['identifier'].nil?
 
         # If it's a DOI format it correctly
         dmp_id = format_dmp_id(value: json['identifier'].to_s)
@@ -117,6 +127,7 @@ module Uc3DmpId
       end
 
       # Compare the DMP IDs to see if they are the same
+      # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
       def eql?(dmp_a:, dmp_b:)
         return dmp_a == dmp_b unless dmp_a.is_a?(Hash) && !dmp_a['dmp'].nil? && dmp_b.is_a?(Hash) && !dmp_b['dmp'].nil?
 
@@ -132,9 +143,9 @@ module Uc3DmpId
         b = deep_copy_dmp(obj: dmp_b)
 
         # ignore some of the attributes before comparing
-        %w[SK dmphub_modification_day modified created dmphub_assertions].each do |key|
-        a['dmp'].delete(key) unless a['dmp'][key].nil?
-        b['dmp'].delete(key) unless b['dmp'][key].nil?
+        %w[SK dmphub_modification_day modified created dmphub_versions].each do |key|
+          a['dmp'].delete(key) unless a['dmp'][key].nil?
+          b['dmp'].delete(key) unless b['dmp'][key].nil?
         end
         a == b
       end
@@ -147,7 +158,7 @@ module Uc3DmpId
         id = dmp.fetch('contact', {}).fetch('contact_id', {})['identifier']
         return id unless id.nil?
 
-        dmp.fetch('contributor', []).map { |contributor| contributor.fetch('contact_id', {})['identifier'] }.first
+        dmp.fetch('contributor', []).map { |contributor| contributor.fetch('contributor_id', {})['identifier'] }.first
       end
 
       # Extract the Contact's affiliaiton ROR ID
@@ -155,7 +166,8 @@ module Uc3DmpId
         return nil unless json.is_a?(Hash)
 
         dmp = json['dmp'].nil? ? json : json['dmp']
-        owner_org = dmp.fetch('contact', {}).fetch('dmproadmap_affiliation', {}).fetch('affiliation_id', {})['identifier']
+        owner_org = dmp.fetch('contact', {}).fetch('dmproadmap_affiliation', {}).fetch('affiliation_id',
+                                                                                       {})['identifier']
         return owner_org unless owner_org.nil?
 
         orgs = dmp.fetch('contributor', []).map do |contributor|
@@ -163,8 +175,10 @@ module Uc3DmpId
         end
         orgs.compact.max_by { |i| orgs.count(i) }
       end
+      # rubocop:enable Metrics/AbcSize
 
       # Add DMPHub specific fields to the DMP ID JSON
+      # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
       def annotate_dmp_json(provenance:, p_key:, json:)
         json = parse_json(json: json)
         bool_vals = [1, '1', true, 'true', 'yes']
@@ -179,7 +193,7 @@ module Uc3DmpId
         annotated['SK'] = DMP_LATEST_VERSION
 
         # Ensure that the :dmp_id matches the :PK
-        annotated['dmp_id'] = pk_to_dmp_id(p_key: remove_pk_prefix(p_key: annotated['PK']))
+        annotated['dmp_id'] = JSON.parse(pk_to_dmp_id(p_key: remove_pk_prefix(p_key: annotated['PK'])).to_json)
 
         owner_id = extract_owner_id(json: json)
         owner_org = extract_owner_org(json: json)
@@ -189,7 +203,7 @@ module Uc3DmpId
         annotated['dmproadmap_featured'] = bool_vals.include?(featured.to_s.downcase) ? '1' : '0'
 
         # Update the modification timestamps
-        annotated['dmphub_modification_day'] = Time.now.strftime('%Y-%m-%d')
+        annotated['dmphub_modification_day'] = Time.now.utc.strftime('%Y-%m-%d')
         annotated['dmphub_owner_id'] = owner_id unless owner_id.nil?
         annotated['dmphub_owner_org'] = owner_org unless owner_org.nil?
         return annotated unless json['dmphub_provenance_id'].nil?
@@ -210,6 +224,8 @@ module Uc3DmpId
         end
         annotated
       end
+      # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
+      # rubocop:enable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
       # Recursive method that strips out any DMPHub related metadata from a DMP record before sending
       # it to the caller
@@ -220,7 +236,7 @@ module Uc3DmpId
         return json.map { |obj| cleanse_dmp_json(json: obj) }.compact if json.is_a?(Array)
 
         cleansed = {}
-        allowable = %w[dmphub_versions]
+        allowable = %w[dmphub_modifications dmphub_versions]
         json.each_key do |key|
           next if (key.to_s.start_with?('dmphub') && !allowable.include?(key)) || %w[PK SK].include?(key.to_s)
 
@@ -231,6 +247,19 @@ module Uc3DmpId
         cleansed.keys.any? ? cleansed : nil
       end
       # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+
+      # Extracts the related identifiers that we can fetch a citation for
+      def citable_related_identifiers(dmp:)
+        return [] unless dmp.is_a?(Hash)
+
+        related_identifiers = dmp.fetch('dmproadmap_related_identifiers', [])
+        # Ignore the identifier that points to the narrative PDF document and any identifiers that
+        # we have already fetched the citation for
+        related_identifiers.reject do |id|
+          (id['work_type'] == 'output_management_plan' && id['descriptor'] == 'is_metadata_for') ||
+            (id['type'] == 'doi' && !id['citation'].nil?)
+        end
+      end
 
       # Ruby's clone/dup methods do not clone/dup the children, so we need to do it here
       # --------------------------------------------------------------
@@ -276,8 +305,8 @@ module Uc3DmpId
 
         # Remove the homepage or callbackUri because we will add this when needed. we just want the id
         val = value.downcase
-                  .gsub(provenance.fetch('callbackUri', '').downcase, '')
-                  .gsub(provenance.fetch('homepage', '').downcase, '')
+                   .gsub(provenance.fetch('callbackUri', '').downcase, '')
+                   .gsub(provenance.fetch('homepage', '').downcase, '')
         val = val.gsub(%r{https?://}, '')
         val = val[1..val.length] if val.start_with?('/')
         id = provenance['PK']&.gsub('PROVENANCE#', '')

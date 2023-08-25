@@ -25,7 +25,7 @@ module Uc3DmpExternalApi
         opts = _options(body: body, basic_auth: basic_auth, additional_headers: additional_headers, logger: logger)
         resp = HTTParty.send(method.to_sym, uri, opts)
 
-        if resp.code != 200
+        if ![200, 201].include?(resp.code)
           msg = "status: #{resp&.code}, body: #{resp&.body}"
           raise ExternalApiError, "#{format(MSG_ERROR_FROM_EXTERNAL_API, url: url)} - #{msg}"
         end
@@ -56,7 +56,7 @@ module Uc3DmpExternalApi
         base = {
           'Content-Type': 'application/json',
           Accept: 'application/json',
-          'User-Agent': "DMPTool #{ENV.fetch('LAMBDA_ENV', nil)} - #{domain} (mailto: #{email})"
+          'User-Agent': "California Digital Library - #{domain} (mailto:#{email})"
         }
         base.merge(additional_headers)
       end
@@ -69,7 +69,7 @@ module Uc3DmpExternalApi
           follow_redirects: true,
           limit: 6
         }
-        opts[:basic_auth] = basic_auth if basic_auth.is_a?(Hash)
+        opts[:basic_auth] = basic_auth if basic_auth.is_a?(Hash) && basic_auth.keys.any?
         # If the body is not already JSON and we intend to send JSON, convert it
         opts[:body] = body.is_a?(Hash) && hdrs['Content-Type'] == 'application/json' ? body.to_json : body
         # If debug is enabled then tap into the HTTParty gem's debug option

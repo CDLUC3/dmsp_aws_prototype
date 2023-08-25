@@ -1,3 +1,4 @@
+import { SanitizeHTML } from '../../utils';
 import { Link } from '../../components/link/link';
 
 function groupByType(works) {
@@ -17,7 +18,12 @@ function Work(props) {
 
   return (
     <li key={idx + 'li'}>
-      <Link href={work.identifier} remote='true' key={idx + 'li a'}/> No citation available.
+      {work.citation !== undefined &&
+        <p><SanitizeHTML html={work.citation}/></p>
+      }
+      {work.citation === undefined &&
+        <p><Link href={work.identifier} remote='true' key={idx + 'li a'}/> No citation available.</p>
+      }
     </li>
   );
 }

@@ -36,12 +36,12 @@ module Functions
       logger = Uc3DmpCloudwatch::Logger.new(source: SOURCE, request_id: req_id, event: event, level: log_level)
 
       funder = event.fetch('pathParameters', {})['funder_id']
-      return Responder.respond(status: 400, errors: MSG_NO_FUNDER) if funder.nil? || funder.empty?
+      return _respond(status: 400, errors: [MSG_NO_FUNDER]) if funder.nil? || funder.empty?
 
       params = event.fetch('queryStringParameters', {})
       pi_names = params.fetch('pi_names', '')
       project_num = params.fetch('project', '')
-      title = params.fetch('keyword', '')
+      title = params.fetch('keywords', '')
       years = params.fetch('years', (Date.today.year..Date.today.year - 3).to_a.join(','))
       years = years.split(',').map(&:to_i)
       return _respond(status: 400, errors: [MSG_BAD_ARGS], event: event) if (project_num.nil? || project_num.empty?) &&
@@ -50,7 +50,7 @@ module Functions
                                                                             (years.nil? || years.empty?)
 
       url = "/#{project_num}" unless project_num.nil? || project_num.empty?
-      url = "?#{_prepare_query_string(funder: funder, pi_names: pi_names, title: title, years: years)}" if url.nil?
+      url = "?#{_prepare_query_string2(funder: funder, pi_names: pi_names, title: title, years: years)}" if url.nil?
       url = "#{API_BASE_URL}#{url}"
       logger.debug(message: "Calling Crossref Award API: #{url}") if logger.respond_to?(:debug)
 
@@ -65,12 +65,18 @@ module Functions
       _respond(status: 200, items: results.compact.uniq, event: event, params: params)
     rescue Uc3DmpExternalApi::ExternalApiError => e
       logger.error(message: e.message, details: e.backtrace)
+      deets = { message: e.message, query_string: params }
+      Uc3DmpApiCore::Notifier.notify_administrator(source: SOURCE, details: deets, event: event)
       _respond(status: 500, errors: [Uc3DmpApiCore::MSG_SERVER_ERROR], event: event)
     rescue Aws::Errors::ServiceError => e
       logger.error(message: e.message, details: e.backtrace)
+      deets = { message: e.message, query_string: params }
+      Uc3DmpApiCore::Notifier.notify_administrator(source: SOURCE, details: deets, event: event)
       _respond(status: 500, errors: [Uc3DmpApiCore::MSG_SERVER_ERROR], event: event)
     rescue StandardError => e
       logger.error(message: e.message, details: e.backtrace)
+      deets = { message: e.message, query_string: params }
+      Uc3DmpApiCore::Notifier.notify_administrator(source: SOURCE, details: deets, event: event)
       { statusCode: 500, body: { errors: [Uc3DmpApiCore::MSG_SERVER_ERROR] }.to_json }
     end
 
@@ -86,6 +92,23 @@ module Functions
           str = str.gsub(":#{k}", URI.encode_www_form_component(val))
         end
         str
+      end
+
+      def _prepare_query_string2(funder:, pi_names: [], title: '', years: [])
+        return '' if funder.nil?
+
+        args = []
+        args << title unless title.nil? || title.to_s.strip == ''
+        args << pi_names.split(',')&.map { |pi| pi.strip  } unless pi_names.nil? || pi_names.to_s.strip == ''
+        args << years if years.is_a?(Array) && years.any?
+        return '' unless args.is_a?(Array) && args.any?
+
+        qs = ['sort=score']
+        qs << "filter=type:grant,funder:#{funder}"
+        args = args.flatten.join(', ')
+        qs << _sanitize_params(str: 'query.bibliographic=%22:args%22', params: { args: args })
+        qs << "mailto=#{ENV.fetch('ADMIN_EMAIL', 'dmptool@ucop.edu')}"
+        qs.join('&')
       end
 
       # Prepare the query string for the API call
@@ -107,6 +130,7 @@ module Functions
           end: "#{years.last}-12-31"
         }
         qs += _sanitize_params(str: ",from-awarded-date::start,until-awarded-date::end", params: filter_params)
+        qs += "&mailto:#{ENV.fetch('ADMIN_EMAIL', 'dmptool@ucop.edu')}"
       end
 
       # Convert the PI info from the response into "Last, First"

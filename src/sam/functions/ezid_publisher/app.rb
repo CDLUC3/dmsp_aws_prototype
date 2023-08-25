@@ -45,8 +45,8 @@ module Functions
     #       {
     #         "version": "0",
     #         "id": "5c9a3747-293c-59d7-dcee-a2210ac034fc",
-    #         "detail-type": "DMP change",
-    #         "source": "dmphub-dev.cdlib.org:lambda:event_publisher",
+    #         "detail-type": "EZID update",
+    #         "source": "dmphub.uc3dev.cdlib.net:lambda:event_publisher",
     #         "account": "1234567890",
     #         "time": "2023-02-14T16:42:06Z",
     #         "region": "us-west-2",
@@ -57,8 +57,7 @@ module Functions
     #           "dmphub_provenance_id": "PROVENANCE#example",
     #           "dmproadmap_links": {
     #             "download": "https://example.com/api/dmps/12345.pdf",
-    #           },
-    #           "dmphub_updater_is_provenance": false
+    #           }
     #         }
     #       }
     #
@@ -101,60 +100,61 @@ module Functions
         # If submissions are paused, toss the event into the EventBridge archive where it can be
         # replayed at a later time
         if paused
-          logger.info("SUBMISSIONS PAUSED: Placing event #{event['id']} in the EventBridge archive.", details: payload)
-          Uc3DmpEventBridge.publish(source: SOURCE, dmp: json, event_type: 'paused', logger: logger)
-          _respond(status: 200, items: [], event: event)
+          logger.info(message: "EZID submissions paused: You can replay events from the archive when ready.",
+                      details: json)
+          deets = { message: "EZID Paused", event_details: json }
+          Uc3DmpApiCore::Notifier.notify_administrator(source: SOURCE, details: deets, event: event)
+        else
+          # Load the DMP metadata
+          dmp = Uc3DmpId::Finder.by_pk(p_key: dmp_pk, logger: logger)
+          # _respond(status: 404, errors: [Uc3DmpId::MSG_DMP_NOT_FOUND], event: event) if dmp.nil?
+
+          dmp_id = dmp.fetch('dmp', {}).fetch('dmp_id', {})['identifier'].gsub(/https?:\/\//, '').gsub(ENV['DMP_ID_BASE_URL'], '')
+          dmp_id = dmp_id.start_with?('/') ? dmp_id[1..dmp_id.length] : dmp_id
+          ezid_url = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :dmp_id_api_url, logger: logger)
+          ezid_url = ezid_url.end_with?('/') ? ezid_url : "#{ezid_url}/"
+          base_url = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :base_url, logger: logger)
+
+          url = "#{ezid_url}id/doi:#{dmp_id}?update_if_exists=yes"
+          landing_page_url = "#{base_url}/dmps/#{dmp_id}"
+          datacite_xml = dmp_to_datacite_xml(dmp_id: dmp_id, dmp: dmp['dmp'])&.gsub(/[\r\n]/, ' ')
+          logger.error(message: "Failed to build DatCite XML for #{dmp_id}", details: dmp) if datacite_xml.nil?
+
+          payload = <<~TEXT
+            _target: #{landing_page_url}
+            datacite: #{datacite_xml}
+          TEXT
+          logger.debug(message: 'Prepared DMP ID metadata for EZID.', details: payload)
+
+          if skip_ezid
+            logger.info(message: 'EZID is currently in Debug mode. Skipping EZID submission', details: payload)
+          else
+            headers = {
+              'Content-Type': 'text/plain',
+              'Accept': 'text/plain'
+            }
+            auth = {
+              username: Uc3DmpApiCore::SsmReader.get_ssm_value(key: :dmp_id_client_id, logger: logger),
+              password: Uc3DmpApiCore::SsmReader.get_ssm_value(key: :dmp_id_client_secret, logger: logger)
+            }
+            logger.info(message: "Sending updated DMP ID metadata to EZID for #{dmp_id}")
+            logger.debug(message: "Sending DMP ID metadata to EZID for #{dmp_id}",
+                        details: { url: url, headers: headers, payload: payload.to_s })
+            resp = Uc3DmpExternalApi::Client.call(url: url, method: :put, body: payload.to_s, basic_auth: auth,
+                                                  additional_headers: headers, logger: logger)
+          end
         end
-
-        # Load the DMP metadata
-        dmp = Uc3DmpId::Finder.by_pk(p_key: dmp_pk, logger: logger)
-        _respond(status: 404, errors: [Uc3DmpId::MSG_DMP_NOT_FOUND], event: event) if dmp.nil?
-
-        dmp_id = dmp.fetch('dmp', {}).fetch('dmp_id', {})['identifier'].gsub(/https?:\/\//, '').gsub(ENV['DMP_ID_BASE_URL'], '')
-        dmp_id = dmp_id.start_with?('/') ? dmp_id[1..dmp_id.length] : dmp_id
-        ezid_url = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :dmp_id_api_url, logger: logger)
-        ezid_url = ezid_url.end_with?('/') ? ezid_url : "#{ezid_url}/"
-        base_url = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :base_url, logger: logger)
-
-        url = "#{ezid_url}id/doi:#{dmp_id}?update_if_exists=yes"
-        landing_page_url = "#{base_url}/dmps/#{dmp_id}"
-        datacite_xml = dmp_to_datacite_xml(dmp_id: dmp_id, dmp: dmp['dmp'])&.gsub(/[\r\n]/, ' ')
-        logger.error(message: "Failed to build DatCite XML for #{dmp_id}", details: dmp) if datacite_xml.nil?
-
-        payload = <<~TEXT
-          _target: #{landing_page_url}
-          datacite: #{datacite_xml}
-        TEXT
-        logger.debug(message: 'Prepared DMP ID metadata for EZID.', details: payload)
-
-        if skip_ezid
-          logger.info(message: 'EZID is currently in Debug mode.', details: payload)
-          _respond(status: 200, items: [], event: event)
-        end
-
-        headers = {
-          'Content-Type': 'text/plain',
-          'Accept': 'text/plain'
-        }
-        auth = {
-          username: Uc3DmpApiCore::SsmReader.get_ssm_value(key: :dmp_id_client_id, logger: logger),
-          password: Uc3DmpApiCore::SsmReader.get_ssm_value(key: :dmp_id_client_secret, logger: logger)
-        }
-        logger.debug(message: "Sending DMP ID metadata to EZID for #{dmp_id}",
-                     details: { url: url, headers: headers, payload: payload.to_s })
-        resp = Uc3DmpExternalApi::Client.call(url: url, method: :put, body: payload.to_s, basic_auth: auth,
-                                              additional_headers: headers, logger: logger)
-        _respond(status: 500, errors: MSG_EZID_FAILURE, event: event) if resp.nil?
-
-        _respond(status: 200, items: [], event: event)
       rescue Uc3DmpId::FinderError => e
         logger.error(message: e.message, details: e.backtrace)
-        _respond(status: 500, errors: [e.message], event: event)
       rescue Uc3DmpExternalApi::ExternalApiError => e
-        _respond(status: 500, errors: [e.message], event: event)
+        # EZID returned an error, so notify the admin. They can replay once the issue is resolved
+        logger.error(message: e.message, details: json)
+        deets = { message: "EZID returned an error #{e.message}", event_details: json}
+        Uc3DmpApiCore::Notifier.notify_administrator(source: SOURCE, details: deets, event: event)
       rescue StandardError => e
         logger.error(message: e.message, details: e.backtrace)
-        { statusCode: 500, body: { errors: [Uc3DmpApiCore::MSG_SERVER_ERROR] }.to_json }
+        deets = { message: "Fatal error - #{e.message}", event_details: json}
+        Uc3DmpApiCore::Notifier.notify_administrator(source: SOURCE, details: deets, event: event)
       end
       # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
       # rubocop:enable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
@@ -195,7 +195,7 @@ module Functions
           {
             name: fund['name'],
             type: id['type'],
-            identifier: %w[fundref ror].include?(id['type'].downcase) ? id['identifier'] : nil,
+            identifier: %w[fundref ror].include?(id['type']&.downcase) ? id['identifier'] : nil,
             grant: id['grant_id'],
             title: dmp['title']
           }

@@ -4,6 +4,7 @@ require 'bundler/setup'
 require 'ostruct'
 
 Dir["#{Dir.getwd}/lib/uc3-dmp-id/*.rb"].sort.each { |f| require f }
+Dir["#{Dir.getwd}/lib/uc3-dmp-id/schemas/*.rb"].sort.each { |f| require f }
 
 require_relative 'support/shared'
 

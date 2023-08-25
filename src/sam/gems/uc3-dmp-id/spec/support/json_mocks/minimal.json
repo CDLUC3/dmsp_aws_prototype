@@ -1,0 +1,79 @@
+{
+  "author": {
+    "dmp": {
+      "title": "Example DMP",
+      "created": "2022-05-24T12:33:44Z",
+      "modified": "2022-05-24T12:33:44Z",
+      "contact": {
+        "name": "jane doe",
+        "mbox": "jane@example.edu",
+        "contact_id": {
+          "type": "orcid",
+          "identifier": "https://orcid.org/0000-0000-0000-000X"
+        }
+      },
+      "dmp_id": {
+        "type": "doi",
+        "identifier": "https://doi.org/10.12345/ABCDEFG"
+      },
+      "dataset": [],
+      "project": []
+    }
+  },
+  "amend-related_identifiers": {
+    "dmp": {
+      "PK": "DMP#1234567890",
+      "dmphub_provenance_id": "PROVENANCE#abcdefghijk",
+      "title": "Example DMP",
+      "modified": "2022-05-26T12:12:00Z",
+      "dmp_id": {
+        "type": "doi",
+        "identifier": "doi:10.12345/abcd1234"
+      },
+      "dmproadmap_related_identifiers": [
+        {
+          "type": "url",
+          "identifier": "http://example.edu/datasets/12345",
+          "descriptor": "describes",
+          "work_type": "dataset"
+        }
+      ]
+    }
+  },
+  "amend-funding": {
+    "dmp": {
+      "PK": "DMP#1234567890",
+      "dmphub_provenance_id": "PROVENANCE#abcdefghijk",
+      "title": "Example DMP",
+      "modified": "2022-05-26T12:12:00Z",
+      "dmp_id": {
+        "type": "doi",
+        "identifier": "doi:10.12345/abcd1234"
+      },
+      "project": [
+        {
+          "funding": [
+            {
+              "funder_id": {
+                "type": "fundref",
+                "identifier": "http://dx.doi.org/10.13039/100005595"
+              },
+              "funding_status": "planned"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "delete": {
+    "dmp": {
+      "PK": "DMP#1234567890",
+      "dmphub_provenance_id": "PROVENANCE#abcdefghijk",
+      "title": "Example DMP",
+      "dmp_id": {
+        "type": "doi",
+        "identifier": "doi:10.12345/abcd1234"
+      }
+    }
+  }
+}

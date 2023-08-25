@@ -281,13 +281,70 @@ Resources:
   # API Lambdas
   #  See: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-property-function-api.html
   # ----------------------------------------------------
+  TmpAsserterFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      CodeUri: 'functions/tmp_asserter/'
+      Handler: 'app.Functions::TmpAsserter.process'
+      Runtime: 'ruby2.7'
+      Timeout: 5
+      Architectures:
+        - 'x86_64'
+      Layers:
+        - !Ref LambdaLayer
+      Policies:
+        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSQSFullAccess'
+        - !Ref DmpHubDynamoTableWritePolicy
+        - !Ref EventBusPolicy
+        - !Ref CognitoPolicy
+      DeadLetterQueue:
+        Type: 'SQS'
+        TargetArn: !Ref DeadLetterQueueArn
+      Environment:
+        Variables:
+          LAMBDA_ENV: !Ref Env
+          LOG_LEVEL: 'debug'
+          DOMAIN: !Ref DomainName
+          DMP_ID_BASE_URL: 'doi.org'
+          SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
+          EVENT_BUS_NAME: !Ref EventBusArn
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolArn
+          DYNAMO_TABLE: !Ref DynamoTableName
+          CORS_ORIGIN: !If
+            - IsDev
+            - "*"
+            - !Sub "https://${DomainName}"
+      Events:
+        DeleteDmps:
+          # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Type: 'Api'
+          Properties:
+            RestApiId: !Ref DmpHubRestApi
+            Path: '/tmp/{dmp_id+}/'
+            Method: 'put'
+            RequestParameters:
+              - 'method.request.header.Authorization'
+            Auth:
+              Authorizer: 'DmpHubCognitoAuthorizer'
+              AuthorizationScopes:
+                - !Sub 'https://auth.${DomainName}/${Env}.update'
+
+  TmpAsserterLogGroup:
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${TmpAsserterFunction}"
+      # Explicit retention time
+      RetentionInDays: !Ref LogRetentionDays
+
   DeleteDmpFunction:
     Type: 'AWS::Serverless::Function'
     Properties:
       CodeUri: 'functions/delete_dmp/'
       Handler: 'app.Functions::DeleteDmp.process'
       Runtime: 'ruby2.7'
-      Timeout: 5
+      Timeout: 15
       Architectures:
         - 'x86_64'
       Layers:
@@ -359,7 +416,7 @@ Resources:
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env
-          LOG_LEVEL: !Ref DebugLevel # 'debug'
+          LOG_LEVEL: 'debug' # !Ref DebugLevel # 'debug'
           DOMAIN: !Ref DomainName
           SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
           CORS_ORIGIN: !If
@@ -581,6 +638,56 @@ Resources:
       # Explicit retention time
       RetentionInDays: !Ref LogRetentionDays
 
+  # Get Citations for the DOIs
+  PostCitationsFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      CodeUri: 'functions/post_citations/'
+      Handler: 'app.Functions::PostCitations.process'
+      Runtime: 'ruby2.7'
+      Timeout: 60
+      Architectures:
+        - 'x86_64'
+      Layers:
+        - !Ref LambdaLayer
+      Policies:
+        - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSQSFullAccess'
+      DeadLetterQueue:
+        Type: 'SQS'
+        TargetArn: !Ref DeadLetterQueueArn
+      Environment:
+        Variables:
+          LAMBDA_ENV: !Ref Env
+          LOG_LEVEL: 'debug' # !Ref DebugLevel # 'debug'
+          DOMAIN: !Ref DomainName
+          SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
+          CORS_ORIGIN: !If
+            - IsDev
+            - "*"
+            - !Sub "https://${DomainName}"
+      Events:
+        PostCitations:
+          # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Type: 'Api'
+          Properties:
+            RestApiId: !Ref DmpHubRestApi
+            Path: '/citations'
+            Method: 'post'
+            RequestParameters:
+              - 'method.request.header.Authorization'
+            Auth:
+              Authorizer: 'DmpHubCognitoAuthorizer'
+              AuthorizationScopes:
+                - !Sub 'https://auth.${DomainName}/${Env}.read'
+
+  PostCitationsLogGroup:
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${PostCitationsFunction}"
+      # Explicit retention time
+      RetentionInDays: !Ref LogRetentionDays
+
   # Register a new DMP ID
   PostDmpsFunction:
     Type: 'AWS::Serverless::Function'
@@ -588,7 +695,7 @@ Resources:
       CodeUri: 'functions/post_dmps/'
       Handler: 'app.Functions::PostDmps.process'
       Runtime: 'ruby2.7'
-      Timeout: 5
+      Timeout: 15
       Architectures:
         - 'x86_64'
       Layers:
@@ -645,7 +752,7 @@ Resources:
       CodeUri: 'functions/post_narratives/'
       Handler: 'app.Functions::PostNarratives.process'
       Runtime: 'ruby2.7'
-      Timeout: 5
+      Timeout: 15
       Architectures:
         - 'x86_64'
       Layers:
@@ -699,7 +806,7 @@ Resources:
       CodeUri: 'functions/put_dmp/'
       Handler: 'app.Functions::PutDmp.process'
       Runtime: 'ruby2.7'
-      Timeout: 10
+      Timeout: 30
       Architectures:
         - 'x86_64'
       Layers:
@@ -798,6 +905,73 @@ Resources:
   #   See: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-property-function-sns.html
   # ----------------------------------------------------
   # Lambda responsible for communications with EZID
+  CiterFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      CodeUri: 'functions/citer/'
+      Handler: 'app.Functions::Citer.process'
+      Runtime: 'ruby2.7'
+      # Depending on the DMP ID, there may be a lot of citations so we timeout after 5 minutes
+      Timeout: 300
+      Architectures:
+        - 'x86_64'
+      Layers:
+        - !Ref LambdaLayer
+      Policies:
+        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSQSFullAccess'
+        - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
+        - !Ref DmpHubDynamoTableWritePolicy
+        - !Ref EventBusPolicy
+      Environment:
+        Variables:
+          LAMBDA_ENV: !Ref Env
+          LOG_LEVEL: !Ref DebugLevel # 'debug'
+          DOMAIN: !Ref DomainName
+          DMP_ID_BASE_URL: 'doi.org'
+          API_BASE_URL: !Sub 'https://api.${DomainName}'
+          SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
+          EVENT_BUS_NAME: !Ref EventBusArn
+          DYNAMO_TABLE: !Ref DynamoTableName
+      Events:
+        CiterEvent:
+          Type: 'EventBridgeRule'
+          Properties:
+            DeadLetterConfig:
+              Arn: !Ref DeadLetterQueueArn
+            EventBusName: !Ref EventBusArn
+            Pattern: !Sub >
+              {
+                "source": ["${DomainName}:lambda:event_publisher"],
+                "detail-type": ["Citation Fetch"],
+                "detail": {
+                  "SK": ["VERSION#latest"]
+                }
+              }
+            RetryPolicy:
+              MaximumEventAgeInSeconds: 180
+              MaximumRetryAttempts: 3
+            State: 'ENABLED'  # 'DISABLED'
+
+  CiterPermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      FunctionName: !Ref CiterFunction
+      Action: 'lambda:InvokeFunction'
+      Principal: 'events.amazonaws.com'
+      # SourceArn: !GetAtt CiterEventRule.Arn
+
+  # Annoyingly, SAM does not auto-generate LogGroup for a non-API tiggered lambda
+  CiterFunctionLogGroup:
+    Type: 'AWS::Logs::LogGroup'
+    DependsOn:
+      - CiterFunction
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${CiterFunction}"
+      RetentionInDays: !Ref LogRetentionDays
+
+  # Lambda responsible for communications with EZID
   EzidPublisherFunction:
     Type: 'AWS::Serverless::Function'
     Properties:
@@ -836,7 +1010,7 @@ Resources:
             Pattern: !Sub >
               {
                 "source": ["${DomainName}:lambda:event_publisher"],
-                "detail-type": ["DMP change", "EZID Replay"],
+                "detail-type": ["EZID update"],
                 "detail": {
                   "SK": ["VERSION#latest"]
                 }

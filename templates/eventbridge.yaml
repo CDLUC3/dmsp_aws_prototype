@@ -77,8 +77,7 @@ Resources:
       EventPattern:
         source:
           - !Sub "${DomainName}:lambda:event_publisher"
-        detail-type:
-          - 'paused'
+        detail-type: ["EZID update"]
       RetentionDays: !Ref ArchiveRetentionDays
       SourceArn: !GetAtt EventBus.Arn
 

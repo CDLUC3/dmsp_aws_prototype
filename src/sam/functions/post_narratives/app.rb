@@ -55,12 +55,16 @@ module Functions
       dmp = Uc3DmpId::Finder.by_pk(p_key: params[:dmp_id], logger: logger)
       _respond(status: 201, items: [dmp], event: event)
     rescue Aws::Errors::ServiceError => e
+      deets = { message: e.message, dmp_id: params[:dmp_id], params: params }
+      Uc3DmpApiCore::Notifier.notify_administrator(source: SOURCE, details: deets, event: event)
       _respond(status: 500, errors: [Uc3DmpApiCore::MSG_SERVER_ERROR], event: event)
     rescue Uc3DmpId::UpdaterError => e
       _respond(status: 400, errors: [e.message], event: event)
     rescue StandardError => e
       # Just do a print here (ends up in CloudWatch) in case it was the Uc3DmpApiCore::Responder.rb that failed
       logger.error(message: e.message, details: e.backtrace)
+      deets = { message: e.message, dmp_id: params[:dmp_id], params: params }
+      Uc3DmpApiCore::Notifier.notify_administrator(source: SOURCE, details: deets, event: event)
       { statusCode: 500, body: { errors: [Uc3DmpApiCore::MSG_SERVER_ERROR] }.to_json }
     end
 

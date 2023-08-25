@@ -48,6 +48,7 @@ module Functions
       _respond(status: 400, errors: [Uc3DmpId::MSG_DMP_NO_DMP_ID, e.message], event: event)
     rescue StandardError => e
       logger.error(message: e.message, details: e.backtrace)
+      Uc3DmpApiCore::Notifier.notify_administrator(source: SOURCE, details: { dmp_id: p_key }, event: event)
       { statusCode: 500, body: { errors: [Uc3DmpApiCore::MSG_SERVER_ERROR] }.to_json }
     end
     # rubocop:enable Metrics/AbcSize, Metrics/MethodLength

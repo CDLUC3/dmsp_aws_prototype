@@ -9,30 +9,37 @@ module Uc3DmpId
   class Finder
     MSG_INVALID_ARGS = 'Expected JSON to be structured as `{ "dmp": { "PK": "value"} } OR \
                         { "dmp": { "dmp_id": { "identifier": "value", "type": "value" } }`'
-    MSG_INVALID_OWNER_ID = 'Invalid :owner_orcid. Expected value to start with `https://orcid.org/`.'
-    MSG_INVALID_OWNER_ORG = 'Invalid :owner_org_ror. Expected value to start with `https://ror.org/`.'
+    MSG_INVALID_OWNER_ID = 'Invalid :owner_orcid. Expected a valid ORCID id (excluding the domain)`.'
+    MSG_INVALID_OWNER_ORG = 'Invalid :owner_org_ror. Expected a valid ROR id (excluding the domain)`.'
     MSG_INVALID_MOD_DATE = 'Invalid :modification_day. Expected value to be in the `YYYY-MM-DD` format.'
     MSG_MISSING_PK = 'No PK was provided'
     MSG_MISSING_PROV_ID = 'No Provenance identifier was provided. \
                            Expected: `{ "dmp_id": { "identifier": "value", "type": "value" }`'
 
-
     class << self
       # TODO: Replace this with ElasticSearch
       def search_dmps(args:, logger: nil)
-        return _by_owner(owner_org: args['owner_orcid'], logger: logger) unless args['owner_orcid'].nil?
-        return _by_owner_org(owner_org: args['owner_org_ror'], logger: logger) unless args['owner_org_ror'].nil?
-        return _by_mod_day(day: args['modification_day'], logger: logger) unless args['modification_day'].nil?
+        client = Uc3DmpDynamo::Client.new
+        return _by_owner(owner_org: args['owner_orcid'], client: client, logger: logger) unless args['owner_orcid'].nil?
+
+        unless args['owner_org_ror'].nil?
+          return _by_owner_org(owner_org: args['owner_org_ror'], client: client,
+                               logger: logger)
+        end
+        unless args['modification_day'].nil?
+          return _by_mod_day(day: args['modification_day'], client: client,
+                             logger: logger)
+        end
 
         []
       end
-      # rubocop:enable Metrics/MethodLength
 
       # Find a DMP based on the contents of the incoming JSON
       # -------------------------------------------------------------------------
-      def by_json(json:, cleanse: true, logger: nil)
+      # rubocop:disable Metrics/AbcSize
+      def by_json(json:, client: nil, cleanse: true, logger: nil)
         json = Helper.parse_json(json: json)&.fetch('dmp', {})
-        raise FinderError, MSG_INVALID_ARGS if json.nil? || (json['PK'].nil? && json['dmp_id'].nil?)
+        raise FinderError, MSG_INVALID_ARGS if !json.is_a?(Hash) || (json['PK'].nil? && json['dmp_id'].nil?)
 
         p_key = json['PK']
         # Translate the incoming :dmp_id into a PK
@@ -46,9 +53,11 @@ module Uc3DmpId
         # find_by_PK
         p_key.nil? ? nil : by_pk(p_key: p_key, s_key: json['SK'], client: client, cleanse: cleanse, logger: logger)
       end
+      # rubocop:enable Metrics/AbcSize
 
       # Find the DMP by its PK and SK
       # -------------------------------------------------------------------------
+      # rubocop:disable Metrics/AbcSize
       def by_pk(p_key:, s_key: Helper::DMP_LATEST_VERSION, client: nil, cleanse: true, logger: nil)
         raise FinderError, MSG_MISSING_PK if p_key.nil?
 
@@ -57,7 +66,7 @@ module Uc3DmpId
         resp = client.get_item(
           key: {
             PK: Helper.append_pk_prefix(p_key: p_key),
-            SK: s_key
+            SK: Helper.append_sk_prefix(s_key: s_key)
           },
           logger: logger
         )
@@ -66,9 +75,10 @@ module Uc3DmpId
         dmp = resp['dmp'].nil? ? JSON.parse({ dmp: resp }.to_json) : resp
         return nil if dmp['dmp']['PK'].nil?
 
-        dmp = Versioner.append_versions(p_key: dmp['dmp']['PK'], dmp: dmp, client: client, logger: logger)
+        dmp = Versioner.append_versions(p_key: dmp['dmp']['PK'], dmp: dmp, client: client, logger: logger) if cleanse
         cleanse ? Helper.cleanse_dmp_json(json: dmp) : dmp
       end
+      # rubocop:enable Metrics/AbcSize
 
       # Fetch just the PK to see if a record exists
       # -------------------------------------------------------------------------
@@ -79,7 +89,7 @@ module Uc3DmpId
         client.pk_exists?(
           key: {
             PK: Helper.append_pk_prefix(p_key: p_key),
-            SK: s_key
+            SK: Helper.append_sk_prefix(s_key: s_key)
           },
           logger: logger
         )
@@ -89,7 +99,10 @@ module Uc3DmpId
       # -------------------------------------------------------------------------
       # rubocop:disable Metrics/AbcSize
       def by_provenance_identifier(json:, client: nil, cleanse: true, logger: nil)
-        raise FinderError, MSG_MISSING_PROV_ID if json.nil? || json.fetch('dmp_id', {})['identifier'].nil?
+        raise FinderError, MSG_MISSING_PROV_ID unless json.is_a?(Hash)
+
+        json = json['dmp'] unless json['dmp'].nil?
+        raise FinderError, MSG_MISSING_PROV_ID if json.fetch('dmp_id', {})['identifier'].nil?
 
         args = {
           index_name: 'dmphub_provenance_identifier_gsi',
@@ -117,17 +130,17 @@ module Uc3DmpId
       private
 
       # Fetch the DMP IDs for the specified owner's ORCID (the owner is the :dmphub_owner_id on the DMP ID record)
-      def _by_owner(owner_id:, logger: nil)
-        regex = %r{^([0-9A-Z]{4}-){3}[0-9A-Z]{4}$}
-        raise FinderError, MSG_INVALID_OWNER_ID if owner_id.nil? || (owner_id.to_s.downcase =~  regex).nil?
+      def _by_owner(owner_id:, client: nil, logger: nil)
+        regex = /^([0-9A-Z]{4}-){3}[0-9A-Z]{4}$/
+        raise FinderError, MSG_INVALID_OWNER_ID if owner_id.nil? || (owner_id.to_s =~ regex).nil?
 
         args = {
           index_name: 'dmphub_owner_id_gsi',
           key_conditions: {
             dmphub_owner_id: {
               attribute_value_list: [
-                "http://orcid.org/#{owner_id.to_s.downcase}",
-                "https://orcid.org/#{owner_id.to_s.downcase}"
+                "http://orcid.org/#{owner_id}",
+                "https://orcid.org/#{owner_id}"
               ],
               comparison_operator: 'IN'
             }
@@ -135,35 +148,39 @@ module Uc3DmpId
           filter_expression: 'SK = :version',
           expression_attribute_values: { ':version': Helper::DMP_LATEST_VERSION }
         }
-        logger.info(message: "Querying _by_owner with #{args}") unless logger.nil?
+        logger.info(message: "Querying _by_owner with #{args}") if logger.respond_to?(:info)
         client = client.nil? ? Uc3DmpDynamo::Client.new : client
         _process_search_response(response: client.query(args: args, logger: logger))
       end
 
-      # Fetch the DMP IDs for the specified organization/institution (the org is the :dmphub_owner_org on the DMP ID record)
-      def _by_owner_org(owner_org:, logger: nil)
-        regex = %r{^[a-zA-Z0-9]+$}
-        raise FinderError, MSG_INVALID_OWNER_ID if owner_org.nil? ||(owner_org.to_s.downcase =~ regex).nil?
+      # Fetch the DMP IDs for the specified organization/institution (the org is the :dmphub_owner_org
+      # on the DMP ID record)
+      def _by_owner_org(owner_org:, client: nil, logger: nil)
+        regex = /^[a-zA-Z0-9]+$/
+        raise FinderError, MSG_INVALID_OWNER_ID if owner_org.nil? || (owner_org.to_s.downcase =~ regex).nil?
 
         args = {
           index_name: 'dmphub_owner_org_gsi',
           key_conditions: {
             dmphub_owner_org: {
-              attribute_value_list: ["https://ror.org/#{owner_org.to_s.downcase}"],
-              comparison_operator: 'EQ'
+              attribute_value_list: [
+                "https://ror.org/#{owner_org.to_s.downcase}",
+                "http://ror.org/#{owner_org.to_s.downcase}"
+              ],
+              comparison_operator: 'IN'
             }
           },
           filter_expression: 'SK = :version',
           expression_attribute_values: { ':version': Helper::DMP_LATEST_VERSION }
         }
-        logger.info(message: "Querying _by_owner_org with #{args}") unless logger.nil?
+        logger.info(message: "Querying _by_owner_org with #{args}") if logger.respond_to?(:info)
         client = client.nil? ? Uc3DmpDynamo::Client.new : client
         _process_search_response(response: client.query(args: args, logger: logger))
       end
 
       # Fetch the DMP IDs modified on the specified date (the date is the :dmphub_modification_day on the DMP ID record)
-      def _by_mod_day(day:, logger: nil)
-        regex = %r{^[0-9]{4}(-[0-9]{2}){2}}
+      def _by_mod_day(day:, client: nil, logger: nil)
+        regex = /^[0-9]{4}(-[0-9]{2}){2}/
         raise FinderError, MSG_INVALID_OWNER_ID if day.nil? || (day.to_s =~ regex).nil?
 
         args = {
@@ -177,17 +194,18 @@ module Uc3DmpId
           filter_expression: 'SK = :version',
           expression_attribute_values: { ':version': Helper::DMP_LATEST_VERSION }
         }
-        logger.info(message: "Querying _by_mod_day with #{args}") unless logger.nil?
+        logger.info(message: "Querying _by_mod_day with #{args}") if logger.respond_to?(:info)
         client = client.nil? ? Uc3DmpDynamo::Client.new : client
         _process_search_response(response: client.query(args: args, logger: logger))
       end
-
 
       # Transform the search results so that we do not include any of the DMPHub specific metadata
       def _process_search_response(response:)
         return [] unless response.is_a?(Array) && response.any?
 
-        results = response.each do |item|
+        results = response.map do |item|
+          next if item.nil?
+
           dmp = item['dmp'].nil? ? JSON.parse({ dmp: item }.to_json) : item
           Helper.cleanse_dmp_json(json: dmp)
         end

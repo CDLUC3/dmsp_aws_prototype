@@ -11,4 +11,4 @@ parameters:
 
   # Log and Archive retention
   LogRetentionDays: '7'
-  ArchiveRetentionDays: '14'
+  ArchiveRetentionDays: '7'
