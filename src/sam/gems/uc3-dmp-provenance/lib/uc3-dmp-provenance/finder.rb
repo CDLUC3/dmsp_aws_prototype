@@ -27,10 +27,10 @@ module Uc3DmpProvenance
       #    "client_id": "abcdefghijklmnopqrstuvwxyz"
       #  }
       # -------------------------------------------------------------------------------------------
-      def from_lambda_cotext(identity:, logger: nil)
+      def from_lambda_cotext(identity:, client: nil, logger: nil)
         return nil unless identity.is_a?(Hash) && !identity['iss'].nil? && !identity['client_id'].nil?
 
-        client = Uc3DmpDynamo::Client.new
+        client = client.nil? ? Uc3DmpDynamo::Client.new : client
         client_name = _cognito_client_id_to_name(claim: identity, logger: logger)
 
         resp = client.get_item(
