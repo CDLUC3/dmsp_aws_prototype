@@ -47,13 +47,13 @@ module Functions
       return _respond(status: 403, errors: Uc3DmpId::MSG_DMP_FORBIDDEN, event: event) if provenance.nil?
 
       resp = Uc3DmpId::Finder.search_dmps(args: params, logger: logger)
-      return _respond(status: 400, errors: Uc3DmpId::MSG_DMP_NO_DMP_ID) if resp.nil?
-      return _respond(status: 404, errors: Uc3DmpId::MSG_DMP_NOT_FOUND) if resp.empty?
+      return _respond(status: 400, errors: Uc3DmpId::Helper::MSG_DMP_NO_DMP_ID) if resp.nil?
+      return _respond(status: 404, errors: Uc3DmpId::Helper::MSG_DMP_NOT_FOUND) if resp.empty?
 
       logger.debug(message: 'Found the following results:', details: resp) if logger.respond_to?(:debug)
       _respond(status: 200, items: [resp], event: event)
     rescue Uc3DmpId::FinderError => e
-      _respond(status: 400, errors: [Uc3DmpId::MSG_DMP_NO_DMP_ID, e.message], event: event)
+      _respond(status: 400, errors: [Uc3DmpId::Helper::MSG_DMP_NO_DMP_ID, e.message], event: event)
     rescue StandardError => e
       logger.error(message: e.message, details: e.backtrace)
       deets = { message: e.message, params: params }

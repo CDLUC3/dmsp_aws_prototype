@@ -33,15 +33,15 @@ module Functions
       # Fail if the Provenance could not be loaded
       claim = event.fetch('requestContext', {}).fetch('authorizer', {})['claims']
       provenance = Uc3DmpProvenance::Finder.from_lambda_cotext(identity: claim, logger: logger)
-      return _respond(status: 403, errors: Uc3DmpId::MSG_DMP_FORBIDDEN, event: event) if provenance.nil?
+      return _respond(status: 403, errors: Uc3DmpId::Helper::MSG_DMP_FORBIDDEN, event: event) if provenance.nil?
 
       # Register a new DMP ID
       resp = Uc3DmpId::Creator.create(provenance: provenance, json: json, logger: logger)
-      return _respond(status: 400, errors: Uc3DmpId::MSG_DMP_NO_DMP_ID) if resp.nil?
+      return _respond(status: 400, errors: Uc3DmpId::Helper::MSG_DMP_NO_DMP_ID) if resp.nil?
 
       _respond(status: 201, items: [resp], event: event)
     rescue Uc3DmpId::CreatorError => e
-      _respond(status: 400, errors: [Uc3DmpId::MSG_DMP_NO_DMP_ID, e.message], event: event)
+      _respond(status: 400, errors: [Uc3DmpId::Helper::MSG_DMP_NO_DMP_ID, e.message], event: event)
     rescue StandardError => e
       logger.error(message: e.message, details: e.backtrace)
       deets = { message: e.message, body: body }

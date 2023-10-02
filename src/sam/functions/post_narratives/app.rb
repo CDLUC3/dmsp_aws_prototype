@@ -35,11 +35,11 @@ module Functions
       # Fail if the Provenance could not be loaded
       claim = event.fetch('requestContext', {}).fetch('authorizer', {})['claims']
       provenance = Uc3DmpProvenance::Finder.from_lambda_cotext(identity: claim, logger: logger)
-      return _respond(status: 403, errors: Uc3DmpId::MSG_DMP_FORBIDDEN, event: event) if provenance.nil?
+      return _respond(status: 403, errors: Uc3DmpId::Helper::MSG_DMP_FORBIDDEN, event: event) if provenance.nil?
 
       # Make sure there is a DMP ID for the narrative to be attached to!
       dmp = Uc3DmpId::Finder.by_pk(p_key: params[:dmp_id], logger: logger)
-      return _respond(status: 403, errors: [Uc3DmpId::MSG_DMP_FORBIDDEN], event: event) if dmp.nil?
+      return _respond(status: 403, errors: [Uc3DmpId::Helper::MSG_DMP_FORBIDDEN], event: event) if dmp.nil?
 
       # Store the document in S3 Bucket
       object_key = Uc3DmpS3::Client.put_narrative(document: params[:payload], dmp_id: params[:dmp_id], base64: params[:base64encoded])

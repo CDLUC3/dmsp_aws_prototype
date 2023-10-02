@@ -38,7 +38,7 @@ module Functions
       # Fail if the DMP ID is not a valid DMP ID
       p_key = Uc3DmpId::Helper.path_parameter_to_pk(param: dmp_id)
       p_key = Uc3DmpId::Helper.append_pk_prefix(p_key: p_key) unless p_key.nil?
-      return _respond(status: 400, errors: Uc3DmpId::MSG_DMP_INVALID_DMP_ID, event: event) if p_key.nil?
+      return _respond(status: 400, errors: Uc3DmpId::Helper::MSG_DMP_INVALID_DMP_ID, event: event) if p_key.nil?
 
       # Fetch SSM parameters and set them in the ENV
       _set_env(logger: logger)

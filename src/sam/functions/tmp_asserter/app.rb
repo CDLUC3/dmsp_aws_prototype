@@ -32,9 +32,12 @@ module Functions
       # Fail if the DMP ID is not a valid DMP ID
       p_key = Uc3DmpId::Helper.path_parameter_to_pk(param: dmp_id)
       p_key = Uc3DmpId::Helper.append_pk_prefix(p_key: p_key) unless p_key.nil?
+      s_key = Uc3DmpId::Helper::DMP_LATEST_VERSION
       return _respond(status: 400, errors: Uc3DmpId::MSG_DMP_INVALID_DMP_ID, event: event) if p_key.nil?
 
       _set_env(logger: logger)
+
+      client = Uc3DmpDynamo::Client.new
 
       # Fail if the Provenance could not be loaded
       claim = event.fetch('requestContext', {}).fetch('authorizer', {})['claims']
@@ -43,7 +46,7 @@ module Functions
 
       # Fetch the DMP ID
       logger.debug(message: "Searching for PK: #{p_key}, SK: #{s_key}") if logger.respond_to?(:debug)
-      dmp = Uc3DmpId::Finder.by_pk(p_key: p_key, s_key: s_key, logger: logger)
+      dmp = Uc3DmpId::Finder.by_pk(p_key: p_key, s_key: s_key, cleanse: false, client: client, logger: logger)
 
       work_count = json.fetch('works', '2').to_s.strip.to_i
       grant_ror = json.fetch('grant', 'https://ror.org/01bj3aw27').to_s.downcase.strip
@@ -67,7 +70,7 @@ module Functions
           { name: "National Science Foundation", ror: "https://ror.org/021nxhr62", acronym: 'NSF' },
           { name: "United States Department of Energy", ror: "https://ror.org/01bj3aw27", acronym: 'Crossref' },
         ]
-        funder = funders.select { |funder| funder[:ror] == ror }.first
+        funder = funders.select { |funder| funder[:ror] == grant_ror }.first
 
         mods << {
           id: SecureRandom.hex(8),
@@ -82,7 +85,6 @@ module Functions
       logger.debug(message: "Tmp Asserter update to PK: #{p_key}", details: { requested: json, mods: mods })
 
       # Update the DMP ID
-      client = Uc3DmpDynamo::Client.new
       resp = client.put_item(json: dmp['dmp'], logger: logger)
       return _respond(status: 500, errors: ["Unable to add dmphub_modifications!"], event: event) if resp.nil?
 
