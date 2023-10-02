@@ -34,24 +34,24 @@ module Functions
       # Fail if the DMP ID is not a valid DMP ID
       p_key = Uc3DmpId::Helper.path_parameter_to_pk(param: dmp_id)
       p_key = Uc3DmpId::Helper.append_pk_prefix(p_key: p_key) unless p_key.nil?
-      return _respond(status: 400, errors: Uc3DmpId::MSG_DMP_INVALID_DMP_ID, event: event) if p_key.nil?
+      return _respond(status: 400, errors: Uc3DmpId::Helper::MSG_DMP_INVALID_DMP_ID, event: event) if p_key.nil?
 
       _set_env(logger: logger)
 
       # Fail if the Provenance could not be loaded
       claim = event.fetch('requestContext', {}).fetch('authorizer', {})['claims']
       provenance = Uc3DmpProvenance::Finder.from_lambda_cotext(identity: claim, logger: logger)
-      return _respond(status: 403, errors: Uc3DmpId::MSG_DMP_FORBIDDEN, event: event) if provenance.nil?
+      return _respond(status: 403, errors: Uc3DmpId::Helper::MSG_DMP_FORBIDDEN, event: event) if provenance.nil?
 
       logger.debug(message: "Attempting update to PK: #{p_key}", details: json) if logger.respond_to?(:debug)
 
       # Update the DMP ID
       resp = Uc3DmpId::Updater.update(logger: logger, provenance: provenance, p_key: p_key, json: json)
-      return _respond(status: 400, errors: Uc3DmpId::MSG_DMP_NO_DMP_ID) if resp.nil?
+      return _respond(status: 400, errors: Uc3DmpId::Helper::MSG_DMP_NO_DMP_ID) if resp.nil?
 
       _respond(status: 200, items: [resp], event: event)
     rescue Uc3DmpId::UpdaterError => e
-      _respond(status: 400, errors: [Uc3DmpId::MSG_DMP_NO_DMP_ID, e.message], event: event)
+      _respond(status: 400, errors: [Uc3DmpId::Helper::MSG_DMP_NO_DMP_ID, e.message], event: event)
     rescue StandardError => e
       logger.error(message: e.message, details: e.backtrace)
       deets = { message: e.message, dmp_id: p_key, body: body }
