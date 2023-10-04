@@ -25,19 +25,19 @@ RSpec.describe 'Paginator' do
     it 'returns the correct results for the first page' do
       allow(described_class).to receive(:_current_page).and_return({ page: 1, per_page: 5, total_pages: 7 })
       expected = %w[a b c d e]
-      expect(described_class.paginate(params: { page: 1, per_page: 5 }, results: results)).to eql(expected)
+      expect(described_class.paginate(params: { page: 1, per_page: 5 }, results:)).to eql(expected)
     end
 
     it 'returns the correct :results for a middle page' do
       allow(described_class).to receive(:_current_page).and_return({ page: 3, per_page: 5, total_pages: 7 })
       expected = %w[k l m n o]
-      expect(described_class.paginate(params: { page: 3, per_page: 5 }, results: results)).to eql(expected)
+      expect(described_class.paginate(params: { page: 3, per_page: 5 }, results:)).to eql(expected)
     end
 
     it 'returns the correct :results for the last page' do
       allow(described_class).to receive(:_current_page).and_return({ page: 7, per_page: 5, total_pages: 7 })
       expected = %w[4 5 6 7]
-      expect(described_class.paginate(params: { page: 7, per_page: 5 }, results: results)).to eql(expected)
+      expect(described_class.paginate(params: { page: 7, per_page: 5 }, results:)).to eql(expected)
     end
   end
 
@@ -49,7 +49,7 @@ RSpec.describe 'Paginator' do
         per_page: 5,
         total_items: 4
       }
-      result = described_class.pagination_meta(url: url, item_count: 4, params: {})
+      result = described_class.pagination_meta(url:, item_count: 4, params: {})
       expect(compare_hashes(hash_a: result, hash_b: expected)).to be(true)
     end
 
@@ -62,7 +62,7 @@ RSpec.describe 'Paginator' do
         next: "#{url}?page=2&per_page=5",
         last: "#{url}?page=7&per_page=5"
       }
-      result = described_class.pagination_meta(url: url, item_count: 34, params: {})
+      result = described_class.pagination_meta(url:, item_count: 34, params: {})
       expect(compare_hashes(hash_a: result, hash_b: expected)).to be(true)
     end
 
@@ -75,7 +75,7 @@ RSpec.describe 'Paginator' do
         first: "#{url}?page=1&per_page=5",
         prev: "#{url}?page=6&per_page=5"
       }
-      result = described_class.pagination_meta(url: url, item_count: 34, params: {})
+      result = described_class.pagination_meta(url:, item_count: 34, params: {})
       expect(compare_hashes(hash_a: result, hash_b: expected)).to be(true)
     end
 
@@ -90,7 +90,7 @@ RSpec.describe 'Paginator' do
         next: "#{url}?page=4&per_page=5",
         last: "#{url}?page=7&per_page=5"
       }
-      result = described_class.pagination_meta(url: url, item_count: 34, params: {})
+      result = described_class.pagination_meta(url:, item_count: 34, params: {})
       expect(compare_hashes(hash_a: result, hash_b: expected)).to be(true)
     end
 
@@ -110,37 +110,37 @@ RSpec.describe 'Paginator' do
     it 'uses the DEFAULT_PAGE if no :page is in :params' do
       params = JSON.parse({ per_page: 5 }.to_json)
       expected = { page: 1, per_page: 5, total_pages: 4 }
-      expect(described_class.send(:_current_page, item_count: 17, params: params)).to eql(expected)
+      expect(described_class.send(:_current_page, item_count: 17, params:)).to eql(expected)
     end
 
     it 'uses the specified :page and :per_page' do
       params = JSON.parse({ page: 2, per_page: 5 }.to_json)
       expected = { page: 2, per_page: 5, total_pages: 4 }
-      expect(described_class.send(:_current_page, item_count: 17, params: params)).to eql(expected)
+      expect(described_class.send(:_current_page, item_count: 17, params:)).to eql(expected)
     end
 
     it 'does not allow pages below 1' do
       params = JSON.parse({ page: 0 }.to_json)
       expected = { page: 1, per_page: 25, total_pages: 1 }
-      expect(described_class.send(:_current_page, item_count: 17, params: params)).to eql(expected)
+      expect(described_class.send(:_current_page, item_count: 17, params:)).to eql(expected)
     end
 
     it 'does not allow pages beyond the total number of pages' do
       params = JSON.parse({ page: 2, per_page: 25 }.to_json)
       expected = { page: 1, per_page: 25, total_pages: 1 }
-      expect(described_class.send(:_current_page, item_count: 17, params: params)).to eql(expected)
+      expect(described_class.send(:_current_page, item_count: 17, params:)).to eql(expected)
     end
 
     it 'uses the DEFAULT_PER_PAGE if no :per_page is in :params' do
       params = JSON.parse({ page: 2 }.to_json)
       expected = { page: 2, per_page: 25, total_pages: 2 }
-      expect(described_class.send(:_current_page, item_count: 34, params: params)).to eql(expected)
+      expect(described_class.send(:_current_page, item_count: 34, params:)).to eql(expected)
     end
 
     it 'does not allow a :per_page specification to be above the MAXIMUM_PER_PAGE' do
       params = JSON.parse({ per_page: described_class::MAXIMUM_PER_PAGE + 1 }.to_json)
       expected = { page: 1, per_page: 25, total_pages: 1 }
-      expect(described_class.send(:_current_page, item_count: 17, params: params)).to eql(expected)
+      expect(described_class.send(:_current_page, item_count: 17, params:)).to eql(expected)
     end
   end
 
@@ -151,24 +151,24 @@ RSpec.describe 'Paginator' do
     end
 
     it 'returns nil if :target_page is nil' do
-      result = described_class.send(:_build_link, url: url, target_page: nil, per_page: 5)
+      result = described_class.send(:_build_link, url:, target_page: nil, per_page: 5)
       expect(result).to be_nil
     end
 
     it 'uses the default :per_page if it is not specified' do
-      result = described_class.send(:_build_link, url: url, target_page: 1)
+      result = described_class.send(:_build_link, url:, target_page: 1)
       dflt = described_class::DEFAULT_PER_PAGE
       expect(result).to eql("#{url}?page=1&per_page=#{dflt}")
     end
 
     it 'adds the correct :page and :per_page to the link' do
-      result = described_class.send(:_build_link, url: url, target_page: 44, per_page: 5)
+      result = described_class.send(:_build_link, url:, target_page: 44, per_page: 5)
       expect(result).to eql("#{url}?page=44&per_page=5")
     end
 
     it 'retains other query params' do
       url = "#{url}?foo=bar&page=1&bar=foo"
-      result = described_class.send(:_build_link, url: url, target_page: 2, per_page: 100)
+      result = described_class.send(:_build_link, url:, target_page: 2, per_page: 100)
       expect(result).to eql('?foo=bar&bar=foo&page=2&per_page=100')
     end
   end

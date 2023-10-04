@@ -19,13 +19,13 @@ RSpec.describe 'Responder' do
     it 'calls ssm_reader.get_ssm_value to get the base api URL' do
       allow(described_class).to receive(:get_ssm_value).and_return(url)
       allow(described_class).to receive(:_url_from_event).and_return(nil)
-      resp = described_class.respond(status: 200, items: items)
+      resp = described_class.respond(status: 200, items:)
       expect(JSON.parse(resp[:body])['requested']).to eql('foo')
     end
 
     it 'uses the :page and :per_page if provided' do
       allow(described_class).to receive(:_url_from_event).and_return(url)
-      result = described_class.respond(status: 200, items: items, page: 2, per_page: 1)
+      result = described_class.respond(status: 200, items:, page: 2, per_page: 1)
       body = JSON.parse(result[:body])
       expect(body['page']).to be(2)
       expect(body['per_page']).to be(1)
@@ -33,41 +33,41 @@ RSpec.describe 'Responder' do
 
     it 'calls log_error if the status is 500' do
       allow(described_class).to receive(:_url_from_event).and_return(url)
-      described_class.respond(status: 500, items: items)
+      described_class.respond(status: 500, items:)
       expect(described_class).to have_received(:log_error).once
     end
 
     it 'does NOT call log_error if the status is NOT 500' do
       allow(described_class).to receive(:_url_from_event).and_return(url)
       allow(described_class).to receive(:_paginate).and_return({})
-      described_class.respond(status: 200, items: items)
+      described_class.respond(status: 200, items:)
       expect(described_class).not_to have_received(:log_error)
     end
 
     it 'calls Paginator.paginate' do
       allow(described_class).to receive(:_url_from_event).and_return(url)
       allow(Uc3DmpApiCore::Paginator).to receive(:paginate).and_return([])
-      described_class.respond(status: 200, items: items)
+      described_class.respond(status: 200, items:)
       expect(Uc3DmpApiCore::Paginator).to have_received(:paginate).once
     end
 
     it 'calls Paginator.pagination_meta' do
       allow(described_class).to receive(:_url_from_event).and_return(url)
       allow(Uc3DmpApiCore::Paginator).to receive(:pagination_meta).and_return({})
-      described_class.respond(status: 200, items: items)
+      described_class.respond(status: 200, items:)
       expect(Uc3DmpApiCore::Paginator).to have_received(:pagination_meta).once
     end
 
     it 'uses the default status' do
       allow(described_class).to receive(:_url_from_event).and_return(url)
-      resp = described_class.respond(items: items)
+      resp = described_class.respond(items:)
       expect(resp[:statusCode]).to eql(described_class::DEFAULT_STATUS_CODE)
     end
 
     # rubocop:disable RSpec/MultipleExpectations, RSpec/ExampleLength
     it 'returns the expected Hash when there are no :errors' do
       allow(described_class).to receive(:_url_from_event).and_return(url)
-      resp = described_class.respond(status: 402, items: items)
+      resp = described_class.respond(status: 402, items:)
       expect(resp[:statusCode]).to be(402)
       body = JSON.parse(resp[:body])
       expect(body['status']).to be(402)
@@ -89,7 +89,7 @@ RSpec.describe 'Responder' do
     it 'returns the expected Hash when there are no :items' do
       allow(described_class).to receive(:_url_from_event).and_return(url)
       allow(described_class).to receive(:log_error).and_return(true)
-      resp = described_class.respond(status: 500, errors: errors, page: 2, per_page: 1)
+      resp = described_class.respond(status: 500, errors:, page: 2, per_page: 1)
       expect(resp[:statusCode]).to be(500)
       body = JSON.parse(resp[:body])
       expect(body['status']).to be(500)
@@ -110,7 +110,7 @@ RSpec.describe 'Responder' do
     # rubocop:disable RSpec/MultipleExpectations, RSpec/ExampleLength
     it 'returns the expected Hash when both :items and :errors are provided' do
       allow(described_class).to receive(:_url_from_event).and_return(url)
-      resp = described_class.respond(status: 301, items: items, errors: errors, page: 2, per_page: 1)
+      resp = described_class.respond(status: 301, items:, errors:, page: 2, per_page: 1)
       expect(resp[:statusCode]).to be(301)
       body = JSON.parse(resp[:body])
       expect(body['status']).to be(301)
@@ -141,15 +141,15 @@ RSpec.describe 'Responder' do
 
     it 'works if there are no :queryStringParameters' do
       event = JSON.parse({ path: 'api/foos' }.to_json)
-      expect(described_class.send(:_url_from_event, event: event)).to eql('api/foos')
+      expect(described_class.send(:_url_from_event, event:)).to eql('api/foos')
     end
 
     it 'includes any :event :queryParameters' do
       event = JSON.parse({ path: 'api/foos', queryStringParameters: { foo: 'bar' } }.to_json)
-      expect(described_class.send(:_url_from_event, event: event)).to eql('api/foos?foo=bar')
+      expect(described_class.send(:_url_from_event, event:)).to eql('api/foos?foo=bar')
 
       event = JSON.parse({ path: 'api/foos', queryStringParameters: { foo: 'bar', page: '2' } }.to_json)
-      expect(described_class.send(:_url_from_event, event: event)).to eql('api/foos?foo=bar&page=2')
+      expect(described_class.send(:_url_from_event, event:)).to eql('api/foos?foo=bar&page=2')
     end
   end
 end
