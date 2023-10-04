@@ -36,8 +36,8 @@ module Uc3DmpRds
           host: ENV.fetch('DATABASE_HOST', nil),
           port: ENV.fetch('DATABASE_PORT', nil),
           database: ENV.fetch('DATABASE_NAME', nil),
-          username: username,
-          password: password,
+          username:,
+          password:,
           encoding: 'utf8mb4'
         )
         !connection.nil?
@@ -50,7 +50,7 @@ module Uc3DmpRds
       def execute_query(sql:, **params)
         return [] unless sql.is_a?(String) && !sql.strip.empty? && (params.nil? || params.is_a?(Hash))
         # Verify that all of the kewords are accounted for and that values were supplied
-        raise AdapterError, MSG_KEYWORDS_INVALID unless _verify_params(sql: sql, params: params)
+        raise AdapterError, MSG_KEYWORDS_INVALID unless _verify_params(sql:, params:)
 
         ActiveRecord::Base.simple_execute(sql, params)
       rescue StandardError => e
