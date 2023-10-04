@@ -24,7 +24,6 @@ module Uc3DmpS3
 
     class << self
       # Put the narrative file into the S3 bucket
-      # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity
       def put_narrative(document:, dmp_id: nil, base64: false)
         return nil if !document.is_a?(String) || document.strip.empty? || ENV['S3_BUCKET'].nil?
 
@@ -32,12 +31,11 @@ module Uc3DmpS3
         tg = "DMP_ID=#{CGI.escape(dmp_id)}" unless dmp_id.nil?
         body = base64 ? Base64.decode64(document) : document
 
-        _put_object(key: key, tags: tg, payload: body)
+        _put_object(key:, tags: tg, payload: body)
       rescue Aws::Errors::ServiceError => e
         msg = "Unable to write PDF narrative to S3 bucket (dmp_id: #{dmp_id})"
         raise ClientError, "#{msg} - #{e.message}"
       end
-      # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity
 
       # Fetch the narrative file from the S3 bucket
       def get_narrative(key:)
@@ -57,7 +55,7 @@ module Uc3DmpS3
 
         client = Aws::S3::Client.new(region: ENV.fetch('AWS_REGION', nil))
         bucket = ENV['S3_BUCKET'].gsub('arn:aws:s3:::', '')
-        resp = client.put_object({ body: payload, bucket: bucket, key: key, tagging: tags })
+        resp = client.put_object({ body: payload, bucket:, key:, tagging: tags })
         resp.successful? ? key : nil
       end
 
@@ -68,7 +66,7 @@ module Uc3DmpS3
 
         client = Aws::S3::Client.new(region: ENV.fetch('AWS_REGION', 'us-west-2'))
         bucket = ENV['S3_BUCKET'].gsub('arn:aws:s3:::', '')
-        resp = client.get_object({ bucket: bucket, key: key })
+        resp = client.get_object({ bucket:, key: })
         return nil if resp.nil? || !resp.content_length.positive?
 
         resp.body.is_a?(String) ? resp.body : resp.body.read

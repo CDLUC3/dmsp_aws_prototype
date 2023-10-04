@@ -3,7 +3,7 @@
 require 'bundler/setup'
 require 'ostruct'
 
-Dir["#{Dir.getwd}/lib/uc3-dmp-s3/*.rb"].sort.each { |f| require f }
+Dir["#{Dir.getwd}/lib/uc3-dmp-s3/*.rb"].each { |f| require f }
 
 require_relative 'support/shared'
 
