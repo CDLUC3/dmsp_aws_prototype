@@ -2,7 +2,7 @@
 
 source 'https://rubygems.org'
 
-ruby '>= 2.7'
+ruby '>= 3.2'
 
 # No need to include any AWS SDK gems here since the Lambda functions have access
 # to them by default

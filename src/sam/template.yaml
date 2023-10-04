@@ -270,12 +270,11 @@ Resources:
         # Bucket: !Ref S3PrivateBucketId
         # Key: !Sub 'lambdas/uc3-dmp-hub-${Env}-sam-resources-lambda-layer.zip'
       CompatibleRuntimes:
-        - 'ruby2.7'
+        - 'ruby3.2'
       RetentionPolicy: 'Delete'
     Metadata:
       BuildMethod: 'makefile'
       BuildArchitecture: 'x86_64'
-
 
   # ----------------------------------------------------
   # API Lambdas
@@ -286,7 +285,7 @@ Resources:
     Properties:
       CodeUri: 'functions/tmp_asserter/'
       Handler: 'app.Functions::TmpAsserter.process'
-      Runtime: 'ruby2.7'
+      Runtime: 'ruby3.2'
       Timeout: 5
       Architectures:
         - 'x86_64'
@@ -343,7 +342,7 @@ Resources:
     Properties:
       CodeUri: 'functions/delete_dmp/'
       Handler: 'app.Functions::DeleteDmp.process'
-      Runtime: 'ruby2.7'
+      Runtime: 'ruby3.2'
       Timeout: 15
       Architectures:
         - 'x86_64'
@@ -401,7 +400,7 @@ Resources:
     Properties:
       CodeUri: 'functions/get_awards_crossref/'
       Handler: 'app.Functions::GetAwardsCrossref.process'
-      Runtime: 'ruby2.7'
+      Runtime: 'ruby3.2'
       Timeout: 5
       Architectures:
         - 'x86_64'
@@ -449,7 +448,7 @@ Resources:
     Properties:
       CodeUri: 'functions/get_awards_nih/'
       Handler: 'app.Functions::GetAwardsNih.process'
-      Runtime: 'ruby2.7'
+      Runtime: 'ruby3.2'
       Timeout: 5
       Architectures:
         - 'x86_64'
@@ -497,7 +496,7 @@ Resources:
     Properties:
       CodeUri: 'functions/get_awards_nsf/'
       Handler: 'app.Functions::GetAwardsNsf.process'
-      Runtime: 'ruby2.7'
+      Runtime: 'ruby3.2'
       Timeout: 5
       Architectures:
         - 'x86_64'
@@ -545,7 +544,7 @@ Resources:
     Properties:
       CodeUri: 'functions/get_dmp/'
       Handler: 'app.Functions::GetDmp.process'
-      Runtime: 'ruby2.7'
+      Runtime: 'ruby3.2'
       Timeout: 5
       Architectures:
         - 'x86_64'
@@ -593,7 +592,7 @@ Resources:
     Properties:
       CodeUri: 'functions/get_dmps/'
       Handler: 'app.Functions::GetDmps.process'
-      Runtime: 'ruby2.7'
+      Runtime: 'ruby3.2'
       Timeout: 5
       Architectures:
         - 'x86_64'
@@ -644,7 +643,7 @@ Resources:
     Properties:
       CodeUri: 'functions/post_citations/'
       Handler: 'app.Functions::PostCitations.process'
-      Runtime: 'ruby2.7'
+      Runtime: 'ruby3.2'
       Timeout: 60
       Architectures:
         - 'x86_64'
@@ -694,7 +693,7 @@ Resources:
     Properties:
       CodeUri: 'functions/post_dmps/'
       Handler: 'app.Functions::PostDmps.process'
-      Runtime: 'ruby2.7'
+      Runtime: 'ruby3.2'
       Timeout: 15
       Architectures:
         - 'x86_64'
@@ -751,7 +750,7 @@ Resources:
     Properties:
       CodeUri: 'functions/post_narratives/'
       Handler: 'app.Functions::PostNarratives.process'
-      Runtime: 'ruby2.7'
+      Runtime: 'ruby3.2'
       Timeout: 15
       Architectures:
         - 'x86_64'
@@ -805,7 +804,7 @@ Resources:
     Properties:
       CodeUri: 'functions/put_dmp/'
       Handler: 'app.Functions::PutDmp.process'
-      Runtime: 'ruby2.7'
+      Runtime: 'ruby3.2'
       Timeout: 30
       Architectures:
         - 'x86_64'
@@ -862,7 +861,7 @@ Resources:
     Properties:
       CodeUri: 'functions/validate_dmp/'
       Handler: 'app.Functions::ValidateDmp.process'
-      Runtime: 'ruby2.7'
+      Runtime: 'ruby3.2'
       Timeout: 5
       Architectures:
         - 'x86_64'
@@ -910,7 +909,7 @@ Resources:
     Properties:
       CodeUri: 'functions/citer/'
       Handler: 'app.Functions::Citer.process'
-      Runtime: 'ruby2.7'
+      Runtime: 'ruby3.2'
       # Depending on the DMP ID, there may be a lot of citations so we timeout after 5 minutes
       Timeout: 300
       Architectures:
@@ -977,7 +976,7 @@ Resources:
     Properties:
       CodeUri: 'functions/ezid_publisher/'
       Handler: 'app.Functions::EzidPublisher.process'
-      Runtime: 'ruby2.7'
+      Runtime: 'ruby3.2'
       Timeout: 30
       Architectures:
         - 'x86_64'
