@@ -17,7 +17,7 @@ Gem::Specification.new do |spec|
 
   spec.files         = Dir['lib/**/*'] + Dir['schemas/*.json'] + %w[README.md]
   spec.require_paths = %w[lib schemas]
-  spec.required_ruby_version = '>= 2.7'
+  spec.required_ruby_version = '>= 3.2'
 
   spec.add_runtime_dependency('json', '~> 2.6')
   spec.add_runtime_dependency('json-schema', '~> 3.0')

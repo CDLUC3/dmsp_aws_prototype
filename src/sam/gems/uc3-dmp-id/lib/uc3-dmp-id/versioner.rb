@@ -18,13 +18,13 @@ module Uc3DmpId
 
         args = {
           key_conditions: {
-            PK: { attribute_value_list: [Helper.append_pk_prefix(p_key: p_key)], comparison_operator: 'EQ' }
+            PK: { attribute_value_list: [Helper.append_pk_prefix(p_key:)], comparison_operator: 'EQ' }
           },
           projection_expression: 'modified',
           scan_index_forward: false
         }
-        client = client.nil? ? Uc3DmpDynamo::Client.new : client
-        client.query(args: args, logger: logger)
+        client = Uc3DmpDynamo::Client.new if client.nil?
+        client.query(args:, logger:)
       end
 
       # Generate a snapshot of the current latest version of the DMP ID using the existing :modified as
@@ -57,8 +57,8 @@ module Uc3DmpId
         prior['SK'] = "#{Helper::SK_DMP_PREFIX}#{latest_version['modified'] || Time.now.utc.iso8601}"
 
         # Create the prior version record ()
-        client = client.nil? ? Uc3DmpDynamo::Client.new : client
-        resp = client.put_item(json: prior, logger: logger)
+        client = Uc3DmpDynamo::Client.new if client.nil?
+        resp = client.put_item(json: prior, logger:)
         return nil if resp.nil?
 
         msg = "#{SOURCE} created version PK: #{prior['PK']} SK: #{prior['SK']}"
@@ -74,7 +74,7 @@ module Uc3DmpId
         json = Helper.parse_json(json: dmp)
         return json unless p_key.is_a?(String) && !p_key.strip.empty? && json.is_a?(Hash) && !json['dmp'].nil?
 
-        results = get_versions(p_key: p_key, client: client, logger: logger)
+        results = get_versions(p_key:, client:, logger:)
         return json unless results.length > 1
 
         # TODO: we may want to include milliseconds in the future if we get increased volume so that
@@ -82,7 +82,7 @@ module Uc3DmpId
         versions = results.map do |ver|
           next if ver['modified'].nil?
 
-          base_url = "#{Helper.landing_page_url}#{Helper.remove_pk_prefix(p_key: p_key)}"
+          base_url = "#{Helper.landing_page_url}#{Helper.remove_pk_prefix(p_key:)}"
           {
             timestamp: ver['modified'],
             url: dmp['dmp']['modified'] == ver['modified'] ? base_url : "#{base_url}?version=#{ver['modified']}"

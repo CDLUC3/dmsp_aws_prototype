@@ -36,30 +36,30 @@ RSpec.describe 'Uc3DmpId::Asserter' do
     end
 
     it 'returns the :latest_version as-is if the :updater is not a String' do
-      result = described_class.add(updater: nil, latest_version: latest_version, modified_version: new_mods)
+      result = described_class.add(updater: nil, latest_version:, modified_version: new_mods)
       expect(result).to eql(latest_version)
     end
 
     it 'returns the :latest_version as-is if the :latest_version is not a Hash' do
-      result = described_class.add(updater: updater, latest_version: 123, modified_version: new_mods)
+      result = described_class.add(updater:, latest_version: 123, modified_version: new_mods)
       expect(result).to be(123)
     end
 
     it 'returns the :latest_version as-is if the :modified_version is not a Hash' do
-      result = described_class.add(updater: updater, latest_version: latest_version, modified_version: nil)
+      result = described_class.add(updater:, latest_version:, modified_version: nil)
       expect(result).to eql(latest_version)
     end
 
     it 'returns the :latest_version as-is if the :updater is the owner of the DMP ID (owner do not assert!)' do
       latest_version['dmphub_provenance_id'] = updater
-      result = described_class.add(updater: updater, latest_version: latest_version, modified_version: new_mods)
+      result = described_class.add(updater:, latest_version:, modified_version: new_mods)
       expect(result).to eql(latest_version)
     end
 
     # rubocop:disable RSpec/MultipleExpectations, RSpec/ExampleLength
     it 'adds the :dmphub_modifications if there are only :dmproadmap_related_identifiers' do
       new_mods.delete('project')
-      result = described_class.add(updater: updater, latest_version: latest_version, modified_version: new_mods)
+      result = described_class.add(updater:, latest_version:, modified_version: new_mods)
       changes = result['dmphub_modifications'].reject { |mod| mod.fetch('dmproadmap_related_identifiers', []).empty? }
       changes = changes.map { |change| change['dmproadmap_related_identifiers'] }.flatten
 
@@ -84,7 +84,7 @@ RSpec.describe 'Uc3DmpId::Asserter' do
 
     it 'adds the :dmphub_modifications if there is only a :grant_id' do
       new_mods.delete('dmproadmap_related_identifiers')
-      result = described_class.add(updater: updater, latest_version: latest_version, modified_version: new_mods)
+      result = described_class.add(updater:, latest_version:, modified_version: new_mods)
       fundings = result['dmphub_modifications'].reject { |mod| mod['funding'].nil? }.map { |m| m['funding'] }
       match = fundings.select do |fund|
         fund['grant_id'] == new_mods['project'].first['funding'].first['grant_id']
@@ -96,7 +96,7 @@ RSpec.describe 'Uc3DmpId::Asserter' do
 
     # rubocop:disable RSpec/MultipleExpectations, RSpec/ExampleLength
     it 'adds the :dmphub_modifications if there are both :dmproadmap_related_identifiers and a :grant_id' do
-      result = described_class.add(updater: updater, latest_version: latest_version, modified_version: new_mods)
+      result = described_class.add(updater:, latest_version:, modified_version: new_mods)
       changes = result['dmphub_modifications'].reject { |mod| mod.fetch('dmproadmap_related_identifiers', []).empty? }
       changes = changes.map { |change| change['dmproadmap_related_identifiers'] }.flatten
 
@@ -144,14 +144,14 @@ RSpec.describe 'Uc3DmpId::Asserter' do
     it 'returns the :modified_version if the :modified dates are the same' do
       modified = latest_version.dup
       modified['dmphub_modifications'] << new_mod
-      result = described_class.splice(latest_version: latest_version, modified_version: modified)
+      result = described_class.splice(latest_version:, modified_version: modified)
       expect(assert_dmps_match(obj_a: modified, obj_b: result, debug: false)).to be(true)
     end
 
     it 'returns the :modified_version if neither has any :dmphub_modifications' do
       latest_version.delete('dmphub_modifications')
       modified = latest_version.dup
-      result = described_class.splice(latest_version: latest_version, modified_version: modified)
+      result = described_class.splice(latest_version:, modified_version: modified)
       expect(assert_dmps_match(obj_a: modified, obj_b: result, debug: false)).to be(true)
     end
 
@@ -160,7 +160,7 @@ RSpec.describe 'Uc3DmpId::Asserter' do
       modified = latest_version.dup
       modified['dmphub_modifications'] = [new_mod]
       modified['modified'] = Time.now.utc.iso8601
-      result = described_class.splice(latest_version: latest_version, modified_version: modified)
+      result = described_class.splice(latest_version:, modified_version: modified)
       expect(result['dmphub_modifications'].length).to be(1)
       expect(result['dmphub_modifications'].include?(new_mod)).to be(true)
     end
@@ -169,7 +169,7 @@ RSpec.describe 'Uc3DmpId::Asserter' do
       modified = latest_version.dup
       modified.delete('dmphub_modifications')
       modified['modified'] = Time.now.utc.iso8601
-      result = described_class.splice(latest_version: latest_version, modified_version: modified)
+      result = described_class.splice(latest_version:, modified_version: modified)
       expect(result['dmphub_modifications'].length).to be(3)
       latest_version['dmphub_modifications'].each do |mod|
         expect(result['dmphub_modifications'].include?(mod)).to be(true)
@@ -181,7 +181,7 @@ RSpec.describe 'Uc3DmpId::Asserter' do
       modified.delete('dmphub_modifications')
       modified['dmphub_modifications'] = [new_mod]
       modified['modified'] = Time.now.utc.iso8601
-      result = described_class.splice(latest_version: latest_version, modified_version: modified)
+      result = described_class.splice(latest_version:, modified_version: modified)
       expect(result['dmphub_modifications'].length).to be(4)
       expect(result['dmphub_modifications'].include?(new_mod)).to be(true)
       latest_version['dmphub_modifications'].each do |mod|
@@ -206,26 +206,26 @@ RSpec.describe 'Uc3DmpId::Asserter' do
     end
 
     it 'returns :latest_version as-is if :updater is not a String' do
-      result = described_class.send(:_add_related_identifier, updater: 123, latest_version: latest_version,
+      result = described_class.send(:_add_related_identifier, updater: 123, latest_version:,
                                                               identifiers: mods)
       expect(result).to eql(latest_version)
     end
 
     it 'returns :latest_version as-is if :latest_version is not a Hash' do
-      result = described_class.send(:_add_related_identifier, updater: updater, latest_version: [123],
+      result = described_class.send(:_add_related_identifier, updater:, latest_version: [123],
                                                               identifiers: mods)
       expect(result).to eql([123])
     end
 
     it 'returns :latest_version as-is if :identifiers is not an Array' do
-      result = described_class.send(:_add_related_identifier, updater: updater, latest_version: latest_version,
+      result = described_class.send(:_add_related_identifier, updater:, latest_version:,
                                                               identifiers: { foo: 'bar' })
       expect(result).to eql(latest_version)
     end
 
     it 'skips adding the :related_identifier if it is already in the :latest_version :dmphub_modifications Array' do
       latest_version['dmphub_modifications'] << JSON.parse({ dmproadmap_related_identifiers: [mods.first] }.to_json)
-      result = described_class.send(:_add_related_identifier, updater: updater, latest_version: latest_version,
+      result = described_class.send(:_add_related_identifier, updater:, latest_version:,
                                                               identifiers: mods)
       expect(result['dmphub_modifications'].length).to be(5)
 
@@ -240,7 +240,7 @@ RSpec.describe 'Uc3DmpId::Asserter' do
       tweaked_id = mods.first
       tweaked_id['descriptor'] = 'documents'
       latest_version['dmproadmap_related_identifiers'] << tweaked_id
-      result = described_class.send(:_add_related_identifier, updater: updater, latest_version: latest_version,
+      result = described_class.send(:_add_related_identifier, updater:, latest_version:,
                                                               identifiers: mods)
       expect(result['dmphub_modifications'].length).to be(4)
 
@@ -251,7 +251,7 @@ RSpec.describe 'Uc3DmpId::Asserter' do
     end
 
     it 'adds the :related_identifier assertion to the :latest_version :dmphub_modifications Array' do
-      result = described_class.send(:_add_related_identifier, updater: updater, latest_version: latest_version,
+      result = described_class.send(:_add_related_identifier, updater:, latest_version:,
                                                               identifiers: mods)
       expect(result['dmphub_modifications'].length).to be(4)
 
@@ -271,24 +271,24 @@ RSpec.describe 'Uc3DmpId::Asserter' do
     end
 
     it 'returns :latest_version as-is if :updater is not a String' do
-      result = described_class.send(:_add_funding_mod, updater: 123, latest_version: latest_version, funding: mods)
+      result = described_class.send(:_add_funding_mod, updater: 123, latest_version:, funding: mods)
       expect(result).to eql(latest_version)
     end
 
     it 'returns :latest_version as-is if :latest_version is not a Hash' do
-      result = described_class.send(:_add_funding_mod, updater: updater, latest_version: [123], funding: mods)
+      result = described_class.send(:_add_funding_mod, updater:, latest_version: [123], funding: mods)
       expect(result).to eql([123])
     end
 
     it 'returns :latest_version as-is if :funding is not an Array' do
-      result = described_class.send(:_add_funding_mod, updater: updater, latest_version: latest_version,
+      result = described_class.send(:_add_funding_mod, updater:, latest_version:,
                                                        funding: { foo: 'bar' })
       expect(result).to eql(latest_version)
     end
 
     it 'skips adding the :grant_id if it is already in the :latest_version :dmphub_modifications Array' do
       latest_version['dmphub_modifications'] << JSON.parse({ funding: mods.first }.to_json)
-      result = described_class.send(:_add_funding_mod, updater: updater, latest_version: latest_version, funding: mods)
+      result = described_class.send(:_add_funding_mod, updater:, latest_version:, funding: mods)
       expect(result['dmphub_modifications'].length).to be(4)
       fundings = result['dmphub_modifications'].reject { |mod| mod['funding'].nil? }.flatten.compact.uniq
       grants = fundings.map { |fund| fund.fetch('funding', {})['grant_id'] }
@@ -297,7 +297,7 @@ RSpec.describe 'Uc3DmpId::Asserter' do
 
     it 'skips adding the :grant_id if it is already in the :latest_version project: :funding Array' do
       latest_version['project'].first['funding'].first['grant_id'] = mods.first['grant_id']
-      result = described_class.send(:_add_funding_mod, updater: updater, latest_version: latest_version, funding: mods)
+      result = described_class.send(:_add_funding_mod, updater:, latest_version:, funding: mods)
       expect(result['dmphub_modifications'].length).to be(3)
       fundings = result['dmphub_modifications'].reject { |mod| mod['funding'].nil? }.flatten.compact.uniq
       grants = fundings.map { |fund| fund.fetch('funding', {})['grant_id'] }
@@ -305,7 +305,7 @@ RSpec.describe 'Uc3DmpId::Asserter' do
     end
 
     it 'adds the :grant_id assertion to the :latest_version :dmphub_modifications Array' do
-      result = described_class.send(:_add_funding_mod, updater: updater, latest_version: latest_version, funding: mods)
+      result = described_class.send(:_add_funding_mod, updater:, latest_version:, funding: mods)
       expect(result['dmphub_modifications'].length).to be(4)
       fundings = result['dmphub_modifications'].reject { |mod| mod['funding'].nil? }.flatten.compact.uniq
       grants = fundings.map { |fund| fund.fetch('funding', {})['grant_id'] }
@@ -330,16 +330,16 @@ RSpec.describe 'Uc3DmpId::Asserter' do
     end
 
     it 'returns nil if the :updater is nil' do
-      expect(described_class.send(:_generate_assertion, updater: nil, mods: mods, note: 'testing ...')).to be_nil
+      expect(described_class.send(:_generate_assertion, updater: nil, mods:, note: 'testing ...')).to be_nil
     end
 
     it 'returns nil if :mod is not a Hash' do
-      expect(described_class.send(:_generate_assertion, updater: updater, mods: '123', note: 'testing ...')).to be_nil
+      expect(described_class.send(:_generate_assertion, updater:, mods: '123', note: 'testing ...')).to be_nil
     end
 
     # rubocop:disable RSpec/MultipleExpectations
     it 'returns the formatted assertion' do
-      result = described_class.send(:_generate_assertion, updater: updater, mods: mods, note: 'testing ...')
+      result = described_class.send(:_generate_assertion, updater:, mods:, note: 'testing ...')
       expect(result['id'].nil?).to be(false)
       expect(result['provenance']).to eql(updater.gsub('PROVENANCE#', ''))
       expect(result['timestamp'].nil?).to be(false)

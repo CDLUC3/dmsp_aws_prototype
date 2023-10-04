@@ -23,11 +23,11 @@ module Uc3DmpId
       # Validate the specified DMP's :json against the schema for the specified :mode
       # rubocop:disable Metrics/AbcSize
       def validate(mode:, json:)
-        json = Helper.parse_json(json: json)
+        json = Helper.parse_json(json:)
         return [MSG_EMPTY_JSON] if json.nil? || !VALIDATION_MODES.include?(mode)
 
         # Load the appropriate JSON schema for the mode
-        schema = _load_schema(mode: mode)
+        schema = _load_schema(mode:)
         return [MSG_NO_SCHEMA] if schema.nil?
 
         # Validate the JSON

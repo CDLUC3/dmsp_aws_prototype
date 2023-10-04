@@ -6,7 +6,7 @@ RSpec.describe 'Uc3DmpId::Creator' do
   let!(:described_class) { Uc3DmpId::Creator }
   let!(:creator_error) { Uc3DmpId::CreatorError }
 
-  let!(:client) { mock_uc3_dmp_dynamo(dmp: dmp) }
+  let!(:client) { mock_uc3_dmp_dynamo(dmp:) }
   let!(:publisher) { mock_uc3_dmp_event_bridge }
 
   let!(:owner) { JSON.parse({ PK: 'PROVENANCE#foo', SK: 'PROFILE' }.to_json) }
@@ -71,10 +71,8 @@ RSpec.describe 'Uc3DmpId::Creator' do
     it 'creates the new DMP ID' do
       allow(Uc3DmpId::Validator).to receive(:validate).and_return([])
       allow(Uc3DmpId::Finder).to receive(:exists?).and_return(false)
-      allow(described_class).to receive(:_preregister_dmp_id).and_return(p_key)
-      allow(Uc3DmpId::Helper).to receive(:annotate_dmp_json).and_return(dmp)
       allow(client).to receive(:put_item).and_return(dmp)
-      allow(described_class).to receive(:_post_process).and_return(true)
+      allow(described_class).to receive_messages(_preregister_dmp_id: p_key, put_item: dmp, _post_process: true)
 
       now = Time.now.utc.iso8601
       result = described_class.create(provenance: owner, json: dmp)
@@ -88,7 +86,7 @@ RSpec.describe 'Uc3DmpId::Creator' do
       owner['seedingWithLiveDmpIds'] = true
       dmp['dmp']['dmproadmap_external_system_identifier'] = 'http://doi.org/SEEDING-ID'
 
-      result = described_class.send(:_preregister_dmp_id, client: client, provenance: owner, json: dmp)
+      result = described_class.send(:_preregister_dmp_id, client:, provenance: owner, json: dmp)
       expect(result).to eql('doi.org/SEEDING-ID')
     end
 
@@ -96,7 +94,7 @@ RSpec.describe 'Uc3DmpId::Creator' do
       owner['seedingWithLiveDmpIds'] = false
       allow(Uc3DmpId::Finder).to receive(:exists?).and_return(true)
       expect do
-        described_class.send(:_preregister_dmp_id, client: client, provenance: owner,
+        described_class.send(:_preregister_dmp_id, client:, provenance: owner,
                                                    json: dmp)
       end.to raise_error(creator_error)
     end
@@ -104,7 +102,7 @@ RSpec.describe 'Uc3DmpId::Creator' do
     it 'returns a new DMP ID' do
       owner['seedingWithLiveDmpIds'] = false
       allow(Uc3DmpId::Finder).to receive(:exists?).and_return(false)
-      result = described_class.send(:_preregister_dmp_id, client: client, provenance: owner, json: dmp)
+      result = described_class.send(:_preregister_dmp_id, client:, provenance: owner, json: dmp)
 
       expected_prefix = "#{Uc3DmpId::Helper::PK_DMP_PREFIX}#{ENV['DMP_ID_BASE_URL'].gsub(%r{https?://}, '')}"
       expect(result.start_with?(expected_prefix)).to be(true)

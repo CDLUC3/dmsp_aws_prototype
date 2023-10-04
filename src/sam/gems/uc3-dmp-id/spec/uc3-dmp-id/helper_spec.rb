@@ -182,8 +182,8 @@ RSpec.describe 'Uc3DmpId::Helper' do
     it 'returns the expected Hash' do
       ENV['DMP_ID_BASE_URL'] = 'https://doi.org'
       expected = { type: 'doi', identifier: 'https://doi.org/11.2222.12345' }
-      allow(described_class).to receive(:remove_pk_prefix).and_return('doi.org/11.2222.12345')
-      allow(described_class).to receive(:format_dmp_id).and_return(expected[:identifier])
+      allow(described_class).to receive_messages(remove_pk_prefix: 'doi.org/11.2222.12345',
+                                                 format_dmp_id: expected[:identifier])
       expect(described_class.pk_to_dmp_id(p_key: 'DMP#doi.org/11.2222.12345')).to eql(expected)
     end
   end
@@ -240,17 +240,17 @@ RSpec.describe 'Uc3DmpId::Helper' do
 
     it 'returns false if :dmp_a PK does not start with the DMP ID :PK prefix' do
       dmp_a = dmp.clone[:PK] = 'FOO'
-      expect(described_class.eql?(dmp_a: dmp_a, dmp_b: dmp)).to be(false)
+      expect(described_class.eql?(dmp_a:, dmp_b: dmp)).to be(false)
     end
 
     it 'returns false if :dmp_b PK does not start with the DMP ID :PK prefix' do
       dmp_b = dmp.clone[:PK] = 'FOO'
-      expect(described_class.eql?(dmp_a: dmp, dmp_b: dmp_b)).to be(false)
+      expect(described_class.eql?(dmp_a: dmp, dmp_b:)).to be(false)
     end
 
     it 'returns false if :dmp_a and :dmp_b :PKs do not match' do
       dmp_a = dmp.clone[:PK] = "#{described_class::PK_DMP_PREFIX}FOO"
-      expect(described_class.eql?(dmp_a: dmp_a, dmp_b: dmp)).to be(false)
+      expect(described_class.eql?(dmp_a:, dmp_b: dmp)).to be(false)
     end
 
     it 'ignores :SK, :created, :modified, :dmphub_modification_day and :dmphub_versions' do
@@ -265,7 +265,7 @@ RSpec.describe 'Uc3DmpId::Helper' do
           dmphub_versions: []
         }
       }.to_json)
-      expect(described_class.eql?(dmp_a: dmp_a, dmp_b: dmp)).to be(true)
+      expect(described_class.eql?(dmp_a:, dmp_b: dmp)).to be(true)
     end
   end
 
@@ -343,26 +343,25 @@ RSpec.describe 'Uc3DmpId::Helper' do
 
     before do
       ENV['DMP_ID_BASE_URL'] = 'https://doi.org'
-      allow(described_class).to receive(:extract_owner_id).and_return('orcid123')
-      allow(described_class).to receive(:extract_owner_org).and_return('ror123')
+      allow(described_class).to receive_messages(extract_owner_id: 'orcid123', extract_owner_org: 'ror123')
     end
 
     it 'returns the :json as-is if :provenance is nil' do
-      expect(described_class.annotate_dmp_json(provenance: nil, p_key: p_key, json: dmp)).to eql(dmp)
+      expect(described_class.annotate_dmp_json(provenance: nil, p_key:, json: dmp)).to eql(dmp)
     end
 
     it 'returns the :json as-is if :p_key is nil' do
-      expect(described_class.annotate_dmp_json(provenance: provenance, p_key: nil, json: dmp)).to eql(dmp)
+      expect(described_class.annotate_dmp_json(provenance:, p_key: nil, json: dmp)).to eql(dmp)
     end
 
     it 'returns nil if :json is not parseable' do
       allow(described_class).to receive(:parse_json).and_return(nil)
-      expect(described_class.annotate_dmp_json(provenance: provenance, p_key: p_key, json: 123)).to be_nil
+      expect(described_class.annotate_dmp_json(provenance:, p_key:, json: 123)).to be_nil
     end
 
     it 'returns the :json as-is if :p_key does not match the :dmp_id' do
       dmp['PK'] = 'DMP#doi.org/99.9999/99999'
-      expect(described_class.annotate_dmp_json(provenance: provenance, p_key: p_key, json: dmp)).to eql(dmp)
+      expect(described_class.annotate_dmp_json(provenance:, p_key:, json: dmp)).to eql(dmp)
     end
 
     # rubocop:disable RSpec/ExampleLength
@@ -378,7 +377,7 @@ RSpec.describe 'Uc3DmpId::Helper' do
         dmphub_owner_org: 'ror123',
         dmphub_provenance_id: provenance['PK']
       }.to_json)
-      result = described_class.annotate_dmp_json(provenance: provenance, p_key: p_key, json: dmp)
+      result = described_class.annotate_dmp_json(provenance:, p_key:, json: dmp)
       expect(assert_dmps_match(obj_a: result, obj_b: expected, debug: false)).to be(true)
     end
     # rubocop:enable RSpec/ExampleLength
@@ -398,7 +397,7 @@ RSpec.describe 'Uc3DmpId::Helper' do
         dmphub_owner_org: 'ror123',
         dmphub_provenance_id: provenance['PK']
       }.to_json)
-      result = described_class.annotate_dmp_json(provenance: provenance, p_key: p_key, json: dmp)
+      result = described_class.annotate_dmp_json(provenance:, p_key:, json: dmp)
       expect(assert_dmps_match(obj_a: result, obj_b: expected, debug: false)).to be(true)
     end
     # rubocop:enable RSpec/ExampleLength
@@ -421,7 +420,7 @@ RSpec.describe 'Uc3DmpId::Helper' do
         dmphub_provenance_id: provenance['PK'],
         dmphub_provenance_identifier: 'http://foo.bar/dmp/123'
       }.to_json)
-      result = described_class.annotate_dmp_json(provenance: provenance, p_key: p_key, json: dmp)
+      result = described_class.annotate_dmp_json(provenance:, p_key:, json: dmp)
       expect(assert_dmps_match(obj_a: expected, obj_b: result, debug: false)).to be(true)
     end
     # rubocop:enable RSpec/ExampleLength
@@ -443,7 +442,7 @@ RSpec.describe 'Uc3DmpId::Helper' do
         dmphub_owner_org: 'ror123',
         dmphub_provenance_id: provenance['PK']
       }.to_json)
-      result = described_class.annotate_dmp_json(provenance: provenance, p_key: p_key, json: dmp)
+      result = described_class.annotate_dmp_json(provenance:, p_key:, json: dmp)
       expect(assert_dmps_match(obj_a: result, obj_b: expected, debug: false)).to be(true)
     end
     # rubocop:enable RSpec/ExampleLength
@@ -465,7 +464,7 @@ RSpec.describe 'Uc3DmpId::Helper' do
         dmphub_provenance_id: provenance['PK'],
         dmphub_provenance_identifier: 'http://foo.bar/dmp/123'
       }.to_json)
-      result = described_class.annotate_dmp_json(provenance: provenance, p_key: p_key, json: dmp)
+      result = described_class.annotate_dmp_json(provenance:, p_key:, json: dmp)
       expect(assert_dmps_match(obj_a: expected, obj_b: result, debug: false)).to be(true)
     end
     # rubocop:enable RSpec/ExampleLength
@@ -529,7 +528,7 @@ RSpec.describe 'Uc3DmpId::Helper' do
         ]
       }.to_json)
       expected = dmp['dmproadmap_related_identifiers'].reject { |id| id['identifier'] == 'http://skip.me' }
-      result = described_class.citable_related_identifiers(dmp: dmp)
+      result = described_class.citable_related_identifiers(dmp:)
       expect(assert_dmps_match(obj_a: expected, obj_b: result, debug: false)).to be(true)
     end
     # rubocop:enable RSpec/ExampleLength
@@ -547,7 +546,7 @@ RSpec.describe 'Uc3DmpId::Helper' do
           }
         }
       }.to_json)
-      expect(assert_dmps_match(obj_a: described_class.deep_copy_dmp(obj: obj), obj_b: obj, debug: false)).to be(true)
+      expect(assert_dmps_match(obj_a: described_class.deep_copy_dmp(obj:), obj_b: obj, debug: false)).to be(true)
     end
   end
 end

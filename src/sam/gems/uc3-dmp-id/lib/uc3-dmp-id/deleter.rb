@@ -19,7 +19,7 @@ module Uc3DmpId
 
         # Fetch the latest version of the DMP ID by it's PK
         client = Uc3DmpDynamo::Client.new
-        dmp = Finder.by_pk(p_key: p_key, client: client, cleanse: false, logger: logger)
+        dmp = Finder.by_pk(p_key:, client:, cleanse: false, logger:)
         raise DeleterError, Helper::MSG_DMP_NOT_FOUND unless dmp.is_a?(Hash) && !dmp['dmp'].nil?
 
         # Only allow this if the provenance is the owner of the DMP!
@@ -38,16 +38,16 @@ module Uc3DmpId
         dmp['dmp']['dmphub_tombstoned_at'] = now
 
         # Create the Tombstone version
-        resp = client.put_item(json: dmp['dmp'], logger: logger)
+        resp = client.put_item(json: dmp['dmp'], logger:)
         raise DeleterError, Helper::MSG_DMP_NO_TOMBSTONE if resp.nil?
 
         # Delete the Latest version
-        client.delete_item(p_key: p_key, s_key: Helper::DMP_LATEST_VERSION, logger: logger)
+        client.delete_item(p_key:, s_key: Helper::DMP_LATEST_VERSION, logger:)
 
         # TODO: We should do a check here to see if it was successful!
 
         # Notify EZID about the removal
-        _post_process(json: dmp, logger: logger)
+        _post_process(json: dmp, logger:)
 
         # Return the tombstoned record
         Helper.cleanse_dmp_json(json: dmp)
@@ -66,7 +66,7 @@ module Uc3DmpId
 
         # Publish the change to the EventBridge
         publisher = Uc3DmpEventBridge::Publisher.new
-        publisher.publish(source: 'DmpDeleter', event_type: 'EZID update', dmp: json, logger: logger)
+        publisher.publish(source: 'DmpDeleter', event_type: 'EZID update', dmp: json, logger:)
         true
       end
     end
