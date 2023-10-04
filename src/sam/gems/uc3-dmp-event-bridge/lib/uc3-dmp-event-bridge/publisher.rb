@@ -26,17 +26,21 @@ module Uc3DmpEventBridge
     end
 
     # Publish an event to the EventBus so that other Lambdas can do their thing
-    # rubocop:disable Metrics/AbcSize
+    # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
     def publish(source:, dmp:, event_type: DEFAULT_EVENT_TYPE, detail: nil, logger: nil)
       source = "#{source} -> #{SOURCE}.publish"
-      detail = detail.nil? ? _generate_detail(dmp: dmp).to_json : (detail.is_a?(Hash) ?  detail.to_json : detail.to_s)
+      detail = if detail.nil?
+                 _generate_detail(dmp:).to_json
+               else
+                 (detail.is_a?(Hash) ? detail.to_json : detail.to_s)
+               end
 
       message = {
         entries: [{
           time: Time.now.utc.iso8601,
           source: "#{ENV.fetch('DOMAIN', nil)}:lambda:event_publisher",
           detail_type: event_type.to_s,
-          detail: detail,
+          detail:,
           event_bus_name: ENV.fetch('EVENT_BUS_NAME', nil)
         }]
       }
@@ -45,12 +49,12 @@ module Uc3DmpEventBridge
       return true unless resp.failed_entry_count.nil? || resp.failed_entry_count.positive?
 
       # The EventBridge returned errors, so log the error
-      raise PublisherError, _generate_failure(source: source, response: resp, payload: payload)
+      raise PublisherError, _generate_failure(source:, response: resp, payload:)
     rescue Aws::Errors::ServiceError => e
       logger.error(message: "#{SOURCE} #{e.message}", details: e.backtrace) if logger.respond_to?(:debug)
-      raise PublisherError, MSG_BUS_ERROR % { msg: e.message }
+      raise PublisherError, format(MSG_BUS_ERROR, msg: e.message)
     end
-    # rubocop:enable Metrics/AbcSize
+    # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
 
     private
 
@@ -67,7 +71,7 @@ module Uc3DmpEventBridge
     # If the EventBus returns an error log everything
     def _generate_failure(source:, response:, payload:)
       {
-        source: source,
+        source:,
         message: 'Failed to post message to EventBridge!',
         details: {
           event_bus_name: ENV.fetch('EVENT_BUS_NAME', nil),
