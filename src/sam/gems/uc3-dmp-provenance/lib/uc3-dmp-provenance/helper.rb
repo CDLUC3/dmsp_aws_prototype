@@ -8,14 +8,14 @@ module Uc3DmpProvenance
     PK_PROVENANCE_PREFIX = 'PROVENANCE#'
     SK_PROVENANCE_PREFIX = 'PROFILE'
 
-    DOI_REGEX = %r{[0-9]{2}\.[0-9]{5}/[a-zA-Z0-9/_.-]+}.freeze
-    URL_REGEX = %r{(https?://)?([a-zA-Z0-9\-_]\.)+[a-zA-Z0-9\-_]{2,3}(:[0-9]+)?/?}.freeze
+    DOI_REGEX = %r{[0-9]{2}\.[0-9]{5}/[a-zA-Z0-9/_.-]+}
+    URL_REGEX = %r{(https?://)?([a-zA-Z0-9\-_]\.)+[a-zA-Z0-9\-_]{2,3}(:[0-9]+)?/?}
 
     class << self
       # Append the PK prefix for the object
       # -------------------------------------------------------------------------------------
       def append_pk_prefix(provenance:)
-        provenance.is_a?(String) ? "#{PK_PROVENANCE_PREFIX}#{remove_pk_prefix(provenance: provenance)}" : nil
+        provenance.is_a?(String) ? "#{PK_PROVENANCE_PREFIX}#{remove_pk_prefix(provenance:)}" : nil
       end
 
       # Strip off the PK prefix
@@ -44,8 +44,8 @@ module Uc3DmpProvenance
 
         # Remove the homepage or callbackUri because we will add this when needed. we just want the id
         val = value.downcase
-                  .gsub(provenance.fetch('callbackUri', '').downcase, '')
-                  .gsub(provenance.fetch('homepage', '').downcase, '')
+                   .gsub(provenance.fetch('callbackUri', '').downcase, '')
+                   .gsub(provenance.fetch('homepage', '').downcase, '')
         val = val.gsub(%r{https?://}, '')
         val = val[1..val.length] if val.start_with?('/')
         id = provenance['PK']&.gsub(PK_PROVENANCE_PREFIX, '')

@@ -31,11 +31,11 @@ module Uc3DmpProvenance
         return nil unless identity.is_a?(Hash) && !identity['iss'].nil? && !identity['client_id'].nil?
 
         client = client.nil? ? Uc3DmpDynamo::Client.new : client
-        client_name = _cognito_client_id_to_name(claim: identity, logger: logger)
+        client_name = _cognito_client_id_to_name(claim: identity, logger:)
 
         resp = client.get_item(
           key: { PK: Helper.append_pk_prefix(provenance: client_name), SK: Helper::SK_PROVENANCE_PREFIX },
-          logger: logger
+          logger:
         )
         resp.nil? || resp.empty? ? nil : resp
       end
@@ -43,13 +43,13 @@ module Uc3DmpProvenance
       # Fetch the Provenance by it's PK.
       #
       # Expecting either the name (e.g. `dmptool` or the qualified PK (e.g. `PROVENANCE#dmptool`)
-      def from_pk(pk:, logger: nil)
-        return nil if pk.nil?
+      def from_pk(p_key:, logger: nil)
+        return nil if p_key.nil?
 
-        pk = Helper.append_pk_prefix(provenance: pk)
+        p_key = Helper.append_pk_prefix(provenance: p_key)
         resp = client.get_item(
-          key: { PK: Helper.append_pk_prefix(provenance: pk), SK: Helper::SK_PROVENANCE_PREFIX },
-          logger: logger
+          key: { PK: Helper.append_pk_prefix(provenance: p_key), SK: Helper::SK_PROVENANCE_PREFIX },
+          logger:
         )
         resp.nil? || resp.empty? ? nil : resp
       end
@@ -61,7 +61,7 @@ module Uc3DmpProvenance
         return nil if claim.nil? || !claim.is_a?(Hash) || claim['iss'].nil? || claim['client_id'].nil?
 
         user_pool_id = claim['iss'].split('/').last
-        logger.debug(message: "Cognito User Pool: #{user_pool_id}, ClientId: #{claim['client_id']}") if logger.respond_to?(:debug)
+        logger&.debug(message: "Cognito User Pool: #{user_pool_id}, ClientId: #{claim['client_id']}")
         Uc3DmpCognito::Client.get_client_name(client_id: claim['client_id'])
       end
     end
