@@ -16,46 +16,46 @@ RSpec.describe 'Uc3DmpExternalApi::Client' do
     it 'does not send the :body on an HTTP GET even if one was provided' do
       mock_httparty
       allow(described_class).to receive(:_options).and_return({})
-      described_class.call(url: url, body: 'foo')
+      described_class.call(url:, body: 'foo')
       expect(described_class).to have_received(:_options).with(body: nil, additional_headers: {}, debug: false)
     end
 
     it 'raises an error if HTTParty does not receive a 2xx or 404 response code' do
       mock_httparty(code: 532, body: 'foo')
       allow(described_class).to receive(:_options).and_return({})
-      msg = "#{format(MSG_ERROR_FROM_EXTERNAL_API, url: url)} - status: 532, body: foo"
-      expect { described_class.call(url: url) }.to raise_error(external_api_err, msg)
+      msg = "#{format(MSG_ERROR_FROM_EXTERNAL_API, url:)} - status: 532, body: foo"
+      expect { described_class.call(url:) }.to raise_error(external_api_err, msg)
     end
 
     it 'returns nil if HTTParty did not receive a response body but the response code was valid' do
       mock_httparty(code: 404, body: '')
       allow(described_class).to receive(:_options).and_return({})
-      expect(described_class.call(url: url, body: 'foo')).to be_nil
+      expect(described_class.call(url:, body: 'foo')).to be_nil
     end
 
     it 'returns the response body' do
       mock_httparty(code: 200, body: 'foo')
       allow(described_class).to receive(:_options).and_return({})
       allow(described_class).to receive(:_process_response).and_return('foo')
-      expect(described_class.call(url: url, body: 'foo')).to eql('foo')
+      expect(described_class.call(url:, body: 'foo')).to eql('foo')
     end
 
     it 'raises an error if there was a JSON parse error' do
       allow(described_class).to receive(:_process_response).and_raise(JSON::ParserError)
-      msg = format(described_class::MSG_UNABLE_TO_PARSE, url: url)
-      expect { described_class.call(url: url) }.to raise_error(external_api_err, msg)
+      msg = format(described_class::MSG_UNABLE_TO_PARSE, url:)
+      expect { described_class.call(url:) }.to raise_error(external_api_err, msg)
     end
 
     it 'raises an error if there was a HTTParty error' do
       allow(HTTParty).to receive(:get).and_raise(HTTParty::Error)
-      msg = format(described_class::MSG_HTTPARTY_ERR, url: url)
-      expect { described_class.call(url: url) }.to raise_error(external_api_err, msg)
+      msg = format(described_class::MSG_HTTPARTY_ERR, url:)
+      expect { described_class.call(url:) }.to raise_error(external_api_err, msg)
     end
 
     it 'raises an error if there was a URI parse error' do
       allow(URI).to receive(:initialize).and_raise(URI::InvalidURIError)
-      msg = format(described_class::MSG_INVALID_URI, url: url)
-      expect { described_class.call(url: url) }.to raise_error(external_api_err, msg)
+      msg = format(described_class::MSG_INVALID_URI, url:)
+      expect { described_class.call(url:) }.to raise_error(external_api_err, msg)
     end
   end
 
@@ -72,14 +72,14 @@ RSpec.describe 'Uc3DmpExternalApi::Client' do
       resp = HttpartyResponse.new
       resp.headers = { 'content-type': 'application/json' }
       resp.body = '[{"foo":"bar","baz":"123"}]'
-      expect(described_class.send(:_process_response, resp: resp)).to eql(JSON.parse(resp.body))
+      expect(described_class.send(:_process_response, resp:)).to eql(JSON.parse(resp.body))
     end
 
     it 'returns a String if Content-Type header is NOT application/json' do
       resp = HttpartyResponse.new
       resp.headers = { 'content-type': 'application/foo' }
       resp.body = 'foo bar baz'
-      expect(described_class.send(:_process_response, resp: resp)).to eql(resp.body)
+      expect(described_class.send(:_process_response, resp:)).to eql(resp.body)
     end
   end
 
@@ -126,7 +126,7 @@ RSpec.describe 'Uc3DmpExternalApi::Client' do
     it 'can handle no :additional_headers' do
       allow(described_class).to receive(:_headers).and_return({ Foo: 'Bar' })
       body = { foo: 'bar' }
-      result = described_class.send(:_options, body: body, debug: true)
+      result = described_class.send(:_options, body:, debug: true)
       expect(result[:body]).to eql(JSON.parse(body.to_json))
       expect(result[:follow_redirects]).to be(true)
       expect(result[:limit]).to be(6)
@@ -137,7 +137,7 @@ RSpec.describe 'Uc3DmpExternalApi::Client' do
     it 'defaults to :debug false' do
       allow(described_class).to receive(:_headers).and_return({ Foo: 'Bar' })
       body = { foo: 'bar' }
-      result = described_class.send(:_options, body: body, additional_headers: hdrs)
+      result = described_class.send(:_options, body:, additional_headers: hdrs)
       expect(result[:body]).to eql(JSON.parse(body.to_json))
       expect(result[:follow_redirects]).to be(true)
       expect(result[:limit]).to be(6)
@@ -162,7 +162,7 @@ RSpec.describe 'Uc3DmpExternalApi::Client' do
       body = { foo: 'bar' }
       hdrs = { Foo: 'Bar', 'User-Agent': 'foo' }
       allow(described_class).to receive(:_headers).and_return(hdrs)
-      result = described_class.send(:_options, body: body, additional_headers: hdrs, debug: true)
+      result = described_class.send(:_options, body:, additional_headers: hdrs, debug: true)
       expect(result[:body]).to eql(JSON.parse(body.to_json))
       expect(result[:follow_redirects]).to be(true)
       expect(result[:limit]).to be(6)

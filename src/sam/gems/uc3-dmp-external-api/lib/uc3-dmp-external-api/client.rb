@@ -17,27 +17,27 @@ module Uc3DmpExternalApi
 
     class << self
       # Call the specified URL using the specified HTTP method, body and headers
-      # rubocop:disable Metrics/AbcSize
+      # rubocop:disable Metrics/AbcSize, Metrics/ParameterLists
       def call(url:, method: :get, body: '', basic_auth: {}, additional_headers: {}, logger: nil)
         uri = URI(url)
         # Skip the body if we are doing a get
         body = nil if method.to_sym == :get
-        opts = _options(body: body, basic_auth: basic_auth, additional_headers: additional_headers, logger: logger)
+        opts = _options(body:, basic_auth:, additional_headers:, logger:)
         resp = HTTParty.send(method.to_sym, uri, opts)
 
-        if ![200, 201].include?(resp.code)
+        unless [200, 201].include?(resp.code)
           msg = "status: #{resp&.code}, body: #{resp&.body}"
-          raise ExternalApiError, "#{format(MSG_ERROR_FROM_EXTERNAL_API, url: url)} - #{msg}"
+          raise ExternalApiError, "#{format(MSG_ERROR_FROM_EXTERNAL_API, url:)} - #{msg}"
         end
-        resp.body.nil? || resp.body.empty? ? nil : _process_response(resp: resp)
+        resp.body.nil? || resp.body.empty? ? nil : _process_response(resp:)
       rescue JSON::ParserError
-        raise ExternalApiError, format(MSG_UNABLE_TO_PARSE, url: url)
+        raise ExternalApiError, format(MSG_UNABLE_TO_PARSE, url:)
       rescue HTTParty::Error => e
-        raise ExternalApiError, "#{format(MSG_HTTPARTY_ERR, url: url)} - #{e.message}"
+        raise ExternalApiError, "#{format(MSG_HTTPARTY_ERR, url:)} - #{e.message}"
       rescue URI::InvalidURIError
-        raise ExternalApiError, format(MSG_INVALID_URI, url: url)
+        raise ExternalApiError, format(MSG_INVALID_URI, url:)
       end
-      # rubocop:enable Metrics/AbcSize
+      # rubocop:enable Metrics/AbcSize, Metrics/ParameterLists
 
       private
 
@@ -63,7 +63,7 @@ module Uc3DmpExternalApi
 
       # Prepare the HTTParty gem options
       def _options(body:, basic_auth: nil, additional_headers: {}, logger: nil)
-        hdrs = _headers(additional_headers: additional_headers)
+        hdrs = _headers(additional_headers:)
         opts = {
           headers: hdrs,
           follow_redirects: true,
