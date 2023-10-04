@@ -14,7 +14,7 @@ parameters:
   DynamoTableClass: 'STANDARD'
   DynamoEnableContributorInsights: 'true'
   DynamoEnablePointInTimeRecovery: 'false'
-  DynamoBillingMode: 'PROVISIONED'
+  DynamoBillingMode: 'PAY_PER_REQUEST'
   DynamoReadCapacityUnits: '16'
   DynamoWriteCapacityUnits: '60'
 

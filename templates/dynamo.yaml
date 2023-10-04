@@ -94,11 +94,11 @@ Resources:
         - AttributeName: 'dmphub_modification_day'
           AttributeType: 'S'
         # DMPHub attribute that stores the ORCID id of the contact
-        - AttributeName: 'dmphub_owner_id'
-          AttributeType: 'S'
+        # - AttributeName: 'dmphub_owner_id'
+        #   AttributeType: 'S'
         # DMPHub attribute that stores the ROR id of the contact
-        - AttributeName: 'dmphub_owner_org'
-          AttributeType: 'S'
+        # - AttributeName: 'dmphub_owner_org'
+        #   AttributeType: 'S'
         # The originating provenance system's ID for the DMP
         - AttributeName: 'dmphub_provenance_identifier'
           AttributeType: 'S'
@@ -126,40 +126,40 @@ Resources:
             - !Ref AWS::NoValue
 
         # An index to help us quickly fetch all of the DMPs for a specific organization
-        - IndexName: 'dmphub_owner_id_gsi'
-          KeySchema:
-            - AttributeName: 'dmphub_owner_id'
-              KeyType: 'HASH'
-            - AttributeName: 'PK'
-              KeyType: 'RANGE'
-          Projection:
-            ProjectionType: 'INCLUDE'
-            NonKeyAttributes: ['SK', 'title', 'description', 'created', 'modified', 'contact', 'contributor', 'project', 'dmproadmap_assertion_needed']
-          ContributorInsightsSpecification:
-            Enabled: !Ref DynamoEnableContributorInsights
-          ProvisionedThroughput: !If
-            - ProvisionedCapacity
-            - ReadCapacityUnits: !Ref DynamoReadCapacityUnits
-              WriteCapacityUnits: !Ref DynamoWriteCapacityUnits
-            - !Ref AWS::NoValue
+        # - IndexName: 'dmphub_owner_id_gsi'
+        #   KeySchema:
+        #     - AttributeName: 'dmphub_owner_id'
+        #       KeyType: 'HASH'
+        #     - AttributeName: 'PK'
+        #       KeyType: 'RANGE'
+        #   Projection:
+        #     ProjectionType: 'INCLUDE'
+        #     NonKeyAttributes: ['SK', 'title', 'description', 'created', 'modified', 'contact', 'contributor', 'project', 'dmproadmap_assertion_needed']
+        #   ContributorInsightsSpecification:
+        #     Enabled: !Ref DynamoEnableContributorInsights
+        #   ProvisionedThroughput: !If
+        #     - ProvisionedCapacity
+        #     - ReadCapacityUnits: !Ref DynamoReadCapacityUnits
+        #       WriteCapacityUnits: !Ref DynamoWriteCapacityUnits
+        #     - !Ref AWS::NoValue
 
         # An index to help us quickly fetch all of the DMPs for a specific organization
-        - IndexName: 'dmphub_owner_org_gsi'
-          KeySchema:
-            - AttributeName: 'dmphub_owner_org'
-              KeyType: 'HASH'
-            - AttributeName: 'PK'
-              KeyType: 'RANGE'
-          Projection:
-            ProjectionType: 'INCLUDE'
-            NonKeyAttributes: ['SK', 'title', 'description', 'created', 'modified', 'contact', 'contributor', 'project', 'dmproadmap_assertion_needed']
-          ContributorInsightsSpecification:
-            Enabled: !Ref DynamoEnableContributorInsights
-          ProvisionedThroughput: !If
-            - ProvisionedCapacity
-            - ReadCapacityUnits: !Ref DynamoReadCapacityUnits
-              WriteCapacityUnits: !Ref DynamoWriteCapacityUnits
-            - !Ref AWS::NoValue
+        # - IndexName: 'dmphub_owner_org_gsi'
+        #   KeySchema:
+        #     - AttributeName: 'dmphub_owner_org'
+        #       KeyType: 'HASH'
+        #     - AttributeName: 'PK'
+        #       KeyType: 'RANGE'
+        #   Projection:
+        #     ProjectionType: 'INCLUDE'
+        #     NonKeyAttributes: ['SK', 'title', 'description', 'created', 'modified', 'contact', 'contributor', 'project', 'dmproadmap_assertion_needed']
+        #   ContributorInsightsSpecification:
+        #     Enabled: !Ref DynamoEnableContributorInsights
+        #   ProvisionedThroughput: !If
+        #     - ProvisionedCapacity
+        #     - ReadCapacityUnits: !Ref DynamoReadCapacityUnits
+        #       WriteCapacityUnits: !Ref DynamoWriteCapacityUnits
+        #     - !Ref AWS::NoValue
 
         # An index to help us quickly fetch a DMP by its identifier for the provenance system
         - IndexName: 'dmphub_provenance_identifier_gsi'
