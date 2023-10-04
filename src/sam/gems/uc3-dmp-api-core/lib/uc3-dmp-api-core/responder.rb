@@ -24,10 +24,11 @@ module Uc3DmpApiCore
       #
       # Returns a hash that is a valid Lambda API response
       # --------------------------------------------------------------------------------
-      # rubocop:disable Metrics/AbcSize
+      # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
+      # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
       def respond(status: DEFAULT_STATUS_CODE, logger: nil, items: [], errors: [], **args)
         url = _url_from_event(event: args[:event]) || SsmReader.get_ssm_value(key: 'api_base_url')
-        return _standard_error(url: url) if url.nil?
+        return _standard_error(url:) if url.nil?
 
         args = JSON.parse(args.to_json)
         errors = [errors] unless errors.nil? || errors.is_a?(Array)
@@ -39,9 +40,9 @@ module Uc3DmpApiCore
           requested_at: Time.now.strftime(TIMESTAMP_FORMAT),
           total_items: item_count,
           items: items.is_a?(Array) ? Paginator.paginate(params: args, results: items) : [],
-          errors: errors
+          errors:
         }
-        body = body.merge(Paginator.pagination_meta(url: url, item_count: item_count, params: args))
+        body = body.merge(Paginator.pagination_meta(url:, item_count:, params: args))
 
         # If this is a server error, then notify the administrator!
         if status.to_s[0] == '5' && !logger.nil?
@@ -49,12 +50,13 @@ module Uc3DmpApiCore
           Notifier.notify_administrator(source: logger.source, details: body, event: logger.event)
         end
 
-        { statusCode: status.to_i, body: body.compact.to_json, headers: headers }
+        { statusCode: status.to_i, body: body.compact.to_json, headers: }
       rescue StandardError => e
-        logger.error(message: e.message, details: e.backtrace) unless logger.nil?
-        _standard_error(url: url)
+        logger&.error(message: e.message, details: e.backtrace)
+        _standard_error(url:)
       end
-      # rubocop:enable Metrics/AbcSize
+      # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
+      # rubocop:enable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
       private
 
@@ -67,7 +69,7 @@ module Uc3DmpApiCore
           total_items: 0,
           errors: [message]
         }
-        { statusCode: DEFAULT_STATUS_CODE, body: body.compact.to_json, headers: headers }
+        { statusCode: DEFAULT_STATUS_CODE, body: body.compact.to_json, headers: }
       end
 
       # Figure out the requested URL from the Lambda event hash
@@ -84,7 +86,7 @@ module Uc3DmpApiCore
       def headers
         return {} if ENV['CORS_ORIGIN'].nil?
 
-        { 'access-control-allow-origin': ENV['CORS_ORIGIN'] }
+        { 'access-control-allow-origin': ENV.fetch('CORS_ORIGIN', nil) }
       end
     end
   end

@@ -9,6 +9,7 @@ require 'uc3-dmp-api-core/paginator'
 require 'uc3-dmp-api-core/responder'
 require 'uc3-dmp-api-core/ssm_reader'
 
+# Entrypoitn for the uc3-dmp-api-core gem
 module Uc3DmpApiCore
   # General HTTP Response Messages
   # ----------------------------------------
