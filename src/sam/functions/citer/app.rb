@@ -53,7 +53,7 @@ module Functions
         # Setup the Logger
         log_level = ENV.fetch('LOG_LEVEL', 'error')
         req_id = context.aws_request_id if context.is_a?(LambdaContext)
-        logger = Uc3DmpCloudwatch::Logger.new(source: SOURCE, request_id: req_id, event: event, level: log_level)
+        logger = Uc3DmpCloudwatch::Logger.new(source: SOURCE, request_id: req_id, event:, level: log_level)
 
         # No need to validate the source and detail-type because that is done by the EventRule
         detail = event.fetch('detail', {})
@@ -63,8 +63,8 @@ module Functions
 
         if !dmp_pk.nil? && !dmp_sk.nil?
           # Load the DMP metadata
-          dmp = Uc3DmpId::Finder.by_pk(p_key: dmp_pk, s_key: dmp_sk, cleanse: false, logger: logger)
-          if !dmp.nil?
+          dmp = Uc3DmpId::Finder.by_pk(p_key: dmp_pk, s_key: dmp_sk, cleanse: false, logger:)
+          unless dmp.nil?
             # Get all of the related identifiers that are DOIs and are un-cited
             identifiers = dmp.fetch('dmp', {}).fetch('dmproadmap_related_identifiers', [])
             uncited = Uc3DmpId::Helper.citable_related_identifiers(dmp: dmp['dmp'])
@@ -72,11 +72,13 @@ module Functions
             if identifiers.any? && uncited.any?
               existing_citations = identifiers.reject { |id| uncited.include?(id) }
               processed = []
+              # rubocop:disable Metrics/BlockNesting
               uncited.each do |identifier|
-                citation = Uc3DmpCitation::Citer.fetch_citation(doi: identifier['identifier']&.strip, logger: logger)
-                identifier['citation'] =  citation unless citation.nil?
+                citation = Uc3DmpCitation::Citer.fetch_citation(doi: identifier['identifier']&.strip, logger:)
+                identifier['citation'] = citation unless citation.nil?
                 processed << identifier
               end
+              # rubocop:enable Metrics/BlockNesting
 
               logger.debug(message: 'Results of citation retrieval', details: processed)
               dmp['dmp']['dmproadmap_related_identifiers'] = existing_citations + processed
@@ -85,20 +87,20 @@ module Functions
               dmp['dmp'].delete('dmphub_versions')
 
               client = Uc3DmpDynamo::Client.new
-              resp = client.put_item(json: dmp['dmp'], logger: logger)
+              client.put_item(json: dmp['dmp'], logger:)
             end
           end
         end
       rescue Uc3DmpId::FinderError => e
-        logger.error(message: e.message, details: e.backtrace)
+        logger.error(message: "Finder error: #{e.message}", details: e.backtrace)
       rescue Uc3DmpCitation::CiterError => e
-        logger.error(message: e.message, details: e.backtrace)
+        logger.error(message: "Citer error: #{e.message}", details: e.backtrace)
       rescue Uc3DmpExternalApi::ExternalApiError => e
-        logger.error(message: e.message, details: e.backtrace)
+        logger.error(message: "External API error: #{e.message}", details: e.backtrace)
       rescue StandardError => e
         logger.error(message: e.message, details: e.backtrace)
-        deets = { message: "Fatal error - #{e.message}", event_details: json}
-        Uc3DmpApiCore::Notifier.notify_administrator(source: SOURCE, details: deets, event: event)
+        deets = { message: "Fatal error - #{e.message}", event_details: json }
+        Uc3DmpApiCore::Notifier.notify_administrator(source: SOURCE, details: deets, event:)
       end
       # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
       # rubocop:enable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
@@ -108,7 +110,7 @@ module Functions
       # Send the output to the Responder
       def _respond(status:, items: [], errors: [], event: {}, params: {})
         Uc3DmpApiCore::Responder.respond(
-          status: status, items: items, errors: errors, event: event,
+          status:, items:, errors:, event:,
           page: params['page'], per_page: params['per_page']
         )
       end

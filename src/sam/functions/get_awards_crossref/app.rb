@@ -29,11 +29,13 @@ module Functions
                     a comma separated list of award years (optional) (e.g. years=2023,2021)'
     MSG_EMPTY_RESPONSE = 'Crossref API returned an empty resultset'
 
+    # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
+    # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
     def self.process(event:, context:)
       # Setup the Logger
       log_level = ENV.fetch('LOG_LEVEL', 'error')
       req_id = context.aws_request_id if context.is_a?(LambdaContext)
-      logger = Uc3DmpCloudwatch::Logger.new(source: SOURCE, request_id: req_id, event: event, level: log_level)
+      logger = Uc3DmpCloudwatch::Logger.new(source: SOURCE, request_id: req_id, event:, level: log_level)
 
       funder = event.fetch('pathParameters', {})['funder_id']
       return _respond(status: 400, errors: [MSG_NO_FUNDER]) if funder.nil? || funder.empty?
@@ -44,43 +46,43 @@ module Functions
       title = params.fetch('keywords', '')
       years = params.fetch('years', (Date.today.year..Date.today.year - 3).to_a.join(','))
       years = years.split(',').map(&:to_i)
-      return _respond(status: 400, errors: [MSG_BAD_ARGS], event: event) if (project_num.nil? || project_num.empty?) &&
-                                                                            (title.nil? || title.empty?) &&
-                                                                            (pi_names.nil? || pi_names.empty?) &&
-                                                                            (years.nil? || years.empty?)
+      return _respond(status: 400, errors: [MSG_BAD_ARGS], event:) if (project_num.nil? || project_num.empty?) &&
+                                                                      (title.nil? || title.empty?) &&
+                                                                      (pi_names.nil? || pi_names.empty?) &&
+                                                                      (years.nil? || years.empty?)
 
       url = "/#{project_num}" unless project_num.nil? || project_num.empty?
-      url = "?#{_prepare_query_string2(funder: funder, pi_names: pi_names, title: title, years: years)}" if url.nil?
+      url = "?#{_prepare_query_string2(funder:, pi_names:, title:, years:)}" if url.nil?
       url = "#{API_BASE_URL}#{url}"
       logger.debug(message: "Calling Crossref Award API: #{url}") if logger.respond_to?(:debug)
 
-      resp = Uc3DmpExternalApi::Client.call(url: url, method: :get, logger: logger)
+      resp = Uc3DmpExternalApi::Client.call(url:, method: :get, logger:)
       if resp.nil? || resp.to_s.strip.empty?
         logger.error(message: MSG_EMPTY_RESPONSE, details: resp) if logger.respond_to?(:debug)
-        return _respond(status: 404, items: [], event: event)
+        return _respond(status: 404, items: [], event:)
       end
 
       logger.debug(message: 'Found the following results:', details: resp) if logger.respond_to?(:debug)
       results = _transform_response(response_body: resp)
-      _respond(status: 200, items: results.compact.uniq, event: event, params: params)
+      _respond(status: 200, items: results.compact.uniq, event:, params:)
     rescue Uc3DmpExternalApi::ExternalApiError => e
-      logger.error(message: e.message, details: e.backtrace)
-      deets = { message: e.message, query_string: params }
-      Uc3DmpApiCore::Notifier.notify_administrator(source: SOURCE, details: deets, event: event)
-      _respond(status: 500, errors: [Uc3DmpApiCore::MSG_SERVER_ERROR], event: event)
+      logger.error(message: "External API error: #{e.message}", details: e.backtrace)
+      deets = { message: "External API error: #{e.message}", query_string: params }
+      Uc3DmpApiCore::Notifier.notify_administrator(source: SOURCE, details: deets, event:)
+      _respond(status: 500, errors: [Uc3DmpApiCore::MSG_SERVER_ERROR], event:)
     rescue Aws::Errors::ServiceError => e
       logger.error(message: e.message, details: e.backtrace)
       deets = { message: e.message, query_string: params }
-      Uc3DmpApiCore::Notifier.notify_administrator(source: SOURCE, details: deets, event: event)
-      _respond(status: 500, errors: [Uc3DmpApiCore::MSG_SERVER_ERROR], event: event)
+      Uc3DmpApiCore::Notifier.notify_administrator(source: SOURCE, details: deets, event:)
+      _respond(status: 500, errors: [Uc3DmpApiCore::MSG_SERVER_ERROR], event:)
     rescue StandardError => e
       logger.error(message: e.message, details: e.backtrace)
       deets = { message: e.message, query_string: params }
-      Uc3DmpApiCore::Notifier.notify_administrator(source: SOURCE, details: deets, event: event)
+      Uc3DmpApiCore::Notifier.notify_administrator(source: SOURCE, details: deets, event:)
       { statusCode: 500, body: { errors: [Uc3DmpApiCore::MSG_SERVER_ERROR] }.to_json }
     end
-
-    private
+    # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
+    # rubocop:enable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
     class << self
       # URI encode the values sent in
@@ -88,39 +90,42 @@ module Functions
         return str if str.nil? || !params.is_a?(Hash)
 
         params.each do |k, v|
-          val = v.to_s.strip.gsub(%r{\s}, '+')
+          val = v.to_s.strip.gsub(/\s/, '+')
           str = str.gsub(":#{k}", URI.encode_www_form_component(val))
         end
         str
       end
 
+      # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
       def _prepare_query_string2(funder:, pi_names: [], title: '', years: [])
         return '' if funder.nil?
 
         args = []
         args << title unless title.nil? || title.to_s.strip == ''
-        args << pi_names.split(',')&.map { |pi| pi.strip  } unless pi_names.nil? || pi_names.to_s.strip == ''
+        args << pi_names.split(',')&.map(&:strip) unless pi_names.nil? || pi_names.to_s.strip == ''
         args << years if years.is_a?(Array) && years.any?
         return '' unless args.is_a?(Array) && args.any?
 
         qs = ['sort=score']
         qs << "filter=type:grant,funder:#{funder}"
         args = args.flatten.join(', ')
-        qs << _sanitize_params(str: 'query.bibliographic=%22:args%22', params: { args: args })
+        qs << _sanitize_params(str: 'query.bibliographic=%22:args%22', params: { args: })
         qs << "mailto=#{ENV.fetch('ADMIN_EMAIL', 'dmptool@ucop.edu')}"
         qs.join('&')
       end
+      # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
       # Prepare the query string for the API call
+      # rubocop:disable Metrics/AbcSize
       def _prepare_query_string(funder:, pi_names: [], title: '', years: [])
         return '' if funder.nil?
 
         qs = ['sort=score']
-        years = years.map(&:to_s).reject { |yr| yr.length != 4 }.sort if years.is_a?(Array)
+        years = years.map(&:to_s).select { |yr| yr.length == 4 }.sort if years.is_a?(Array)
 
         words = title.nil? ? '' : title.tr('+', ' ')
         words += pi_names.split(',').map { |name| name.tr('+', ' ') }.join(' ')
-        qs << _sanitize_params(str: 'query=:words', params: { words: words }) unless words.nil? || words.empty?
+        qs << _sanitize_params(str: 'query=:words', params: { words: }) unless words.nil? || words.empty?
         qs << "filter=type:grant,funder:#{funder}"
         qs = qs.join('&')
         return qs if years.empty?
@@ -129,26 +134,30 @@ module Functions
           start: "#{years.first}-01-01",
           end: "#{years.last}-12-31"
         }
-        qs += _sanitize_params(str: ",from-awarded-date::start,until-awarded-date::end", params: filter_params)
+        qs += _sanitize_params(str: ',from-awarded-date::start,until-awarded-date::end', params: filter_params)
         qs += "&mailto:#{ENV.fetch('ADMIN_EMAIL', 'dmptool@ucop.edu')}"
+        qs
       end
+      # rubocop:enable Metrics/AbcSize
 
       # Convert the PI info from the response into "Last, First"
+      # rubocop:disable Metrics/AbcSize
       def _pi_from_response(pi_hash:)
         pi = { name: [pi_hash['family'], pi_hash['given']].compact.join(', ') }
         affiliation = pi_hash.fetch('affiliation', []).first
         return pi if affiliation.nil?
 
         id = affiliation.fetch('id', []).first
-        unless id.nil?
-          affiliation_id = { identifier: id['id'], type: 'ror' } if !id.nil? &&
-                                                                    id['id-type']&.downcase&.strip == 'ror'
+        if !id.nil? && (!id.nil? &&
+                                                                    id['id-type']&.downcase&.strip == 'ror')
+          affiliation_id = { identifier: id['id'], type: 'ror' }
         end
         affil = { name: affiliation['name'] }
         affil['affiliation_id'] = affiliation_id unless affiliation_id.nil?
         pi[:dmproadmap_affiliation] = affil
         pi
       end
+      # rubocop:enable Metrics/AbcSize
 
       # Transform the NSF API results into our common funder API response
       #
@@ -227,6 +236,8 @@ module Functions
       #     ]
       #   }
       # }
+      # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
+      # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
       def _transform_response(response_body:)
         return [] unless response_body.is_a?(Hash)
         return [] if response_body['message'].nil?
@@ -262,11 +273,13 @@ module Functions
           }
         end
       end
+      # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
+      # rubocop:enable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
       # Send the output to the Responder
       def _respond(status:, items: [], errors: [], event: {}, params: {})
         Uc3DmpApiCore::Responder.respond(
-          status: status, items: items, errors: errors, event: event,
+          status:, items:, errors:, event:,
           page: params['page'], per_page: params['per_page']
         )
       end

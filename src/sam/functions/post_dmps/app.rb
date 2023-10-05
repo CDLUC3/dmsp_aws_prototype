@@ -17,54 +17,52 @@ module Functions
   class PostDmps
     SOURCE = 'POST /dmps'
 
-    # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
+    # rubocop:disable Metrics/AbcSize
     def self.process(event:, context:)
       # Setup the Logger
       log_level = ENV.fetch('LOG_LEVEL', 'error')
       req_id = context.aws_request_id if context.is_a?(LambdaContext)
-      logger = Uc3DmpCloudwatch::Logger.new(source: SOURCE, request_id: req_id, event: event, level: log_level)
+      logger = Uc3DmpCloudwatch::Logger.new(source: SOURCE, request_id: req_id, event:, level: log_level)
 
       body = event.fetch('body', '')
-      return _respond(status: 400, errors: Uc3DmpId::Validator::MSG_EMPTY_JSON, event: event) if body.to_s.strip.empty?
+      return _respond(status: 400, errors: Uc3DmpId::Validator::MSG_EMPTY_JSON, event:) if body.to_s.strip.empty?
+
       json = Uc3DmpId::Helper.parse_json(json: body)
 
-      _set_env(logger: logger)
+      _set_env(logger:)
 
       # Fail if the Provenance could not be loaded
       claim = event.fetch('requestContext', {}).fetch('authorizer', {})['claims']
-      provenance = Uc3DmpProvenance::Finder.from_lambda_cotext(identity: claim, logger: logger)
-      return _respond(status: 403, errors: Uc3DmpId::Helper::MSG_DMP_FORBIDDEN, event: event) if provenance.nil?
+      provenance = Uc3DmpProvenance::Finder.from_lambda_cotext(identity: claim, logger:)
+      return _respond(status: 403, errors: Uc3DmpId::Helper::MSG_DMP_FORBIDDEN, event:) if provenance.nil?
 
       # Register a new DMP ID
-      resp = Uc3DmpId::Creator.create(provenance: provenance, json: json, logger: logger)
+      resp = Uc3DmpId::Creator.create(provenance:, json:, logger:)
       return _respond(status: 400, errors: Uc3DmpId::Helper::MSG_DMP_NO_DMP_ID) if resp.nil?
 
-      _respond(status: 201, items: [resp], event: event)
+      _respond(status: 201, items: [resp], event:)
     rescue Uc3DmpId::CreatorError => e
-      _respond(status: 400, errors: [Uc3DmpId::Helper::MSG_DMP_NO_DMP_ID, e.message], event: event)
+      _respond(status: 400, errors: [Uc3DmpId::Helper::MSG_DMP_NO_DMP_ID, e.message], event:)
     rescue StandardError => e
       logger.error(message: e.message, details: e.backtrace)
-      deets = { message: e.message, body: body }
-      Uc3DmpApiCore::Notifier.notify_administrator(source: SOURCE, details: deets, event: event)
+      deets = { message: e.message, body: }
+      Uc3DmpApiCore::Notifier.notify_administrator(source: SOURCE, details: deets, event:)
       { statusCode: 500, body: { errors: [Uc3DmpApiCore::MSG_SERVER_ERROR] }.to_json }
     end
-    # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
-
-    private
+    # rubocop:enable Metrics/AbcSize
 
     class << self
-
       # Set the Cognito User Pool Id and DyanmoDB Table name for the downstream Uc3DmpCognito and Uc3DmpDynamo
       def _set_env(logger: nil)
         ENV['COGNITO_USER_POOL_ID'] = ENV['COGNITO_USER_POOL_ID']&.split('/')&.last
-        ENV['DMP_ID_SHOULDER'] = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :dmp_id_shoulder, logger: logger)
-        ENV['DMP_ID_BASE_URL'] = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :dmp_id_base_url, logger: logger)
+        ENV['DMP_ID_SHOULDER'] = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :dmp_id_shoulder, logger:)
+        ENV['DMP_ID_BASE_URL'] = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :dmp_id_base_url, logger:)
       end
 
       # Send the output to the Responder
       def _respond(status:, items: [], errors: [], event: {}, params: {})
         Uc3DmpApiCore::Responder.respond(
-          status: status, items: items, errors: errors, event: event,
+          status:, items:, errors:, event:,
           page: params['page'], per_page: params['per_page']
         )
       end

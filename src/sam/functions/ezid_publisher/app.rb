@@ -81,43 +81,49 @@ module Functions
         # Setup the Logger
         log_level = ENV.fetch('LOG_LEVEL', 'error')
         req_id = context.aws_request_id if context.is_a?(LambdaContext)
-        logger = Uc3DmpCloudwatch::Logger.new(source: SOURCE, request_id: req_id, event: event, level: log_level)
+        logger = Uc3DmpCloudwatch::Logger.new(source: SOURCE, request_id: req_id, event:, level: log_level)
 
         # No need to validate the source and detail-type because that is done by the EventRule
         detail = event.fetch('detail', {})
         json = detail.is_a?(Hash) ? detail : JSON.parse(detail)
         provenance_pk = json['dmphub_provenance_id']
         dmp_pk = json['PK']
-        _respond(status: 400, errors: [Uc3DmpApiCore::MSG_INVALID_ARGS], event: event) if provenance_pk.nil? || dmp_pk.nil?
+        if provenance_pk.nil? || dmp_pk.nil?
+          _respond(status: 400, errors: [Uc3DmpApiCore::MSG_INVALID_ARGS],
+                   event:)
+        end
 
         # Check the SSM Variable that will disable interaction with EZID (specifically used for
         # tests in production to verify that we are sending a valid payload to EZID)
-        skip_ezid = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :dmp_id_debug_mode, logger: logger)&.to_s&.downcase == 'true'
+        skip_ezid = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :dmp_id_debug_mode,
+                                                           logger:)&.to_s&.downcase == 'true'
         # Check the SSM Variable that will pause interaction with EZID (specifically used for
         # periods when EZID will be down for an extended period)
-        paused = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :dmp_id_paused, logger: logger)&.to_s&.downcase == 'true'
+        paused = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :dmp_id_paused, logger:)&.to_s&.downcase == 'true'
 
         # If submissions are paused, toss the event into the EventBridge archive where it can be
         # replayed at a later time
         if paused
-          logger.info(message: "EZID submissions paused: You can replay events from the archive when ready.",
+          logger.info(message: 'EZID submissions paused: You can replay events from the archive when ready.',
                       details: json)
-          deets = { message: "EZID Paused", event_details: json }
-          Uc3DmpApiCore::Notifier.notify_administrator(source: SOURCE, details: deets, event: event)
+          deets = { message: 'EZID Paused', event_details: json }
+          Uc3DmpApiCore::Notifier.notify_administrator(source: SOURCE, details: deets, event:)
         else
           # Load the DMP metadata
-          dmp = Uc3DmpId::Finder.by_pk(p_key: dmp_pk, logger: logger)
+          dmp = Uc3DmpId::Finder.by_pk(p_key: dmp_pk, logger:)
           # _respond(status: 404, errors: [Uc3DmpId::MSG_DMP_NOT_FOUND], event: event) if dmp.nil?
 
-          dmp_id = dmp.fetch('dmp', {}).fetch('dmp_id', {})['identifier'].gsub(/https?:\/\//, '').gsub(ENV['DMP_ID_BASE_URL'], '')
-          dmp_id = dmp_id.start_with?('/') ? dmp_id[1..dmp_id.length] : dmp_id
-          ezid_url = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :dmp_id_api_url, logger: logger)
-          ezid_url = ezid_url.end_with?('/') ? ezid_url : "#{ezid_url}/"
-          base_url = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :base_url, logger: logger)
+          dmp_id = dmp.fetch('dmp', {}).fetch('dmp_id', {})['identifier'].gsub(%r{https?://}, '').gsub(
+            ENV.fetch('DMP_ID_BASE_URL', nil), ''
+          )
+          dmp_id = dmp_id[1..dmp_id.length] if dmp_id.start_with?('/')
+          ezid_url = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :dmp_id_api_url, logger:)
+          ezid_url = "#{ezid_url}/" unless ezid_url.end_with?('/')
+          base_url = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :base_url, logger:)
 
           url = "#{ezid_url}id/doi:#{dmp_id}?update_if_exists=yes"
           landing_page_url = "#{base_url}/dmps/#{dmp_id}"
-          datacite_xml = dmp_to_datacite_xml(dmp_id: dmp_id, dmp: dmp['dmp'])&.gsub(/[\r\n]/, ' ')
+          datacite_xml = dmp_to_datacite_xml(dmp_id:, dmp: dmp['dmp'])&.gsub(/[\r\n]/, ' ')
           logger.error(message: "Failed to build DatCite XML for #{dmp_id}", details: dmp) if datacite_xml.nil?
 
           payload = <<~TEXT
@@ -131,17 +137,17 @@ module Functions
           else
             headers = {
               'Content-Type': 'text/plain',
-              'Accept': 'text/plain'
+              Accept: 'text/plain'
             }
             auth = {
-              username: Uc3DmpApiCore::SsmReader.get_ssm_value(key: :dmp_id_client_id, logger: logger),
-              password: Uc3DmpApiCore::SsmReader.get_ssm_value(key: :dmp_id_client_secret, logger: logger)
+              username: Uc3DmpApiCore::SsmReader.get_ssm_value(key: :dmp_id_client_id, logger:),
+              password: Uc3DmpApiCore::SsmReader.get_ssm_value(key: :dmp_id_client_secret, logger:)
             }
             logger.info(message: "Sending updated DMP ID metadata to EZID for #{dmp_id}")
             logger.debug(message: "Sending DMP ID metadata to EZID for #{dmp_id}",
-                        details: { url: url, headers: headers, payload: payload.to_s })
-            resp = Uc3DmpExternalApi::Client.call(url: url, method: :put, body: payload.to_s, basic_auth: auth,
-                                                  additional_headers: headers, logger: logger)
+                         details: { url:, headers:, payload: payload.to_s })
+            Uc3DmpExternalApi::Client.call(url:, method: :put, body: payload.to_s, basic_auth: auth,
+                                           additional_headers: headers, logger:)
           end
         end
       rescue Uc3DmpId::FinderError => e
@@ -149,12 +155,12 @@ module Functions
       rescue Uc3DmpExternalApi::ExternalApiError => e
         # EZID returned an error, so notify the admin. They can replay once the issue is resolved
         logger.error(message: e.message, details: json)
-        deets = { message: "EZID returned an error #{e.message}", event_details: json}
-        Uc3DmpApiCore::Notifier.notify_administrator(source: SOURCE, details: deets, event: event)
+        deets = { message: "EZID returned an error #{e.message}", event_details: json }
+        Uc3DmpApiCore::Notifier.notify_administrator(source: SOURCE, details: deets, event:)
       rescue StandardError => e
         logger.error(message: e.message, details: e.backtrace)
-        deets = { message: "Fatal error - #{e.message}", event_details: json}
-        Uc3DmpApiCore::Notifier.notify_administrator(source: SOURCE, details: deets, event: event)
+        deets = { message: "Fatal error - #{e.message}", event_details: json }
+        Uc3DmpApiCore::Notifier.notify_administrator(source: SOURCE, details: deets, event:)
       end
       # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
       # rubocop:enable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
@@ -164,7 +170,7 @@ module Functions
       # Send the output to the Responder
       def _respond(status:, items: [], errors: [], event: {}, params: {})
         Uc3DmpApiCore::Responder.respond(
-          status: status, items: items, errors: errors, event: event,
+          status:, items:, errors:, event:,
           page: params['page'], per_page: params['per_page']
         )
       end
@@ -358,7 +364,7 @@ module Functions
         return '' unless json.is_a?(Hash) && !json['identifier'].nil?
 
         scheme_uri = SCHEMES[:"#{json['type']}"]
-        scheme_type = identifier_type(json: json)
+        scheme_type = identifier_type(json:)
 
         tabs = tab_count.positive? ? (TAB * tab_count) : ''
         if scheme_uri.nil?
@@ -421,7 +427,7 @@ module Functions
 
         tabs = tab_count.positive? ? (TAB * tab_count) : ''
         <<~XML
-          #{tabs}<relatedIdentifier relationType="#{descriptor}" relatedIdentifierType="#{identifier_type(json: json)}">
+          #{tabs}<relatedIdentifier relationType="#{descriptor}" relatedIdentifierType="#{identifier_type(json:)}">
           #{tabs}#{TAB}#{json['identifier']}
           #{tabs}</relatedIdentifier>
         XML

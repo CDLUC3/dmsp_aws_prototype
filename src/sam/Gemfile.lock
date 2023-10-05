@@ -1,17 +1,41 @@
 GEM
   remote: https://rubygems.org/
   specs:
+    active_record_simple_execute (0.9.1)
+      activerecord (>= 3.2)
+    activemodel (7.1.0)
+      activesupport (= 7.1.0)
+    activerecord (7.1.0)
+      activemodel (= 7.1.0)
+      activesupport (= 7.1.0)
+      timeout (>= 0.4.0)
+    activesupport (7.1.0)
+      base64
+      bigdecimal
+      concurrent-ruby (~> 1.0, >= 1.0.2)
+      connection_pool (>= 2.2.5)
+      drb
+      i18n (>= 1.6, < 2)
+      minitest (>= 5.1)
+      mutex_m
+      tzinfo (~> 2.0)
     addressable (2.8.5)
       public_suffix (>= 2.0.2, < 6.0)
     ast (2.4.2)
     aws-eventstream (1.2.0)
     aws-partitions (1.833.0)
+    aws-sdk-cognitoidentityprovider (1.82.0)
+      aws-sdk-core (~> 3, >= 3.184.0)
+      aws-sigv4 (~> 1.1)
     aws-sdk-core (3.185.0)
       aws-eventstream (~> 1, >= 1.0.2)
       aws-partitions (~> 1, >= 1.651.0)
       aws-sigv4 (~> 1.5)
       jmespath (~> 1, >= 1.6.1)
     aws-sdk-dynamodb (1.95.0)
+      aws-sdk-core (~> 3, >= 3.184.0)
+      aws-sigv4 (~> 1.1)
+    aws-sdk-eventbridge (1.51.0)
       aws-sdk-core (~> 3, >= 3.184.0)
       aws-sigv4 (~> 1.1)
     aws-sdk-kms (1.72.0)
@@ -30,17 +54,29 @@ GEM
     aws-sigv4 (1.6.0)
       aws-eventstream (~> 1, >= 1.0.2)
     base64 (0.1.1)
+    bigdecimal (3.1.4)
+    cgi (0.3.6)
+    concurrent-ruby (1.2.2)
+    connection_pool (2.4.1)
     diff-lcs (1.5.0)
+    drb (2.1.1)
+      ruby2_keywords
     httparty (0.21.0)
       mini_mime (>= 1.0.0)
       multi_xml (>= 0.5.2)
+    i18n (1.14.1)
+      concurrent-ruby (~> 1.0)
     jmespath (1.6.2)
     json (2.6.3)
-    json-schema (4.1.1)
+    json-schema (3.0.0)
       addressable (>= 2.8)
     language_server-protocol (3.17.0.3)
+    logger (1.5.3)
     mini_mime (1.1.5)
+    minitest (5.20.0)
     multi_xml (0.6.0)
+    mutex_m (0.1.2)
+    mysql2 (0.5.5)
     parallel (1.23.0)
     parser (3.2.2.4)
       ast (~> 2.4.1)
@@ -86,6 +122,50 @@ GEM
       rubocop-capybara (~> 2.17)
       rubocop-factory_bot (~> 2.22)
     ruby-progressbar (1.13.0)
+    ruby2_keywords (0.0.5)
+    timeout (0.4.0)
+    tzinfo (2.0.6)
+      concurrent-ruby (~> 1.0)
+    uc3-dmp-api-core (0.0.22)
+      aws-sdk-sns (~> 1.60)
+      aws-sdk-ssm (~> 1.150)
+      json (~> 2.6)
+      logger (~> 1.4)
+    uc3-dmp-citation (0.0.6)
+    uc3-dmp-cloudwatch (0.0.4)
+    uc3-dmp-cognito (0.0.7)
+      aws-sdk-cognitoidentityprovider (~> 1.73)
+      json (~> 2.6)
+    uc3-dmp-dynamo (0.0.19)
+      aws-sdk-dynamodb (~> 1.83)
+      json (~> 2.6)
+      logger (~> 1.4)
+    uc3-dmp-event-bridge (0.0.8)
+      aws-sdk-eventbridge (~> 1.44)
+      json (~> 2.6)
+      logger (~> 1.4)
+    uc3-dmp-external-api (0.0.17)
+      aws-sdk-sns (~> 1.60)
+      aws-sdk-ssm (~> 1.150)
+      httparty (~> 0.21.0)
+      json (~> 2.6)
+    uc3-dmp-id (0.1.1)
+      json (~> 2.6)
+      json-schema (~> 3.0)
+      uc3-dmp-dynamo (~> 0.0)
+      uc3-dmp-event-bridge (~> 0.0)
+    uc3-dmp-provenance (0.0.12)
+      json (~> 2.6)
+      uc3-dmp-cognito (~> 0.0)
+      uc3-dmp-dynamo (~> 0.0)
+    uc3-dmp-rds (0.0.26)
+      active_record_simple_execute (~> 0.9.1)
+      json (~> 2.6)
+      mysql2 (~> 0.5.5)
+    uc3-dmp-s3 (0.0.3)
+      aws-sdk-s3 (~> 1.119)
+      base64 (~> 0.1)
+      cgi (~> 0.3)
     unicode-display_width (2.5.0)
 
 PLATFORMS
@@ -102,6 +182,17 @@ DEPENDENCIES
   rspec
   rubocop
   rubocop-rspec
+  uc3-dmp-api-core
+  uc3-dmp-citation
+  uc3-dmp-cloudwatch
+  uc3-dmp-cognito
+  uc3-dmp-dynamo
+  uc3-dmp-event-bridge
+  uc3-dmp-external-api
+  uc3-dmp-id
+  uc3-dmp-provenance
+  uc3-dmp-rds
+  uc3-dmp-s3
 
 RUBY VERSION
    ruby 3.2.2p53
