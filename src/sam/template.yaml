@@ -428,7 +428,7 @@ Resources:
           Type: 'Api'
           Properties:
             RestApiId: !Ref DmpHubRestApi
-            Path: '/awards/crossref/{funder_id}'
+            Path: '/awards/crossref/{funder_id+}'
             Method: 'get'
             Auth:
               Authorizer: 'DmpHubCognitoAuthorizer'
