@@ -22,6 +22,11 @@ gem 'csl-styles'
 # in pure Ruby. (https://github.com/inukshuk/citeproc-ruby)
 gem 'citeproc-ruby'
 
+# A friendlier Ruby client for consuming GraphQL-based APIs. Built on top of your usual graphql-client,
+# but with better defaults, more consistent error handling, and using the faraday HTTP client.
+# https://github.com/ashkan18/graphlient
+gem 'graphlient'
+
 # Unfortunately you cannot include gems by path here because AWS doesn't have access when it builds the layer
 # so the gems must exist in RubyGems
 gem 'uc3-dmp-api-core'
