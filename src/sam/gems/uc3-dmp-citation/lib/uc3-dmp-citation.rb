@@ -10,6 +10,7 @@ require 'uc3-dmp-external-api'
 module Uc3DmpCitation
   class CiterError < StandardError; end
 
+  # Clas that fetches Citations for a given DOI
   class Citer
     DEFAULT_CITATION_STYLE = 'chicago-author-date'
     DEFAULT_DOI_URL = 'http://doi.org'
@@ -21,20 +22,22 @@ module Uc3DmpCitation
     MSG_UNABLE_TO_UPDATE = 'Unable to update the citations on the DMP ID.'
 
     class << self
+      # rubocop:disable Metrics/AbcSize
       def fetch_citation(doi:, work_type: DEFAULT_WORK_TYPE, style: DEFAULT_CITATION_STYLE, logger: nil)
-        uri = _doi_to_uri(doi: doi)
+        uri = _doi_to_uri(doi:)
         return nil if uri.nil? || uri.blank?
 
         headers = { Accept: 'application/x-bibtex' }
         logger.debug(message: "Fetching BibTeX from: #{uri}") if logger.respond_to?(:debug)
-        resp = Uc3DmpExternalApi::Client.call(url: uri, method: :get, additional_headers: headers, logger: logger)
+        resp = Uc3DmpExternalApi::Client.call(url: uri, method: :get, additional_headers: headers, logger:)
         return nil if resp.nil? || resp.to_s.strip.empty?
 
         bibtex = BibTeX.parse(_cleanse_bibtex(text: resp))
-        work_type = work_type.nil? ? determine_work_type(bibtex: bibtex) :  work_type
-        style = style.nil? ? DEFAULT_CITATION_STYLE : style
-        _bibtex_to_citation(uri: uri, work_type: work_type, style: style, bibtex: bibtex)
+        work_type = work_type.nil? ? determine_work_type(bibtex:) : work_type
+        style = DEFAULT_CITATION_STYLE if style.nil?
+        _bibtex_to_citation(uri:, work_type:, style:, bibtex:)
       end
+      # rubocop:enable Metrics/AbcSize
 
       private
 
@@ -64,20 +67,21 @@ module Uc3DmpCitation
         # Remove any encoded HTML (e.g. "Regular text $\\lt$strong$\\gt$Bold text$\\lt$/strong$\\gt$")
         utf8 = utf8.gsub(%r{\$?\\\$?(less|lt|Lt)\$/?[a-zA-Z]+\$?\\\$?(greater|gt|Gt)\$}, '')
         # Replace any special dash, semicolon and quote characters with a minus sign or single/double quote
-        utf8 = utf8.gsub(%r{\$?\\(T|t)ext[a-zA-Z]+dash\$?}, '-').gsub(%r{\{(T|t)ext[a-zA-Z]+dash\}}, '-')
-                  .gsub(%r{\$?\\(M|m)athsemicolon\$?}, ':').gsub(%r{\{(M|m)semicolon\}}, ':')
-                  .gsub(%r{\$?\\(T|t)extquotesingle\$?}, "'").gsub(%r{\{(T|t)extquotesingle\}}, "'")
-                  .gsub(%r{\$?\\(T|t)extquotedouble\$?}, '"').gsub(%r{\{(T|t)extquotedouble\}}, '"')
+        utf8 = utf8.gsub(/\$?\\(T|t)ext[a-zA-Z]+dash\$?/, '-').gsub(/\{(T|t)ext[a-zA-Z]+dash\}/, '-')
+                   .gsub(/\$?\\(M|m)athsemicolon\$?/, ':').gsub(/\{(M|m)semicolon\}/, ':')
+                   .gsub(/\$?\\(T|t)extquotesingle\$?/, "'").gsub(/\{(T|t)extquotesingle\}/, "'")
+                   .gsub(/\$?\\(T|t)extquotedouble\$?/, '"').gsub(/\{(T|t)extquotedouble\}/, '"')
         # Remove any remaining `\v` entries which attempt to construct an accented character
-        utf8.gsub(%r{\\v}, '')
+        utf8.gsub(/\\v/, '')
       end
 
       # Convert the BibTeX item to a citation
-      def _bibtex_to_citation(uri:, work_type: DEFAULT_WORK_TYPE, bibtex:, style: DEFAULT_CITATION_STYLE)
+      # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+      def _bibtex_to_citation(uri:, bibtex:, work_type: DEFAULT_WORK_TYPE, style: DEFAULT_CITATION_STYLE)
         return nil unless uri.is_a?(String) && uri.strip != ''
         return nil if bibtex.nil? || bibtex.data.nil? || bibtex.data.first.nil?
 
-        cp = CiteProc::Processor.new(style: style, format: 'html')
+        cp = CiteProc::Processor.new(style:, format: 'html')
         cp.import(bibtex.to_citeproc)
         citation = cp.render(:bibliography, id: bibtex.data.first.id)
         return nil unless citation.is_a?(Array) && citation.any?
@@ -88,22 +92,21 @@ module Uc3DmpCitation
 
         unless work_type.nil? || work_type.strip == ''
           # This supports the :apa and :chicago-author-date styles
-          citation = citation.gsub(/\.”\s+/, "\.” [#{work_type.gsub('_', ' ').capitalize}]. ")
-                            .gsub(/<\/i>\.\s+/, "<\/i>\. [#{work_type.gsub('_', ' ').capitalize}]. ")
+          citation = citation.gsub(/\.”\s+/, ".” [#{work_type.gsub('_', ' ').capitalize}]. ")
+                             .gsub(%r{</i>\.\s+}, "</i>. [#{work_type.gsub('_', ' ').capitalize}]. ")
         end
 
         # Convert the URL into a link. Ensure that the trailing period is not a part of
         # the link!
-        citation.gsub(URI.regexp) do |url|
+        citation.gsub(URI::DEFAULT_PARSER.make_regexp) do |url|
           if url.start_with?('http')
-            '<a href="%{url}" target="_blank">%{url}</a>.' % {
-              url: url.end_with?('.') ? uri : "#{uri}."
-            }
+            format('<a href="%{url}" target="_blank">%{url}</a>.', url: url.end_with?('.') ? uri : "#{uri}.")
           else
             url
           end
         end
       end
+      # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
     end
   end
 end

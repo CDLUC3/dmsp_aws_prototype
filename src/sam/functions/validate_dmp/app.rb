@@ -20,30 +20,29 @@ module Functions
       # Setup the Logger
       log_level = ENV.fetch('LOG_LEVEL', 'error')
       req_id = context.aws_request_id if context.is_a?(LambdaContext)
-      logger = Uc3DmpCloudwatch::Logger.new(source: SOURCE, request_id: req_id, event: event, level: log_level)
+      logger = Uc3DmpCloudwatch::Logger.new(source: SOURCE, request_id: req_id, event:, level: log_level)
 
       body = event.fetch('body', '')
 
       # Validate the DMP JSON
       errors = Uc3DmpId::Validator.validate(mode: 'author', json: body)
-      return _respond(status: 200, items: [Uc3DmpId::Validator::MSG_VALID_JSON], event: event) if errors.is_a?(Array) &&
-                                                                                                  errors.empty?
-      _respond(status: 400, errors: errors, event: event)
+      return _respond(status: 200, items: [Uc3DmpId::Validator::MSG_VALID_JSON], event:) if errors.is_a?(Array) &&
+                                                                                            errors.empty?
+
+      _respond(status: 400, errors:, event:)
     rescue StandardError => e
       logger.error(message: e.message, details: e.backtrace)
-      deets = { message: e.message, body: body }
-      Uc3DmpApiCore::Notifier.notify_administrator(source: SOURCE, details: deets, event: event)
+      deets = { message: e.message, body: }
+      Uc3DmpApiCore::Notifier.notify_administrator(source: SOURCE, details: deets, event:)
       { statusCode: 500, body: { errors: [Uc3DmpApiCore::MSG_SERVER_ERROR] }.to_json }
     end
     # rubocop:enable Metrics/AbcSize
-
-    private
 
     class << self
       # Send the output to the Responder
       def _respond(status:, items: [], errors: [], event: {}, params: {})
         Uc3DmpApiCore::Responder.respond(
-          status: status, items: items, errors: errors, event: event,
+          status:, items:, errors:, event:,
           page: params['page'], per_page: params['per_page']
         )
       end

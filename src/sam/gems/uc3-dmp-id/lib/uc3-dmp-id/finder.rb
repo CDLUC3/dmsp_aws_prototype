@@ -20,15 +20,15 @@ module Uc3DmpId
       # TODO: Replace this with ElasticSearch
       def search_dmps(args:, logger: nil)
         client = Uc3DmpDynamo::Client.new
-        return _by_owner(owner_org: args['owner_orcid'], client: client, logger: logger) unless args['owner_orcid'].nil?
+        return _by_owner(owner_org: args['owner_orcid'], client:, logger:) unless args['owner_orcid'].nil?
 
         unless args['owner_org_ror'].nil?
-          return _by_owner_org(owner_org: args['owner_org_ror'], client: client,
-                               logger: logger)
+          return _by_owner_org(owner_org: args['owner_org_ror'], client:,
+                               logger:)
         end
         unless args['modification_day'].nil?
-          return _by_mod_day(day: args['modification_day'], client: client,
-                             logger: logger)
+          return _by_mod_day(day: args['modification_day'], client:,
+                             logger:)
         end
 
         []
@@ -38,20 +38,20 @@ module Uc3DmpId
       # -------------------------------------------------------------------------
       # rubocop:disable Metrics/AbcSize
       def by_json(json:, client: nil, cleanse: true, logger: nil)
-        json = Helper.parse_json(json: json)&.fetch('dmp', {})
+        json = Helper.parse_json(json:)&.fetch('dmp', {})
         raise FinderError, MSG_INVALID_ARGS if !json.is_a?(Hash) || (json['PK'].nil? && json['dmp_id'].nil?)
 
         p_key = json['PK']
         # Translate the incoming :dmp_id into a PK
         p_key = Helper.dmp_id_to_pk(json: json.fetch('dmp_id', {})) if p_key.nil?
-        client = client.nil? ? Uc3DmpDynamo::Client.new : client
+        client = Uc3DmpDynamo::Client.new if client.nil?
 
         # TODO: Re-enable this once we figure out Dynamo indexes
         # find_by_dmphub_provenance_id -> if no PK and no dmp_id result
         # return by_provenance_identifier(json: json, client: client, logger: logger) if p_key.nil?
 
         # find_by_PK
-        p_key.nil? ? nil : by_pk(p_key: p_key, s_key: json['SK'], client: client, cleanse: cleanse, logger: logger)
+        p_key.nil? ? nil : by_pk(p_key:, s_key: json['SK'], client:, cleanse:, logger:)
       end
       # rubocop:enable Metrics/AbcSize
 
@@ -62,20 +62,20 @@ module Uc3DmpId
         raise FinderError, MSG_MISSING_PK if p_key.nil?
 
         s_key = Helper::DMP_LATEST_VERSION if s_key.nil? || s_key.to_s.strip.empty?
-        client = client.nil? ? Uc3DmpDynamo::Client.new : client
+        client = Uc3DmpDynamo::Client.new if client.nil?
         resp = client.get_item(
           key: {
-            PK: Helper.append_pk_prefix(p_key: p_key),
-            SK: Helper.append_sk_prefix(s_key: s_key)
+            PK: Helper.append_pk_prefix(p_key:),
+            SK: Helper.append_sk_prefix(s_key:)
           },
-          logger: logger
+          logger:
         )
         return resp unless resp.is_a?(Hash)
 
         dmp = resp['dmp'].nil? ? JSON.parse({ dmp: resp }.to_json) : resp
         return nil if dmp['dmp']['PK'].nil?
 
-        dmp = Versioner.append_versions(p_key: dmp['dmp']['PK'], dmp: dmp, client: client, logger: logger) if cleanse
+        dmp = Versioner.append_versions(p_key: dmp['dmp']['PK'], dmp:, client:, logger:) if cleanse
         cleanse ? Helper.cleanse_dmp_json(json: dmp) : dmp
       end
       # rubocop:enable Metrics/AbcSize
@@ -85,13 +85,13 @@ module Uc3DmpId
       def exists?(p_key:, s_key: Helper::DMP_LATEST_VERSION, client: nil, logger: nil)
         raise FinderError, MSG_MISSING_PK if p_key.nil?
 
-        client = client.nil? ? Uc3DmpDynamo::Client.new : client
+        client = Uc3DmpDynamo::Client.new if client.nil?
         client.pk_exists?(
           key: {
-            PK: Helper.append_pk_prefix(p_key: p_key),
-            SK: Helper.append_sk_prefix(s_key: s_key)
+            PK: Helper.append_pk_prefix(p_key:),
+            SK: Helper.append_sk_prefix(s_key:)
           },
-          logger: logger
+          logger:
         )
       end
 
@@ -115,15 +115,15 @@ module Uc3DmpId
           filter_expression: 'SK = :version',
           expression_attribute_values: { ':version': Helper::DMP_LATEST_VERSION }
         }
-        client = client.nil? ? Uc3DmpDynamo::Client.new : client
-        resp = client.query(args: args, logger: logger)
+        client = Uc3DmpDynamo::Client.new if client.nil?
+        resp = client.query(args:, logger:)
         return resp unless resp.is_a?(Hash)
 
         dmp = resp['dmp'].nil? ? JSON.parse({ dmp: resp }.to_json) : resp
         return nil if dmp['dmp']['PK'].nil?
 
         # If we got a hit, fetch the DMP and return it.
-        by_pk(p_key: dmp['dmp']['PK'], s_key: dmp['dmp']['SK'], cleanse: cleanse, logger: logger)
+        by_pk(p_key: dmp['dmp']['PK'], s_key: dmp['dmp']['SK'], cleanse:, logger:)
       end
       # rubocop:enable Metrics/AbcSize
 
@@ -149,8 +149,8 @@ module Uc3DmpId
           expression_attribute_values: { ':version': Helper::DMP_LATEST_VERSION }
         }
         logger.info(message: "Querying _by_owner with #{args}") if logger.respond_to?(:info)
-        client = client.nil? ? Uc3DmpDynamo::Client.new : client
-        _process_search_response(response: client.query(args: args, logger: logger))
+        client = Uc3DmpDynamo::Client.new if client.nil?
+        _process_search_response(response: client.query(args:, logger:))
       end
 
       # Fetch the DMP IDs for the specified organization/institution (the org is the :dmphub_owner_org
@@ -174,8 +174,8 @@ module Uc3DmpId
           expression_attribute_values: { ':version': Helper::DMP_LATEST_VERSION }
         }
         logger.info(message: "Querying _by_owner_org with #{args}") if logger.respond_to?(:info)
-        client = client.nil? ? Uc3DmpDynamo::Client.new : client
-        _process_search_response(response: client.query(args: args, logger: logger))
+        client = Uc3DmpDynamo::Client.new if client.nil?
+        _process_search_response(response: client.query(args:, logger:))
       end
 
       # Fetch the DMP IDs modified on the specified date (the date is the :dmphub_modification_day on the DMP ID record)
@@ -195,8 +195,8 @@ module Uc3DmpId
           expression_attribute_values: { ':version': Helper::DMP_LATEST_VERSION }
         }
         logger.info(message: "Querying _by_mod_day with #{args}") if logger.respond_to?(:info)
-        client = client.nil? ? Uc3DmpDynamo::Client.new : client
-        _process_search_response(response: client.query(args: args, logger: logger))
+        client = Uc3DmpDynamo::Client.new if client.nil?
+        _process_search_response(response: client.query(args:, logger:))
       end
 
       # Transform the search results so that we do not include any of the DMPHub specific metadata

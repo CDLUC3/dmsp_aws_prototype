@@ -11,7 +11,7 @@ RSpec.describe 'Uc3DmpId::Finder' do
     record['dmp']['PK'] = "#{Uc3DmpId::Helper::PK_DMP_PREFIX}test"
     record
   end
-  let!(:client) { mock_uc3_dmp_dynamo(dmp: dmp) }
+  let!(:client) { mock_uc3_dmp_dynamo(dmp:) }
 
   describe 'search_dmps(args:, logger: nil)' do
     it 'returns an empty Array if :args does not contain any valid query criteria' do
@@ -46,19 +46,19 @@ RSpec.describe 'Uc3DmpId::Finder' do
 
     it 'raises a FinderError if :json is not a Hash' do
       allow(Uc3DmpId::Helper).to receive(:parse_json).and_return(nil)
-      expect { described_class.by_json(json: '123', client: client) }.to raise_error(finder_error)
+      expect { described_class.by_json(json: '123', client:) }.to raise_error(finder_error)
     end
 
     it 'raises a FinderError if :json does not contain a :PK or :dmp_id' do
       json['dmp'].delete('dmp_id')
       allow(Uc3DmpId::Helper).to receive(:parse_json).and_return(json)
-      expect { described_class.by_json(json: '123', client: client) }.to raise_error(finder_error)
+      expect { described_class.by_json(json: '123', client:) }.to raise_error(finder_error)
     end
 
     it 'calls :by_pk if the :json contains a :dmp_id' do
       allow(Uc3DmpId::Helper).to receive(:parse_json).and_return(json)
       allow(described_class).to receive(:by_pk).and_return(json)
-      described_class.by_json(json: json, client: client)
+      described_class.by_json(json:, client:)
       expect(described_class).to have_received(:by_pk).once
     end
 
@@ -68,20 +68,20 @@ RSpec.describe 'Uc3DmpId::Finder' do
       allow(Uc3DmpId::Helper).to receive(:parse_json).and_return(json)
       allow(Uc3DmpId::Helper).to receive(:parse_json).and_return(json)
       allow(described_class).to receive(:by_pk).and_return(json)
-      described_class.by_json(json: json, client: client)
+      described_class.by_json(json:, client:)
       expect(described_class).to have_received(:by_pk).once
     end
   end
 
   describe 'by_pk(p_key:, s_key: Helper::DMP_LATEST_VERSION, client: nil, cleanse: true, logger: nil)' do
     it 'raises a FinderError if :p_key is nil' do
-      expect { described_class.by_pk(p_key: nil, client: client) }.to raise_error(finder_error)
+      expect { described_class.by_pk(p_key: nil, client:) }.to raise_error(finder_error)
     end
 
     it 'uses the default SK if no :s_key is specified' do
       allow(Uc3DmpId::Versioner).to receive(:append_versions).and_return(dmp)
       allow(Uc3DmpId::Helper).to receive(:cleanse_dmp_json).and_return(dmp)
-      expect(described_class.by_pk(p_key: 'foo', client: client).length).to be(1)
+      expect(described_class.by_pk(p_key: 'foo', client:).length).to be(1)
       expect(Uc3DmpId::Versioner).to have_received(:append_versions).once
       expected = {
         key: { PK: "#{Uc3DmpId::Helper::PK_DMP_PREFIX}foo", SK: Uc3DmpId::Helper::DMP_LATEST_VERSION },
@@ -93,7 +93,7 @@ RSpec.describe 'Uc3DmpId::Finder' do
     it 'calls Dynamo with the expected query args' do
       allow(Uc3DmpId::Versioner).to receive(:append_versions).and_return(dmp)
       allow(Uc3DmpId::Helper).to receive(:cleanse_dmp_json).and_return(dmp)
-      expect(described_class.by_pk(p_key: 'foo', s_key: 'bar', client: client).length).to be(1)
+      expect(described_class.by_pk(p_key: 'foo', s_key: 'bar', client:).length).to be(1)
       expect(Uc3DmpId::Versioner).to have_received(:append_versions).once
       expected = {
         key: { PK: "#{Uc3DmpId::Helper::PK_DMP_PREFIX}foo", SK: "#{Uc3DmpId::Helper::SK_DMP_PREFIX}bar" },
@@ -105,32 +105,32 @@ RSpec.describe 'Uc3DmpId::Finder' do
     it 'appends the :dmphub_versions' do
       allow(Uc3DmpId::Versioner).to receive(:append_versions).and_return(dmp)
       allow(Uc3DmpId::Helper).to receive(:cleanse_dmp_json).and_return(dmp)
-      described_class.by_pk(p_key: 'foo', s_key: 'bar', client: client)
+      described_class.by_pk(p_key: 'foo', s_key: 'bar', client:)
       expect(Uc3DmpId::Versioner).to have_received(:append_versions).once
     end
 
     it 'cleanses the :dmphub_ prefixed attributes by default' do
       allow(Uc3DmpId::Versioner).to receive(:append_versions).and_return(dmp)
       allow(Uc3DmpId::Helper).to receive(:cleanse_dmp_json).and_return(dmp)
-      described_class.by_pk(p_key: 'foo', s_key: 'bar', client: client)
+      described_class.by_pk(p_key: 'foo', s_key: 'bar', client:)
       expect(Uc3DmpId::Helper).to have_received(:cleanse_dmp_json).once
     end
 
     it 'does not cleanse the :dmphub_ prefixed attributes if specified' do
       allow(Uc3DmpId::Versioner).to receive(:append_versions).and_return(dmp)
       allow(Uc3DmpId::Helper).to receive(:cleanse_dmp_json).and_return(dmp)
-      described_class.by_pk(p_key: 'foo', s_key: 'bar', client: client, cleanse: false)
+      described_class.by_pk(p_key: 'foo', s_key: 'bar', client:, cleanse: false)
       expect(Uc3DmpId::Helper).not_to have_received(:cleanse_dmp_json)
     end
   end
 
   describe 'exists?(p_key:, s_key: Helper::DMP_LATEST_VERSION, client: nil, logger: nil)' do
     it 'raises a FinderError if :p_key is nil' do
-      expect { described_class.exists?(p_key: nil, client: client) }.to raise_error(finder_error)
+      expect { described_class.exists?(p_key: nil, client:) }.to raise_error(finder_error)
     end
 
     it 'uses the default SK if no :s_key is specified' do
-      expect(described_class.exists?(p_key: 'foo', client: client)).to be(true)
+      expect(described_class.exists?(p_key: 'foo', client:)).to be(true)
       expected = {
         key: { PK: "#{Uc3DmpId::Helper::PK_DMP_PREFIX}foo", SK: Uc3DmpId::Helper::DMP_LATEST_VERSION },
         logger: nil
@@ -139,7 +139,7 @@ RSpec.describe 'Uc3DmpId::Finder' do
     end
 
     it 'calls Dynamo with the expected query args' do
-      expect(described_class.exists?(p_key: 'foo', s_key: 'bar', client: client)).to be(true)
+      expect(described_class.exists?(p_key: 'foo', s_key: 'bar', client:)).to be(true)
       expected = {
         key: { PK: "#{Uc3DmpId::Helper::PK_DMP_PREFIX}foo", SK: "#{Uc3DmpId::Helper::SK_DMP_PREFIX}bar" },
         logger: nil
@@ -157,17 +157,17 @@ RSpec.describe 'Uc3DmpId::Finder' do
     end
 
     it 'raises a FinderError if :json is not a Hash' do
-      expect { described_class.by_provenance_identifier(json: nil, client: client) }.to raise_error(finder_error)
+      expect { described_class.by_provenance_identifier(json: nil, client:) }.to raise_error(finder_error)
     end
 
     it 'raises a FinderError if :json does not contain a :dmp_id with a :identifier' do
-      expect { described_class.by_provenance_identifier(json: {}, client: client) }.to raise_error(finder_error)
+      expect { described_class.by_provenance_identifier(json: {}, client:) }.to raise_error(finder_error)
     end
 
     # rubocop:disable RSpec/ExampleLength
     it 'can handle it when :json has a top level :dmp' do
       nested = JSON.parse({ dmp: json }.to_json)
-      expect(described_class.by_provenance_identifier(json: nested, client: client).length).to be(1)
+      expect(described_class.by_provenance_identifier(json: nested, client:).length).to be(1)
       expected = {
         args: {
           expression_attribute_values: { ':version': Uc3DmpId::Helper::DMP_LATEST_VERSION },
@@ -188,7 +188,7 @@ RSpec.describe 'Uc3DmpId::Finder' do
 
     # rubocop:disable RSpec/ExampleLength
     it 'calls Dynamo with the expected query args' do
-      expect(described_class.by_provenance_identifier(json: json, client: client).length).to be(1)
+      expect(described_class.by_provenance_identifier(json:, client:).length).to be(1)
       expected = {
         args: {
           expression_attribute_values: { ':version': Uc3DmpId::Helper::DMP_LATEST_VERSION },
@@ -219,7 +219,7 @@ RSpec.describe 'Uc3DmpId::Finder' do
 
     # rubocop:disable RSpec/ExampleLength
     it 'calls Dynamo with the expected query args' do
-      expect(described_class.send(:_by_owner, owner_id: '0000-0000-0000-TEST', client: client).length).to be(1)
+      expect(described_class.send(:_by_owner, owner_id: '0000-0000-0000-TEST', client:).length).to be(1)
       expected = {
         args: {
           expression_attribute_values: { ':version': Uc3DmpId::Helper::DMP_LATEST_VERSION },
@@ -250,7 +250,7 @@ RSpec.describe 'Uc3DmpId::Finder' do
 
     # rubocop:disable RSpec/ExampleLength
     it 'calls Dynamo with the expected query args' do
-      expect(described_class.send(:_by_owner_org, owner_org: '123abc45', client: client).length).to be(1)
+      expect(described_class.send(:_by_owner_org, owner_org: '123abc45', client:).length).to be(1)
       expected = {
         args: {
           expression_attribute_values: { ':version': Uc3DmpId::Helper::DMP_LATEST_VERSION },
@@ -281,7 +281,7 @@ RSpec.describe 'Uc3DmpId::Finder' do
 
     # rubocop:disable RSpec/ExampleLength
     it 'calls Dynamo with the expected query args' do
-      expect(described_class.send(:_by_mod_day, day: '2023-08-21', client: client).length).to be(1)
+      expect(described_class.send(:_by_mod_day, day: '2023-08-21', client:).length).to be(1)
       expected = {
         args: {
           expression_attribute_values: { ':version': Uc3DmpId::Helper::DMP_LATEST_VERSION },

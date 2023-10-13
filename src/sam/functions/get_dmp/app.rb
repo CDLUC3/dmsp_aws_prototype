@@ -21,10 +21,9 @@ module Functions
       # Setup the Logger
       log_level = ENV.fetch('LOG_LEVEL', 'error')
       req_id = context.aws_request_id if context.is_a?(LambdaContext)
-      logger = Uc3DmpCloudwatch::Logger.new(source: SOURCE, request_id: req_id, event: event, level: log_level)
+      logger = Uc3DmpCloudwatch::Logger.new(source: SOURCE, request_id: req_id, event:, level: log_level)
 
       params = event.fetch('pathParameters', {})
-      request_id = context.aws_request_id if context.is_a?(LambdaContext)
 
       # API Gateway isn't passing query strings though, so see the caller is currently escaping the question mark
       # and equal sign. We should eventually revist this.
@@ -32,50 +31,48 @@ module Functions
       dmp_id = path_parts.first
 
       s_key = path_parts.length == 2 ? path_parts.last : nil
-      s_key = Uc3DmpId::Helper.append_sk_prefix(s_key: s_key) unless s_key.nil?
-      return _respond(status: 400, errors: [Uc3DmpApiCore::MSG_INVALID_ARGS], event: event) if dmp_id.nil?
+      s_key = Uc3DmpId::Helper.append_sk_prefix(s_key:) unless s_key.nil?
+      return _respond(status: 400, errors: [Uc3DmpApiCore::MSG_INVALID_ARGS], event:) if dmp_id.nil?
 
       # Fail if the DMP ID is not a valid DMP ID
       p_key = Uc3DmpId::Helper.path_parameter_to_pk(param: dmp_id)
-      p_key = Uc3DmpId::Helper.append_pk_prefix(p_key: p_key) unless p_key.nil?
-      return _respond(status: 400, errors: Uc3DmpId::Helper::MSG_DMP_INVALID_DMP_ID, event: event) if p_key.nil?
+      p_key = Uc3DmpId::Helper.append_pk_prefix(p_key:) unless p_key.nil?
+      return _respond(status: 400, errors: Uc3DmpId::Helper::MSG_DMP_INVALID_DMP_ID, event:) if p_key.nil?
 
       # Fetch SSM parameters and set them in the ENV
-      _set_env(logger: logger)
+      _set_env(logger:)
 
       # Get the DMP
       logger.debug(message: "Searching for PK: #{p_key}, SK: #{s_key}") if logger.respond_to?(:debug)
-      result = Uc3DmpId::Finder.by_pk(p_key: p_key, s_key: s_key, logger: logger)
+      result = Uc3DmpId::Finder.by_pk(p_key:, s_key:, logger:)
       logger.debug(message: 'Found the following result:', details: result) if logger.respond_to?(:debug)
-      _respond(status: 200, items: [result], event: event, params: params)
+      _respond(status: 200, items: [result], event:, params:)
     rescue Uc3DmpId::FinderError => e
       logger.error(message: e.message, details: e.backtrace)
-      _respond(status: 500, errors: [Uc3DmpApiCore::MSG_SERVER_ERROR], event: event)
+      _respond(status: 500, errors: [Uc3DmpApiCore::MSG_SERVER_ERROR], event:)
     rescue StandardError => e
       logger.error(message: e.message, details: e.backtrace)
       deets = { message: e.message, pk: p_key, sk: s_key }
-      Uc3DmpApiCore::Notifier.notify_administrator(source: SOURCE, details: deets, event: event)
+      Uc3DmpApiCore::Notifier.notify_administrator(source: SOURCE, details: deets, event:)
       { statusCode: 500, body: { errors: [Uc3DmpApiCore::MSG_SERVER_ERROR] }.to_json }
     end
     # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
     # rubocop:enable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
-    private
-
     class << self
       # Set the Cognito User Pool Id and DyanmoDB Table name for the downstream Uc3DmpCognito and Uc3DmpDynamo
       def _set_env(logger:)
         ENV['COGNITO_USER_POOL_ID'] = ENV['COGNITO_USER_POOL_ID']&.split('/')&.last
-        ENV['DMP_ID_SHOULDER'] = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :dmp_id_shoulder, logger: logger)
-        ENV['DMP_ID_BASE_URL'] = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :dmp_id_base_url, logger: logger)
-        landing_url = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :api_base_url, logger: logger)
+        ENV['DMP_ID_SHOULDER'] = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :dmp_id_shoulder, logger:)
+        ENV['DMP_ID_BASE_URL'] = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :dmp_id_base_url, logger:)
+        landing_url = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :api_base_url, logger:)
         ENV['DMP_ID_LANDING_URL'] = "#{landing_url&.gsub('api.', '')}/dmps"
       end
 
       # Send the output to the Responder
       def _respond(status:, items: [], errors: [], event: {}, params: {})
         Uc3DmpApiCore::Responder.respond(
-          status: status, items: items, errors: errors, event: event,
+          status:, items:, errors:, event:,
           page: params['page'], per_page: params['per_page']
         )
       end

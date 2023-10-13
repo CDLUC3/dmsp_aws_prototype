@@ -2,7 +2,7 @@
 
 source 'https://rubygems.org'
 
-ruby '>= 2.7'
+ruby '>= 3.2'
 
 # No need to include any AWS SDK gems here since the Lambda functions have access
 # to them by default
@@ -21,6 +21,11 @@ gem 'csl-styles'
 # CiteProc-Ruby is a Citation Style Language (CSL) 1.0.1 cite processor written
 # in pure Ruby. (https://github.com/inukshuk/citeproc-ruby)
 gem 'citeproc-ruby'
+
+# A friendlier Ruby client for consuming GraphQL-based APIs. Built on top of your usual graphql-client,
+# but with better defaults, more consistent error handling, and using the faraday HTTP client.
+# https://github.com/ashkan18/graphlient
+gem 'graphlient'
 
 # Unfortunately you cannot include gems by path here because AWS doesn't have access when it builds the layer
 # so the gems must exist in RubyGems

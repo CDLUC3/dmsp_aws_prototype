@@ -6,7 +6,7 @@ RSpec.describe 'Uc3DmpId::Deleter' do
   let!(:described_class) { Uc3DmpId::Deleter }
   let!(:deleter_error) { Uc3DmpId::DeleterError }
 
-  let!(:client) { mock_uc3_dmp_dynamo(dmp: dmp) }
+  let!(:client) { mock_uc3_dmp_dynamo(dmp:) }
   let!(:publisher) { mock_uc3_dmp_event_bridge }
 
   let!(:owner) { JSON.parse({ PK: 'PROVENANCE#foo', SK: 'PROFILE' }.to_json) }
@@ -32,38 +32,37 @@ RSpec.describe 'Uc3DmpId::Deleter' do
     end
 
     it 'raises an DeleterError when :provenance is not a Hash' do
-      expect { described_class.tombstone(provenance: 123, p_key: p_key) }.to raise_error(deleter_error)
+      expect { described_class.tombstone(provenance: 123, p_key:) }.to raise_error(deleter_error)
     end
 
     it 'raises an DeleterError when :provenance does not have a :PK' do
       owner.delete('PK')
-      expect { described_class.tombstone(provenance: owner, p_key: p_key) }.to raise_error(deleter_error)
+      expect { described_class.tombstone(provenance: owner, p_key:) }.to raise_error(deleter_error)
     end
 
     it 'raises an DeleterError when the DMP ID could not be found' do
       allow(Uc3DmpId::Finder).to receive(:by_pk).and_return(nil)
-      expect { described_class.tombstone(provenance: owner, p_key: p_key) }.to raise_error(deleter_error)
+      expect { described_class.tombstone(provenance: owner, p_key:) }.to raise_error(deleter_error)
     end
 
     it 'raises an DeleterError when :provenance does not match the DMP ID\'s :dmphub_provenance_id' do
       allow(Uc3DmpId::Finder).to receive(:by_pk).and_return(dmp)
-      expect { described_class.tombstone(provenance: updater, p_key: p_key) }.to raise_error(deleter_error)
+      expect { described_class.tombstone(provenance: updater, p_key:) }.to raise_error(deleter_error)
     end
 
     it 'raises an DeleterError when it is not the latest version of the DMP ID' do
       dmp['dmp']['SK'] = "#{Uc3DmpId::Helper::SK_DMP_PREFIX}2020-03-15T11:22:33Z"
       allow(Uc3DmpId::Finder).to receive(:by_pk).and_return(dmp)
-      expect { described_class.tombstone(provenance: owner, p_key: p_key) }.to raise_error(deleter_error)
+      expect { described_class.tombstone(provenance: owner, p_key:) }.to raise_error(deleter_error)
     end
 
     it 'tombstones the DMP ID' do
       allow(Uc3DmpId::Finder).to receive(:by_pk).and_return(dmp)
-      allow(client).to receive(:put_item).and_return(dmp['dmp'])
-      allow(client).to receive(:delete_item).and_return(dmp['dmp'])
+      allow(client).to receive_messages(put_item: dmp['dmp'], delete_item: dmp['dmp'])
       allow(described_class).to receive(:_post_process)
 
       now = Time.now.utc.iso8601
-      result = described_class.tombstone(provenance: owner, p_key: p_key)
+      result = described_class.tombstone(provenance: owner, p_key:)
       expect(result['dmp']['modified'] >= now).to be(true)
       expect(result['dmp']['title'].start_with?('OBSOLETE: ')).to be(true)
 

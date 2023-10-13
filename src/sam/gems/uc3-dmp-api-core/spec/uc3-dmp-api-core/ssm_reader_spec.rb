@@ -28,7 +28,7 @@ RSpec.describe 'Uc3DmpApiCore::SsmReader' do
       allow(ENV).to receive(:fetch).and_return('test')
       name = format(described_class.send(:_ssm_keys)[test_key], env: 'test')
       described_class.get_ssm_value(key: test_key)
-      expect(ssm_client).to have_received(:get_parameter).with(name: name, with_decryption: true)
+      expect(ssm_client).to have_received(:get_parameter).with(name:, with_decryption: true)
     end
 
     it 'returns nil if the SSM does not have a matching parameter' do

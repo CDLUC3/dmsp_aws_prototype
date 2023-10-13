@@ -29,39 +29,39 @@ RSpec.describe 'Uc3DmpId::Validator' do
     end
 
     it 'returns the appropriate error when no :mode is specified' do
-      result = described_class.validate(mode: nil, json: json)
+      result = described_class.validate(mode: nil, json:)
       expect(assert_dmps_match(obj_a: result, obj_b: expected_error, debug: false)).to be(true)
     end
 
     it 'returns the appropriate error when an invalid :mode is specified' do
-      result = described_class.validate(mode: 'foo', json: json)
+      result = described_class.validate(mode: 'foo', json:)
       expect(assert_dmps_match(obj_a: result, obj_b: expected_error, debug: false)).to be(true)
     end
 
     it 'returns the appropriate error when parse_json returns a nil' do
       allow(Uc3DmpId::Helper).to receive(:parse_json).and_return(nil)
-      result = described_class.validate(mode: mode, json: {})
+      result = described_class.validate(mode:, json: {})
       expect(assert_dmps_match(obj_a: result, obj_b: expected_error, debug: false)).to be(true)
     end
 
     it 'returns the appropriate error when load_schema returns a nil' do
       allow(described_class).to receive(:_load_schema).and_return(nil)
       expected_error = [described_class::MSG_NO_SCHEMA]
-      result = described_class.validate(mode: mode, json: json)
+      result = described_class.validate(mode:, json:)
       expect(assert_dmps_match(obj_a: result, obj_b: expected_error, debug: false)).to be(true)
     end
 
     it 'returns the appropriate error if the :json is NOT valid' do
       json = { bar: 'foo' }
       allow(described_class).to receive(:_load_schema).and_return(schema)
-      result = described_class.validate(mode: mode, json: json)
+      result = described_class.validate(mode:, json:)
       expect(result.last.include?('did not contain a required property of \'foo\'')).to be(true)
     end
 
     it 'returns the appropriate error if the :json is valid' do
       allow(described_class).to receive(:load_schema).and_return(schema)
       json = { foo: 'bar' }
-      result = described_class.validate(mode: mode, json: json)
+      result = described_class.validate(mode:, json:)
       expected_error = []
       expect(assert_dmps_match(obj_a: result, obj_b: expected_error, debug: false)).to be(true)
     end
@@ -114,7 +114,7 @@ RSpec.describe 'Uc3DmpId::Validator' do
       # The complete JSON should pass for all modes
       Uc3DmpId::Validator::VALIDATION_MODES.each do |mode|
         it "is valid for mode #{mode}" do
-          expect(described_class.validate(mode: 'author', json: json)).to eql([])
+          expect(described_class.validate(mode: 'author', json:)).to eql([])
         end
       end
     end

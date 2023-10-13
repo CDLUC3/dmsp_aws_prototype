@@ -95,8 +95,8 @@ RSpec.describe 'Uc3DmpS3::Client' do
     it 'does not append the key prefix if :key starts with the prefix already' do
       key = "#{described_class::NARRATIVE_KEY_PREFIX}foo"
       allow(described_class).to receive(:_get_object).and_return('foo file')
-      expect(described_class.get_narrative(key: key)).to eql('foo file')
-      expect(described_class).to have_received(:_get_object).with(key: key)
+      expect(described_class.get_narrative(key:)).to eql('foo file')
+      expect(described_class).to have_received(:_get_object).with(key:)
     end
 
     it 'returns the object' do

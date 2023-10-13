@@ -59,7 +59,7 @@ module Uc3DmpDynamo
       return false if rec.nil?
 
       json = rec.dup
-      delete_item(p_key: p_key, s_key: rec['SK'])
+      delete_item(p_key:, s_key: rec['SK'])
       json['created'] = tstamp
       json['modified'] = tstamp
       json['dmphub_modification_day'] = Time.parse(tstamp).strftime('%Y-%,-%d')

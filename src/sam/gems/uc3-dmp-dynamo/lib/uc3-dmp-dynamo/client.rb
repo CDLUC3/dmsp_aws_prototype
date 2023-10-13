@@ -24,7 +24,7 @@ module Uc3DmpDynamo
     def pk_exists?(key:, logger: nil)
       return nil unless key.is_a?(Hash) && !key['PK'].nil?
 
-      resp = client.get_item(table_name: @table, key: key, projection_expression: 'PK', logger: logger)
+      resp = client.get_item(table_name: @table, key:, projection_expression: 'PK', logger:)
       resp.item.is_a?(Hash) && resp.item['PK'] == key['PK']
     end
 
@@ -35,7 +35,7 @@ module Uc3DmpDynamo
 
       resp = @connection.get_item(
         { table_name: @table,
-          key: key,
+          key:,
           consistent_read: false,
           return_consumed_capacity: logger&.level == 'debug' ? 'TOTAL' : 'NONE' }
       )
@@ -53,7 +53,7 @@ module Uc3DmpDynamo
     #    projection_expression: 'title, dmp_id, modified'
     #
     # See the DynamoDB docs for examples of key_conditions and projection_expressions
-    # rubocop:disable Metrics/AbcSize
+    # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
     def query(args:, logger: nil)
       raise ClientError, MSG_INVALID_KEY unless args.is_a?(Hash) && args.fetch(:key_conditions, {}).any?
 
@@ -64,7 +64,8 @@ module Uc3DmpDynamo
         return_consumed_capacity: logger&.level == 'debug' ? 'TOTAL' : 'NONE'
       }
       # Look for and add any other filtering or projection args
-      %i[index_name filter_expression expression_attribute_values projection_expression scan_index_forward].each do |key|
+      %i[index_name filter_expression expression_attribute_values projection_expression
+         scan_index_forward].each do |key|
         next if args[key.to_sym].nil?
 
         hash[key.to_sym] = args[key.to_sym]
@@ -79,9 +80,10 @@ module Uc3DmpDynamo
     rescue Aws::Errors::ServiceError => e
       raise ClientError, format(MSG_DYNAMO_ERROR, msg: e.message, trace: e.backtrace)
     end
-    # rubocop:enable Metrics/AbcSize
+    # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
     # Create/Update an item
+    # rubocop:disable Metrics/AbcSize
     def put_item(json:, logger: nil)
       raise ClientError, MSG_INVALID_KEY unless json.is_a?(Hash) && !json['PK'].nil? && !json['SK'].nil?
 
@@ -98,6 +100,7 @@ module Uc3DmpDynamo
     rescue Aws::Errors::ServiceError => e
       raise ClientError, format(MSG_DYNAMO_ERROR, msg: e.message, trace: e.backtrace)
     end
+    # rubocop:enable Metrics/AbcSize
 
     # Delete an item
     def delete_item(p_key:, s_key:, logger: nil)

@@ -4,7 +4,7 @@ require 'active_record'
 require 'bundler/setup'
 require 'ostruct'
 
-Dir["#{Dir.getwd}/lib/uc3-dmp-external-api/*.rb"].sort.each { |f| require f }
+Dir["#{Dir.getwd}/lib/uc3-dmp-external-api/*.rb"].each { |f| require f }
 
 require_relative 'support/shared'
 

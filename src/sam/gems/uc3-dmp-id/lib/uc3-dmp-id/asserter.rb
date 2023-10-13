@@ -28,13 +28,13 @@ module Uc3DmpId
         related_works = modified_version.fetch('dmproadmap_related_identifiers', [])
 
         if related_works.any?
-          latest_version = _add_related_identifier(updater: updater, latest_version: latest_version,
-                                                   identifiers: related_works, note: note, logger: logger)
+          latest_version = _add_related_identifier(updater:, latest_version:,
+                                                   identifiers: related_works, note:, logger:)
         end
         return latest_version unless !funding.nil? && funding.any?
 
-        _add_funding_mod(updater: updater, latest_version: latest_version, funding: funding,
-                         note: note, logger: logger)
+        _add_funding_mod(updater:, latest_version:, funding:,
+                         note:, logger:)
       end
       # rubocop:enable Metrics/AbcSize, Metrics/PerceivedComplexity, Metrics/CyclomaticComplexity
 
@@ -106,7 +106,7 @@ module Uc3DmpId
         end
 
         latest_version['dmproadmap_related_identifiers'] = [] if latest_version['dmproadmap_related_identifiers'].nil?
-        assertion = _generate_assertion(updater: updater, note: note,
+        assertion = _generate_assertion(updater:, note:,
                                         mods: JSON.parse({ dmproadmap_related_identifiers: additions }.to_json))
         if logger.respond_to?(:debug)
           logger.debug(message: 'Adding change to :dmphub_modifications.',
@@ -151,7 +151,7 @@ module Uc3DmpId
         latest_version['dmphub_modifications'] = [] if latest_version['dmphub_modifications'].nil?
         mod = JSON.parse({ funding: fund }.to_json)
         mod['funding']['funding_status'] = 'granted'
-        assertion = _generate_assertion(updater: updater, mods: mod, note: note)
+        assertion = _generate_assertion(updater:, mods: mod, note:)
         if logger.respond_to?(:debug)
           logger.debug(message: 'Adding change to :dmphub_modifications.',
                        details: assertion)
@@ -200,7 +200,7 @@ module Uc3DmpId
           provenance: updater.gsub('PROVENANCE#', ''),
           timestamp: Time.now.utc.iso8601,
           status: 'pending',
-          note: note
+          note:
         }
         mods.each_pair { |key, val| assertion[key] = val }
         JSON.parse(assertion.to_json)

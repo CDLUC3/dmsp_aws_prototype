@@ -3,7 +3,7 @@
 require 'bundler/setup'
 require 'ostruct'
 
-Dir["#{Dir.getwd}/*.rb"].sort.each { |f| require f }
+Dir["#{Dir.getwd}/*.rb"].each { |f| require f }
 
 require_relative 'support/shared'
 

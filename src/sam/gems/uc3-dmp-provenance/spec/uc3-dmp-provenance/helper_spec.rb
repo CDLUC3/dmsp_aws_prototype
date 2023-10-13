@@ -8,11 +8,11 @@ RSpec.describe 'Uc3DmpProvenance::Helper' do
 
   describe 'append_pk_prefix(provenance:)' do
     it 'returns nil if :provenance is nil' do
-      expect(described_class.append_pk_prefix(provenance: nil)).to be(nil)
+      expect(described_class.append_pk_prefix(provenance: nil)).to be_nil
     end
 
     it 'returns nil if :provenance is an empty string' do
-      expect(described_class.append_pk_prefix(provenance: nil)).to be(nil)
+      expect(described_class.append_pk_prefix(provenance: nil)).to be_nil
     end
 
     it 'prepands the prefix to the :provenance value' do
@@ -23,11 +23,11 @@ RSpec.describe 'Uc3DmpProvenance::Helper' do
 
   describe 'remove_pk_prefix(provenance:)' do
     it 'returns nil if :provenance is nil' do
-      expect(described_class.remove_pk_prefix(provenance: nil)).to be(nil)
+      expect(described_class.remove_pk_prefix(provenance: nil)).to be_nil
     end
 
     it 'returns nil if :provenance is an empty string' do
-      expect(described_class.remove_pk_prefix(provenance: nil)).to be(nil)
+      expect(described_class.remove_pk_prefix(provenance: nil)).to be_nil
     end
 
     it 'returns the value as-is if it does not contain the prefix' do
@@ -56,7 +56,7 @@ RSpec.describe 'Uc3DmpProvenance::Helper' do
 
     it 'returns :value as-is if :provenance does not contain a :homepage or :callbackUri' do
       provenance = JSON.parse({ foo: 'bar' }.to_json)
-      expect(described_class.format_provenance_callback_url(provenance: provenance, value: dmp_id)).to eql(dmp_id)
+      expect(described_class.format_provenance_callback_url(provenance:, value: dmp_id)).to eql(dmp_id)
     end
 
     it 'removes the provenance homepage' do

@@ -22,41 +22,40 @@ module Functions
       # Setup the Logger
       log_level = ENV.fetch('LOG_LEVEL', 'error')
       req_id = context.aws_request_id if context.is_a?(LambdaContext)
-      logger = Uc3DmpCloudwatch::Logger.new(source: SOURCE, request_id: req_id, event: event, level: log_level)
+      logger = Uc3DmpCloudwatch::Logger.new(source: SOURCE, request_id: req_id, event:, level: log_level)
 
       body = event.fetch('body', '')
       json = JSON.parse(body)
-      return _respond(status: 400, errors: MSG_INVALID_BODY, event: event) unless json['dois'].is_a?(Array) &&
-                                                                                  json['dois'].any?
+      return _respond(status: 400, errors: MSG_INVALID_BODY, event:) unless json['dois'].is_a?(Array) &&
+                                                                            json['dois'].any?
 
       style = json['style'].nil? ? Uc3DmpCitation::Citer::DEFAULT_CITATION_STYLE : json['style'].to_s.downcase
       citations = []
       json['dois'].each do |entry|
         resp = Uc3DmpCitation::Citer.fetch_citation(doi: entry['value']&.strip, work_type: entry['work_type']&.strip,
-                                                    style: style, logger: logger)
+                                                    style:, logger:)
         citations << { doi: entry['value'], citation: resp }
       end
-      _respond(status: 200, items: citations, event: event)
+      _respond(status: 200, items: citations, event:)
     rescue JSON::ParserError
       logger.debug(message: MSG_INVALID_BODY, details: body.to_s)
-      _respond(status: 400, errors: MSG_INVALID_BODY, event: event)
+      _respond(status: 400, errors: MSG_INVALID_BODY, event:)
     rescue Uc3DmpCitation::CiterError => e
       logger.debug(message: e.message, details: body.to_s)
-      _respond(status: 500, errors: e.message, event: event)
+      _respond(status: 500, errors: e.message, event:)
     rescue StandardError => e
       logger.error(message: e.message, details: e.backtrace)
-      deets = { message: e.message, body: body }
-      Uc3DmpApiCore::Notifier.notify_administrator(source: SOURCE, details: deets, event: event)
+      deets = { message: e.message, body: }
+      Uc3DmpApiCore::Notifier.notify_administrator(source: SOURCE, details: deets, event:)
       { statusCode: 500, body: { errors: [Uc3DmpApiCore::MSG_SERVER_ERROR] }.to_json }
     end
-
-    private
+    # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
 
     class << self
       # Send the output to the Responder
       def _respond(status:, items: [], errors: [], event: {}, params: {})
         Uc3DmpApiCore::Responder.respond(
-          status: status, items: items, errors: errors, event: event,
+          status:, items:, errors:, event:,
           page: params['page'], per_page: params['per_page']
         )
       end

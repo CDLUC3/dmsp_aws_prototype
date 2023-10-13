@@ -22,16 +22,16 @@ module Uc3DmpApiCore
       # rubocop:disable Metrics/AbcSize
       def get_ssm_value(key:, provenance_name: nil, logger: nil)
         full_key = _ssm_keys[:"#{key.downcase}"] unless key.nil?
-        logger.debug(message: "Looking for SSM Key: #{full_key}") unless logger.nil?
+        logger&.debug(message: "Looking for SSM Key: #{full_key}")
         return nil if full_key.nil?
 
         key_vals = { env: ENV.fetch('LAMBDA_ENV', 'dev').to_s.downcase }
         # Swap in the provenance name if applicable
         key_vals[:provenance] = provenance_name unless provenance_name.nil? ||
                                                        !full_key.include?('%{provenance}')
-        fetch_value(key: format(full_key, key_vals), logger: logger)
+        fetch_value(key: format(full_key, key_vals), logger:)
       rescue Aws::Errors::ServiceError => e
-        logger.error(message: "Looking for SSM Key: #{key} - #{e.message}", details: e.backtrace) unless logger.nil?
+        logger&.error(message: "Looking for SSM Key: #{key} - #{e.message}", details: e.backtrace)
         nil
       end
       # rubocop:enable Metrics/AbcSize
@@ -39,7 +39,7 @@ module Uc3DmpApiCore
       # Call SSM to get the value for the specified key
       def fetch_value(key:, logger: nil)
         resp = Aws::SSM::Client.new.get_parameter(name: key, with_decryption: true)
-        logger.debug(message: "Searching for SSM Key: #{key}, Found: '#{resp&.parameter&.value}'") unless logger.nil?
+        logger&.debug(message: "Searching for SSM Key: #{key}, Found: '#{resp&.parameter&.value}'")
         resp.nil? || resp.parameter.nil? ? nil : resp.parameter.value
       end
 
@@ -47,7 +47,6 @@ module Uc3DmpApiCore
 
       # DMPTool/DMPHub SSM keys. See the installation guide for information about how these values are used
       #    https://github.com/CDLUC3/dmp-hub-cfn/wiki/installation-and-setup#required-ssm-parameters
-      # rubocop:disable Metrics/MethodLength
       def _ssm_keys
         {
           administrator_email: '/uc3/dmp/hub/%{env}/AdminEmail',
@@ -75,7 +74,6 @@ module Uc3DmpApiCore
           dynamo_table_name: '/uc3/dmp/hub/%{env}/DynamoTableName'
         }
       end
-      # rubocop:enable Metrics/MethodLength
     end
   end
 end

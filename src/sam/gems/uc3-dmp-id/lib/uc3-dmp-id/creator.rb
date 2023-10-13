@@ -23,23 +23,23 @@ module Uc3DmpId
         raise CreatorError, Helper::MSG_DMP_FORBIDDEN unless provenance.is_a?(Hash) && !provenance['PK'].nil?
 
         # Validate the incoming JSON first
-        json = Helper.parse_json(json: json)
-        errs = Validator.validate(mode: 'author', json: json)
+        json = Helper.parse_json(json:)
+        errs = Validator.validate(mode: 'author', json:)
         raise CreatorError, errs.join(', ') if errs.is_a?(Array) && errs.any? && errs.first != Validator::MSG_VALID_JSON
 
         # Try to find it by the :dmp_id first and Fail if found
         dmp_id = Helper.dmp_id_to_pk(json: json.fetch('dmp', {})['dmp_id'])
-        result = Finder.exists?(p_key: dmp_id, logger: logger) unless dmp_id.nil?
+        result = Finder.exists?(p_key: dmp_id, logger:) unless dmp_id.nil?
         raise CreatorError, Helper::MSG_DMP_EXISTS if result.is_a?(Hash)
 
         # raise CreatorError, Uc3DmpId::MSG_DMP_EXISTS unless json['PK'].nil?
 
         client = Uc3DmpDynamo::Client.new
-        p_key = _preregister_dmp_id(client: client, provenance: provenance, json: json, logger: logger)
+        p_key = _preregister_dmp_id(client:, provenance:, json:, logger:)
         raise CreatorError, MSG_UNABLE_TO_MINT if p_key.nil?
 
         # Add the DMPHub specific attributes and then save
-        annotated = Helper.annotate_dmp_json(provenance: provenance, p_key: p_key, json: json['dmp'])
+        annotated = Helper.annotate_dmp_json(provenance:, p_key:, json: json['dmp'])
         logger.info(message: "Creating DMP ID: #{p_key}") if logger.respond_to?(:debug)
 
         # Set the :created and :modified timestamps
@@ -48,10 +48,10 @@ module Uc3DmpId
         annotated['modified'] = now
 
         # Create the item
-        resp = client.put_item(json: annotated, logger: logger)
+        resp = client.put_item(json: annotated, logger:)
         raise CreatorError, Helper::MSG_DMP_NO_DMP_ID if resp.nil?
 
-        _post_process(json: annotated, logger: logger)
+        _post_process(json: annotated, logger:)
         Helper.cleanse_dmp_json(json: JSON.parse({ dmp: annotated }.to_json))
       end
       # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
@@ -75,7 +75,7 @@ module Uc3DmpId
         counter = 0
         while dmp_id == '' && counter <= 10
           prefix = "#{ENV.fetch('DMP_ID_SHOULDER', nil)}#{SecureRandom.hex(2).upcase}#{SecureRandom.hex(2)}"
-          dmp_id = prefix unless Finder.exists?(client: client, p_key: prefix)
+          dmp_id = prefix unless Finder.exists?(client:, p_key: prefix)
           counter += 1
         end
         # Something went wrong and it was unable to identify a unique id
@@ -94,7 +94,7 @@ module Uc3DmpId
 
         # Publish the change to the EventBridge
         publisher = Uc3DmpEventBridge::Publisher.new
-        publisher.publish(source: 'DmpCreator', event_type: 'EZID update', dmp: json, logger: logger)
+        publisher.publish(source: 'DmpCreator', event_type: 'EZID update', dmp: json, logger:)
 
         # Determine if there are any related identifiers that we should try to fetch a citation for
         citable_identifiers = Helper.citable_related_identifiers(dmp: json)
@@ -108,7 +108,7 @@ module Uc3DmpId
         }
         logger.debug(message: 'Fetching citations', details: citable_identifiers) if logger.respond_to?(:debug)
         publisher.publish(source: 'DmpCreator', dmp: json, event_type: 'Citation Fetch', detail: citer_detail,
-                          logger: logger)
+                          logger:)
         true
       end
     end

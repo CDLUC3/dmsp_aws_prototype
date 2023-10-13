@@ -12,7 +12,7 @@ module Uc3DmpApiCore
         Aws::SNS::Client.new.publish(
           topic_arn: ENV.fetch('SNS_FATAL_ERROR_TOPIC', nil),
           subject: "DMPTool - fatal error in - #{source}",
-          message: _build_admin_message(source: source, details: details, event: event)
+          message: _build_admin_message(source:, details:, event:)
         )
         true
       rescue Aws::Errors::ServiceError => e

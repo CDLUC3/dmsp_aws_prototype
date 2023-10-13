@@ -39,22 +39,22 @@ RSpec.describe 'Full Integration Tests' do
     original_dmp['dmp']['dmproadmap_external_system_identifier'] = mock_dmp_id
     new_dmp = Uc3DmpId::Creator.create(provenance: owner, json: original_dmp)
     expect(dynamo_client.data_store.length).to be(1)
-    new_dmp_tests(original: original_dmp, new_dmp: new_dmp, dynamo_rec: dynamo_client.data_store.last, seeding: true)
+    new_dmp_tests(original: original_dmp, new_dmp:, dynamo_rec: dynamo_client.data_store.last, seeding: true)
 
     # Register a new DMP ID
     owner['seedingWithLiveDmpIds'] = false
     new_dmp = Uc3DmpId::Creator.create(provenance: owner, json: original_dmp)
     expect(dynamo_client.data_store.length).to be(2)
-    new_dmp_tests(original: original_dmp, new_dmp: new_dmp, dynamo_rec: dynamo_client.data_store.last)
+    new_dmp_tests(original: original_dmp, new_dmp:, dynamo_rec: dynamo_client.data_store.last)
     pk = Uc3DmpId::Helper.dmp_id_to_pk(json: new_dmp['dmp']['dmp_id'])
 
     # pp dynamo_client.data_store.map { |rec| { PK: rec['PK'], SK: rec['SK'], modified: rec['modified'] } }
 
     # Attaches the narrative PDF document
     url = 'http://test.edu/docs/123.pdf'
-    expect(Uc3DmpId::Updater.attach_narrative(provenance: owner, p_key: pk, url: url)).to be(true)
+    expect(Uc3DmpId::Updater.attach_narrative(provenance: owner, p_key: pk, url:)).to be(true)
     expect(dynamo_client.data_store.length).to be(2)
-    test_attachment(url: url, prior_dmp: new_dmp, dmp: Uc3DmpId::Finder.by_pk(p_key: pk),
+    test_attachment(url:, prior_dmp: new_dmp, dmp: Uc3DmpId::Finder.by_pk(p_key: pk),
                     dynamo_rec: dynamo_client.data_store.last)
 
     # Update the DMP ID (as the system of provenance)

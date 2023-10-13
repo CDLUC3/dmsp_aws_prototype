@@ -20,13 +20,13 @@ module Uc3DmpRds
       def authenticate(token:)
         raise AuthenticatorError, MSG_INVALID_TOKEN if token.nil? || token.to_s.strip.empty?
 
-        users = _query_user(token: token)
+        users = _query_user(token:)
         raise AuthenticatorError, MSG_INVALID_TOKEN unless users.is_a?(Array) && users.any?
 
         user = users.first
         raise AuthenticatorError, MSG_INACTIVE_USER unless user['active']
 
-        _serialize_user(user: user)
+        _serialize_user(user:)
       end
 
       private
@@ -50,10 +50,11 @@ module Uc3DmpRds
               AND i.identifier_scheme_id IN (SELECT sch.id FROM identifier_schemes sch WHERE sch.name = 'orcid')
           WHERE users.api_token = :token
         SQL
-        users = ActiveRecord::Base.simple_execute(sql, token: token.to_s.strip)
+        ActiveRecord::Base.simple_execute(sql, token: token.to_s.strip)
       end
 
       # Convert the ActiveRecord query results into a JSON object
+      # rubocop:disable Metrics/AbcSize
       def _serialize_user(user:)
         return {} if user.nil? || user['email'].nil?
 
@@ -72,6 +73,7 @@ module Uc3DmpRds
         hash[:affiliation][:affiliation_id] = { type: 'ror', identifier: user['ror_id'] } unless user['ror_id'].nil?
         JSON.parse(hash.to_json)
       end
+      # rubocop:enable Metrics/AbcSize
     end
   end
 end

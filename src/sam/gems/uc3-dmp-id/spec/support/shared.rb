@@ -20,31 +20,21 @@ def mock_dmp(minimal: false)
   JSON.parse(File.read("#{Dir.pwd}/spec/support/json_mocks/#{minimal ? 'minimal' : 'complete'}.json"))
 end
 
-# rubocop:disable Metrics/AbcSize
 def mock_logger(success: true)
   lggr = Uc3DmpCloudwatchLogger.new
-  allow(lggr).to receive(:debug).and_return(success)
-  allow(lggr).to receive(:info).and_return(success)
-  allow(lggr).to receive(:warn).and_return(success)
-  allow(lggr).to receive(:error).and_return(success)
+  allow(lggr).to receive_messages(debug: success, info: success, warn: success, error: success)
   allow(Uc3DmpCloudwatch::Logger).to receive(:new).and_return(lggr)
   lggr
 end
-# rubocop:enable Metrics/AbcSize
 
-# rubocop:disable Metrics/AbcSize
 def mock_uc3_dmp_dynamo(dmp: mock_dmp, success: true)
   client = Uc3DmpDynamoClient.new
-  allow(client).to receive(:get_item).and_return(success ? dmp : nil)
-  allow(client).to receive(:put_item).and_return(success ? dmp : nil)
-  allow(client).to receive(:delete_item).and_return(success ? dmp : nil)
-  allow(client).to receive(:query).and_return(success ? [dmp] : nil)
-  allow(client).to receive(:pk_exists?).and_return(success)
-
+  ret = success ? dmp : nil
+  allow(client).to receive_messages(get_item: ret, put_item: ret, delete_item: ret,
+                                    query: (success ? [dmp] : nil), pk_exists?: success)
   allow(Uc3DmpDynamo::Client).to receive(:new).and_return(client)
   client
 end
-# rubocop:enable Metrics/AbcSize
 
 def mock_uc3_dmp_event_bridge(success: true)
   publisher = Uc3DmpEventBridgePublisher.new

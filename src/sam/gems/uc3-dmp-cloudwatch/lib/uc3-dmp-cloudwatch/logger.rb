@@ -22,7 +22,7 @@ module Uc3DmpCloudwatch
       return false if @level == 'none' || message.nil?
 
       _format_msg(mode: 'error', msg: message)
-      _format_msg(mode: 'error', msg: details) if _valid_details(details: details)
+      _format_msg(mode: 'error', msg: details) if _valid_details(details:)
       _log_event(mode: 'error')
     end
 
@@ -30,14 +30,14 @@ module Uc3DmpCloudwatch
       return false if %w[none error].include?(@level) || message.nil?
 
       _format_msg(mode: 'info', msg: message)
-      _format_msg(mode: 'info', msg: details) if _valid_details(details: details)
+      _format_msg(mode: 'info', msg: details) if _valid_details(details:)
     end
 
     def debug(message:, details: {})
       return false if %w[none error info].include?(@level) || message.nil?
 
       _format_msg(mode: 'debug', msg: message)
-      _format_msg(mode: 'debug', msg: details) if _valid_details(details: details)
+      _format_msg(mode: 'debug', msg: details) if _valid_details(details:)
     end
 
     private
@@ -54,10 +54,11 @@ module Uc3DmpCloudwatch
     def _prefix(prefix: 'INFO')
       prefix = @request_id.nil? ? "#{prefix} " : "#{prefix} RequestId: #{@request_id},"
       prefix += " SOURCE: #{@source}," unless @source.nil?
+      prefix
     end
 
     # Format the message
-    def _format_msg(mode: 'info', msg:)
+    def _format_msg(msg:, mode: 'info')
       message = msg.is_a?(Array) ? msg.join(', ') : msg
       puts "#{_prefix(prefix: mode.upcase)} #{message.is_a?(String) ? "MESSAGE: #{message}" : "PAYLOAD: #{message}"}"
     end

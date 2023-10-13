@@ -27,17 +27,19 @@ module Functions
                     a comma separated list of award years (optional) (e.g. years=2023,2021)'
     MSG_EMPTY_RESPONSE = 'NIH API returned an empty resultset'
 
+    # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
+    # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
     def self.process(event:, context:)
       # Setup the Logger
       log_level = ENV.fetch('LOG_LEVEL', 'error')
       req_id = context.aws_request_id if context.is_a?(LambdaContext)
-      logger = Uc3DmpCloudwatch::Logger.new(source: SOURCE, request_id: req_id, event: event, level: log_level)
+      logger = Uc3DmpCloudwatch::Logger.new(source: SOURCE, request_id: req_id, event:, level: log_level)
 
-      params = _parse_params(event: event)
+      params = _parse_params(event:)
       continue = params[:project_num].length.positive? || params[:fiscal_years].length.positive? ||
                  params[:pi_names].length.positive? || params[:opportunity_nbr].length.positive? ||
                  params[:title].length.positive?
-      return _respond(status: 400, errors: [MSG_BAD_ARGS], event: event) unless continue
+      return _respond(status: 400, errors: [MSG_BAD_ARGS], event:) unless continue
 
       body = _prepare_data(
         years: params[:fiscal_years],
@@ -47,34 +49,37 @@ module Functions
         title: params[:title]
       )
 
-      logger.debug(message: "Calling NIH Award API: #{API_BASE_URL} with body:", details: body) if logger.respond_to?(:debug)
-      resp = Uc3DmpExternalApi::Client.call(url: API_BASE_URL, method: :post, body: body, logger: logger)
+      if logger.respond_to?(:debug)
+        logger.debug(message: "Calling NIH Award API: #{API_BASE_URL} with body:",
+                     details: body)
+      end
+      resp = Uc3DmpExternalApi::Client.call(url: API_BASE_URL, method: :post, body:, logger:)
       if resp.nil? || resp.to_s.strip.empty?
         logger.error(message: MSG_EMPTY_RESPONSE, details: resp)
-        return _respond(status: 404, items: [], event: event)
+        return _respond(status: 404, items: [], event:)
       end
 
       logger.debug(message: 'Found the following results:', details: resp) if logger.respond_to?(:debug)
       results = _transform_response(response_body: resp)
-      _respond(status: 200, items: results.compact.uniq, event: event, params: params)
+      _respond(status: 200, items: results.compact.uniq, event:, params:)
     rescue Uc3DmpExternalApi::ExternalApiError => e
-      logger.error(message: e.message, details: e.backtrace)
-      deets = { message: e.message, query_string: params }
-      Uc3DmpApiCore::Notifier.notify_administrator(source: SOURCE, details: deets, event: event)
-      _respond(status: 500, errors: [Uc3DmpApiCore::MSG_SERVER_ERROR], event: event)
+      logger&.error(message: "External API error: #{e.message}", details: e.backtrace)
+      deets = { message: "External API error: #{e.message}", query_string: params }
+      Uc3DmpApiCore::Notifier.notify_administrator(source: SOURCE, details: deets, event:)
+      _respond(status: 500, errors: [Uc3DmpApiCore::MSG_SERVER_ERROR], event:)
     rescue Aws::Errors::ServiceError => e
-      logger.error(message: e.message, details: e.backtrace)
+      logger&.error(message: e.message, details: e.backtrace)
       deets = { message: e.message, query_string: params }
-      Uc3DmpApiCore::Notifier.notify_administrator(source: SOURCE, details: deets, event: event)
-      _respond(status: 500, errors: [Uc3DmpApiCore::MSG_SERVER_ERROR], event: event)
+      Uc3DmpApiCore::Notifier.notify_administrator(source: SOURCE, details: deets, event:)
+      _respond(status: 500, errors: [Uc3DmpApiCore::MSG_SERVER_ERROR], event:)
     rescue StandardError => e
-      logger.error(message: e.message, details: e.backtrace) unless logger.nil?
+      logger&.error(message: e.message, details: e.backtrace)
       deets = { message: e.message, query_string: params }
-      Uc3DmpApiCore::Notifier.notify_administrator(source: SOURCE, details: deets, event: event)
+      Uc3DmpApiCore::Notifier.notify_administrator(source: SOURCE, details: deets, event:)
       { statusCode: 500, body: { errors: [Uc3DmpApiCore::MSG_SERVER_ERROR] }.to_json }
     end
-
-    private
+    # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
+    # rubocop:enable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
     class << self
       # Parse the incoming query string arguments
@@ -106,9 +111,9 @@ module Functions
           criteria: {
             use_relevance: true,
             fiscal_years: years,
-            pi_names: pi_names,
+            pi_names:,
             foa: opportunity_nbrs,
-            project_nums: project_nums,
+            project_nums:,
             advancedTextSearch: { searchText: title }
           },
           offset: 0,
@@ -119,10 +124,10 @@ module Functions
       # Convert the PI info from the response into "Last, First"
       def _pi_from_response(hash:)
         if hash['last_name'].nil?
-          full_name_parts = hash['full_name'].split(' ')
+          full_name_parts = hash['full_name'].split
           nm = "#{full_name_parts.last}, #{full_name_parts[0..full_name_parts.length - 2].join(' ')}"
         else
-          nm ="#{hash['last_name']}, #{[hash['first_name'], hash['middle_name']].join(' ')}"
+          nm = "#{hash['last_name']}, #{[hash['first_name'], hash['middle_name']].join(' ')}"
         end
 
         { name: nm, mbox: hash['email'] }
@@ -183,6 +188,7 @@ module Functions
       #     }
       #   ]
       # }
+      # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
       def _transform_response(response_body:)
         return [] unless response_body.is_a?(Hash)
 
@@ -213,11 +219,12 @@ module Functions
           }
         end
       end
+      # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
 
       # Send the output to the Responder
       def _respond(status:, items: [], errors: [], event: {}, params: {})
         Uc3DmpApiCore::Responder.respond(
-          status: status, items: items, errors: errors, event: event,
+          status:, items:, errors:, event:,
           page: params['page'], per_page: params['per_page']
         )
       end

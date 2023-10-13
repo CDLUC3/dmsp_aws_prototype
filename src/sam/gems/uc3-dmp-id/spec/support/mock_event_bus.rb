@@ -15,7 +15,7 @@ module Uc3DmpEventBridge
         time: Time.now.utc,
         source: "#{ENV.fetch('DOMAIN', nil)}:lambda:event_publisher",
         detail_type: event_type.to_s,
-        detail: detail,
+        detail:,
         event_bus_name: ENV.fetch('EVENT_BUS_NAME', nil)
       }
     end

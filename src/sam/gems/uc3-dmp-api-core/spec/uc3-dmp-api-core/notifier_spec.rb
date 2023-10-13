@@ -17,12 +17,12 @@ RSpec.describe 'Uc3DmpApiCore::Notifier' do
     it 'returns true when successful' do
       sns_client = mock_sns
       allow(sns_client).to receive(:publish).and_return('Message sent:')
-      expect(described_class.notify_administrator(source: source, details: details, event: event)).to be(true)
+      expect(described_class.notify_administrator(source:, details:, event:)).to be(true)
     end
 
     it 'handles AWS errors by logging directly to stdout and returns false' do
       mock_sns(success: false)
-      expect(described_class.notify_administrator(source: source, details: details)).to be(false)
+      expect(described_class.notify_administrator(source:, details:)).to be(false)
       expect(described_class).to have_received(:puts).twice
     end
   end

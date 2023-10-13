@@ -7,17 +7,17 @@ module Uc3DmpId
   # Helper functions for working with DMP IDs
   class Helper
     PK_DMP_PREFIX = 'DMP#'
-    PK_DMP_REGEX = %r{DMP#[a-zA-Z0-9\-_.]+/[a-zA-Z0-9]{2}\.[a-zA-Z0-9./:]+}.freeze
+    PK_DMP_REGEX = %r{DMP#[a-zA-Z0-9\-_.]+/[a-zA-Z0-9]{2}\.[a-zA-Z0-9./:]+}
 
     SK_DMP_PREFIX = 'VERSION#'
-    SK_DMP_REGEX = /VERSION#\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\+\d{2}:\d{2}/.freeze
+    SK_DMP_REGEX = /VERSION#\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\+\d{2}:\d{2}/
 
     # TODO: Verify the assumed structure of the DOI is valid
-    DOI_REGEX = %r{[0-9]{2}\.[0-9]{4,}/[a-zA-Z0-9/_.-]+}.freeze
-    URL_REGEX = %r{(https?://)?([a-zA-Z0-9\-_]\.)+[a-zA-Z0-9\-_]{2,3}(:[0-9]+)?/?}.freeze
+    DOI_REGEX = %r{[0-9]{2}\.[0-9]{4,}/[a-zA-Z0-9/_.-]+}
+    URL_REGEX = %r{(https?://)?([a-zA-Z0-9\-_]\.)+[a-zA-Z0-9\-_]{2,3}(:[0-9]+)?/?}
 
-    DMP_LATEST_VERSION = "#{SK_DMP_PREFIX}latest"
-    DMP_TOMBSTONE_VERSION = "#{SK_DMP_PREFIX}tombstone"
+    DMP_LATEST_VERSION = "#{SK_DMP_PREFIX}latest".freeze
+    DMP_TOMBSTONE_VERSION = "#{SK_DMP_PREFIX}tombstone".freeze
 
     DEFAULT_API_URL = 'https://api.dmphub.uc3dev.cdlib.net/dmps/'
     DEFAULT_LANDING_PAGE_URL = 'https://dmphub.uc3dev.cdlib.net/dmps/'
@@ -41,7 +41,7 @@ module Uc3DmpId
       # Append the PK prefix for the object
       # -------------------------------------------------------------------------------------
       def append_pk_prefix(p_key:)
-        p_key.is_a?(String) ? "#{PK_DMP_PREFIX}#{remove_pk_prefix(p_key: p_key)}" : nil
+        p_key.is_a?(String) ? "#{PK_DMP_PREFIX}#{remove_pk_prefix(p_key:)}" : nil
       end
 
       # Strip off the PK prefix
@@ -53,7 +53,7 @@ module Uc3DmpId
       # Append the SK prefix for the object
       # -------------------------------------------------------------------------------------
       def append_sk_prefix(s_key:)
-        s_key.is_a?(String) ? "#{SK_DMP_PREFIX}#{remove_sk_prefix(s_key: s_key)}" : nil
+        s_key.is_a?(String) ? "#{SK_DMP_PREFIX}#{remove_sk_prefix(s_key:)}" : nil
       end
 
       # Strip off the SK prefix
@@ -82,7 +82,7 @@ module Uc3DmpId
         return with_protocol ? value : value.gsub(%r{https?://}, '') if value.start_with?('http')
 
         dmp_id = dmp_id.gsub('doi:', '')
-        dmp_id = dmp_id.start_with?('/') ? dmp_id[1..dmp_id.length] : dmp_id
+        dmp_id = dmp_id[1..dmp_id.length] if dmp_id.start_with?('/')
         base_domain = with_protocol ? dmp_id_base_url : dmp_id_base_url.gsub(%r{https?://}, '')
         "#{base_domain}#{dmp_id}"
       end
@@ -95,7 +95,7 @@ module Uc3DmpId
         p_key = param if param.start_with?(dmp_id_base_url) || param.start_with?(base_domain)
         p_key = CGI.unescape(p_key.nil? ? param : p_key)
         p_key = format_dmp_id(value: p_key)
-        append_pk_prefix(p_key: p_key)
+        append_pk_prefix(p_key:)
       end
 
       # Append the :PK prefix to the :dmp_id
@@ -115,7 +115,7 @@ module Uc3DmpId
 
         {
           type: 'doi',
-          identifier: format_dmp_id(value: remove_pk_prefix(p_key: p_key), with_protocol: true)
+          identifier: format_dmp_id(value: remove_pk_prefix(p_key:), with_protocol: true)
         }
       end
 
@@ -180,7 +180,7 @@ module Uc3DmpId
       # Add DMPHub specific fields to the DMP ID JSON
       # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
       def annotate_dmp_json(provenance:, p_key:, json:)
-        json = parse_json(json: json)
+        json = parse_json(json:)
         bool_vals = [1, '1', true, 'true', 'yes']
         return json if provenance.nil? || p_key.nil? || !json.is_a?(Hash)
 
@@ -189,14 +189,14 @@ module Uc3DmpId
         return json if id != p_key && !json['PK'].nil?
 
         annotated = deep_copy_dmp(obj: json)
-        annotated['PK'] = json['PK'] || append_pk_prefix(p_key: p_key)
+        annotated['PK'] = json['PK'] || append_pk_prefix(p_key:)
         annotated['SK'] = DMP_LATEST_VERSION
 
         # Ensure that the :dmp_id matches the :PK
         annotated['dmp_id'] = JSON.parse(pk_to_dmp_id(p_key: remove_pk_prefix(p_key: annotated['PK'])).to_json)
 
-        owner_id = extract_owner_id(json: json)
-        owner_org = extract_owner_org(json: json)
+        owner_id = extract_owner_id(json:)
+        owner_org = extract_owner_org(json:)
 
         # Set the :dmproadmap_featured flag appropriately
         featured = annotated.fetch('dmproadmap_featured', 'no')
@@ -219,7 +219,7 @@ module Uc3DmpId
           annotated['dmphub_provenance_identifier'] = annotated.fetch('dmproadmap_links', {})['get']
         else
           annotated['dmphub_provenance_identifier'] = format_provenance_id(
-            provenance: provenance, value: json.fetch('dmp_id', {})['identifier']
+            provenance:, value: json.fetch('dmp_id', {})['identifier']
           )
         end
         annotated
