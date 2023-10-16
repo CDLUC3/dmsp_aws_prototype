@@ -903,7 +903,7 @@ Resources:
   # EventBridge Lambdas
   #   See: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-property-function-sns.html
   # ----------------------------------------------------
-  # Lambda responsible for communications with EZID
+  # Lambda responsible for fetching BibTex citations
   CiterFunction:
     Type: 'AWS::Serverless::Function'
     Properties:
@@ -1034,6 +1034,70 @@ Resources:
       - EzidPublisherFunction
     Properties:
       LogGroupName: !Sub "/aws/lambda/${EzidPublisherFunction}"
+      RetentionInDays: !Ref LogRetentionDays
+
+  # Lambda responsible for communications with EZID
+  ExtractorDataciteFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      CodeUri: 'functions/extractor_datacite/'
+      Handler: 'app.Functions::ExtractorDatacite.process'
+      Runtime: 'ruby3.2'
+      # Depending on the DMP ID, there may be a lot of citations so we timeout after 5 minutes
+      Timeout: 300
+      Architectures:
+        - 'x86_64'
+      Layers:
+        - !Ref LambdaLayer
+      Policies:
+        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSQSFullAccess'
+        - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
+        - !Ref DmpHubDynamoTableWritePolicy
+        - !Ref EventBusPolicy
+      Environment:
+        Variables:
+          LAMBDA_ENV: !Ref Env
+          LOG_LEVEL: !Ref DebugLevel # 'debug'
+          DOMAIN: !Ref DomainName
+          DMP_ID_BASE_URL: 'doi.org'
+          API_BASE_URL: !Sub 'https://api.${DomainName}'
+          SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
+          EVENT_BUS_NAME: !Ref EventBusArn
+          DYNAMO_TABLE: !Ref DynamoTableName
+      Events:
+        ExtractorDataciteEvent:
+          Type: 'EventBridgeRule'
+          Properties:
+            DeadLetterConfig:
+              Arn: !Ref DeadLetterQueueArn
+            EventBusName: !Ref EventBusArn
+            Pattern: !Sub >
+              {
+                "source": ["${DomainName}:lambda:event_publisher"],
+                "detail-type": ["RelatedWorkScan"]
+              }
+            RetryPolicy:
+              MaximumEventAgeInSeconds: 180
+              MaximumRetryAttempts: 3
+            State: 'ENABLED'  # 'DISABLED'
+
+  ExtractorDatacitePermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      FunctionName: !Ref ExtractorDataciteFunction
+      Action: 'lambda:InvokeFunction'
+      Principal: 'events.amazonaws.com'
+      # SourceArn: !GetAtt CiterEventRule.Arn
+
+  # Annoyingly, SAM does not auto-generate LogGroup for a non-API tiggered lambda
+  ExtractorDataciteFunctionLogGroup:
+    Type: 'AWS::Logs::LogGroup'
+    DependsOn:
+      - CiterFunction
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${ExtractorDataciteFunction}"
       RetentionInDays: !Ref LogRetentionDays
 
   # Scheduled events to keep some of the API lambdas warm

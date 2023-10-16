@@ -168,7 +168,8 @@ module Uc3DmpId
       #    "id": "ABCD1234",
       #    "provenance": "dmphub",
       #    "timestamp": "2023-07-07T14:50:23+00:00",
-      #    "note": "data received from the NIH API",
+      #    "note": "Data received from OpenAlex, matched by PI names and title keywords.",
+      #    "confiedence": "Med",
       #    "dmproadmap_related_identifiers": {
       #      "work_type": "article",
       #      "descriptor": "is_cited_by",
@@ -183,7 +184,8 @@ module Uc3DmpId
       #    "id": "ABCD1234",
       #    "provenance": "dmphub",
       #    "timestamp": "2023-07-07T14:50:23+00:00",
-      #    "note": "data received from the NIH API",
+      #    "note": "Data received from the NIH API, matched by the opportunity number.",
+      #    "confidence": "High",
       #    "funding": {
       #      "funding_status": "granted",
       #      "grant_id": {
@@ -205,6 +207,14 @@ module Uc3DmpId
         mods.each_pair { |key, val| assertion[key] = val }
         JSON.parse(assertion.to_json)
       end
+    end
+
+    def _score_related_work(latest_version:, work:)
+
+    end
+
+    def _score_funding(latest_version:, funding:)
+
     end
   end
 end
