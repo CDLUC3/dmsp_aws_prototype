@@ -33,7 +33,7 @@ module Functions
       p_key = Uc3DmpId::Helper.path_parameter_to_pk(param: dmp_id)
       p_key = Uc3DmpId::Helper.append_pk_prefix(p_key:) unless p_key.nil?
       s_key = Uc3DmpId::Helper::DMP_LATEST_VERSION
-      return _respond(status: 400, errors: Uc3DmpId::MSG_DMP_INVALID_DMP_ID, event:) if p_key.nil?
+      return _respond(status: 400, errors: Uc3DmpId::Helper::MSG_DMP_INVALID_DMP_ID, event:) if p_key.nil?
 
       _set_env(logger:)
 
@@ -42,7 +42,7 @@ module Functions
       # Fail if the Provenance could not be loaded
       claim = event.fetch('requestContext', {}).fetch('authorizer', {})['claims']
       provenance = Uc3DmpProvenance::Finder.from_lambda_cotext(identity: claim, logger:)
-      return _respond(status: 403, errors: Uc3DmpId::MSG_DMP_FORBIDDEN, event:) if provenance.nil?
+      return _respond(status: 403, errors: Uc3DmpId::Helper::MSG_DMP_FORBIDDEN, event:) if provenance.nil?
 
       # Fetch the DMP ID
       logger.debug(message: "Searching for PK: #{p_key}, SK: #{s_key}") if logger.respond_to?(:debug)
@@ -90,7 +90,7 @@ module Functions
 
       _respond(status: 200, items: [resp], event:)
     rescue Uc3DmpId::UpdaterError => e
-      _respond(status: 400, errors: [Uc3DmpId::MSG_DMP_NO_DMP_ID, e.message], event:)
+      _respond(status: 400, errors: [Uc3DmpId::Helper::MSG_DMP_NO_DMP_ID, e.message], event:)
     rescue StandardError => e
       logger.error(message: e.message, details: e.backtrace)
       { statusCode: 500, body: { errors: [Uc3DmpApiCore::MSG_SERVER_ERROR] }.to_json }

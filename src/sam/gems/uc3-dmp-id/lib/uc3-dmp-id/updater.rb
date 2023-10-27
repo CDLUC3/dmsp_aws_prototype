@@ -40,6 +40,8 @@ module Uc3DmpId
         version = Versioner.generate_version(client:, latest_version:, owner:,
                                              updater:, logger:)
         raise UpdaterError, Helper::MSG_DMP_UNABLE_TO_VERSION if version.nil?
+        # Bail if the system trying to make the update is not the creator of the DMP ID
+        raise UpdaterError, Helper::MSG_DMP_FORBIDDEN if owner != updater
 
         # Remove the version info because we don't want to save it on the record
         version.delete('dmphub_versions')
@@ -122,32 +124,13 @@ module Uc3DmpId
         return version unless mods.is_a?(Hash) && !updater.nil?
         return mods unless version.is_a?(Hash) && !owner.nil?
 
-        updated = if owner == updater
-                    # Splice together any assertions that may have been made while the user was editing the DMP ID
-                    Asserter.splice(latest_version: version, modified_version: mods, logger:)
-                  else
-                    # Attach the incoming changes as an assertion to the DMP ID since the updater is NOT the owner
-                    Asserter.add(updater:, latest_version: version, modified_version: mods, note:,
-                                 logger:)
-                  end
-
-        _merge_versions(latest_version: version, mods: updated, logger:)
-      end
-      # rubocop:enable Metrics/ParameterLists
-
-      # We are replacing the latest version with the modifcations but want to retain the PK, SK and any dmphub_ prefixed
-      # entries in the metadata so that we do not lose creation timestamps, provenance ids, etc.
-      # rubocop:disable Metrics/AbcSize
-      def _merge_versions(latest_version:, mods:, logger: nil)
-        return mods unless latest_version.is_a?(Hash)
-
         logger.debug(message: 'Modifications before merge.', details: mods) if logger.respond_to?(:debug)
-        keys_to_retain = latest_version.keys.select do |key|
+        keys_to_retain = version.keys.select do |key|
           (key.start_with?('dmphub_') && !%w[dmphub_modifications dmphub_versions].include?(key)) ||
             key.start_with?('PK') || key.start_with?('SK')
         end
         keys_to_retain.each do |key|
-          mods[key] = latest_version[key]
+          mods[key] = version[key]
         end
         logger.debug(message: 'Modifications after merge.', details: mods) if logger.respond_to?(:debug)
         mods

@@ -88,6 +88,11 @@ RSpec.describe 'Full Integration Tests' do
                          expect_versioned: true)
 
     # Update the DMP ID (as an external system) wait a few seconds so the timestamps are different
+=begin
+
+TODO: Switch this so that it uses the new Augmenter class!
+
+
     sleep(1)
     external_mod = JSON.parse({ dmp: updated_again['dmp'].dup }.to_json)
     # Test a change to a field that an external system cannot make!
@@ -152,21 +157,29 @@ RSpec.describe 'Full Integration Tests' do
       mod.fetch('dmproadmap_related_identifiers', []).include?(new_id)
     end
     expect(new_one.nil?).to be(false)
+=end
 
     # Tombstones the DMP ID
     sleep(1)
     tombstoned = Uc3DmpId::Deleter.tombstone(provenance: owner, p_key: pk)
     # pp dynamo_client.data_store.map { |rec| { PK: rec['PK'], SK: rec['SK'], modified: rec['modified'] } }
 
-    expect(dynamo_client.data_store.length).to be(5)
+    expect(dynamo_client.data_store.length).to be(3)
     dynamo_rec = dynamo_client.data_store.last
 
-    expect(tombstoned['dmp']['title']).to eql("OBSOLETE: #{external_update2['dmp']['title']}")
-    expect(tombstoned['dmp']['modified'] >= external_update2['dmp']['modified']).to be(true)
+    # TODO: Switch these commented lines back once we are using the new Augmenter class!
+    # expect(tombstoned['dmp']['title']).to eql("OBSOLETE: #{external_update2['dmp']['title']}")
+    # expect(tombstoned['dmp']['modified'] >= external_update2['dmp']['modified']).to be(true)
+
+    expect(tombstoned['dmp']['title']).to eql("OBSOLETE: #{updated_again['dmp']['title']}")
+    expect(tombstoned['dmp']['modified'] >= updated_again['dmp']['modified']).to be(true)
+
 
     expect(dynamo_client.get_item(key: { PK: pk, SK: Uc3DmpId::Helper::DMP_LATEST_VERSION })).to be_nil
     expect(dynamo_rec['SK']).to eql(Uc3DmpId::Helper::DMP_TOMBSTONE_VERSION)
-    expect(dynamo_rec['dmphub_tombstoned_at'] >= external_update2['dmp']['modified']).to be(true)
+    # TODO: Switch these commented lines back once we are using the new Augmenter class!
+    # expect(dynamo_rec['dmphub_tombstoned_at'] >= external_update2['dmp']['modified']).to be(true)
+    expect(dynamo_rec['dmphub_tombstoned_at'] >= updated_again['dmp']['modified']).to be(true)
   end
   # rubocop:enable RSpec/MultipleExpectations, RSpec/ExampleLength
 

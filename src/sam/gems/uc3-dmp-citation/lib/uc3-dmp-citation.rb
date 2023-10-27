@@ -32,12 +32,19 @@ module Uc3DmpCitation
         resp = Uc3DmpExternalApi::Client.call(url: uri, method: :get, additional_headers: headers, logger:)
         return nil if resp.nil? || resp.to_s.strip.empty?
 
-        bibtex = BibTeX.parse(_cleanse_bibtex(text: resp))
+        bibtex_to_citation(bibtex_as_string: resp)
+      end
+      # rubocop:enable Metrics/AbcSize
+
+      # Convert the specified BibTex string into a citation
+      def bibtex_to_citation(bibtex_as_string:)
+        return nil unless bibtex_as_string.is_a?(String)
+
+        bibtex = BibTeX.parse(_cleanse_bibtex(text: bibtex_as_string))
         work_type = work_type.nil? ? determine_work_type(bibtex:) : work_type
         style = DEFAULT_CITATION_STYLE if style.nil?
         _bibtex_to_citation(uri:, work_type:, style:, bibtex:)
       end
-      # rubocop:enable Metrics/AbcSize
 
       private
 

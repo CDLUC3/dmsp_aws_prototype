@@ -57,7 +57,67 @@ Conditions:
 
 Resources:
   # ----------------------------------------------
-  # DynamoDB polymorphic table
+  # DynamoDB polymorphic table for external info (e.g. ROR, DataCite, Crossref, etc.)
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html
+  # ----------------------------------------------
+  ResourcesDynamoTable:
+    Type: 'AWS::DynamoDB::Table'
+    DeletionPolicy: !If
+      - PreventDelete
+      - 'Retain'
+      - 'Delete'
+    Properties:
+      KeySchema:
+        - AttributeName: 'RESOURCE_TYPE'
+          KeyType: 'HASH'
+        - AttributeName: 'ID'
+          KeyType: 'RANGE'
+
+      AttributeDefinitions:
+        # The type of record (e.g. FUNDER, REPOSITORY, PERSON, etc.)
+        - AttributeName: 'RESOURCE_TYPE'
+          AttributeType: 'S'
+        # The identifier for the resource (e.g. ROR, ORCID, URL, etc.)
+        - AttributeName: 'ID'
+          AttributeType: 'S'
+        # The last updated date
+        - AttributeName: 'source'
+          AttributeType: 'S'
+
+      GlobalSecondaryIndexes:
+        # An index to help us quickly fetch all of the
+        - IndexName: 'source_gsi'
+          KeySchema:
+            - AttributeName: 'source'
+              KeyType: 'HASH'
+            - AttributeName: 'ID'
+              KeyType: 'RANGE'
+          Projection:
+            ProjectionType: 'INCLUDE'
+            NonKeyAttributes: ['RESOURCE_TYPE', 'touch_date']
+          ContributorInsightsSpecification:
+            Enabled: !Ref DynamoEnableContributorInsights
+          ProvisionedThroughput: !If
+            - ProvisionedCapacity
+            - ReadCapacityUnits: !Ref DynamoReadCapacityUnits
+              WriteCapacityUnits: !Ref DynamoWriteCapacityUnits
+            - !Ref AWS::NoValue
+
+      BillingMode: !Ref DynamoBillingMode
+      TableClass: !Ref DynamoTableClass
+      ProvisionedThroughput: !If
+        - ProvisionedCapacity
+        - ReadCapacityUnits: !Ref DynamoReadCapacityUnits
+          WriteCapacityUnits: !Ref DynamoWriteCapacityUnits
+        - !Ref AWS::NoValue
+      ContributorInsightsSpecification:
+        Enabled: !Ref DynamoEnableContributorInsights
+      # Determine cost before enabling
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: !Ref DynamoEnablePointInTimeRecovery
+
+  # ----------------------------------------------
+  # DynamoDB polymorphic table for DMPs
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html
   # ----------------------------------------------
   DynamoTable:
@@ -189,6 +249,11 @@ Resources:
       Value: !Select [1, !Split ['/', !GetAtt DynamoTable.Arn]]
 
 Outputs:
+  ResourcesDynamoTableName:
+    Value: !Select [1, !Split ['/', !GetAtt ResourcesDynamoTable.Arn]]
+    Export:
+      Name: !Sub '${Env}-ResourcesDynamoTableName'
+
   DynamoTableName:
     Value: !Select [1, !Split ['/', !GetAtt DynamoTable.Arn]]
     Export:
@@ -201,3 +266,8 @@ Outputs:
     Value: !GetAtt DynamoTable.Arn
     Export:
       Name: !Sub '${Env}-DynamoTableArn'
+
+  ResourcesDynamoTableArn:
+    Value: !GetAtt ResourcesDynamoTable.Arn
+    Export:
+      Name: !Sub '${Env}-ResourcesDynamoTableArn'

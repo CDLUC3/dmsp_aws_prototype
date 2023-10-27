@@ -205,41 +205,6 @@ RSpec.describe 'Uc3DmpId::Updater' do
       result = described_class.send(:_process_modifications, owner: nil, updater:, version: dmp, mods:)
       expect(result).to eql(mods)
     end
-
-    it 'calls Asserter.splice if the updater is the owner' do
-      allow(described_class).to receive(:_merge_versions)
-      allow(Uc3DmpId::Asserter).to receive(:splice)
-      allow(Uc3DmpId::Asserter).to receive(:add)
-      described_class.send(:_process_modifications, owner:, updater: owner, version: dmp, mods:)
-      expect(Uc3DmpId::Asserter).to have_received(:splice).once
-      expect(Uc3DmpId::Asserter).not_to have_received(:add)
-    end
-
-    it 'calls Asserter.add if the updater is NOT the owner' do
-      allow(described_class).to receive(:_merge_versions)
-      allow(Uc3DmpId::Asserter).to receive(:splice)
-      allow(Uc3DmpId::Asserter).to receive(:add)
-      described_class.send(:_process_modifications, owner:, updater:, version: dmp, mods:)
-      expect(Uc3DmpId::Asserter).not_to have_received(:splice)
-      expect(Uc3DmpId::Asserter).to have_received(:add).once
-    end
-  end
-
-  describe '_merge_versions(latest_version:, mods:, logger: nil)' do
-    it 'returns the :mods as-is if :latest_version if not a Hash' do
-      expect(described_class.send(:_merge_versions, latest_version: 123, mods:)).to eql(mods)
-    end
-
-    it 'returns the :mods as-is if :latest_version does not have a :PK and :SK' do
-      dmp['dmp'].delete('PK')
-      expect(described_class.send(:_merge_versions, latest_version: dmp['dmp'], mods:)).to eql(mods)
-    end
-
-    it 'adds the attributes from the :latest_version to the :mods' do
-      expected = mods
-      transferable_keys.each { |key| expected[key] = dmp['dmp'][key] }
-      expect(described_class.send(:_merge_versions, latest_version: dmp['dmp'], mods:)).to eql(expected)
-    end
   end
 
   describe '_post_process(provenance:, json:, logger: nil)' do

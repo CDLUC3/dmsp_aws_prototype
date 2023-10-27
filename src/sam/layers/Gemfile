@@ -22,9 +22,14 @@ gem 'csl-styles'
 # in pure Ruby. (https://github.com/inukshuk/citeproc-ruby)
 gem 'citeproc-ruby'
 
-# GraphQL Client is a Ruby library for declaring, composing and executing GraphQL queries.
-# https://github.com/github/graphql-client
-gem 'graphql-client'
+# This module provides a framework for message digest libraries. https://github.com/ruby/digest
+gem 'digest'
+
+# Rubyzip is a ruby library for reading and writing zip files. https://github.com/rubyzip/rubyzip
+gem 'rubyzip'
+
+# A collection of text algorithms (http://github.com/threedaymonk/text)
+gem 'text'
 
 # Unfortunately you cannot include gems by path here because AWS doesn't have access when it builds the layer
 # so the gems must exist in RubyGems

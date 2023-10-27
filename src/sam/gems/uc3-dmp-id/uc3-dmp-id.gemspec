@@ -21,9 +21,16 @@ Gem::Specification.new do |spec|
 
   spec.add_runtime_dependency('json', '~> 2.6')
   spec.add_runtime_dependency('json-schema', '~> 3.0')
+  spec.add_runtime_dependency('text', '~> 1.3')
 
+  spec.add_runtime_dependency('uc3-dmp-citation', '~> 0.0')
   spec.add_runtime_dependency('uc3-dmp-dynamo', '~> 0.0')
   spec.add_runtime_dependency('uc3-dmp-event-bridge', '~> 0.0')
+  spec.add_runtime_dependency('uc3-dmp-external-api', '~> 0.0')
+
+  spec.add_development_dependency('bibtex-ruby', '~> 6.0')
+  spec.add_development_dependency('citeproc', '~> 1.0')
+  spec.add_development_dependency('csl-styles', '~> 2.0')
 
   spec.metadata['rubygems_mfa_required'] = 'false'
 end

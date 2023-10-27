@@ -7,7 +7,7 @@ module Uc3DmpCloudwatch
   class Logger
     attr_accessor :source, :event, :request_id, :level
 
-    LOG_LEVELS = %w[none error info debug]
+    LOG_LEVELS = %w[none error info debug].freeze
 
     def initialize(**args)
       @level = args.fetch(:level, 'info')&.to_s&.downcase

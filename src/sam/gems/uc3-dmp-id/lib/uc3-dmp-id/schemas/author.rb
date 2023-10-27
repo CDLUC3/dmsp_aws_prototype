@@ -989,173 +989,226 @@ module Uc3DmpId
                           title: 'Descriptive note',
                           examples: ['data received from event data']
                         },
-                        status: {
-                          '$id': '#/properties/dmp/properties/dmphub_modifications/items/properties/status',
-                          type: 'string',
-                          title: 'Modification status',
-                          enum: %w[
-                            accepted
-                            pending
-                            rejected
-                          ]
-                        },
-                        dmproadmap_related_identifier: {
-                          '$id': '#/properties/dmp/properties/dmphub_modifications/items/properties/dmproadmap_related_identifier',
-                          type: 'object',
-                          title: 'A related identifier',
-                          properties: {
-                            descriptor: {
-                              '$id': '#/properties/dmp/properties/dmphub_modifications/items/properties/dmproadmap_related_identifier/properties/descriptor',
-                              type: 'string',
-                              enum: %w[
-                                is_cited_by
-                                cites
-                                is_supplement_to
-                                is_supplemented_by
-                                is_described_by
-                                describes
-                                has_metadata
-                                is_metadata_for
-                                is_part_of
-                                has_part
-                                is_referenced_by
-                                references
-                                is_documented_by
-                                documents
-                                is_new_version_of
-                                is_previous_version_of
-                              ]
+                        dmproadmap_related_identifiers: {
+                          '$id': '#/properties/dmp/properties/dmphub_modifications/items/properties/dmproadmap_related_identifiers',
+                          type: 'array',
+                          title: 'Related identifier modifications',
+                          description: 'Identifiers discovered by an external API',
+                          items: {
+                            '$id': '#/properties/dmp/properties/dmphub_modifications/items/properties/dmproadmap_related_identifiers/items',
+                            type: 'object',
+                            title: 'A related identifier',
+                            properties: {
+                              descriptor: {
+                                '$id': '#/properties/dmp/properties/dmphub_modifications/items/properties/dmproadmap_related_identifiers/items/properties/descriptor',
+                                type: 'string',
+                                enum: %w[
+                                  is_cited_by
+                                  cites
+                                  is_supplement_to
+                                  is_supplemented_by
+                                  is_described_by
+                                  describes
+                                  has_metadata
+                                  is_metadata_for
+                                  is_part_of
+                                  has_part
+                                  is_referenced_by
+                                  references
+                                  is_documented_by
+                                  documents
+                                  is_new_version_of
+                                  is_previous_version_of
+                                ]
+                              },
+                              identifier: {
+                                '$id': '#/properties/dmp/properties/dmphub_modifications/items/properties/dmproadmap_related_identifiers/items/properties/identifier',
+                                type: 'string',
+                                title: 'A unique identifier for the item',
+                                description: 'Identifier for a DMP',
+                                examples: ['https://doi.org/10.1371/journal.pcbi.1006750']
+                              },
+                              status: {
+                                '$id': '#/properties/dmp/properties/dmphub_modifications/items/properties/dmproadmap_related_identifiers/items/properties/status',
+                                type: 'string',
+                                title: 'Modification status',
+                                enum: %w[
+                                  accepted
+                                  pending
+                                  rejected
+                                ]
+                              },
+                              type: {
+                                '$id': '#/properties/dmp/properties/dmphub_modifications/items/properties/dmproadmap_related_identifiers/items/properties/type',
+                                type: 'string',
+                                enum: %w[
+                                  handle
+                                  doi
+                                  ark
+                                  url
+                                  other
+                                ]
+                              },
+                              work_type: {
+                                '$id': '#/properties/dmp/properties/dmphub_modifications/items/properties/dmproadmap_related_identifiers/items/properties/work_type',
+                                type: 'string'
+                              }
                             },
-                            identifier: {
-                              '$id': '#/properties/dmp/properties/dmphub_modifications/items/properties/dmproadmap_related_identifier/properties/identifier',
-                              type: 'string',
-                              title: 'A unique identifier for the item',
-                              description: 'Identifier for a DMP',
-                              examples: ['https://doi.org/10.1371/journal.pcbi.1006750']
-                            },
-                            type: {
-                              '$id': '#/properties/dmp/properties/dmphub_modifications/items/properties/dmproadmap_related_identifier/properties/type',
-                              type: 'string',
-                              enum: %w[
-                                handle
-                                doi
-                                ark
-                                url
-                                other
-                              ]
-                            },
-                            work_type: {
-                              '$id': '#/properties/dmp/properties/dmphub_modifications/items/properties/dmproadmap_related_identifier/properties/work_type',
-                              type: 'string'
-                            }
-                          },
-                          required: %w[
-                            descriptor
-                            identifier
-                            type
-                            work_type
-                          ]
+                            required: %w[
+                              descriptor
+                              identifier
+                              type
+                              work_type
+                            ]
+                          }
                         },
                         funding: {
                           '$id': '#/properties/dmp/properties/dmphub_modifications/items/properties/funding',
-                          type: 'object',
-                          title: 'A modification to Funding',
-                          properties: {
-                            dmproadmap_project_number: {
-                              '$id': '#/properties/dmp/properties/project/items/properties/funding/properties/dmproadmap_project_number',
-                              type: 'string',
-                              title: "The funder's identifier for the research project",
-                              description: "The funder's identifier used to identify the research project",
-                              examples: ['prj-XYZ987-UCB']
-                            },
-                            funder_id: {
-                              '$id': '#/properties/dmp/properties/dmphub_modifications/items/properties/funding/properties/funder_id',
-                              type: 'object',
-                              title: 'The Funder ID Schema',
-                              description: 'Funder ID of the associated project',
-                              properties: {
-                                identifier: {
-                                  '$id': '#/properties/dmp/properties/dmphub_modifications/items/properties/funding/properties/funder_id/properties/identifier',
-                                  type: 'string',
-                                  title: 'The Funder ID Value Schema',
-                                  description: 'Funder ID, recommended to use CrossRef Funder Registry. See: https://www.crossref.org/services/funder-registry/',
-                                  examples: ['501100002428']
-                                },
-                                type: {
-                                  '$id': '#/properties/dmp/properties/dmphub_modifications/items/properties/funding/properties/funder_id/properties/type',
-                                  type: 'string',
-                                  enum: %w[
-                                    fundref
-                                    ror
-                                    url
-                                    other
-                                  ],
-                                  title: 'The Funder ID Type Schema',
-                                  description: 'Identifier type. Allowed values: fundref, url, other',
-                                  examples: ['fundref']
-                                }
+                          type: 'array',
+                          title: 'Funding modifications',
+                          description: 'Funding information discovered by an external API',
+                          items: {
+                            '$id': '#/properties/dmp/properties/dmphub_modifications/items/properties/funding/items',
+                            type: 'object',
+                            title: 'A funding',
+                            properties: {
+                              dmproadmap_project_number: {
+                                '$id': '#/properties/dmp/properties/project/items/properties/funding/items/properties/dmproadmap_project_number',
+                                type: 'string',
+                                title: "The funder's identifier for the research project",
+                                description: "The funder's identifier used to identify the research project",
+                                examples: ['prj-XYZ987-UCB']
                               },
-                              required: %w[
-                                identifier
-                                type
-                              ]
-                            },
-                            funding_status: {
-                              '$id': '#/properties/dmp/properties/dmphub_modifications/items/properties/funding/properties/funding_status',
-                              type: 'string',
-                              enum: %w[
-                                planned
-                                applied
-                                granted
-                                rejected
-                              ],
-                              title: 'The Funding Status Schema',
-                              description: 'To express different phases of project lifecycle. Allowed values: planned, applied, granted, rejected',
-                              examples: ['granted']
-                            },
-                            grant_id: {
-                              '$id': '#/properties/dmp/properties/dmphub_modifications/items/properties/funding/properties/grant_id',
-                              type: 'object',
-                              title: 'The Funding Grant ID Schema',
-                              description: 'Grant ID of the associated project',
-                              properties: {
-                                identifier: {
-                                  '$id': '#/properties/dmp/properties/dmphub_modifications/items/properties/funding/properties/grant_id/properties/identifier',
-                                  type: 'string',
-                                  title: 'The Funding Grant ID Value Schema',
-                                  description: 'Grant ID',
-                                  examples: ['776242']
+                              funder_id: {
+                                '$id': '#/properties/dmp/properties/dmphub_modifications/items/properties/funding/items/properties/funder_id',
+                                type: 'object',
+                                title: 'The Funder ID Schema',
+                                description: 'Funder ID of the associated project',
+                                properties: {
+                                  identifier: {
+                                    '$id': '#/properties/dmp/properties/dmphub_modifications/items/properties/funding/items/properties/funder_id/properties/identifier',
+                                    type: 'string',
+                                    title: 'The Funder ID Value Schema',
+                                    description: 'Funder ID, recommended to use CrossRef Funder Registry. See: https://www.crossref.org/services/funder-registry/',
+                                    examples: ['501100002428']
+                                  },
+                                  type: {
+                                    '$id': '#/properties/dmp/properties/dmphub_modifications/items/properties/funding/items/properties/funder_id/properties/type',
+                                    type: 'string',
+                                    enum: %w[
+                                      fundref
+                                      ror
+                                      url
+                                      other
+                                    ],
+                                    title: 'The Funder ID Type Schema',
+                                    description: 'Identifier type. Allowed values: fundref, url, other',
+                                    examples: ['fundref']
+                                  }
                                 },
-                                type: {
-                                  '$id': '#/properties/dmp/properties/dmphub_modifications/items/properties/funding/properties/grant_id/properties/type',
-                                  type: 'string',
-                                  title: 'The Funding Grant ID Type Schema',
-                                  enum: %w[
-                                    doi
-                                    url
-                                    other
-                                  ],
-                                  description: 'Identifier type. Allowed values: url, other',
-                                  examples: ['other']
-                                }
+                                required: %w[
+                                  identifier
+                                  type
+                                ]
                               },
-                              required: %w[
-                                identifier
-                                type
-                              ]
+                              funding_status: {
+                                '$id': '#/properties/dmp/properties/dmphub_modifications/items/properties/funding/items/properties/funding_status',
+                                type: 'string',
+                                enum: %w[
+                                  planned
+                                  applied
+                                  granted
+                                  rejected
+                                ],
+                                title: 'The Funding Status Schema',
+                                description: 'To express different phases of project lifecycle. Allowed values: planned, applied, granted, rejected',
+                                examples: ['granted']
+                              },
+                              dmproadmap_funding_opportunity_id: {
+                                '$id': '#/properties/dmp/properties/dmphub_modifications/items/properties/funding/items/properties/dmproadmap_funding_opportunity_id',
+                                type: 'object',
+                                title: 'The Funding Opportunity ID Schema',
+                                description: 'Opportunity ID of the associated project',
+                                properties: {
+                                  identifier: {
+                                    '$id': '#/properties/dmp/properties/dmphub_modifications/items/properties/funding/items/properties/dmproadmap_funding_opportunity_id/properties/identifier',
+                                    type: 'string',
+                                    title: 'The Funding Opportunity ID Value Schema',
+                                    description: 'Opportunity ID',
+                                    examples: ['ABC-12345-03']
+                                  },
+                                  type: {
+                                    '$id': '#/properties/dmp/properties/dmphub_modifications/items/properties/funding/items/properties/dmproadmap_funding_opportunity_id/properties/type',
+                                    type: 'string',
+                                    title: 'The Funding Opportunity ID Type Schema',
+                                    enum: %w[
+                                      doi
+                                      url
+                                      other
+                                    ],
+                                    description: 'Identifier type. Allowed values: url, other',
+                                    examples: ['other']
+                                  }
+                                },
+                                required: %w[
+                                  identifier
+                                  type
+                                ]
+                              },
+                              grant_id: {
+                                '$id': '#/properties/dmp/properties/dmphub_modifications/items/properties/funding/items/properties/grant_id',
+                                type: 'object',
+                                title: 'The Funding Grant ID Schema',
+                                description: 'Grant ID of the associated project',
+                                properties: {
+                                  identifier: {
+                                    '$id': '#/properties/dmp/properties/dmphub_modifications/items/properties/funding/items/properties/grant_id/properties/identifier',
+                                    type: 'string',
+                                    title: 'The Funding Grant ID Value Schema',
+                                    description: 'Grant ID',
+                                    examples: ['776242']
+                                  },
+                                  type: {
+                                    '$id': '#/properties/dmp/properties/dmphub_modifications/items/properties/funding/items/properties/grant_id/properties/type',
+                                    type: 'string',
+                                    title: 'The Funding Grant ID Type Schema',
+                                    enum: %w[
+                                      doi
+                                      url
+                                      other
+                                    ],
+                                    description: 'Identifier type. Allowed values: url, other',
+                                    examples: ['other']
+                                  }
+                                },
+                                required: %w[
+                                  identifier
+                                  type
+                                ]
+                              },
+                              status: {
+                                '$id': '#/properties/dmp/properties/dmphub_modifications/items/properties/funding/items/properties/status',
+                                type: 'string',
+                                title: 'Modification status',
+                                enum: %w[
+                                  accepted
+                                  pending
+                                  rejected
+                                ]
+                              },
+                              name: {
+                                '$id': '#/properties/dmp/properties/dmphub_modifications/items/properties/funding/items/properties/name',
+                                type: 'string',
+                                title: 'The name of the funding instituion / organization',
+                                description: 'Name',
+                                examples: ['National Science Foundation']
+                              }
                             },
-                            name: {
-                              '$id': '#/properties/dmp/properties/dmphub_modifications/items/properties/funding/properties/name',
-                              type: 'string',
-                              title: 'The name of the funding instituion / organization',
-                              description: 'Name',
-                              examples: ['National Science Foundation']
-                            }
-                          },
-                          required: %w[
-                            funding_status
-                            name
-                          ]
+                            required: %w[
+                              funding_status
+                              name
+                            ]
+                          }
                         },
                         project: {
                           '$id': '#/properties/dmp/properties/dmphub_modifications/project',
