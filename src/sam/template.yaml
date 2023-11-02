@@ -46,17 +46,17 @@ Parameters:
   DynamoTableName:
     Type: 'String'
 
-  DynamoTableStreamArn:
-    Type: 'String'
+  # DynamoTableStreamArn:
+  #   Type: 'String'
 
-  OpenSearchDomain:
-    Type: 'String'
+  # OpenSearchDomain:
+  #   Type: 'String'
 
-  ResourcesDynamoTableArn:
-    Type: 'String'
+  # ResourcesDynamoTableArn:
+  #   Type: 'String'
 
-  ResourcesDynamoTableName:
-    Type: 'String'
+  # ResourcesDynamoTableName:
+  #   Type: 'String'
 
   S3CloudFrontBucketArn:
     Type: 'String'
@@ -141,26 +141,26 @@ Resources:
             - !Ref DynamoTableArn
             - !Sub '${DynamoTableArn}/index/*'
 
-  ResourcesDynamoTableWritePolicy:
-    Type: 'AWS::IAM::ManagedPolicy'
-    Properties:
-      Description: '${AWS::StackName} - Write access (and GetItem) to the ResourcesDynamoDB Table'
-      ManagedPolicyName: !Sub 'DmpHub${Env}ResourcesDynamoWritePolicy'
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          Effect: 'Allow'
-          Action:
-            - 'dynamodb:DeleteItem'
-            - 'dynamodb:GetItem'
-            - 'dynamodb:PutItem'
-            - 'dynamodb:BatchWriteItem'
-            - 'dynamodb:PartiQLInsert'
-            - 'dynamodb:Query'
-            - 'dynamodb:Scan'
-          Resource:
-            - !Ref ResourcesDynamoTableArn
-            - !Sub '${ResourcesDynamoTableArn}/index/*'
+  # ResourcesDynamoTableWritePolicy:
+  #   Type: 'AWS::IAM::ManagedPolicy'
+  #   Properties:
+  #     Description: '${AWS::StackName} - Write access (and GetItem) to the ResourcesDynamoDB Table'
+  #     ManagedPolicyName: !Sub 'DmpHub${Env}ResourcesDynamoWritePolicy'
+  #     PolicyDocument:
+  #       Version: '2012-10-17'
+  #       Statement:
+  #         Effect: 'Allow'
+  #         Action:
+  #           - 'dynamodb:DeleteItem'
+  #           - 'dynamodb:GetItem'
+  #           - 'dynamodb:PutItem'
+  #           - 'dynamodb:BatchWriteItem'
+  #           - 'dynamodb:PartiQLInsert'
+  #           - 'dynamodb:Query'
+  #           - 'dynamodb:Scan'
+  #         Resource:
+  #           - !Ref ResourcesDynamoTableArn
+  #           - !Sub '${ResourcesDynamoTableArn}/index/*'
 
   # Role to allow a Lambda function to read from the DynamoDB Table Stream and Send an SNS notification
   DynamoTableStreamRole:
