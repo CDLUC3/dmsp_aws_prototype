@@ -168,7 +168,7 @@ if ARGV.length >= 3
       { template_param_name: 'DomainName', lookup_name: "#{@cf_export_prefix}DomainName" },
       { template_param_name: 'DynamoTableArn', lookup_name: "#{@cf_export_prefix}DynamoTableArn" },
       { template_param_name: 'DynamoTableName', lookup_name: "#{@cf_export_prefix}DynamoTableName" },
-      { template_param_name: 'DynamoTableStreamArn', lookup_name: "#{@cf_export_prefix}DynamoTableStreamArn" },
+      # { template_param_name: 'DynamoTableStreamArn', lookup_name: "#{@cf_export_prefix}DynamoTableStreamArn" },
       { template_param_name: 'ResourcesDynamoTableArn', lookup_name: "#{@cf_export_prefix}ResourcesDynamoTableArn" },
       { template_param_name: 'ResourcesDynamoTableName', lookup_name: "#{@cf_export_prefix}ResourcesDynamoTableName" },
       { template_param_name: 'EventBusArn', lookup_name: "#{@cf_export_prefix}EventBusArn" },
