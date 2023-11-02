@@ -6,7 +6,6 @@ require 'json-schema'
 
 require 'uc3-dmp-event-bridge'
 
-require 'uc3-dmp-id/asserter'
 require 'uc3-dmp-id/augmenter'
 require 'uc3-dmp-id/comparator'
 require 'uc3-dmp-id/creator'

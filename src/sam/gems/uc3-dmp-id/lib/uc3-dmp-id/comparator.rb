@@ -18,7 +18,6 @@ module Uc3DmpId
 
     attr_accessor :dmp, :details_hash, :logger
 
-    # rubocop:disable Metrics/AbcSize
     def initialize(**args)
       @logger = args[:logger]
       @details_hash = {}
@@ -27,7 +26,6 @@ module Uc3DmpId
       _extract_dmp_details(dmp:)
       raise ComparatorError, MSG_MISSING_DMP if @details_hash.empty?
     end
-    # rubocop:enable Metrics/AbcSize
 
     # Compare the incoming hash with the DMP details that were gathered during initialization.
     #
@@ -103,6 +101,7 @@ module Uc3DmpId
         keywords: dmp.fetch('dataset', []).map { |ds| ds.fetch('keyword', []) }.flatten.compact.uniq,
         identifiers: [dmp.fetch('dmp_id', {})['identifier']],
         last_names: [],
+        orcids: [],
         affiliation_ids: [],
         affiliations: [],
         funder_names: [],
@@ -144,7 +143,7 @@ module Uc3DmpId
         @details_hash[:identifiers] << grant&.split('/')&.last&.downcase&.strip
         @details_hash[:identifiers] << opportunity&.downcase&.strip
 
-        @details_hash[:funder_names] << funding['name']&.downcase&.strip
+        @details_hash[:funder_names] << funding['name']&.downcase&.split(' (').first&.strip
         @details_hash[:funder_ids] << fundref
         @details_hash[:opportunity_ids] << opportunity&.downcase&.strip
         @details_hash[:grant_ids] << [grant&.downcase&.strip, grant&.split('/')&.last&.downcase&.strip]
@@ -167,6 +166,7 @@ module Uc3DmpId
         name = entry.fetch('name', '')&.downcase&.strip
         last_name = name.include?(', ') ? name.split(', ').first : name.split.last
 
+        @details_hash[:orcids] << id unless id.nil?
         @details_hash[:identifiers] << [id, ror&.downcase&.strip]
         @details_hash[:last_names] << last_name
         @details_hash[:affiliation_ids] << ror

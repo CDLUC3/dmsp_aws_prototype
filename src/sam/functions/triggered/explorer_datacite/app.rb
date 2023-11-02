@@ -27,6 +27,7 @@ module Functions
 
     MSG_BAD_REQUEST = 'No :augmenter_pk and/or no :run_id specified in the Event detail!'
     MSG_NO_AUGMENTER = 'No Augmenter could be found that matched the specified :augmenter_pk!'
+    MSG_NO_FUNDER_LIST = 'The Augmenter does not define any :funders_to_scan!'
 
     # Parameters
     # ----------
@@ -63,12 +64,13 @@ module Functions
         client = Uc3DmpDynamo::Client.new
         augmenter = fetch_augmenter(client:, id: details[:augmenter_pk], logger:)
         return _respond(status: 404, message: MSG_NO_AUGMENTER) if augmenter.nil?
+        return _respond(status: 404, message: MSG_NO_FUNDER_LIST) unless augmenter['funders_to_scan'].is_a?(Hash)
 
+        augmenter['funders_to_scan'].each do |key, array|
 
-          funders_to_scan
         end
 
-        return _respond(status: 200, message: 'Success')
+        _respond(status: 200, message: 'Success')
       end
 
       private

@@ -73,12 +73,8 @@ module Functions
             # Figure out what years to search
             years = _search_years(dmp:)
             logger&.debug(message: 'Scanning DataCite for the following years:', details: years)
-            # Search for related works by the Funder
-            related_works = _process_funders(years:, comparator:, logger:)
-
-            # Search for related works by the Researchers ORCIDs or their Affiliation RORs
-
-            _augment_dmp(run_id: details[:run_id], augmenter:, dmp:, related_works:) if related_works.any?
+            works = _find_related_works(years:, comparator:, logger:)
+            _augment_dmp(run_id: details[:run_id], augmenter:, dmp:, related_works: works, logger:) if works.any?
           end
         else
           logger&.error(message: 'Missing event detail!', details:)
@@ -111,87 +107,6 @@ module Functions
         client.get_item(key: { PK: id, SK: 'PROFILE' }, logger:)
       end
 
-      # Search DataCite for the researcher
-      def process_person_id(run_id:, augmenter:, id:, dmp:, logger:)
-        return dmp unless id['type'].to_s.downcase.strip == 'orcid' && !id['identifier'].nil?
-
-        orcid = id['identifier'].to_s.downcase.strip.gsub(ORCID_PREFIX_REGEX, ORCID_PREFIX)
-        body = graphql_researcher(orcid:)
-        resp = Uc3DmpExternalApi::Client.call(url: GRAPHQL_ENDPOINT, method: :post, body: body, logger:)
-        logger&.debug(message: "GraphQl results for ORCID: #{orcid}", details: resp.inspect)
-        logger&.error(message: MSG_EMPTY_RESPONSE, details: resp) if resp.nil? || resp.to_s.strip.empty?
-        return dmp if resp.nil? || resp.to_s.strip.empty?
-
-        dmp = process_results(run_id:, augmenter:, orcid:, dmp:, logger:)
-      end
-
-      # Search DataCite for the funder affiliation
-      def _process_funders(years:, comparator:, logger:)
-        results = []
-        return results if comparator&.details_hash&.fetch(:funder_ids, []).empty? || years.empty?
-
-        # Call the API for each year within the range
-        years.each do |year|
-          comparator.details_hash[:funder_ids].each do |funder_id|
-            resp = _call_datacite(body: _graphql_funder(fundref: funder_id, year: year), logger:)
-            data = resp.is_a?(Hash) ? resp['data'] : JSON.parse(resp)
-
-            results << _select_relevant_content(data: data.fetch('funder', {}), comparator:, logger:)
-
-p "RELATED WORKS FROM #{funder_id} for #{year}:"
-p results
-
-          end
-        end
-
-        results.any? ? results.flatten.compact.uniq : results
-      end
-
-      # Check the DataCite results to see if we should make any updates to the DMP
-      def _augment_dmp(run_id:, augmenter:, dmp:, related_works:)
-
-      end
-
-      # Extract any items within our date range
-      def _select_relevant_content(data:, comparator:, logger:)
-        ret = { publications: [], datasets: [], softwares: [] }
-        data.fetch('publications', {}).fetch('nodes', []).each do |publication|
-          result = _compare_result(comparator:, hash: publication)
-          next if result.nil?
-
-          ret[:publications] << result
-        end
-
-        data.fetch('datasets', {}).fetch('nodes', []).each do |dataset|
-          result = _compare_result(comparator:, hash: dataset)
-          next if result.nil?
-
-          ret[:datasets] << result
-        end
-        data.fetch('softwares', {}).fetch('nodes', []).each do |software|
-          result = _compare_result(comparator:, hash: software)
-          next if result.nil?
-
-          ret[:softwares] << result
-        end
-        ret
-      end
-
-      # Compare the work to the DMP
-      def _compare_result(comparator:, hash:)
-        details_hash = _extract_comparable(hash: hash)
-        return nil unless details_hash.is_a?(Hash) && !details_hash['title'].nil?
-
-        result = comparator.compare(hash: pub_hash)
-        return nil if result[:score] <= 0
-
-        result[:source] = ['Datatcite', hash.fetch('publisher', hash.fetch('member', {})['name'])].join(' - ')
-        result.merge({ work: hash })
-      rescue Uc3DmpId::ComparatorError => e
-        logger.error(message: "Comparator error: #{e.message}", details: e.backtrace)
-        nil
-      end
-
       # Determine what years we want to query for
       def _search_years(dmp:)
         current_year = Time.now.strftime('%Y').to_i
@@ -215,6 +130,45 @@ p results
         (proj_start..proj_end).map { |idx| idx.to_s }
       end
 
+      # Attempt to find related works for the DMP
+      def _find_related_works(years:, comparator:, logger:)
+        results = { publications: [], datasets: [], softwares: [] }
+        return results unless years.is_a?(Array) && years.any? && comparator.details_hash.is_a?(Hash)
+
+        # Process each year individually
+        years.each do |year|
+          comparator.details_hash[:funder_ids].each do |funder_id|
+            # Search for related works by the Funder
+            query = _graphql_funder(fundref: funder_id, year:)
+            data = _fetch_and_process_works(results:, query:, comparator:, logger:)
+            results = _select_relevant_content(data: data&.fetch('funder', {}), comparator:, logger:)
+          end
+          comparator.details_hash[:affiliation_ids].each do |affiliation_id|
+            # Search for related works by the ORCID
+            query = _graphql_affiliation(ror: affiliation_id, year:)
+            data = _fetch_and_process_works(query:, comparator:, logger:)
+            results = _select_relevant_content(results:, data: data&.fetch('organization', {}), comparator:, logger:)
+          end
+          comparator.details_hash[:orcids].each do |orcid|
+            # Search for related works by the ORCID
+            query = _graphql_researcher(orcid:, year:)
+            data = _fetch_and_process_works(query:, comparator:, logger:)
+            results = _select_relevant_content(results:, data: data&.fetch('person', {}), comparator:, logger:)
+          end
+        end
+
+        results
+      end
+
+      # Search DataCite using the supplied query and then process the response
+      def _fetch_and_process_works(query:, comparator:, logger:)
+        logger&.debug(message: "GraphQL query used", details: query)
+        resp = _call_datacite(body: query, logger:)
+        data = resp.is_a?(Hash) ? resp['data'] : JSON.parse(resp)
+        logger&.debug(message: "Raw results from DataCite.", details: data)
+        data
+      end
+
       # Call DataCite
       def _call_datacite(body:, logger:)
         payload = nil
@@ -234,6 +188,52 @@ p results
           cntr += 1
         end
         payload
+      end
+
+      # Compare the related works from DataCite with the things we know about the DMP
+      def _select_relevant_content(results:, data:, comparator:, logger:)
+        return results if data.nil?
+
+        # Datacite organizes things into  3 categories, so loop through each one
+        %w[publications datasets softwares].each do |term|
+          data.fetch(term, {}).fetch('nodes', []).each do |hash|
+            # Only include the fundingReference info if it is for the funder(s) on the DMP
+            hash['fundingReferences'] = hash.fetch('fundingReferences', []).select do |entry|
+              comparator.details_hash[:funder_ids].include?(entry['funderIdentifier']) ||
+                comparator.details_hash[:funder_names].include?(entry['funderName']&.downcase&.strip)
+            end
+
+            work = _compare_result(comparator:, hash:)
+            next if work.nil?
+
+            results[:"#{term}"] << work
+          end
+        end
+
+        results
+      end
+
+      # Compare the work to the DMP to see if its a possible match
+      def _compare_result(comparator:, hash:)
+        details_hash = _extract_comparable(hash: hash)
+        return nil unless details_hash.is_a?(Hash) && !details_hash['title'].nil?
+
+        result = comparator.compare(hash: details_hash)
+        return nil if result[:score] <= 0
+
+        src = hash.fetch('publisher', hash.fetch('member', {})&.fetch('name', nil))
+        result[:source] = ['Datatcite', src].compact.join(' via ')
+        result.merge(hash)
+      rescue Uc3DmpId::ComparatorError => e
+        logger.error(message: "Comparator error: #{e.message}", details: e.backtrace)
+        nil
+      end
+
+       # Check the DataCite results to see if we should make any updates to the DMP
+       def _augment_dmp(run_id:, augmenter:, dmp:, related_works:, logger:)
+        aug = Uc3DmpId::Augmenter.new(run_id:, dmp:, augmenter:, logger:)
+        mod_count = aug.add_modifications(works: JSON.parse(related_works.to_json))
+        logger&.debug(message: "Added #{mod_count} modifications to the DMP!")
       end
 
       # Convert the DataCite :work into a hash for the Uc3DmpId::Comparator.
@@ -294,7 +294,7 @@ p results
         grants = [hash['awardUri']&.downcase&.strip, hash['awardNumber']&.downcase&.strip]
         {
           id: hash['funderIdentifier'],
-          last_name: hash['funderName'],
+          name: hash['funderName'],
           grant: grants&.flatten&.compact&.uniq
         }
       end
@@ -321,7 +321,7 @@ p results
       end
 
       # Search the Pid Graph by Affiliation ROR
-      def _graphql_affiliation(ror:)
+      def _graphql_affiliation(ror:, year:)
         {
           variables: { ror: ror, year: year },
           operationName: 'affiliationQuery',
@@ -342,7 +342,7 @@ p results
       end
 
       # Search the Pid Graph by Researcher ORCID
-      def _graphql_researcher(orcid:)
+      def _graphql_researcher(orcid:, year:)
         {
           variables: { orcidId: orcid, year: year },
           operationName: 'researcherQuery',

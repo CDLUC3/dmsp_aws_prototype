@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    uc3-dmp-id (0.1.6)
+    uc3-dmp-id (0.1.8)
       json (~> 2.6)
       json-schema (~> 3.0)
       text (~> 1.3)
@@ -17,13 +17,13 @@ GEM
       public_suffix (>= 2.0.2, < 6.0)
     ast (2.4.2)
     aws-eventstream (1.2.0)
-    aws-partitions (1.833.0)
-    aws-sdk-core (3.185.0)
+    aws-partitions (1.843.0)
+    aws-sdk-core (3.185.1)
       aws-eventstream (~> 1, >= 1.0.2)
       aws-partitions (~> 1, >= 1.651.0)
       aws-sigv4 (~> 1.5)
       jmespath (~> 1, >= 1.6.1)
-    aws-sdk-dynamodb (1.95.0)
+    aws-sdk-dynamodb (1.96.0)
       aws-sdk-core (~> 3, >= 3.184.0)
       aws-sigv4 (~> 1.1)
     aws-sdk-eventbridge (1.51.0)
@@ -35,7 +35,7 @@ GEM
     aws-sdk-ssm (1.159.0)
       aws-sdk-core (~> 3, >= 3.184.0)
       aws-sigv4 (~> 1.1)
-    aws-sigv4 (1.6.0)
+    aws-sigv4 (1.6.1)
       aws-eventstream (~> 1, >= 1.0.2)
     base64 (0.1.1)
     bibtex-ruby (6.0.0)
@@ -109,11 +109,11 @@ GEM
     ruby-progressbar (1.13.0)
     text (1.3.1)
     uc3-dmp-citation (0.0.8)
-    uc3-dmp-dynamo (0.0.18)
+    uc3-dmp-dynamo (0.0.21)
       aws-sdk-dynamodb (~> 1.83)
       json (~> 2.6)
       logger (~> 1.4)
-    uc3-dmp-event-bridge (0.0.7)
+    uc3-dmp-event-bridge (0.0.8)
       aws-sdk-eventbridge (~> 1.44)
       json (~> 2.6)
       logger (~> 1.4)
@@ -129,10 +129,10 @@ PLATFORMS
   arm64-darwin-22
 
 DEPENDENCIES
-  bibtex-ruby (~> 6.0)
+  bibtex-ruby
   byebug
-  citeproc (~> 1.0)
-  csl-styles (~> 2.0)
+  citeproc
+  csl-styles
   rspec
   rubocop
   rubocop-rspec

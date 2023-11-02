@@ -37,11 +37,11 @@ module Uc3DmpCitation
       # rubocop:enable Metrics/AbcSize
 
       # Convert the specified BibTex string into a citation
-      def bibtex_to_citation(bibtex_as_string:)
-        return nil unless bibtex_as_string.is_a?(String)
+      def bibtex_to_citation(uri:, bibtex_as_string:)
+        return nil unless bibtex_as_string.is_a?(String) && uri.is_a?(String)
 
         bibtex = BibTeX.parse(_cleanse_bibtex(text: bibtex_as_string))
-        work_type = work_type.nil? ? determine_work_type(bibtex:) : work_type
+        work_type = work_type.nil? ? _determine_work_type(bibtex:) : work_type
         style = DEFAULT_CITATION_STYLE if style.nil?
         _bibtex_to_citation(uri:, work_type:, style:, bibtex:)
       end
@@ -60,7 +60,7 @@ module Uc3DmpCitation
       def _determine_work_type(bibtex:)
         return '' if bibtex.nil? || bibtex.data.nil? || bibtex.data.first.nil?
 
-        return 'article' unless bibtex.data.first.journal.nil?
+        return 'article' unless bibtex.data.first.respond_to?(:journal) || bibtex.data.first.journal.nil?
 
         ''
       end

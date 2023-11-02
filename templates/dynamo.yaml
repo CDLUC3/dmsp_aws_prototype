@@ -13,6 +13,9 @@ Parameters:
   SsmPath:
     Type: 'String'
 
+  OpenSearchDomain:
+    Type: 'String'
+
   DynamoTableClass:
     Type: 'String'
     Default: 'STANDARD'
@@ -215,6 +218,9 @@ Resources:
               WriteCapacityUnits: !Ref DynamoWriteCapacityUnits
             - !Ref AWS::NoValue
 
+      StreamSpecification:
+        StreamViewType: 'NEW_IMAGE'
+
       BillingMode: !Ref DynamoBillingMode
       TableClass: !Ref DynamoTableClass
       ProvisionedThroughput: !If
@@ -248,6 +254,14 @@ Resources:
       Type: 'String'
       Value: !Select [1, !Split ['/', !GetAtt DynamoTable.Arn]]
 
+  OpenSearchDomainParameter:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: !Sub "${AWS::StackName} OpenSearch Domain"
+      Name: !Sub "${SsmPath}OpenSearchDomain"
+      Type: 'String'
+      Value: !Ref OpenSearchDomain
+
 Outputs:
   ResourcesDynamoTableName:
     Value: !Select [1, !Split ['/', !GetAtt ResourcesDynamoTable.Arn]]
@@ -258,6 +272,11 @@ Outputs:
     Value: !Select [1, !Split ['/', !GetAtt DynamoTable.Arn]]
     Export:
       Name: !Sub '${Env}-DynamoTableName'
+
+  DynamoTableStreamArn:
+    Value: !GetAtt DynamoTable.StreamArn
+    Export:
+      Name: !Sub '${Env}-DynamoTableStreamArn'
 
   DynamoTableId:
     Value: !Ref DynamoTable

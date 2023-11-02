@@ -13,7 +13,7 @@ module Uc3DmpId
       # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
       # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
       # -------------------------------------------------------------------------
-      def update(provenance:, p_key:, json: {}, note: nil, logger: nil)
+      def update(provenance:, p_key:, json: {}, logger: nil)
         raise UpdaterError, Helper::MSG_DMP_INVALID_DMP_ID unless p_key.is_a?(String) && !p_key.strip.empty?
 
         mods = Helper.parse_json(json:).fetch('dmp', {})
@@ -47,8 +47,7 @@ module Uc3DmpId
         version.delete('dmphub_versions')
 
         # Splice the assertions
-        version = _process_modifications(owner:, updater:, version:, mods:, note:,
-                                         logger:)
+        version = _process_modifications(owner:, updater:, version:, mods:, logger:)
         # Set the :modified timestamps
         now = Time.now.utc
         version['modified'] = now.iso8601
@@ -119,8 +118,8 @@ module Uc3DmpId
       end
       # rubocop:enable Metrics/AbcSize
 
-      # rubocop:disable Metrics/ParameterLists
-      def _process_modifications(owner:, updater:, version:, mods:, note: nil, logger: nil)
+      # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+      def _process_modifications(owner:, updater:, version:, mods:, logger: nil)
         return version unless mods.is_a?(Hash) && !updater.nil?
         return mods unless version.is_a?(Hash) && !owner.nil?
 
@@ -135,7 +134,7 @@ module Uc3DmpId
         logger.debug(message: 'Modifications after merge.', details: mods) if logger.respond_to?(:debug)
         mods
       end
-      # rubocop:enable Metrics/AbcSize
+      # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
       # Once the DMP has been updated, we need to update it's DOI metadata
       # -------------------------------------------------------------------------
