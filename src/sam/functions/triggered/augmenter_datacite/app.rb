@@ -75,6 +75,7 @@ module Functions
             logger&.debug(message: 'Scanning DataCite for the following years:', details: years)
             works = _find_related_works(years:, comparator:, logger:)
             _augment_dmp(run_id: details[:run_id], augmenter:, dmp:, related_works: works, logger:) if works.any?
+            logger&.info(message: "Finished augmenting #{details[:dmp_pk]}", details: works)
           end
         else
           logger&.error(message: 'Missing event detail!', details:)

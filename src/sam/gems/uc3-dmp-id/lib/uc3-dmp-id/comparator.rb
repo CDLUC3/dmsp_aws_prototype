@@ -283,7 +283,7 @@ module Uc3DmpId
       last_names_matched = _compare_arrays(array_a: @details_hash.fetch(:last_names, []), array_b: last_names)
       rors_matched = _compare_arrays(array_a: @details_hash.fetch(:affiliation_ids, []), array_b: rors)
       affil_names_matched = _compare_arrays(array_a: @details_hash.fetch(:affiliations, []), array_b: affil_names)
-      return response if last_names_matched <= 0 && rors_matched <= 0 && affil_names_matched <= 0
+      return response if last_names_matched <= 0
 
       response[:score] += last_names_matched + rors_matched + affil_names_matched
       response[:notes] << 'contributor names and affiliations matched'

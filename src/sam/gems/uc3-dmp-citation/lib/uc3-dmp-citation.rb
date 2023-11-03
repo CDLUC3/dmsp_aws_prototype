@@ -58,11 +58,10 @@ module Uc3DmpCitation
 
       # If no :work_type was specified we can try to derive it from the BibTeX metadata
       def _determine_work_type(bibtex:)
-        return '' if bibtex.nil? || bibtex.data.nil? || bibtex.data.first.nil?
+        return '' if bibtex.nil? || bibtex.data.nil? || bibtex.data.first.nil? ||
+                     !bibtex.data.first.respond_to?(:journal)
 
-        return 'article' unless bibtex.data.first.respond_to?(:journal) || bibtex.data.first.journal.nil?
-
-        ''
+        'article'
       end
 
       def _cleanse_bibtex(text:)
