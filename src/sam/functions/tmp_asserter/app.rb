@@ -33,64 +33,70 @@ module Functions
       p_key = Uc3DmpId::Helper.path_parameter_to_pk(param: dmp_id)
       p_key = Uc3DmpId::Helper.append_pk_prefix(p_key:) unless p_key.nil?
       s_key = Uc3DmpId::Helper::DMP_LATEST_VERSION
-      return _respond(status: 400, errors: Uc3DmpId::MSG_DMP_INVALID_DMP_ID, event:) if p_key.nil?
+      return _respond(status: 400, errors: Uc3DmpId::Helper::MSG_DMP_INVALID_DMP_ID, event:) if p_key.nil?
 
       _set_env(logger:)
-
-      client = Uc3DmpDynamo::Client.new
 
       # Fail if the Provenance could not be loaded
       claim = event.fetch('requestContext', {}).fetch('authorizer', {})['claims']
       provenance = Uc3DmpProvenance::Finder.from_lambda_cotext(identity: claim, logger:)
-      return _respond(status: 403, errors: Uc3DmpId::MSG_DMP_FORBIDDEN, event:) if provenance.nil?
+      return _respond(status: 403, errors: Uc3DmpId::Helper::MSG_DMP_FORBIDDEN, event:) if provenance.nil?
 
       # Fetch the DMP ID
       logger.debug(message: "Searching for PK: #{p_key}, SK: #{s_key}") if logger.respond_to?(:debug)
+      client = Uc3DmpDynamo::Client.new
       dmp = Uc3DmpId::Finder.by_pk(p_key:, s_key:, cleanse: false, client:, logger:)
 
       work_count = json.fetch('works', '2').to_s.strip.to_i
       grant_ror = json.fetch('grant', 'https://ror.org/01bj3aw27').to_s.downcase.strip
 
-      mods = []
+      mods = { publications: [], datasets: [], softwares: [] }
       work_count.times do
-        prov = %w[crossref datacite openaire].sample
+        prov = %w[Crossref Datacite Openaire].sample
+        score = [3, 6, 11, 100].sample
+        confidence = case score
+                     when 100
+                       'Absolute'
+                     when 6
+                       'Medium'
+                     when 11
+                       'High'
+                     else
+                       'Low'
+                     end
+        notes = case score
+                when 100
+                    ['the grant ID matched']
+                when 6
+                  ['repositories matched', 'titles are similar', 'contributor names and affiliations matched']
+                when 11
+                  ['the funding opportunity number matched', 'contributor ORCIDs matched', 'titles are similar']
+                else
+                  ['keywords match', 'titles are similar', 'contributor names and affiliations matched']
+                end
 
-        mods << {
-          id: SecureRandom.hex(8),
+        work_type = %w[publications datasets softwares].sample
+        mods[:"#{work_type}"] << {
+          id: "https://example.com/#{SecureRandom.hex(8)}",
           provenance: prov,
           timstamp: Time.now.iso8601,
-          note: "data received from #{prov} API",
+          confidence: confidence,
+          score: score,
+          notes: notes,
           status: 'pending',
           dmproadmap_related_identifier: _add_work
         }
       end
-      unless grant_ror.nil?
-        funders = [
-          { name: 'National Institutes of Health', ror: 'https://ror.org/01cwqze88', acronym: 'NIH' },
-          { name: 'National Science Foundation', ror: 'https://ror.org/021nxhr62', acronym: 'NSF' },
-          { name: 'United States Department of Energy', ror: 'https://ror.org/01bj3aw27', acronym: 'Crossref' }
-        ]
-        funder = funders.select { |fndr| fndr[:ror] == grant_ror }.first
-
-        mods << {
-          id: SecureRandom.hex(8),
-          provenance: funder[:acronym],
-          timstamp: Time.now.iso8601,
-          note: "data received from #{funder[:acronym]} API",
-          status: 'pending',
-          funding: [_add_grant(funder:)]
-        }
-      end
-      dmp['dmp']['dmphub_modifications'] = mods
       logger.debug(message: "Tmp Asserter update to PK: #{p_key}", details: { requested: json, mods: })
 
       # Update the DMP ID
-      resp = client.put_item(json: dmp['dmp'], logger:)
-      return _respond(status: 500, errors: ['Unable to add dmphub_modifications!'], event:) if resp.nil?
-
-      _respond(status: 200, items: [resp], event:)
+      augmenter = JSON.parse({ PK: 'AUGMENTERS#datacite', name: 'Datacite' }.to_json)
+      run_id = "#{Time.now.utc.strftime('%Y-%m-%d')}_#{SecureRandom.hex(8)}"
+      aug = Uc3DmpId::Augmenter.new(run_id:, augmenter:, dmp:, logger:)
+      resp = aug.add_modifications(works: JSON.parse(mods.to_json))
+      _respond(status: 200, items: ["#{resp} modifications added to the DMP."], event:)
     rescue Uc3DmpId::UpdaterError => e
-      _respond(status: 400, errors: [Uc3DmpId::MSG_DMP_NO_DMP_ID, e.message], event:)
+      _respond(status: 400, errors: [Uc3DmpId::Helper::MSG_DMP_NO_DMP_ID, e.message], event:)
     rescue StandardError => e
       logger.error(message: e.message, details: e.backtrace)
       { statusCode: 500, body: { errors: [Uc3DmpApiCore::MSG_SERVER_ERROR] }.to_json }

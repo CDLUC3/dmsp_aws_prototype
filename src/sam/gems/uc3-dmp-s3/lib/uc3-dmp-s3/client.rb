@@ -19,10 +19,35 @@ module Uc3DmpS3
   #
   class Client
     NARRATIVE_KEY_PREFIX = 'narratives/'
+    RESOURCE_KEY_PREFIX = 'external_resources/'
 
     MSG_S3_FAILURE = 'Unable to save the object at this time'
 
     class << self
+      # Put the narrative file into the S3 bucket
+      def put_resource_file(file:, explorer_details:)
+        return nil if File.nil? || !explorer_details.is_a?(Hash) || ENV['S3_BUCKET'].nil? ||
+                      explorer_details.fetch('file_metadata', {})['filename'].nil?
+
+        filename = "#{explorer_details['ID']}_#{explorer_details['file_metadata']['filename']}"
+        key = "#{RESOURCE_KEY_PREFIX}#{filename}"
+        tg = "RESOURCE_TYPE=#{explorer_details['RESOURCE_TYPE']}&ID=#{explorer_details['ID']}"
+
+        _put_object(key:, tags: tg, payload: file)
+      rescue Aws::Errors::ServiceError => e
+        msg = "Unable to write External Resource file to S3 bucket (#{tg})"
+        raise ClientError, "#{msg} - #{e.message}"
+      end
+
+      # Fetch the narrative file from the S3 bucket
+      def get_resource_file(key:)
+        return nil unless key.is_a?(String) && !key.strip.empty? && !ENV['S3_BUCKET'].nil?
+
+        obj = _get_object(key: key.start_with?(RESOURCE_KEY_PREFIX) ? key : "#{RESOURCE_KEY_PREFIX}#{key}")
+      rescue Aws::Errors::ServiceError => e
+        raise ClientError, "Unable to fetch External Resource file from S3 bucket (key: #{key}) - #{e.message}"
+      end
+
       # Put the narrative file into the S3 bucket
       def put_narrative(document:, dmp_id: nil, base64: false)
         return nil if !document.is_a?(String) || document.strip.empty? || ENV['S3_BUCKET'].nil?

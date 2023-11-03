@@ -82,6 +82,31 @@ module Uc3DmpDynamo
     end
     # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
+    # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+    def scan(args:, logger: nil)
+      hash = {
+        table_name: @table,
+        consistent_read: false,
+        return_consumed_capacity: logger&.level == 'debug' ? 'TOTAL' : 'NONE'
+      }
+      # Look for and add any other filtering or projection args
+      %i[filter_expression expression_attribute_values projection_expression expression_attribute_names].each do |key|
+        next if args[key.to_sym].nil?
+
+        hash[key.to_sym] = args[key.to_sym]
+      end
+
+      logger.debug(message: "#{SOURCE} queried for: #{hash}") if logger.respond_to?(:debug)
+      resp = @connection.scan(hash)
+      return [] unless resp.items.any?
+      return resp.items if resp.items.first.is_a?(Hash)
+
+      resp.items.first.respond_to?(:item) ? resp.items.map(&:item) : resp.items
+    rescue Aws::Errors::ServiceError => e
+      raise ClientError, format(MSG_DYNAMO_ERROR, msg: e.message, trace: e.backtrace)
+    end
+    # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+
     # Create/Update an item
     # rubocop:disable Metrics/AbcSize
     def put_item(json:, logger: nil)

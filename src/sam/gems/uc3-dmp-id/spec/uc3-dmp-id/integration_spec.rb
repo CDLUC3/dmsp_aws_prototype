@@ -12,7 +12,7 @@ RSpec.describe 'Full Integration Tests' do
   # let!(:publisher) { mock_uc3_dmp_event_bridge }
 
   let!(:owner) { JSON.parse({ PK: 'PROVENANCE#foo', SK: 'PROFILE', name: 'foo' }.to_json) }
-  let!(:external_updater) { JSON.parse({ PK: 'PROVENANCE#bar', SK: 'PROFILE', name: 'bar' }.to_json) }
+  # let!(:external_updater) { JSON.parse({ PK: 'PROVENANCE#bar', SK: 'PROFILE', name: 'bar' }.to_json) }
 
   let!(:p_key) { "#{Uc3DmpId::Helper::PK_DMP_PREFIX}#{mock_dmp_id}" }
   let!(:provenance_identifier) { JSON.parse({ type: 'url', identifier: 'https://some.site.edu/dmps/12345' }.to_json) }
@@ -88,85 +88,95 @@ RSpec.describe 'Full Integration Tests' do
                          expect_versioned: true)
 
     # Update the DMP ID (as an external system) wait a few seconds so the timestamps are different
-    sleep(1)
-    external_mod = JSON.parse({ dmp: updated_again['dmp'].dup }.to_json)
-    # Test a change to a field that an external system cannot make!
-    external_mod['dmp']['description'] = 'This change should be illegal!'
-    expect(external_mod['dmp']['description']).not_to eql(updated_again['dmp']['description'])
-    # Test a discovered :grant_id
-    external_mod['dmp']['project'].first['funding'].first['grant_id'] = JSON.parse({
-      type: 'url', identifier: 'http:grants.example.org/my/test'
-    }.to_json)
-    # Test the discovery of new related works
-    if external_mod['dmp']['dmproadmap_related_identifiers'].nil?
-      external_mod['dmp']['dmproadmap_related_identifiers'] =
-        []
-    end
-    external_mod['dmp']['dmproadmap_related_identifiers'] << JSON.parse({
-      work_type: 'article', descriptor: 'is_cited_by', type: 'doi', identifier: 'http://doi.org/55.66666/some.journal/123'
-    }.to_json)
-    external_mod['dmp']['dmproadmap_related_identifiers'] << JSON.parse({
-      work_type: 'dataset', descriptor: 'references', type: 'doi', identifier: 'http://dx.doi.org/33.4444/ABC555.34'
-    }.to_json)
-    external_update = Uc3DmpId::Updater.update(provenance: external_updater, p_key: pk, json: external_mod)
-    expect(dynamo_client.data_store.length).to be(4)
-    external_mod_tests(prior_dmp: updated_again, dmp: external_update, dynamo_rec: dynamo_client.data_store.last)
-
-    # Retains the :dmphub_modifications after another update from the system of provenance
-    sleep(1)
-    final_mod = JSON.parse({ dmp: external_update['dmp'].dup }.to_json)
-    final_mod['dmp']['description'] = 'Final update test'
-    expect(final_mod['dmp']['description']).not_to eql(external_update['dmp']['description'])
-    last_update = Uc3DmpId::Updater.update(provenance: owner, p_key: pk, json: final_mod)
-    expect(dynamo_client.data_store.length).to be(4)
-    expect(last_update['dmp']['description']).to eql('Final update test')
-    expect(last_update['dmp']['dmphub_versions'].length).to be(3)
-    expect(last_update['dmp']['dmphub_modifications']).to eql(external_update['dmp']['dmphub_modifications'])
-    updated_dmp_id_tests(prior_dmp: external_update, dmp: last_update, dynamo_rec: dynamo_client.data_store.last,
-                         expect_versioned: false)
-
-    # Retains the :dmphub_modifications after another external system finds mods
-    # Update the DMP ID (as an external system) wait a few seconds so the timestamps are different
-    sleep(1)
-    external_mod2 = JSON.parse({ dmp: last_update['dmp'].dup }.to_json)
-    # Test a change to a field that an external system cannot make!
-    external_mod2['dmp']['description'] = 'This change should be illegal!'
-    expect(external_mod2['dmp']['description']).not_to eql(last_update['dmp']['description'])
-    # Test the discovery of new related works
-    new_id = JSON.parse({ work_type: 'software', descriptor: 'references', type: 'url',
-                          identifier: 'http://github.com/test/project123' }.to_json)
-    external_mod2['dmp']['dmproadmap_related_identifiers'] << new_id
-
-    other_updater = JSON.parse({ PK: 'PROVENANCE#baz', SK: 'PROFILE', name: 'baz' }.to_json)
-
-    external_update2 = Uc3DmpId::Updater.update(provenance: other_updater, p_key: pk, json: external_mod2)
-    expect(dynamo_client.data_store.length).to be(5)
-    # Was unable to change the description
-    expect(external_update2['dmp']['description']).to eql(last_update['dmp']['description'])
-    # Retained all of the old :dmphub_modifications
-    last_update['dmp']['dmphub_modifications'].each do |mod|
-      expect(external_update2['dmp']['dmphub_modifications'].include?(mod)).to be(true), "Expected #{mod}"
-    end
-    # Added the new :related_identifiers to the :dmphub_modifications
-    new_one = external_update2['dmp']['dmphub_modifications'].select do |mod|
-      mod.fetch('dmproadmap_related_identifiers', []).include?(new_id)
-    end
-    expect(new_one.nil?).to be(false)
+    #
+    # TODO: Switch this so that it uses the new Augmenter class!
+    #
+    #
+    #     sleep(1)
+    #     external_mod = JSON.parse({ dmp: updated_again['dmp'].dup }.to_json)
+    #     # Test a change to a field that an external system cannot make!
+    #     external_mod['dmp']['description'] = 'This change should be illegal!'
+    #     expect(external_mod['dmp']['description']).not_to eql(updated_again['dmp']['description'])
+    #     # Test a discovered :grant_id
+    #     external_mod['dmp']['project'].first['funding'].first['grant_id'] = JSON.parse({
+    #       type: 'url', identifier: 'http:grants.example.org/my/test'
+    #     }.to_json)
+    #     # Test the discovery of new related works
+    #     if external_mod['dmp']['dmproadmap_related_identifiers'].nil?
+    #       external_mod['dmp']['dmproadmap_related_identifiers'] =
+    #         []
+    #     end
+    #     external_mod['dmp']['dmproadmap_related_identifiers'] << JSON.parse({
+    #       work_type: 'article', descriptor: 'is_cited_by', type: 'doi', identifier: 'http://doi.org/55.66666/some.journal/123'
+    #     }.to_json)
+    #     external_mod['dmp']['dmproadmap_related_identifiers'] << JSON.parse({
+    #       work_type: 'dataset', descriptor: 'references', type: 'doi', identifier: 'http://dx.doi.org/33.4444/ABC555.34'
+    #     }.to_json)
+    #     external_update = Uc3DmpId::Updater.update(provenance: external_updater, p_key: pk, json: external_mod)
+    #     expect(dynamo_client.data_store.length).to be(4)
+    #     external_mod_tests(prior_dmp: updated_again, dmp: external_update, dynamo_rec: dynamo_client.data_store.last)
+    #
+    #     # Retains the :dmphub_modifications after another update from the system of provenance
+    #     sleep(1)
+    #     final_mod = JSON.parse({ dmp: external_update['dmp'].dup }.to_json)
+    #     final_mod['dmp']['description'] = 'Final update test'
+    #     expect(final_mod['dmp']['description']).not_to eql(external_update['dmp']['description'])
+    #     last_update = Uc3DmpId::Updater.update(provenance: owner, p_key: pk, json: final_mod)
+    #     expect(dynamo_client.data_store.length).to be(4)
+    #     expect(last_update['dmp']['description']).to eql('Final update test')
+    #     expect(last_update['dmp']['dmphub_versions'].length).to be(3)
+    #     expect(last_update['dmp']['dmphub_modifications']).to eql(external_update['dmp']['dmphub_modifications'])
+    #     updated_dmp_id_tests(prior_dmp: external_update, dmp: last_update, dynamo_rec: dynamo_client.data_store.last,
+    #                          expect_versioned: false)
+    #
+    #     # Retains the :dmphub_modifications after another external system finds mods
+    #     # Update the DMP ID (as an external system) wait a few seconds so the timestamps are different
+    #     sleep(1)
+    #     external_mod2 = JSON.parse({ dmp: last_update['dmp'].dup }.to_json)
+    #     # Test a change to a field that an external system cannot make!
+    #     external_mod2['dmp']['description'] = 'This change should be illegal!'
+    #     expect(external_mod2['dmp']['description']).not_to eql(last_update['dmp']['description'])
+    #     # Test the discovery of new related works
+    #     new_id = JSON.parse({ work_type: 'software', descriptor: 'references', type: 'url',
+    #                           identifier: 'http://github.com/test/project123' }.to_json)
+    #     external_mod2['dmp']['dmproadmap_related_identifiers'] << new_id
+    #
+    #     other_updater = JSON.parse({ PK: 'PROVENANCE#baz', SK: 'PROFILE', name: 'baz' }.to_json)
+    #
+    #     external_update2 = Uc3DmpId::Updater.update(provenance: other_updater, p_key: pk, json: external_mod2)
+    #     expect(dynamo_client.data_store.length).to be(5)
+    #     # Was unable to change the description
+    #     expect(external_update2['dmp']['description']).to eql(last_update['dmp']['description'])
+    #     # Retained all of the old :dmphub_modifications
+    #     last_update['dmp']['dmphub_modifications'].each do |mod|
+    #       expect(external_update2['dmp']['dmphub_modifications'].include?(mod)).to be(true), "Expected #{mod}"
+    #     end
+    #     # Added the new :related_identifiers to the :dmphub_modifications
+    #     new_one = external_update2['dmp']['dmphub_modifications'].select do |mod|
+    #       mod.fetch('dmproadmap_related_identifiers', []).include?(new_id)
+    #     end
+    #     expect(new_one.nil?).to be(false)
 
     # Tombstones the DMP ID
     sleep(1)
     tombstoned = Uc3DmpId::Deleter.tombstone(provenance: owner, p_key: pk)
     # pp dynamo_client.data_store.map { |rec| { PK: rec['PK'], SK: rec['SK'], modified: rec['modified'] } }
 
-    expect(dynamo_client.data_store.length).to be(5)
+    expect(dynamo_client.data_store.length).to be(3)
     dynamo_rec = dynamo_client.data_store.last
 
-    expect(tombstoned['dmp']['title']).to eql("OBSOLETE: #{external_update2['dmp']['title']}")
-    expect(tombstoned['dmp']['modified'] >= external_update2['dmp']['modified']).to be(true)
+    # TODO: Switch these commented lines back once we are using the new Augmenter class!
+    # expect(tombstoned['dmp']['title']).to eql("OBSOLETE: #{external_update2['dmp']['title']}")
+    # expect(tombstoned['dmp']['modified'] >= external_update2['dmp']['modified']).to be(true)
+
+    expect(tombstoned['dmp']['title']).to eql("OBSOLETE: #{updated_again['dmp']['title']}")
+    expect(tombstoned['dmp']['modified'] >= updated_again['dmp']['modified']).to be(true)
 
     expect(dynamo_client.get_item(key: { PK: pk, SK: Uc3DmpId::Helper::DMP_LATEST_VERSION })).to be_nil
     expect(dynamo_rec['SK']).to eql(Uc3DmpId::Helper::DMP_TOMBSTONE_VERSION)
-    expect(dynamo_rec['dmphub_tombstoned_at'] >= external_update2['dmp']['modified']).to be(true)
+    # TODO: Switch these commented lines back once we are using the new Augmenter class!
+    # expect(dynamo_rec['dmphub_tombstoned_at'] >= external_update2['dmp']['modified']).to be(true)
+    expect(dynamo_rec['dmphub_tombstoned_at'] >= updated_again['dmp']['modified']).to be(true)
   end
   # rubocop:enable RSpec/MultipleExpectations, RSpec/ExampleLength
 

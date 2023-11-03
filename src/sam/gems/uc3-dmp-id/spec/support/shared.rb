@@ -3,6 +3,7 @@
 require 'ostruct'
 require 'securerandom'
 
+require 'uc3-dmp-citation'
 require 'uc3-dmp-dynamo'
 require 'uc3-dmp-event-bridge'
 

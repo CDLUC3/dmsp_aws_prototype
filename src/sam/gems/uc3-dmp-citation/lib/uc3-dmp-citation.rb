@@ -32,12 +32,19 @@ module Uc3DmpCitation
         resp = Uc3DmpExternalApi::Client.call(url: uri, method: :get, additional_headers: headers, logger:)
         return nil if resp.nil? || resp.to_s.strip.empty?
 
-        bibtex = BibTeX.parse(_cleanse_bibtex(text: resp))
-        work_type = work_type.nil? ? determine_work_type(bibtex:) : work_type
+        bibtex_to_citation(bibtex_as_string: resp)
+      end
+      # rubocop:enable Metrics/AbcSize
+
+      # Convert the specified BibTex string into a citation
+      def bibtex_to_citation(uri:, bibtex_as_string:)
+        return nil unless bibtex_as_string.is_a?(String) && uri.is_a?(String)
+
+        bibtex = BibTeX.parse(_cleanse_bibtex(text: bibtex_as_string))
+        work_type = work_type.nil? ? _determine_work_type(bibtex:) : work_type
         style = DEFAULT_CITATION_STYLE if style.nil?
         _bibtex_to_citation(uri:, work_type:, style:, bibtex:)
       end
-      # rubocop:enable Metrics/AbcSize
 
       private
 
@@ -51,11 +58,10 @@ module Uc3DmpCitation
 
       # If no :work_type was specified we can try to derive it from the BibTeX metadata
       def _determine_work_type(bibtex:)
-        return '' if bibtex.nil? || bibtex.data.nil? || bibtex.data.first.nil?
+        return '' if bibtex.nil? || bibtex.data.nil? || bibtex.data.first.nil? ||
+                     !bibtex.data.first.respond_to?(:journal)
 
-        return 'article' unless bibtex.data.first.journal.nil?
-
-        ''
+        'article'
       end
 
       def _cleanse_bibtex(text:)

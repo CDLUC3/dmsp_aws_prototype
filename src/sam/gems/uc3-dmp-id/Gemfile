@@ -9,3 +9,9 @@ gem 'byebug'
 gem 'rspec'
 gem 'rubocop'
 gem 'rubocop-rspec'
+
+group :development do
+  gem 'bibtex-ruby'
+  gem 'citeproc'
+  gem 'csl-styles'
+end
