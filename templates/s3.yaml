@@ -81,6 +81,8 @@ Resources:
       LoggingConfiguration:
         DestinationBucketName: !Ref S3LogBucket
         LogFilePrefix: 's3-access'
+      VersioningConfiguration:
+        Status: 'Enabled'
 
   # ----------------------------------------------
   # SSM Parameter Store
@@ -95,6 +97,15 @@ Resources:
       # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
       Type: 'String'
       Value: !GetAtt S3CloudFrontBucket.WebsiteURL
+
+  S3PrivateBucketIdParameter:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: !Sub "${AWS::StackName} S3 Private Bucket Id"
+      Name: !Sub "${SsmPath}S3PrivateBucketId"
+      # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
+      Type: 'String'
+      Value: !Ref S3PrivateBucket
 
 Outputs:
   S3LogBucketId:

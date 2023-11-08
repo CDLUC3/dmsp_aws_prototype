@@ -1,0 +1,86 @@
+GEM
+  remote: https://rubygems.org/
+  specs:
+    addressable (2.8.5)
+      public_suffix (>= 2.0.2, < 6.0)
+    aws-eventstream (1.2.0)
+    aws-partitions (1.844.0)
+    aws-sdk-core (3.186.0)
+      aws-eventstream (~> 1, >= 1.0.2)
+      aws-partitions (~> 1, >= 1.651.0)
+      aws-sigv4 (~> 1.5)
+      jmespath (~> 1, >= 1.6.1)
+    aws-sdk-dynamodb (1.96.0)
+      aws-sdk-core (~> 3, >= 3.184.0)
+      aws-sigv4 (~> 1.1)
+    aws-sdk-eventbridge (1.51.0)
+      aws-sdk-core (~> 3, >= 3.184.0)
+      aws-sigv4 (~> 1.1)
+    aws-sdk-sns (1.68.0)
+      aws-sdk-core (~> 3, >= 3.184.0)
+      aws-sigv4 (~> 1.1)
+    aws-sdk-ssm (1.159.0)
+      aws-sdk-core (~> 3, >= 3.184.0)
+      aws-sigv4 (~> 1.1)
+    aws-sigv4 (1.6.1)
+      aws-eventstream (~> 1, >= 1.0.2)
+    httparty (0.21.0)
+      mini_mime (>= 1.0.0)
+      multi_xml (>= 0.5.2)
+    jmespath (1.6.2)
+    json (2.6.3)
+    json-schema (3.0.0)
+      addressable (>= 2.8)
+    logger (1.5.3)
+    mini_mime (1.1.5)
+    multi_xml (0.6.0)
+    public_suffix (5.0.3)
+    text (1.3.1)
+    uc3-dmp-api-core (0.0.22)
+      aws-sdk-sns (~> 1.60)
+      aws-sdk-ssm (~> 1.150)
+      json (~> 2.6)
+      logger (~> 1.4)
+    uc3-dmp-citation (0.0.12)
+    uc3-dmp-cloudwatch (0.1.0)
+    uc3-dmp-dynamo (0.0.21)
+      aws-sdk-dynamodb (~> 1.83)
+      json (~> 2.6)
+      logger (~> 1.4)
+    uc3-dmp-event-bridge (0.0.8)
+      aws-sdk-eventbridge (~> 1.44)
+      json (~> 2.6)
+      logger (~> 1.4)
+    uc3-dmp-external-api (0.0.17)
+      aws-sdk-sns (~> 1.60)
+      aws-sdk-ssm (~> 1.150)
+      httparty (~> 0.21.0)
+      json (~> 2.6)
+    uc3-dmp-id (0.1.16)
+      json (~> 2.6)
+      json-schema (~> 3.0)
+      text (~> 1.3)
+      uc3-dmp-citation (~> 0.0)
+      uc3-dmp-dynamo (~> 0.0)
+      uc3-dmp-event-bridge (~> 0.0)
+      uc3-dmp-external-api (~> 0.0)
+
+PLATFORMS
+  arm64-darwin-22
+  x86_64-linux
+
+DEPENDENCIES
+  text
+  uc3-dmp-api-core
+  uc3-dmp-citation
+  uc3-dmp-cloudwatch
+  uc3-dmp-dynamo
+  uc3-dmp-event-bridge
+  uc3-dmp-external-api
+  uc3-dmp-id
+
+RUBY VERSION
+   ruby 3.2.2p53
+
+BUNDLED WITH
+   2.4.19

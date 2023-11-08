@@ -1,0 +1,4 @@
+---
+BUNDLE_PATH: "./build"
+BUNDLE_WITH: ""
+BUNDLE_WITHOUT: "test"

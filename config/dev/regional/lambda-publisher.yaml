@@ -1,0 +1,35 @@
+template:
+  path: lambda-publisher.yaml
+  type: file
+
+parameters:
+  Env: !stack_attr sceptre_user_data.env
+  SsmPath: !stack_attr sceptre_user_data.ssm_path
+
+  S3BucketId: !stack_output dev/regional/s3.yaml::S3PrivateBucketId
+  S3BucketArn: !stack_output dev/regional/s3.yaml::S3PrivateBucketArn
+  S3Key: 'lambda-publisher.zip'
+
+  DeadLetterQueueArn: !stack_output dev/regional/sqs.yaml::DeadLetterQueueArn
+
+  # Note that changes made to this runtime must coincide with the Gemfile and Makefile for each LambdaLayer!
+  CompatibleRuntime: 'ruby3.2'
+  CompatibleArchitecture: 'x86_64'
+  LogRetentionDays: '14'
+
+hooks:
+  # We need the Lambda Function code packaged as a Zip in S3 BEFORE we try to create the CF stack
+  before_create:
+    - !cmd 'cd ./src/lambdas/lambda-publisher && ./build.sh dev'
+
+  # We need to attach the NotificationConfiguration to the S3 bucket AFTER the Lambda Function is created
+  # but need the S3 bucket to have been created BEFORE the Lambda Function because we need to give S3
+  # permission to invoke the Lambda Function.
+  # CloudFormation does not currently have a way to do this, so we need to run an AWS CLI command
+  after_create:
+    - !cmd 'cd ./src/lambdas/lambda-publisher && ./register.sh dev'
+
+  # After the CF stack is deleted, go in and delete the Lambda Function zip from S3
+  after_delete:
+    # Remove all objects from the S3 bucket prefixed with `/lambda_layers`
+    - !cmd 'cd ./src/lambdas/lambda-publisher && ./purge_s3.sh dev'

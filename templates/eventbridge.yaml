@@ -23,30 +23,6 @@ Parameters:
 
 Resources:
   # -------------------------------------------------------
-  # EventBridge for the DMPHub System that will handle/manage 3 events. Each event can trigger multiple
-  # target tasks
-  #
-  #   1. DMP creation
-  #        - Publish initial metadata record for the DMP ID with EZID (EzidPublisher Lambda)
-  #
-  #   2. DMP modification
-  #        - Publish updated metadata record for the DMP ID with EZID (EzidPublisher Lambda)
-  #
-  #   3. DMP tombstoned
-  #        - Tomstone the metadata record for the DMP ID with EZID (EzidPublisher Lambda)
-  #
-  # EventBus Rules are defined in the src/sam/template.yaml along with the Lambda Functions
-
-  # NOTE: This template cannot be deleted until the SAM managed Lambdas have been deleted since
-  #       several of the Lambdas have EventBus Rules
-
-  #   When the EzidPublisher Lambda detects that the /uc3/dmp/hub/%{env}/EzidPaused SSM Variable is true
-  #   it will add an event to the EventBusArchive that can be processed later
-  #      OR
-  #   send the event to the DeadLetterQueue - a scheduled event calls Lambda that checks the SSM variable
-  #   which trigger the EzidPublisher directly
-
-  # -------------------------------------------------------
   # The Event Bus for the DMPHub System
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_Events.html
   # -------------------------------------------------------
@@ -69,6 +45,55 @@ Resources:
         Condition:
             StringEquals:
                 "aws:PrincipalOrgID": !Ref AWS::AccountId
+
+  # -----------------------------
+  # IAM Role that will be used by EventBridge to invoke Lambda Functions
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-iam-role.html
+  # -----------------------------
+  # Role that allows EventBridge to invoke these Lambdas
+  EventBridgeLambdaInvocationRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Sub '${AWS::StackName}-InvocationRole'
+      Description: !Sub '%{AWS::StackName} - Role to invoke lambda functions'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          Effect: 'Allow'
+          Action: 'sts:AssumeRole'
+          Principal:
+            Service: 'events.amazonaws.com'
+      Policies:
+        - PolicyName: !Sub 'dmp-hub-${Env}-eventbridge-invoke'
+          PolicyDocument: !Sub >
+            {
+              "Version": "2012-10-17",
+              "Statement": {
+                "Effect": "Allow",
+                "Action": [
+                  "lambda:InvokeFunction"
+                ],
+                "Resource": "*"
+              }
+            }
+
+  # ----------------------------------------------------------------
+  # IAM Managed Policies for reading and publishing to the EventBus
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-iam-managedpolicy.html
+  # ----------------------------------------------------------------
+  # Policy that allows other Resources to read and publish messages on the EventBus
+  EventBusManagedPolicy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      Description: !Sub '${AWS::StackName} - Allow access to read/write messages to the EventBus'
+      ManagedPolicyName: !Sub '${AWS::StackName}-Policy'
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          Effect: 'Allow'
+          Action:
+            - 'events:PutEvents'
+          Resource: !GetAtt EventBus.Arn
 
   # Archive used to stash DMP ID updates to EZID
   EventBusArchive:
@@ -144,18 +169,25 @@ Resources:
 Outputs:
   EventBusName:
     Value: !Ref EventBus
+
   EventBusArn:
     Value: !GetAtt EventBus.Arn
-    Export:
-      Name: !Sub '${Env}-EventBusArn'
+
+  EventBridgeLambdaInvocationRoleId:
+    Value: !GetAtt EventBridgeLambdaInvocationRole.RoleId
+
+  EventBridgeLambdaInvocationRoleArn:
+    Value: !GetAtt EventBridgeLambdaInvocationRole.Arn
 
   EventBusPolicy:
     Value: !Ref EventBusPolicy
 
+  EventBusManagedPolicyArn:
+    Value: !Ref EventBusManagedPolicy
+
   EventBusArchiveId:
     Value: !Ref EventBusArchive
-  # EventBusArchiveName:
-  #   Value: !GetAtt EventBusArchive.ArchiveName
+
   EventBusArchiveArn:
     Value: !GetAtt EventBusArchive.Arn
 

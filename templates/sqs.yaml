@@ -109,8 +109,6 @@ Outputs:
 
   DeadLetterQueueArn:
     Value: !GetAtt DeadLetterQueue.Arn
-    Export:
-      Name: !Sub '${Env}-DeadLetterQueueArn'
 
   SqsQueueId:
     Value: !Ref SqsQueue
@@ -120,8 +118,6 @@ Outputs:
 
   SnsTopicEmailArn:
     Value: !Ref SnsTopicEmail
-    Export:
-      Name: !Sub '${Env}-SnsTopicEmailArn'
 
   SnsTopicEmailName:
     Value: !GetAtt SnsTopicEmail.TopicName

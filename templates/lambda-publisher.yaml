@@ -1,0 +1,179 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: General resources shared by the other templates
+
+Parameters:
+  Env:
+    Type: 'String'
+    Default: 'dev'
+
+  SsmPath:
+    Type: 'String'
+
+  S3BucketId:
+    Type: 'String'
+
+  S3BucketArn:
+    Type: 'String'
+
+  S3Key:
+    Type: 'String'
+
+  DeadLetterQueueArn:
+    Type: 'String'
+
+  CompatibleRuntime:
+    Type: 'String'
+    AllowedValues:
+      - 'ruby2.7'
+      - 'ruby3.2'
+
+  CompatibleArchitecture:
+    Type: 'String'
+    Default: 'x86_64'
+    AllowedValues:
+      - 'x86_64'
+      - 'arm64'
+
+  LogRetentionDays:
+    Type: 'Number'
+    Default: 14
+
+Resources:
+# -----------------------------
+  # IAM Roles
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-iam-role.html
+  # -----------------------------
+  # Role for the Lambda functions
+  LambdaPublisherFunctionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Sub 'dmp-hub-${Env}-LambdaPublisherRole'
+      Description: !Sub '%{AWS::StackName} - Role for Publisher Lambdas'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          Effect: 'Allow'
+          Action: 'sts:AssumeRole'
+          Principal:
+            Service: 'lambda.amazonaws.com'
+      ManagedPolicyArns:
+        # TODO: Review if we really want FullAccess on these
+        - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSQSFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonS3FullAccess'
+        - 'arn:aws:iam::aws:policy/AWSLambda_FullAccess'
+
+  # Role that allows S3 to invoke our Lambda Publisher function
+  LambdaInvocationRole:
+    Type: 'AWS::IAM::Role'
+    DependsOn:
+      - LambdaPublisherFunction
+    Properties:
+      RoleName: !Sub 'dmp-hub-${Env}-LambdaPublisherInvoker'
+      Description: !Sub '%{AWS::StackName} - Role to invoke the Lambda publisher function'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          Effect: 'Allow'
+          Action: 'sts:AssumeRole'
+          Principal:
+            Service: 's3.amazonaws.com'
+      Policies:
+        - PolicyName: !Sub 'dmp-hub-${Env}-eventbridge-invoke'
+          PolicyDocument: !Sub >
+            {
+              "Version": "2012-10-17",
+              "Statement": {
+                "Effect": "Allow",
+                "Action": [
+                  "lambda:InvokeFunction"
+                ],
+                "Resource": [
+                  "${LambdaPublisherFunction.Arn}"
+                ]
+              }
+            }
+
+  # --------------------------------------------------------------------
+  # Lambda Functions that actually deploys the updated Lambda artifact
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-lambda-function.html#cfn-lambda-function
+  # --------------------------------------------------------------------
+  LambdaPublisherFunction:
+    Type: 'AWS::Lambda::Function'
+    DependsOn:
+      - LambdaPublisherFunctionRole
+    Properties:
+      Description: !Sub '${AWS::StackName} lambda function that deploys new versions'
+      Runtime: !Ref CompatibleRuntime
+      Architectures:
+        - !Ref CompatibleArchitecture
+      PackageType: 'Zip'
+      Code:
+        S3Bucket: !Ref S3BucketId
+        S3Key: !Ref S3Key
+      Handler: 'app.Functions::LambdaPublisher.process'
+      # Depending on the DMP ID, there may be a lot of smproadmap_related_identifiers with no ciatations and
+      # some of the DOI sources for those may be slow to respond to us, so set this to 10 minutes
+      Timeout: 600
+      DeadLetterConfig:
+        TargetArn: !Ref DeadLetterQueueArn
+      Environment:
+        Variables:
+          LAMBDA_ENV: !Ref Env
+      Role: !GetAtt LambdaPublisherFunctionRole.Arn
+
+  # Permission that lets the S3 bucket trigger our function
+  S3InvokeLambdaPermission:
+    Type: 'AWS::Lambda::Permission'
+    DependsOn:
+      - LambdaPublisherFunction
+    Properties:
+      FunctionName: !Ref LambdaPublisherFunction
+      Action: 'lambda:InvokeFunction'
+      Principal: 's3.amazonaws.com'
+      SourceArn: !Ref S3BucketArn
+
+  # CloudWatch LogGroup for this function
+  LambdaPublisherFunctionLogGroup:
+    Type: 'AWS::Logs::LogGroup'
+    DependsOn:
+      - LambdaPublisherFunction
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${LambdaPublisherFunction}"
+      RetentionInDays: !Ref LogRetentionDays
+
+  # Stash the ARN in SSM so we can use a Sceptre hook to register the NotificationConfiguration on S3
+  LambdaFunctionArnParameter:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: !Sub "${AWS::StackName} Lambda Publisher Function"
+      Name: !Sub "${SsmPath}S3LambdaPublisherArn"
+      Type: 'String'
+      Value: !GetAtt LambdaPublisherFunction.Arn
+
+Outputs:
+  LambdaPublisherFunctionRoleId:
+    Value: !Ref LambdaPublisherFunctionRole
+
+  LambdaPublisherFunctionRoleArn:
+    Value: !GetAtt LambdaPublisherFunctionRole.Arn
+
+  LambdaInvocationRoleId:
+    Value: !Ref LambdaInvocationRole
+
+  LambdaInvocationRoleArn:
+    Value: !GetAtt LambdaInvocationRole.Arn
+
+  LambdaPublisherFunctionId:
+    Value: !Ref LambdaPublisherFunction
+
+  LambdaPublisherFunctionArn:
+    Value: !GetAtt LambdaPublisherFunction.Arn
+
+  LogGroupId:
+    Value: !Ref LambdaPublisherFunctionLogGroup
+
+  LogGroupArn:
+    Value: !GetAtt LambdaPublisherFunctionLogGroup.Arn

@@ -1,0 +1,26 @@
+template:
+  path: lambda-layer.yaml
+  type: file
+
+parameters:
+  Env: !stack_attr sceptre_user_data.env
+
+  S3Bucket: !stack_output dev/regional/s3.yaml::S3PrivateBucketId
+  S3KeyPrefix: lambdas/layers/
+
+  # Note that changes made to this runtime must coincide with the Gemfile and build_deploy.sh!
+  CompatibleRuntime: 'ruby3.2'
+  CompatibleArchitecture: 'x86_64'
+
+  # Name Suffix for the Lambda Function. This MUST match the name suffix defined in the source directory's
+  # build_deploy.sh. This will ensure that the LambdaPublisher function is able to deploy changes.
+  NameSuffix: 'api'
+
+hooks:
+  before_create:
+    # Build and upload each LambdaLayer to S3
+    - !cmd 'cd ./src/lambda-layers/api && ./build_deploy.sh dev'
+
+  after_delete:
+    # Remove all objects for this function from the S3 bucket with
+    - !cmd 'cd ./src/lambda-layers && ./purge_s3.sh dev api'

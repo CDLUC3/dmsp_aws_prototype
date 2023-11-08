@@ -1,0 +1,44 @@
+template:
+  path: lambda-eventbridge.yaml
+  type: file
+
+parameters:
+  Env: !stack_attr sceptre_user_data.env
+  DebugLevel: !stack_attr sceptre_user_data.debug_level
+  DomainName: !stack_attr sceptre_user_data.domain
+
+  # Name Suffix for the Lambda Function. This MUST match the name suffix defined in the source directory's
+  # build_deploy.sh. This will ensure that the LambdaPublisher function is able to deploy changes.
+  NameSuffix: 'citer'
+
+  S3Bucket: !stack_output dev/regional/s3.yaml::S3PrivateBucketId
+  S3KeyPrefix: 'lambdas/'
+
+  Handler: 'app.Functions::Citer.process'
+  TriggerDetailType: 'Citation Fetch'
+
+  LambdaLayer: !stack_output dev/regional/lambda-layers/eventbridge.yaml::LambdaLayerVersionArn
+
+  EventBusArn: !stack_output dev/regional/eventbridge.yaml::EventBusArn
+  EventBusManagedPolicyArn: !stack_output dev/regional/eventbridge.yaml::EventBusManagedPolicyArn
+  EventBridgeLambdaInvocationRoleArn: !stack_output dev/regional/eventbridge.yaml::EventBridgeLambdaInvocationRoleArn
+
+  DynamoTableName: !stack_output dev/regional/dynamo.yaml::DynamoTableName
+  DynamoTableWriteManagedPolicyArn: !stack_output dev/regional/dynamo.yaml::DynamoTableWriteManagedPolicyArn
+
+  DeadLetterQueueArn: !stack_output dev/regional/sqs.yaml::DeadLetterQueueArn
+  SnsEmailTopicArn: !stack_output dev/regional/sqs.yaml::SnsTopicEmailArn
+
+  TimeoutInSeconds: '600'
+  # Note that changes made to this runtime must coincide with the Gemfile and build_deploy.sh!
+  CompatibleRuntime: 'ruby3.2'
+  CompatibleArchitecture: 'x86_64'
+
+hooks:
+  before_create:
+    # Build and upload each LambdaLayer to S3
+    - !cmd 'cd ./src/lambdas/eventbridge/citer && ./build_deploy.sh dev'
+
+  after_delete:
+    # Remove all objects for this function from the S3 bucket with
+    - !cmd 'cd ./src/lambdas/eventbridge && ./purge_s3.sh dev citer'

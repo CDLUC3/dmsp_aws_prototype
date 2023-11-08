@@ -1,0 +1,67 @@
+GEM
+  remote: https://rubygems.org/
+  specs:
+    addressable (2.8.5)
+      public_suffix (>= 2.0.2, < 6.0)
+    aws-eventstream (1.2.0)
+    aws-partitions (1.844.0)
+    aws-sdk-core (3.186.0)
+      aws-eventstream (~> 1, >= 1.0.2)
+      aws-partitions (~> 1, >= 1.651.0)
+      aws-sigv4 (~> 1.5)
+      jmespath (~> 1, >= 1.6.1)
+    aws-sdk-dynamodb (1.96.0)
+      aws-sdk-core (~> 3, >= 3.184.0)
+      aws-sigv4 (~> 1.1)
+    aws-sdk-eventbridge (1.51.0)
+      aws-sdk-core (~> 3, >= 3.184.0)
+      aws-sigv4 (~> 1.1)
+    aws-sigv4 (1.6.1)
+      aws-eventstream (~> 1, >= 1.0.2)
+    base64 (0.1.1)
+    faraday (2.7.11)
+      base64
+      faraday-net_http (>= 2.0, < 3.1)
+      ruby2_keywords (>= 0.0.4)
+    faraday-net_http (3.0.2)
+    jmespath (1.6.2)
+    json (2.6.3)
+    json-schema (3.0.0)
+      addressable (>= 2.8)
+    logger (1.5.3)
+    multi_json (1.15.0)
+    opensearch-ruby (3.0.1)
+      faraday (>= 1.0, < 3)
+      multi_json (>= 1.0)
+    public_suffix (5.0.3)
+    ruby2_keywords (0.0.5)
+    uc3-dmp-cloudwatch (0.0.3)
+    uc3-dmp-dynamo (0.0.18)
+      aws-sdk-dynamodb (~> 1.83)
+      json (~> 2.6)
+      logger (~> 1.4)
+    uc3-dmp-event-bridge (0.0.7)
+      aws-sdk-eventbridge (~> 1.44)
+      json (~> 2.6)
+      logger (~> 1.4)
+    uc3-dmp-id (0.1.0)
+      json (~> 2.6)
+      json-schema (~> 3.0)
+      uc3-dmp-dynamo (~> 0.0)
+      uc3-dmp-event-bridge (~> 0.0)
+
+PLATFORMS
+  arm64-darwin-21
+  arm64-darwin-22
+  x86_64-linux
+
+DEPENDENCIES
+  opensearch-ruby
+  uc3-dmp-cloudwatch
+  uc3-dmp-id
+
+RUBY VERSION
+   ruby 3.2.2p53
+
+BUNDLED WITH
+   2.4.19

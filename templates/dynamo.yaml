@@ -63,61 +63,61 @@ Resources:
   # DynamoDB polymorphic table for external info (e.g. ROR, DataCite, Crossref, etc.)
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html
   # ----------------------------------------------
-  ResourcesDynamoTable:
-    Type: 'AWS::DynamoDB::Table'
-    DeletionPolicy: !If
-      - PreventDelete
-      - 'Retain'
-      - 'Delete'
-    Properties:
-      KeySchema:
-        - AttributeName: 'RESOURCE_TYPE'
-          KeyType: 'HASH'
-        - AttributeName: 'ID'
-          KeyType: 'RANGE'
-
-      AttributeDefinitions:
-        # The type of record (e.g. FUNDER, REPOSITORY, PERSON, etc.)
-        - AttributeName: 'RESOURCE_TYPE'
-          AttributeType: 'S'
-        # The identifier for the resource (e.g. ROR, ORCID, URL, etc.)
-        - AttributeName: 'ID'
-          AttributeType: 'S'
-        # The last updated date
-        - AttributeName: 'source'
-          AttributeType: 'S'
-
-      GlobalSecondaryIndexes:
-        # An index to help us quickly fetch all of the
-        - IndexName: 'source_gsi'
-          KeySchema:
-            - AttributeName: 'source'
-              KeyType: 'HASH'
-            - AttributeName: 'ID'
-              KeyType: 'RANGE'
-          Projection:
-            ProjectionType: 'INCLUDE'
-            NonKeyAttributes: ['RESOURCE_TYPE', 'touch_date']
-          ContributorInsightsSpecification:
-            Enabled: !Ref DynamoEnableContributorInsights
-          ProvisionedThroughput: !If
-            - ProvisionedCapacity
-            - ReadCapacityUnits: !Ref DynamoReadCapacityUnits
-              WriteCapacityUnits: !Ref DynamoWriteCapacityUnits
-            - !Ref AWS::NoValue
-
-      BillingMode: !Ref DynamoBillingMode
-      TableClass: !Ref DynamoTableClass
-      ProvisionedThroughput: !If
-        - ProvisionedCapacity
-        - ReadCapacityUnits: !Ref DynamoReadCapacityUnits
-          WriteCapacityUnits: !Ref DynamoWriteCapacityUnits
-        - !Ref AWS::NoValue
-      ContributorInsightsSpecification:
-        Enabled: !Ref DynamoEnableContributorInsights
-      # Determine cost before enabling
-      PointInTimeRecoverySpecification:
-        PointInTimeRecoveryEnabled: !Ref DynamoEnablePointInTimeRecovery
+  # ResourcesDynamoTable:
+  #   Type: 'AWS::DynamoDB::Table'
+  #   DeletionPolicy: !If
+  #     - PreventDelete
+  #     - 'Retain'
+  #     - 'Delete'
+  #   Properties:
+  #     KeySchema:
+  #       - AttributeName: 'RESOURCE_TYPE'
+  #         KeyType: 'HASH'
+  #       - AttributeName: 'ID'
+  #         KeyType: 'RANGE'
+  #
+  #     AttributeDefinitions:
+  #       # The type of record (e.g. FUNDER, REPOSITORY, PERSON, etc.)
+  #       - AttributeName: 'RESOURCE_TYPE'
+  #         AttributeType: 'S'
+  #       # The identifier for the resource (e.g. ROR, ORCID, URL, etc.)
+  #       - AttributeName: 'ID'
+  #         AttributeType: 'S'
+  #       # The last updated date
+  #       - AttributeName: 'source'
+  #         AttributeType: 'S'
+  #
+  #     GlobalSecondaryIndexes:
+  #       # An index to help us quickly fetch all of the
+  #       - IndexName: 'source_gsi'
+  #         KeySchema:
+  #           - AttributeName: 'source'
+  #             KeyType: 'HASH'
+  #           - AttributeName: 'ID'
+  #             KeyType: 'RANGE'
+  #         Projection:
+  #           ProjectionType: 'INCLUDE'
+  #           NonKeyAttributes: ['RESOURCE_TYPE', 'touch_date']
+  #         ContributorInsightsSpecification:
+  #           Enabled: !Ref DynamoEnableContributorInsights
+  #         ProvisionedThroughput: !If
+  #           - ProvisionedCapacity
+  #           - ReadCapacityUnits: !Ref DynamoReadCapacityUnits
+  #             WriteCapacityUnits: !Ref DynamoWriteCapacityUnits
+  #           - !Ref AWS::NoValue
+  #
+  #     BillingMode: !Ref DynamoBillingMode
+  #     TableClass: !Ref DynamoTableClass
+  #     ProvisionedThroughput: !If
+  #       - ProvisionedCapacity
+  #       - ReadCapacityUnits: !Ref DynamoReadCapacityUnits
+  #         WriteCapacityUnits: !Ref DynamoWriteCapacityUnits
+  #       - !Ref AWS::NoValue
+  #     ContributorInsightsSpecification:
+  #       Enabled: !Ref DynamoEnableContributorInsights
+  #     # Determine cost before enabling
+  #     PointInTimeRecoverySpecification:
+  #       PointInTimeRecoveryEnabled: !Ref DynamoEnablePointInTimeRecovery
 
   # ----------------------------------------------
   # DynamoDB polymorphic table for DMPs
@@ -234,6 +234,70 @@ Resources:
       PointInTimeRecoverySpecification:
         PointInTimeRecoveryEnabled: !Ref DynamoEnablePointInTimeRecovery
 
+  # ------------------------------------------------------
+  # IAM Managed Policies for accessing the DynamoDB Table
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-iam-managedpolicy.html
+  # ------------------------------------------------------
+  DynamoTableReadManagedPolicy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      Description: !Sub '${AWS::StackName} - Access to read to the DynamoDb Table'
+      ManagedPolicyName: !Sub '${AWS::StackName}-ReadManagedPolicy'
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          Effect: 'Allow'
+          Action:
+            - 'dynamodb:BatchGetItem'
+            - 'dynamodb:Describe*'
+            - 'dynamodb:List*'
+            - 'dynamodb:GetItem'
+            - 'dynamodb:Query'
+            - 'dynamodb:Scan'
+            - 'dynamodb:PartiQLSelect'
+          Resource:
+            - !GetAtt DynamoTable.Arn
+            - !Sub '${DynamoTable.Arn}/index/*'
+
+  DynamoTableWriteManagedPolicy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      Description: !Sub '${AWS::StackName} - Access to write to the DynamoDb Table'
+      ManagedPolicyName: !Sub '${AWS::StackName}-WriteManagedPolicy'
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          Effect: 'Allow'
+          Action:
+            - 'dynamodb:DeleteItem'
+            - 'dynamodb:GetItem'
+            - 'dynamodb:PutItem'
+            - 'dynamodb:BatchWriteItem'
+            - 'dynamodb:PartiQLInsert'
+            - 'dynamodb:Query'
+            - 'dynamodb:Scan'
+          Resource:
+            - !GetAtt DynamoTable.Arn
+            - !Sub '${DynamoTable.Arn}/index/*'
+
+  # Policy that allows a Lambda to read the DynamoDB Table Streams
+  DynamoTableStreamsManagedPolicy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      Description: !Sub '${AWS::StackName} - Access to read from the DynamoDB Table Streams'
+      ManagedPolicyName: !Sub '${AWS::StackName}-StreamsManagedPolicy'
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          Effect: 'Allow'
+          Action:
+            - 'dynamodb:DescribeStream'
+            - 'dynamodb:GetRecords'
+            - 'dynamodb:GetShardIterator'
+            - 'dynamodb:ListStreams'
+          Resource:
+            - !Sub '${DynamoTable.Arn}/stream/*'
+
   # ----------------------------------------------
   # SSM Parameter Store
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-ssm-parameter.html
@@ -254,24 +318,18 @@ Resources:
       Type: 'String'
       Value: !Select [1, !Split ['/', !GetAtt DynamoTable.Arn]]
 
-  OpenSearchDomainParameter:
-    Type: 'AWS::SSM::Parameter'
-    Properties:
-      Description: !Sub "${AWS::StackName} OpenSearch Domain"
-      Name: !Sub "${SsmPath}OpenSearchDomain"
-      Type: 'String'
-      Value: !Ref OpenSearchDomain
-
 Outputs:
-  ResourcesDynamoTableName:
-    Value: !Select [1, !Split ['/', !GetAtt ResourcesDynamoTable.Arn]]
-    Export:
-      Name: !Sub '${Env}-ResourcesDynamoTableName'
-
   DynamoTableName:
     Value: !Select [1, !Split ['/', !GetAtt DynamoTable.Arn]]
-    Export:
-      Name: !Sub '${Env}-DynamoTableName'
+
+  DynamoTableReadManagedPolicyArn:
+    Value: !Ref DynamoTableReadManagedPolicy
+
+  DynamoTableWriteManagedPolicyArn:
+    Value: !Ref DynamoTableWriteManagedPolicy
+
+  DynamoTableStreamsManagedPolicyArn:
+    Value: !Ref DynamoTableStreamsManagedPolicy
 
   DynamoTableStreamArn:
     Value: !GetAtt DynamoTable.StreamArn
@@ -283,10 +341,13 @@ Outputs:
 
   DynamoTableArn:
     Value: !GetAtt DynamoTable.Arn
-    Export:
-      Name: !Sub '${Env}-DynamoTableArn'
 
-  ResourcesDynamoTableArn:
-    Value: !GetAtt ResourcesDynamoTable.Arn
-    Export:
-      Name: !Sub '${Env}-ResourcesDynamoTableArn'
+  # ResourcesDynamoTableName:
+  #   Value: !Select [1, !Split ['/', !GetAtt ResourcesDynamoTable.Arn]]
+  #   Export:
+  #     Name: !Sub '${Env}-ResourcesDynamoTableName'
+
+  # ResourcesDynamoTableArn:
+  #   Value: !GetAtt ResourcesDynamoTable.Arn
+  #   Export:
+  #     Name: !Sub '${Env}-ResourcesDynamoTableArn'

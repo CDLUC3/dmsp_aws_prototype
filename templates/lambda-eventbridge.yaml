@@ -1,0 +1,198 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+
+Description: Lambdas triggered by EventBridge messages
+
+Parameters:
+  Env:
+    Type: 'String'
+    Default: 'dev'
+
+  # Name Suffix for the Lambda Function. This MUST match the name suffix defined in the source directory's
+  # build_deploy.sh. This will ensure that the LambdaPublisher function is able to deploy changes.
+  NameSuffix:
+    Type: 'String'
+
+  DebugLevel:
+    Type: 'String'
+
+  DomainName:
+    Type: 'String'
+
+  S3Bucket:
+    Type: 'String'
+
+  S3KeyPrefix:
+    Type: 'String'
+
+  LambdaLayer:
+    Type: 'String'
+
+  EventBusArn:
+    Type: 'String'
+
+  EventBusManagedPolicyArn:
+    Type: 'String'
+
+  EventBridgeLambdaInvocationRoleArn:
+    Type: 'String'
+
+  DynamoTableName:
+    Type: 'String'
+
+  DynamoTableWriteManagedPolicyArn:
+    Type: 'String'
+
+  DeadLetterQueueArn:
+    Type: 'String'
+
+  SnsEmailTopicArn:
+    Type: 'String'
+
+  Handler:
+    Type: 'String'
+
+  TriggerDetailType:
+    Type: 'String'
+
+  TimeoutInSeconds:
+    Type: 'Number'
+    Default: 90
+
+  CompatibleRuntime:
+    Type: 'String'
+    AllowedValues:
+      - 'ruby2.7'
+      - 'ruby3.2'
+
+  CompatibleArchitecture:
+    Type: 'String'
+    Default: 'x86_64'
+    AllowedValues:
+      - 'x86_64'
+      - 'arm64'
+
+Resources:
+  # -----------------------------
+  # IAM Role for the Lambda
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-iam-role.html
+  # -----------------------------
+  # Role used by the Lambda
+  LambdaFunctionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Sub '${AWS::StackName}-role'
+      Description: !Sub '%{AWS::StackName} - Role used during Lambda execution'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          Effect: 'Allow'
+          Action: 'sts:AssumeRole'
+          Principal:
+            Service: 'lambda.amazonaws.com'
+      ManagedPolicyArns:
+        # TODO: Review if we really want FullAccess on these
+        - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSQSFullAccess'
+        - !Ref EventBusManagedPolicyArn
+        - !Ref DynamoTableWriteManagedPolicyArn
+
+  # ------------------------------------------------------------
+  # Lambda Functions that are triggered by EventBridge messages
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-lambda-function.html#cfn-lambda-function
+  # ------------------------------------------------------------
+  LambdaFunction:
+    Type: 'AWS::Lambda::Function'
+    DependsOn:
+      - LambdaFunctionRole
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-${NameSuffix}'
+      Description: !Sub '${AWS::StackName} lambda function'
+      Runtime: !Ref CompatibleRuntime
+      Architectures:
+        - !Ref CompatibleArchitecture
+      PackageType: 'Zip'
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Sub '${S3KeyPrefix}${Env}-${NameSuffix}.zip'
+      Handler: !Ref Handler
+      Timeout: !Ref TimeoutInSeconds
+      DeadLetterConfig:
+        TargetArn: !Ref DeadLetterQueueArn
+      Layers:
+        - !Ref LambdaLayer
+      Environment:
+        Variables:
+          API_BASE_URL: !Sub 'https://api.${DomainName}'
+          DOMAIN: !Ref DomainName
+          DMP_ID_BASE_URL: 'doi.org'
+          DYNAMO_TABLE: !Ref DynamoTableName
+          EVENT_BUS_NAME: !Ref EventBusArn
+          LAMBDA_ENV: !Ref Env
+          LOG_LEVEL: !Ref DebugLevel # 'debug'
+          SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
+      Role: !GetAtt LambdaFunctionRole.Arn
+
+  # --------------------------------------------------------------
+  # Lambda Permission that lets EventBridge invoke the function
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-lambda-permission.html
+  # --------------------------------------------------------------
+  LambdaFunctionPermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      FunctionName: !Ref LambdaFunction
+      Action: 'lambda:InvokeFunction'
+      Principal: 'events.amazonaws.com'
+
+  # -----------------------------
+  # EventBridge Rules to trigger our Lambda Functions
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-events-rule-target.html
+  # -----------------------------
+  LambdaFunctionTrigger:
+    Type: 'AWS::Events::Rule'
+    DependsOn:
+      - LambdaFunction
+      - LambdaFunctionPermission
+    Properties:
+      State: 'ENABLED'
+      Name: !Sub 'dmp-hub-${Env}-${NameSuffix}-trigger'
+      Description: !Sub '${AWS::StackName} - Rule to trigger the ${Env} ${NameSuffix} Lambda function'
+      EventBusName: !Ref EventBusArn
+      RoleArn: !Ref EventBridgeLambdaInvocationRoleArn
+      EventPattern: !Sub >
+        {
+          "source": ["${DomainName}:lambda:event_publisher"],
+          "detail-type": ["${TriggerDetailType}"],
+          "detail": {
+            "SK": ["VERSION#latest"]
+          }
+        }
+      Targets:
+        - Id: !Sub 'Dmphub${Env}${NameSuffix}Trigger'
+          Arn: !GetAtt LambdaFunction.Arn
+          DeadLetterConfig:
+            Arn: !Ref DeadLetterQueueArn
+          RetryPolicy:
+            MaximumEventAgeInSeconds: 180
+            MaximumRetryAttempts: 3
+
+Outputs:
+  LambdaFunctionRoleId:
+    Value: !GetAtt LambdaFunctionRole.RoleId
+
+  LambdaFunctionRoleArn:
+    Value: !GetAtt LambdaFunctionRole.Arn
+
+  LambdaFunctionId:
+    Value: !Ref LambdaFunction
+
+  LambdaFunctionArn:
+    Value: !GetAtt LambdaFunction.Arn
+
+  LambdaFunctionTriggerId:
+    Value: !Ref LambdaFunctionTrigger
+
+  LambdaFunctionTriggerArn:
+    Value: !GetAtt LambdaFunctionTrigger.Arn

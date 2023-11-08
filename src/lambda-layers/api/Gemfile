@@ -1,0 +1,14 @@
+# frozen_string_literal: true
+
+source 'https://rubygems.org'
+
+ruby '>= 3.2'
+
+# UC3 Managed Gems
+gem 'uc3-dmp-api-core'
+gem 'uc3-dmp-citation'
+gem 'uc3-dmp-cloudwatch'
+gem 'uc3-dmp-external-api'
+gem 'uc3-dmp-id'
+gem 'uc3-dmp-provenance'
+gem 'uc3-dmp-s3'

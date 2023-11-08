@@ -10,10 +10,6 @@ sceptre_user_data:
     - !stack_output_external cdl-uc3-dev-defaultsubnet-stack::defaultsubnet2a
     - !stack_output_external cdl-uc3-dev-defaultsubnet-stack::defaultsubnet2b
     - !stack_output_external cdl-uc3-dev-defaultsubnet-stack::defaultsubnet2c
-  private_subnets:
-    - !stack_output_external cdl-uc3-dev-privatesubnet-stack::privatesubnet2a
-    - !stack_output_external cdl-uc3-dev-privatesubnet-stack::privatesubnet2b
-    - !stack_output_external cdl-uc3-dev-privatesubnet-stack::privatesubnet2c
 
   # hosted_zone_id: !stack_output_external uc3-ops-dmphub-dev-route53::HostedZoneId
   hosted_zone_id: !ssm_parameter /uc3/dmp/hub/dev/HostedZoneId
@@ -21,3 +17,4 @@ sceptre_user_data:
   env: 'dev'
   domain: 'dmphub.uc3dev.cdlib.net'
   ssm_path: '/uc3/dmp/hub/dev/'
+  debug_level: 'debug'
