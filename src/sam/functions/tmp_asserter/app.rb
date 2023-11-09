@@ -17,6 +17,33 @@ module Functions
   class TmpAsserter
     SOURCE = 'PUT /tmp/{dmp_id+}'
 
+    PEOPLE_LIST = [
+      "Skywalker, Luke",
+      "Solo, Han",
+      "Chewbacca",
+      "3PO, C.",
+      "2D2, R.",
+      "Organa PhD, Leia",
+      "Kenobi J.M., Obi Wan",
+      "Vader S.L., Darth",
+      "Fett, Boba",
+      "Tarkin, G. Moff"
+    ]
+
+    TITLE_LIST = [
+      "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.",
+      "Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.",
+      "Viverra nam libero justo laoreet sit amet cursus sit amet. Fringilla ut morbi tincidunt augue interdum. Blandit aliquam etiam erat velit scelerisque in dictum non. Iaculis urna id volutpat lacus laoreet.",
+      "Eget nulla facilisi etiam dignissim diam quis enim lobortis scelerisque. In fermentum posuere urna nec tincidunt praesent.",
+      "Elit ullamcorper dignissim cras tincidunt lobortis feugiat. Mi proin sed libero enim sed faucibus turpis. Faucibus ornare suspendisse sed nisi.",
+      "Pretium quam vulputate dignissim suspendisse in. Ultricies tristique nulla aliquet enim tortor.",
+      "Fames ac turpis egestas integer eget aliquet nibh. Morbi tristique senectus et netus et.",
+      "Gravida rutrum quisque non tellus orci ac auctor. Posuere morbi leo urna molestie at elementum.",
+      "Egestas pretium aenean pharetra magna ac placerat vestibulum lectus mauris.",
+      "Dignissim diam quis enim lobortis",
+      "Fugiat nulla pariatur."
+    ]
+
     # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
     def self.process(event:, context:)
       # Setup the Logger
@@ -120,12 +147,12 @@ module Functions
       end
 
       def _mock_citation(doi:, type: 'dataset', provenance: 'DataCite')
-        contributors = (0..[1, 2, 3, 4].sample).map {  Faker::Music::PearlJam.musician.split }.compact.uniq
+        contributors = (0..[1, 2, 3, 4, 5, 6].sample).map { PEOPLE_LIST.sample }
         year = [2017, 2018, 2019, 2020, 2021, 2022, 2023].sample.to_s
-        title = Faker::Lorem.sentence(random_words_to_add: 50)
+        title = TITLE_LIST.sample
 
         [
-          "#{contributors.map { |c| [c.last, c.first].join(', ') }.join(', ')}",
+          "#{contributors.compact.uniq.join(', ')}",
           year,
           "\"#{title}\"",
           "[#{type.capitalize}]",

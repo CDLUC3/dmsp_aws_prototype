@@ -44,7 +44,6 @@ GEM
     citeproc-ruby (2.0.0)
       citeproc (~> 1.0, >= 1.0.9)
       csl (~> 2.0)
-    concurrent-ruby (1.2.2)
     csl (2.0.0)
       namae (~> 1.0)
       rexml
@@ -52,8 +51,6 @@ GEM
       csl (~> 2.0)
     diff-lcs (1.5.0)
     digest (3.1.1)
-    faker (3.2.2)
-      i18n (>= 1.8.11, < 2)
     faraday (2.7.11)
       base64
       faraday-net_http (>= 2.0, < 3.1)
@@ -62,8 +59,6 @@ GEM
     httparty (0.21.0)
       mini_mime (>= 1.0.0)
       multi_xml (>= 0.5.2)
-    i18n (1.14.1)
-      concurrent-ruby (~> 1.0)
     jmespath (1.6.2)
     json (2.6.3)
     json-schema (3.0.0)
@@ -180,7 +175,6 @@ DEPENDENCIES
   citeproc-ruby
   csl-styles
   digest
-  faker
   httparty
   json-schema
   opensearch-ruby

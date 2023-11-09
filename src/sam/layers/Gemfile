@@ -35,9 +35,6 @@ gem 'text'
 # rather than HTTP methods and raw JSON. https://opensearch.org/docs/latest/clients/ruby/
 gem 'opensearch-ruby'
 
-# Using the Faker gem to support mocking Citations.
-gem 'faker'
-
 # Unfortunately you cannot include gems by path here because AWS doesn't have access when it builds the layer
 # so the gems must exist in RubyGems
 gem 'uc3-dmp-api-core'
