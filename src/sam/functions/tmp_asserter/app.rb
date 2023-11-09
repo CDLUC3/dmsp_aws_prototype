@@ -84,7 +84,7 @@ module Functions
           score: score,
           notes: notes,
           status: 'pending',
-          dmproadmap_related_identifier: _add_work
+          dmproadmap_related_identifier: _add_work(provenance: prov)
         }
       end
       logger.debug(message: "Tmp Asserter update to PK: #{p_key}", details: { requested: json, mods: })
@@ -119,6 +119,21 @@ module Functions
         )
       end
 
+      def _mock_citation(doi:, type: 'dataset', provenance: 'DataCite')
+        contributors = (0..[1, 2, 3, 4].sample).map {  Faker::Music::PearlJam.musician.split }.compact.uniq
+        year = [2017, 2018, 2019, 2020, 2021, 2022, 2023].sample.to_s
+        title = Faker::Lorem.sentence(random_words_to_add: 50)
+
+        [
+          "#{contributors.map { |c| [c.last, c.first].join(', ') }.join(', ')}",
+          year,
+          "\"#{title}\"",
+          "[#{type.capitalize}]",
+          "<em>#{provenance}</em>",
+          "<a href=\"#{doi}\" target\"_blank\">#{doi}</a>."
+        ].join('. ')
+      end
+
       def _add_grant(funder:)
         return nil if funder.nil?
 
@@ -136,12 +151,15 @@ module Functions
         }
       end
 
-      def _add_work
+      def _add_work(provenance:)
+        id = "https://doi.org/77.6666/#{SecureRandom.hex(4)}"
+        work_type = %w[dataset article data_paper software].sample
         {
-          work_type: %w[dataset article data_paper software].sample,
+          work_type: work_type,
           descriptor: %w[references cites is_part_of].sample,
           type: 'doi',
-          identifier: "https://dx.doi.org/77.6666/#{SecureRandom.hex(4)}"
+          identifier: id,
+          citation: _mock_citation(doi: id, type: work_type, provenance:)
         }
       end
     end

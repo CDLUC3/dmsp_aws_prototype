@@ -89,12 +89,13 @@ module Uc3DmpId
         status: 'pending',
         confidence: work['confidence'],
         score: work['score'],
-        notes: work['notes']
+        notes: work['notes'],
+        citation: work['citation']
       }
       work_type = work.fetch('type', 'Text')&.downcase&.strip
       ret[:work_type] = work_type == 'text' ? type : work_type
       @logger&.debug(message: "Assessing Work: #{work['id']} (pre citation)", details: ret)
-      return JSON.parse(ret.to_json) if work['bibtex'].nil?
+      return JSON.parse(ret.to_json) if work['bibtex'].nil? || !ret[:citation].nil?
 
       ret[:citation] = Uc3DmpCitation::Citer.bibtex_to_citation(uri: work['id'], bibtex_as_string: work['bibtex'])
       JSON.parse(ret.to_json)
