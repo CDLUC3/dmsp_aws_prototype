@@ -55,6 +55,7 @@ module Uc3DmpId
       mod_hash['funding'] = mod_hash.fetch('funding', []).flatten.compact.uniq
 
       # Save the DMP
+      @logger.debug(message: 'New mods:', details: mod_hash)
       @dmp['dmphub_modifications'] = (@known_mods.nil? ? [] : @known_mods) << mod_hash
       client = Uc3DmpDynamo::Client.new
       resp = client.put_item(json: @dmp, logger:)
@@ -82,6 +83,7 @@ module Uc3DmpId
     def _work_to_mod_entry(type:, work:)
       return nil if work['id'].nil?
 
+      @logger&.debug(message: "Incoming Work:", details: work)
       ret = {
         type: 'doi',
         identifier: work['id'],
@@ -89,13 +91,15 @@ module Uc3DmpId
         status: 'pending',
         confidence: work['confidence'],
         score: work['score'],
-        notes: work['notes'],
-        citation: work['citation']
+        notes: work['notes']
       }
       work_type = work.fetch('type', 'Text')&.downcase&.strip
       ret[:work_type] = work_type == 'text' ? type : work_type
+      citation_in = work.fetch('dmproadmap_related_identifier', {})['citation']
+      ret[:citation] = citation_in unless citation_in.nil?
+
       @logger&.debug(message: "Assessing Work: #{work['id']} (pre citation)", details: ret)
-      return JSON.parse(ret.to_json) if work['bibtex'].nil? || !ret[:citation].nil?
+      return JSON.parse(ret.to_json) unless ret[:citation].nil? && !work['bibtex'].nil?
 
       ret[:citation] = Uc3DmpCitation::Citer.bibtex_to_citation(uri: work['id'], bibtex_as_string: work['bibtex'])
       JSON.parse(ret.to_json)
