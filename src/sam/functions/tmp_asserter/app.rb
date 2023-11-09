@@ -17,6 +17,33 @@ module Functions
   class TmpAsserter
     SOURCE = 'PUT /tmp/{dmp_id+}'
 
+    PEOPLE_LIST = [
+      "Skywalker, Luke",
+      "Solo, Han",
+      "Chewbacca",
+      "3PO, C.",
+      "2D2, R.",
+      "Organa PhD, Leia",
+      "Kenobi J.M., Obi Wan",
+      "Vader S.L., Darth",
+      "Fett, Boba",
+      "Tarkin, G. Moff"
+    ]
+
+    TITLE_LIST = [
+      "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.",
+      "Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.",
+      "Viverra nam libero justo laoreet sit amet cursus sit amet. Fringilla ut morbi tincidunt augue interdum. Blandit aliquam etiam erat velit scelerisque in dictum non. Iaculis urna id volutpat lacus laoreet.",
+      "Eget nulla facilisi etiam dignissim diam quis enim lobortis scelerisque. In fermentum posuere urna nec tincidunt praesent.",
+      "Elit ullamcorper dignissim cras tincidunt lobortis feugiat. Mi proin sed libero enim sed faucibus turpis. Faucibus ornare suspendisse sed nisi.",
+      "Pretium quam vulputate dignissim suspendisse in. Ultricies tristique nulla aliquet enim tortor.",
+      "Fames ac turpis egestas integer eget aliquet nibh. Morbi tristique senectus et netus et.",
+      "Gravida rutrum quisque non tellus orci ac auctor. Posuere morbi leo urna molestie at elementum.",
+      "Egestas pretium aenean pharetra magna ac placerat vestibulum lectus mauris.",
+      "Dignissim diam quis enim lobortis",
+      "Fugiat nulla pariatur."
+    ]
+
     # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
     def self.process(event:, context:)
       # Setup the Logger
@@ -84,7 +111,7 @@ module Functions
           score: score,
           notes: notes,
           status: 'pending',
-          dmproadmap_related_identifier: _add_work
+          dmproadmap_related_identifier: _add_work(provenance: prov)
         }
       end
       logger.debug(message: "Tmp Asserter update to PK: #{p_key}", details: { requested: json, mods: })
@@ -119,6 +146,21 @@ module Functions
         )
       end
 
+      def _mock_citation(doi:, type: 'dataset', provenance: 'DataCite')
+        contributors = (0..[1, 2, 3, 4, 5, 6].sample).map { PEOPLE_LIST.sample }
+        year = [2017, 2018, 2019, 2020, 2021, 2022, 2023].sample.to_s
+        title = TITLE_LIST.sample
+
+        [
+          "#{contributors.compact.uniq.join(', ')}",
+          year,
+          "\"#{title}\"",
+          "[#{type.capitalize}]",
+          "<em>#{provenance}</em>",
+          "<a href=\"#{doi}\" target\"_blank\">#{doi}</a>."
+        ].join('. ')
+      end
+
       def _add_grant(funder:)
         return nil if funder.nil?
 
@@ -136,12 +178,15 @@ module Functions
         }
       end
 
-      def _add_work
+      def _add_work(provenance:)
+        id = "https://doi.org/77.6666/#{SecureRandom.hex(4)}"
+        work_type = %w[dataset article data_paper software].sample
         {
-          work_type: %w[dataset article data_paper software].sample,
+          work_type: work_type,
           descriptor: %w[references cites is_part_of].sample,
           type: 'doi',
-          identifier: "https://dx.doi.org/77.6666/#{SecureRandom.hex(4)}"
+          identifier: id,
+          citation: _mock_citation(doi: id, type: work_type, provenance:)
         }
       end
     end

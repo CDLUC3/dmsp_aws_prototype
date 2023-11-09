@@ -162,44 +162,44 @@ Resources:
   #           - !Ref ResourcesDynamoTableArn
   #           - !Sub '${ResourcesDynamoTableArn}/index/*'
 
-  # Role to allow a Lambda function to read from the DynamoDB Table Stream and Send an SNS notification
-  DynamoTableStreamRole:
-    Type: 'AWS::IAM::Role'
-    Properties:
-      Description: !Sub '%{AWS::StackName} - Allow Lambda to access the Dynamo Stream and write to OpenSearch'
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          Effect: 'Allow'
-          Action: 'sts:AssumeRole'
-          Principal:
-            Service: 'lambda.amazonaws.com'
-      ManagedPolicyArns:
-        - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
-        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
-        - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
-        - 'arn:aws:iam::aws:policy/AmazonSQSFullAccess'
-      Policies:
-        - PolicyName: !Sub '${AWS::StackName}-LambdaReadDynamoStream'
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              Effect: 'Allow'
-              Action:
-                - 'dynamodb:DescribeStream'
-                - 'dynamodb:GetRecords'
-                - 'dynamodb:GetShardIterator'
-                - 'dynamodb:ListStreams'
-              Resource: !Sub '${DynamoTableArn}/stream/*'
-        - PolicyName: !Sub '${AWS::StackName}-LambdaWriteOpenSearch'
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              Effect: 'Allow'
-              Action:
-                - 'es:ESHttpPost'
-                - 'es:ESHttpPut'
-              Resource: '*'
+  # # Role to allow a Lambda function to read from the DynamoDB Table Stream and Send an SNS notification
+  # DynamoTableStreamRole:
+  #   Type: 'AWS::IAM::Role'
+  #   Properties:
+  #     Description: !Sub '%{AWS::StackName} - Allow Lambda to access the Dynamo Stream and write to OpenSearch'
+  #     AssumeRolePolicyDocument:
+  #       Version: '2012-10-17'
+  #       Statement:
+  #         Effect: 'Allow'
+  #         Action: 'sts:AssumeRole'
+  #         Principal:
+  #           Service: 'lambda.amazonaws.com'
+  #     ManagedPolicyArns:
+  #       - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
+  #       - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
+  #       - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
+  #       - 'arn:aws:iam::aws:policy/AmazonSQSFullAccess'
+  #     Policies:
+  #       - PolicyName: !Sub '${AWS::StackName}-LambdaReadDynamoStream'
+  #         PolicyDocument:
+  #           Version: '2012-10-17'
+  #           Statement:
+  #             Effect: 'Allow'
+  #             Action:
+  #               - 'dynamodb:DescribeStream'
+  #               - 'dynamodb:GetRecords'
+  #               - 'dynamodb:GetShardIterator'
+  #               - 'dynamodb:ListStreams'
+  #             Resource: !Sub '${DynamoTableArn}/stream/*'
+  #       - PolicyName: !Sub '${AWS::StackName}-LambdaWriteOpenSearch'
+  #         PolicyDocument:
+  #           Version: '2012-10-17'
+  #           Statement:
+  #             Effect: 'Allow'
+  #             Action:
+  #               - 'es:ESHttpPost'
+  #               - 'es:ESHttpPut'
+  #             Resource: '*'
 
   EventBusPolicy:
     Type: 'AWS::IAM::ManagedPolicy'
