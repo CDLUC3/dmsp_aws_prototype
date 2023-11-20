@@ -1332,7 +1332,7 @@ Resources:
             RetryPolicy:
               MaximumEventAgeInSeconds: 180
               MaximumRetryAttempts: 3
-            State: 'ENABLED'  # 'DISABLED'
+            State: 'ENABLED'
 
   AugmentationSchedulerPermission:
     Type: 'AWS::Lambda::Permission'
@@ -1352,22 +1352,22 @@ Resources:
 
   # Scheduled events
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-events-rule.html#cfn-events-rule-scheduleexpression
-  AugmentationSchedulerDaily:
-    Type: 'AWS::Events::Rule'
-    Properties:
-      # AWS CRON expressions have some nuances: https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-cron-expressions.html
-      ScheduleExpression: 'cron(0 0 ? * * *)' # Every night at midnight
-      Targets:
-        - Id: !Ref AugmentationSchedulerFunction
-          Arn: !GetAtt AugmentationSchedulerFunction.Arn
+  # AugmentationSchedulerDaily:
+  #   Type: 'AWS::Events::Rule'
+  #   Properties:
+  #     # AWS CRON expressions have some nuances: https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-cron-expressions.html
+  #     ScheduleExpression: 'cron(0 0 ? * * *)' # Every night at midnight
+  #     Targets:
+  #       - Id: !Ref AugmentationSchedulerFunction
+  #         Arn: !GetAtt AugmentationSchedulerFunction.Arn
 
-  AugmentationSchedulerDailyPermission:
-    Type: 'AWS::Lambda::Permission'
-    Properties:
-      FunctionName: !GetAtt AugmentationSchedulerFunction.Arn
-      Action: 'lambda:InvokeFunction'
-      Principal: 'events.amazonaws.com'
-      SourceArn: !GetAtt AugmentationSchedulerDaily.Arn
+  # AugmentationSchedulerDailyPermission:
+  #   Type: 'AWS::Lambda::Permission'
+  #   Properties:
+  #     FunctionName: !GetAtt AugmentationSchedulerFunction.Arn
+  #     Action: 'lambda:InvokeFunction'
+  #     Principal: 'events.amazonaws.com'
+  #     SourceArn: !GetAtt AugmentationSchedulerDaily.Arn
 
   # Scheduled events to keep some of the API lambdas warm
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-events-rule.html#cfn-events-rule-scheduleexpression
