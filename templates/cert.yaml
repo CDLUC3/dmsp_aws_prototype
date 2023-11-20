@@ -1,9 +1,12 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Transform: 'AWS::Serverless-2016-10-31'
 
 Description: 'SSL Cert for all DMPHub endpoints'
 
 Parameters:
+  Env:
+    Type: 'String'
+    Default: 'dev'
+
   HostedZoneId:
     Type: 'String'
 
@@ -30,3 +33,5 @@ Resources:
 Outputs:
   CertificateArn:
     Value: !Ref Certificate
+    Export:
+      Name: !Sub '${Env}-CertificateArn'

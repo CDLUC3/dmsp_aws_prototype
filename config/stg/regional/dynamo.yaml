@@ -1,0 +1,38 @@
+template:
+  path: dynamo.yaml
+  type: file
+
+parameters:
+  Env: !stack_attr sceptre_user_data.env
+
+  Domain: !stack_attr sceptre_user_data.domain
+
+  SsmPath: !stack_attr sceptre_user_data.ssm_path
+
+  # Dynamo settings
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html
+  DynamoTableClass: 'STANDARD'
+  DynamoEnableContributorInsights: 'true'
+  DynamoEnablePointInTimeRecovery: 'false'
+  DynamoBillingMode: 'PAY_PER_REQUEST'
+  DynamoReadCapacityUnits: '8'
+  DynamoWriteCapacityUnits: '30'
+
+hooks:
+  after_create:
+    # Add Provenance items to the Dynamo Table
+    - !cmd './seed_dynamo.sh stg DMPTool dmptool-stg.cdlib.org'
+    - !cmd './seed_dynamo.sh stg DMPHub dmphub-stg.cdlib.org'
+
+    # Once the Dynamo table has been created, we can deploy our Lambdas and
+    # the API Gateway which are managed by AWS SAM.
+    #     Args are: environment, domain, build the Lambda layer (boolean)
+    - !cmd 'cd ./src/sam && ruby sam_build_deploy.rb stg true true info'
+
+    # Build and deploy the Swagger UI (gets deployed to the CloudFront distro as https://[domain]/api-docs)
+    # Args are: environment swagger-ui version
+    - !cmd 'cd ./src/swagger && ruby build_openapi_spec.rb stg 4.18.1'
+
+    # Build and deploy the React based DMP ID Landing Page to the CloudFront S3 bucket
+    # Args are: environment
+    - !cmd 'cd ./src/landing_page && ruby build_deply.sh stg'

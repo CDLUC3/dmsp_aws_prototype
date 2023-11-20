@@ -1,0 +1,48 @@
+template:
+  path: 'cognito.yaml'
+  type: 'file'
+
+dependencies:
+  - stg/global/route53.yaml
+
+parameters:
+  HostedZoneId: !stack_attr sceptre_user_data.hosted_zone
+
+  Domain: !stack_attr sceptre_user_data.domain
+  Subdomain: 'auth'
+  Env: !stack_attr sceptre_user_data.env
+
+  CertificateArn: !stack_output stg/global/cert.yaml::CertificateArn
+
+  TagProgram: !stack_attr stack_tags.Program
+  TagService: !stack_attr stack_tags.Service
+  TagSubservice: !stack_attr stack_tags.Subservice
+  TagCodeRepo: !stack_attr stack_tags.CodeRepo
+  TagContact: !stack_attr stack_tags.Contact
+
+  DmptoolClientName: 'dmptool'
+
+  DmptoolCallbackUri: 'https://dmptool-stg.cdlib.org/callback'
+
+  OnlyAllowAdminsToCreateUsers: 'false'
+  UnusedAccountValidityDays: '14'
+  MinimumPasswordLength: '8'
+
+  TokenValidityUnits: 'minutes'
+  AccessTokenValidity: '10'
+  AuthSessionValidatyMinutes: '3'
+  IdTokenValidity: '7'
+  RefreshTokenValidity: '10080'
+
+# NOTES:
+# ----------------------------------------
+#
+# For ORCID integration via openID, check out:
+#     https://info.orcid.org/orcid-openid-connect-and-implicit-authentication/
+# the issuer URL can be found here:
+#     https://orcid.org/.well-known/openid-configuration
+#
+# For Shibboleth integration, Mahjabeen said to reference this SAML file:
+#     https://samlproxy.ucop.edu/simplesaml/saml2/idp/metadata.php
+# but apparently Cognito does not like it so instead an online tool called
+# samltool and use the info from the above URL to build it.

@@ -1,13 +1,19 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Transform: 'AWS::Serverless-2016-10-31'
 
 Description: 'DynamoDB that backs the API dmp-hub-sam'
 
 Parameters:
+  Env:
+    Type: 'String'
+    Default: 'dev'
+
   Domain:
     Type: 'String'
 
   SsmPath:
+    Type: 'String'
+
+  OpenSearchDomain:
     Type: 'String'
 
   DynamoTableClass:
@@ -45,14 +51,84 @@ Parameters:
     Type: 'String'
     Default: 'none'
 
+Conditions:
+  PreventDelete:
+    !Equals [!Ref Env, 'prd']
+
+  ProvisionedCapacity:
+    !Not [!Equals [!Ref DynamoBillingMode, 'PAY_PER_REQUEST']]
+
 Resources:
   # ----------------------------------------------
-  # DynamoDB polymorphic table
+  # DynamoDB polymorphic table for external info (e.g. ROR, DataCite, Crossref, etc.)
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html
+  # ----------------------------------------------
+  ResourcesDynamoTable:
+    Type: 'AWS::DynamoDB::Table'
+    DeletionPolicy: !If
+      - PreventDelete
+      - 'Retain'
+      - 'Delete'
+    Properties:
+      KeySchema:
+        - AttributeName: 'RESOURCE_TYPE'
+          KeyType: 'HASH'
+        - AttributeName: 'ID'
+          KeyType: 'RANGE'
+
+      AttributeDefinitions:
+        # The type of record (e.g. FUNDER, REPOSITORY, PERSON, etc.)
+        - AttributeName: 'RESOURCE_TYPE'
+          AttributeType: 'S'
+        # The identifier for the resource (e.g. ROR, ORCID, URL, etc.)
+        - AttributeName: 'ID'
+          AttributeType: 'S'
+        # The last updated date
+        - AttributeName: 'source'
+          AttributeType: 'S'
+
+      GlobalSecondaryIndexes:
+        # An index to help us quickly fetch all of the
+        - IndexName: 'source_gsi'
+          KeySchema:
+            - AttributeName: 'source'
+              KeyType: 'HASH'
+            - AttributeName: 'ID'
+              KeyType: 'RANGE'
+          Projection:
+            ProjectionType: 'INCLUDE'
+            NonKeyAttributes: ['RESOURCE_TYPE', 'touch_date']
+          ContributorInsightsSpecification:
+            Enabled: !Ref DynamoEnableContributorInsights
+          ProvisionedThroughput: !If
+            - ProvisionedCapacity
+            - ReadCapacityUnits: !Ref DynamoReadCapacityUnits
+              WriteCapacityUnits: !Ref DynamoWriteCapacityUnits
+            - !Ref AWS::NoValue
+
+      BillingMode: !Ref DynamoBillingMode
+      TableClass: !Ref DynamoTableClass
+      ProvisionedThroughput: !If
+        - ProvisionedCapacity
+        - ReadCapacityUnits: !Ref DynamoReadCapacityUnits
+          WriteCapacityUnits: !Ref DynamoWriteCapacityUnits
+        - !Ref AWS::NoValue
+      ContributorInsightsSpecification:
+        Enabled: !Ref DynamoEnableContributorInsights
+      # Determine cost before enabling
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: !Ref DynamoEnablePointInTimeRecovery
+
+  # ----------------------------------------------
+  # DynamoDB polymorphic table for DMPs
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html
   # ----------------------------------------------
   DynamoTable:
     Type: 'AWS::DynamoDB::Table'
-    DeletionPolicy: Retain
+    DeletionPolicy: !If
+      - PreventDelete
+      - 'Retain'
+      - 'Delete'
     Properties:
       # The base table's Partition key and Sort Key define both the DMP ID and version
       # There are 3 potential variants of these keys:
@@ -83,13 +159,13 @@ Resources:
         # The originating provenance system's ID for the DMP
         - AttributeName: 'dmphub_provenance_identifier'
           AttributeType: 'S'
-        # DMPHub attribute that stores the id of the provenance user/system
-        - AttributeName: 'dmphub_provenance_id'
+        # The featured flag
+        - AttributeName: 'dmproadmap_featured'
           AttributeType: 'S'
 
       GlobalSecondaryIndexes:
         # An index to help us quickly fetch all of the DMPs for a specific date range
-        - IndexName: 'modification_day_gsi'
+        - IndexName: 'dmphub_modification_day_gsi'
           KeySchema:
             - AttributeName: 'dmphub_modification_day'
               KeyType: 'HASH'
@@ -97,50 +173,61 @@ Resources:
               KeyType: 'RANGE'
           Projection:
             ProjectionType: 'INCLUDE'
-            NonKeyAttributes: ['SK', 'title', 'contact', 'dmphub_affiliation_ids']
+            NonKeyAttributes: ['SK', 'title', 'description', 'created', 'modified', 'contact', 'contributor', 'project', 'dmproadmap_assertion_needed']
           ContributorInsightsSpecification:
             Enabled: !Ref DynamoEnableContributorInsights
-          ProvisionedThroughput:
-            ReadCapacityUnits: !Ref DynamoReadCapacityUnits
-            WriteCapacityUnits: !Ref DynamoWriteCapacityUnits
+          ProvisionedThroughput: !If
+            - ProvisionedCapacity
+            - ReadCapacityUnits: !Ref DynamoReadCapacityUnits
+              WriteCapacityUnits: !Ref DynamoWriteCapacityUnits
+            - !Ref AWS::NoValue
 
         # An index to help us quickly fetch a DMP by its identifier for the provenance system
         - IndexName: 'dmphub_provenance_identifier_gsi'
           KeySchema:
             - AttributeName: 'dmphub_provenance_identifier'
               KeyType: 'HASH'
-            - AttributeName: 'PK'
+            - AttributeName: 'dmphub_modification_day'
               KeyType: 'RANGE'
           Projection:
             ProjectionType: 'INCLUDE'
-            NonKeyAttributes: ['PK', 'SK']
+            NonKeyAttributes: ['PK', 'SK', 'title']
           ContributorInsightsSpecification:
             Enabled: !Ref DynamoEnableContributorInsights
-          ProvisionedThroughput:
-            ReadCapacityUnits: !Ref DynamoReadCapacityUnits
-            WriteCapacityUnits: !Ref DynamoWriteCapacityUnits
+          ProvisionedThroughput: !If
+            - ProvisionedCapacity
+            - ReadCapacityUnits: !Ref DynamoReadCapacityUnits
+              WriteCapacityUnits: !Ref DynamoWriteCapacityUnits
+            - !Ref AWS::NoValue
 
-        # An index to help us quickly fetch all of the DMPs for a specific provenance
-        - IndexName: 'provenance_dmps_gsi'
+        # An index to help us quickly fetch the DMP IDs that have been 'featured'
+        - IndexName: 'dmproadmap_featured_gsi'
           KeySchema:
-            - AttributeName: 'dmphub_provenance_id'
+            - AttributeName: 'dmproadmap_featured'
               KeyType: 'HASH'
-            - AttributeName: 'PK'
+            - AttributeName: 'SK'
               KeyType: 'RANGE'
           Projection:
             ProjectionType: 'INCLUDE'
-            NonKeyAttributes: ['title', 'contact', 'modified']
+            NonKeyAttributes: ['PK', 'SK', 'title', 'description', 'created', 'modified', 'contact', 'contributor', 'project', 'dmproadmap_assertion_needed']
           ContributorInsightsSpecification:
             Enabled: !Ref DynamoEnableContributorInsights
-          ProvisionedThroughput:
-            ReadCapacityUnits: !Ref DynamoReadCapacityUnits
-            WriteCapacityUnits: !Ref DynamoWriteCapacityUnits
+          ProvisionedThroughput: !If
+            - ProvisionedCapacity
+            - ReadCapacityUnits: !Ref DynamoReadCapacityUnits
+              WriteCapacityUnits: !Ref DynamoWriteCapacityUnits
+            - !Ref AWS::NoValue
+
+      StreamSpecification:
+        StreamViewType: 'NEW_IMAGE'
 
       BillingMode: !Ref DynamoBillingMode
       TableClass: !Ref DynamoTableClass
-      ProvisionedThroughput:
-        ReadCapacityUnits: !Ref DynamoReadCapacityUnits
-        WriteCapacityUnits: !Ref DynamoWriteCapacityUnits
+      ProvisionedThroughput: !If
+        - ProvisionedCapacity
+        - ReadCapacityUnits: !Ref DynamoReadCapacityUnits
+          WriteCapacityUnits: !Ref DynamoWriteCapacityUnits
+        - !Ref AWS::NoValue
       ContributorInsightsSpecification:
         Enabled: !Ref DynamoEnableContributorInsights
       # Determine cost before enabling
@@ -159,20 +246,47 @@ Resources:
       Type: 'String'
       Value: !Sub "https://${Domain}"
 
-  # Add the Table name to SSM so that our Lambdas can access it
   TableNameParameter:
     Type: 'AWS::SSM::Parameter'
     Properties:
-      Description: !Sub "${AWS::StackName} DynamoTable"
+      Description: !Sub "${AWS::StackName} DynamoDb Table"
       Name: !Sub "${SsmPath}DynamoTableName"
-      # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
       Type: 'String'
       Value: !Select [1, !Split ['/', !GetAtt DynamoTable.Arn]]
 
+  OpenSearchDomainParameter:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: !Sub "${AWS::StackName} OpenSearch Domain"
+      Name: !Sub "${SsmPath}OpenSearchDomain"
+      Type: 'String'
+      Value: !Ref OpenSearchDomain
+
 Outputs:
+  ResourcesDynamoTableName:
+    Value: !Select [1, !Split ['/', !GetAtt ResourcesDynamoTable.Arn]]
+    Export:
+      Name: !Sub '${Env}-ResourcesDynamoTableName'
+
   DynamoTableName:
     Value: !Select [1, !Split ['/', !GetAtt DynamoTable.Arn]]
+    Export:
+      Name: !Sub '${Env}-DynamoTableName'
+
+  DynamoTableStreamArn:
+    Value: !GetAtt DynamoTable.StreamArn
+    Export:
+      Name: !Sub '${Env}-DynamoTableStreamArn'
+
   DynamoTableId:
     Value: !Ref DynamoTable
+
   DynamoTableArn:
     Value: !GetAtt DynamoTable.Arn
+    Export:
+      Name: !Sub '${Env}-DynamoTableArn'
+
+  ResourcesDynamoTableArn:
+    Value: !GetAtt ResourcesDynamoTable.Arn
+    Export:
+      Name: !Sub '${Env}-ResourcesDynamoTableArn'

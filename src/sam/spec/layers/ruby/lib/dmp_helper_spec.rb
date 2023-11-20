@@ -36,8 +36,8 @@ RSpec.describe 'DmpHelper' do
     it 'ignores expected fields' do
       b = described_class.deep_copy_dmp(obj: a)
       b['SK'] = "#{KeyHelper::SK_DMP_PREFIX}#zzzzzzzzzzz"
-      b['dmphub_created_at'] = Time.now.iso8601
-      b['dmphub_updated_at'] = Time.now.iso8601
+      b['created'] = Time.now.iso8601
+      b['modified'] = Time.now.iso8601
       b['dmphub_modification_day'] = Time.now.strftime('%Y-%M-%d')
       expect(described_class.dmps_equal?(dmp_a: a, dmp_b: b)).to be(true)
     end
@@ -87,10 +87,10 @@ RSpec.describe 'DmpHelper' do
         expect(result['dmphub_modification_day']).to eql(Time.now.strftime('%Y-%m-%d'))
       end
 
-      it 'sets the :dmphub_created_at and :dmphub_updated_at to the current time' do
+      it 'sets the :created and :modified to the current time' do
         expected = Time.now.iso8601
-        expect(result['dmphub_created_at']).to be >= expected
-        expect(result['dmphub_updated_at']).to be >= expected
+        expect(result['created']).to be >= expected
+        expect(result['modified']).to be >= expected
       end
     end
 
@@ -119,17 +119,17 @@ RSpec.describe 'DmpHelper' do
         expect(result['dmphub_provenance_id']).to eql(json['dmphub_provenance_id'])
       end
 
-      it 'does not change the :dmphub_created_at' do
-        expect(result['dmphub_created_at']).to eql(json['dmphub_created_at'])
+      it 'does not change the :created' do
+        expect(result['created']).to eql(json['created'])
       end
 
       it 'sets the :dmphub_modification_day to the current date' do
         expect(result['dmphub_modification_day']).to eql(Time.now.strftime('%Y-%m-%d'))
       end
 
-      it 'sets the :dmphub_created_at and :dmphub_updated_at to the current time' do
+      it 'sets the :created and :modified to the current time' do
         expected = Time.now.iso8601
-        expect(result['dmphub_updated_at']).to be >= expected
+        expect(result['modified']).to be >= expected
       end
     end
   end

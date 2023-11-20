@@ -1,0 +1,390 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@500;600&display=swap');
+@import './components/responsive';
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
+
+
+:root {
+  // Colors:
+  --dmptool-brand-black: rgb(22, 64, 75);
+  --dmptool-brand-blue: rgb(0, 85, 129);
+  --dmptool-brand-gray: rgb(170, 170, 170);
+  --dmptool-brand-green: rgb(14, 130, 86);
+  --dmptool-brand-orange: rgb(207, 72, 23);
+  --dmptool-brand-red: rgb(255, 0, 0);
+  --dmptool-brand-white: rgb(255, 255, 255);
+
+  // Spacing:
+  --dmptool-brand-space1: 0.5em;
+  --dmptool-brand-space2: 1em;
+  --dmptool-brand-space3: 1.5em;
+
+  // General:
+  --dmptool-brand-line-height0: 1.1;
+  --dmptool-brand-line-height1: 1.3;
+  --dmptool-brand-line-height2: 1.5;
+
+  /* Root level css variables go here */
+  --btn-font-family: 'Poppins', sans-serif;
+  --btn-basic-bg-color: #ddd;
+  --btn-basic-fg-color: #333;
+  --btn-border-radius: 20px;
+
+  --btn-primary-bg-color: #05042e;
+  --btn-primary-fg-color: white;
+
+  /* Form components */
+  --form-field-label-color: #050a69;
+  --form-field-bg-color: white;
+  --form-field-fg-color: #333;
+  --form-field-border-color: #e1e1e1;
+
+  --input-required-color: red;
+
+  /* Data Grid */
+  --grid-gap: 1em;
+}
+
+
+#App {
+  font-family: 'Poppins', sans-serif;
+  font-weight: 500;
+  font-size: 1em;
+
+  max-width: 1200px;
+  margin: 0 auto;
+  line-height: var(--dmptool-brand-line-height0);
+
+  a,
+  a:hover,
+  a:active,
+  a:visited {
+    color: var(--dmptool-brand-green);
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: 'Poppins', sans-serif;
+    font-weight: 400;
+  }
+
+  h1 {
+    color: var(--dmptool-brand-blue);
+    font-size: 1.75em;
+  }
+
+  h2 {
+    color: var(--dmptool-brand-green);
+    font-size: 1.5em;
+    margin-top: 10px;
+  }
+
+  h3 {
+    color: var(--dmptool-brand-white);
+    background-color: var(--dmptool-brand-blue);
+    font-size: 1.3em;
+    padding: 5px 10px 5px 3px;
+  }
+
+  h4 {
+    color: var(--dmptool-brand-green);
+    font-size: 1.2em;
+  }
+
+  p {
+    font-family: 'Poppins', sans-serif;
+    font-weight: 500;
+    font-size: 1em;
+    color: var(--dmpui-brand-blue-900);
+  }
+
+  a {
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+
+  .red {
+    color: var(--dmptool-brand-red);
+  }
+
+  header,
+  #root,
+  footer {
+    padding: var(--dmptool-brand-space1) var(--dmptool-brand-space2);
+  }
+
+  // ***** Header Component ***** //
+  header {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    column-gap: var(--dmptool-brand-space2);
+    row-gap: var(--dmptool-brand-space3);
+
+    background-color: var(--dmptool-brand-blue);
+    color: var(--dmptool-brand-white);
+    font-size: 1.1em;
+  }
+  header .dmptool-logo {
+    width: 140px;
+    height: auto;
+  }
+  header .dmp-menu {
+    margin: 0;
+  }
+  header .dmp-menu ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  header .dmp-menu li {
+    display: inline;
+    margin-left: var(--dmptool-brand-space2);
+  }
+  header .dmp-menu li strong {
+    font-weight: 600;
+    margin-right: var(--dmptool-brand-space1);
+  }
+
+  // Dropdown Versions menu
+  header .dropbtn {
+    background-color: var(--dmptool-brand-blue);
+    color: var(--dmptool-brand-white);
+    border: none;
+    font-size: 1em;
+    font-weight: 500;
+  }
+  header .dropdown {
+    position: relative;
+    display: inline-block;
+  }
+  header .dropdown-content {
+    display: none;
+    position: absolute;
+    right: 0;
+    background-color: var(--dmptool-brand-white);
+    min-width: 178px;
+    box-shadow: 0px 8px 16px 0px var(--dmptool-brand-gray);
+    z-index: 1;
+  }
+  header .dropdown-content a {
+    color: var(--dmptool-brand-blue);
+    padding: 12px 4px;
+    text-decoration: none;
+    display: block;
+  }
+  header .dropdown-content a:hover {
+    background-color: var(--dmptool-brand-white);
+  }
+  header .dropdown:hover .dropdown-content {
+    display: block;
+  }
+  header .dropdown:hover .dropbtn {
+    background-color: var(--dmptool-brand-white);
+    color: var(--dmptool-brand-blue);
+  }
+  header span.arrow {
+    border: solid var(--dmptool-brand-white);
+    border-width: 0 3px 3px 0;
+    display: inline-block;
+    padding: 3px;
+    margin-left: 4px;
+  }
+  header span.up {
+    transform: rotate(-135deg);
+    -webkit-transform: rotate(-135deg);
+  }
+  header span.down {
+    transform: rotate(45deg);
+    -webkit-transform: rotate(45deg);
+  }
+
+  main {
+    margin-bottom: 25px;
+  }
+
+  /* Controls the DMP title and PDF link section */
+  main .t-step__landing-title {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    column-gap: var(--dmptool-brand-space2);
+    row-gap: var(--dmptool-brand-space3);
+    margin: 0 50px;
+  }
+  main .t-step__landing-title p {
+    font-size: .9em;
+    font-weight: 600;
+  }
+  main .t-step__landing-title .dmp-title {
+    max-width: 70%;
+  }
+  main .t-step__landing-title .dmp-title-wide {
+    max-width: 100%;
+  }
+  main .t-step__landing-title .dmp-pdf {
+    display: flex;
+    align-items: center;
+    border: 2px solid var(--dmptool-brand-green);
+    padding: 20px;
+    max-width: 240px;
+    font-size: 1.2em;
+  }
+  main .t-step__landing-title .dmp-pdf img{
+    height: 36px;
+    margin-right: 20px;
+  }
+
+  /* Controls the content of the DMP */
+  main .t-step__content {
+    display: flex;
+    flex-direction: column;
+  }
+  main .t-step__content h2 {
+    border-left: 1pt solid var(--dmptool-brand-black);
+    border-top: 1pt solid var(--dmptool-brand-black);
+    font-size: 1.4em;
+    color: var(--dmptool-brand-blue);
+    margin: 10px 50px 10px 30px;
+    padding: 8px 10px;
+  }
+  main .t-step__content h3 {
+    background-color: var(--dmptool-brand-white);
+    color: var(--dmptool-brand-blue);
+    margin: 10px 0px 10px 0px;
+    font-size: 1.2em;
+  }
+  main .t-step__content div.text-block {
+    max-width: 80%;
+    margin: 0 0px 10px 20px;
+    font-size: 1.1em;
+  }
+  main .t-step__content div.text-block p {
+    margin: 0 0 5px 0;
+  }
+  main .t-step__content ul li ul {
+    max-width: 80%;
+    list-style: none;
+    margin: 0 0 15px 20px;
+    padding-left: 0;
+    font-size: 1.1em;
+  }
+  main .t-step__content ul {
+    max-width: 80%;
+    list-style: none;
+    margin: 0 30px 15px 20px;
+    font-size: 1.1em;
+  }
+  main .t-step__content ul li {
+    margin-bottom: 5px;
+  }
+  main .t-step__content ul li.margin10 {
+    margin-bottom: 10px;
+  }
+  main .t-step__content ul li strong {
+    font-weight: 600;
+    padding-right: 5px;
+  }
+  main .t-step__content ul li span {
+    padding-right: 8px;
+  }
+
+  main .landing-list li span a {
+   margin-right: 10px;
+  }
+
+  main .landing-list p {
+    line-height: var(--dmptool-brand-line-height1);
+  }
+
+  // ***** List item separators ***** //
+  li.comma-separated a:not(:last-child) {
+    &::after {
+      content: ',';
+      margin-right: 6px;
+    }
+  }
+  li.period-separated span:not(:last-child) {
+    &::after {
+      content: '.';
+    }
+  }
+
+  // ***** Citation ***** //
+  main .t-step__content ul.citation li span {
+    padding-right: 4px;
+  }
+
+  // ***** Project Abstract ***** //
+  main .t-step__content ul.abstract p {
+    line-height: var(--dmptool-brand-line-height2);
+  }
+  main .t-step__content ul.abstract ul {
+    list-style: revert;
+    list-style-type: disc;
+  }
+  main .t-step__content ul.abstract ol {
+    list-style: revert;
+  }
+  main .t-step__content ul.abstract table {
+    border: 1px solid var(--dmptool-brand-black);
+  }
+  main .t-step__content ul.abstract tr:not(:last-child) {
+    border-bottom: 1px solid var(--dmptool-brand-black);
+  }
+
+  // ***** Orcid Component ***** //
+  .c-orcid {
+    display: inline-block;
+    position: relative;
+    padding-inline-start: 1.2em;
+
+    &::before {
+      content: url('./assets/orcid.svg');
+      position: absolute;
+      left: 0;
+      width: 1em;
+      padding-top: 2px;
+      inset-block: 0;
+      inset-inline-start: 0;
+      margin-inline-end: 1em;
+    }
+  }
+
+  // ***** Footer Component ***** //
+  footer {
+    margin-block-end: var(--dmptool-brand-space2);
+    padding-block-start: var(--dmptool-brand-space2);
+    border-top: 2px solid var(--dmptool-brand-blue);
+  }
+  footer p {
+    margin: 0;
+    font-size: 0.8em;
+  }
+  footer nav {
+    margin-bottom: 10px
+  }
+  footer nav a:not(:first-child) {
+    margin-left: 15px;
+    margin-right: 5px;
+  }
+}

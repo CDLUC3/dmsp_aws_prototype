@@ -260,7 +260,7 @@ RSpec.describe 'DmpFinder' do
       prior['SK'] = "#{KeyHelper::SK_DMP_PREFIX}#{timestamp}"
       prior['modified'] = timestamp
       prior['created'] = timestamp
-      prior['dmphub_updated_at'] = timestamp
+      prior['modified'] = timestamp
       prior['dmphub_modification_day'] = timestamp.split('T').first
 
       allow(described_class).to receive(:find_dmp_versions).and_return({ status: 200, items: [json, prior] })

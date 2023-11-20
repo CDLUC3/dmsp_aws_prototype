@@ -1,0 +1,19 @@
+
+# Define reusable variables that can be referenced in template specific config files via:
+#   my_variable: !stack_attr sceptre_user_data.[variable]
+sceptre_user_data:
+  vpc_id: !stack_output_external cdl-uc3-prd-vpc-stack::vpc
+  public_subnets:
+    - !stack_output_external cdl-uc3-prd-defaultsubnet-stack::defaultsubnet2a
+    - !stack_output_external cdl-uc3-prd-defaultsubnet-stack::defaultsubnet2b
+    - !stack_output_external cdl-uc3-prd-defaultsubnet-stack::defaultsubnet2c
+  private_subnets:
+    - !stack_output_external cdl-uc3-prd-privatesubnet-stack::privatesubnet2a
+    - !stack_output_external cdl-uc3-prd-privatesubnet-stack::privatesubnet2b
+    - !stack_output_external cdl-uc3-prd-privatesubnet-stack::privatesubnet2c
+
+  hosted_zone: !ssm_parameter /uc3/dmp/hub/stg/HostedZoneId
+
+  env: 'stg'
+  domain: 'dmphub.uc3stg.cdlib.net'
+  ssm_path: '/uc3/dmp/hub/stg/'

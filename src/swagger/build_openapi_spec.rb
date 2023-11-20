@@ -4,6 +4,8 @@ require 'aws-sdk-resourcegroups'
 require 'aws-sdk-ssm'
 require 'aws-sdk-s3'
 
+require_relative '../sam/gems/uc3-dmp-id/lib/uc3-dmp-id/schemas/author.rb'
+
 DEFAULT_REGION = 'us-west-2'
 GLOBAL_REGION = 'us-east-1'
 
@@ -51,8 +53,12 @@ if ARGV.length == 2
     end
 
     # Convert the DMP Json Schema to OpenApi format
-    p 'Converting JSON schema in ../sam/layers/ruby/config/author.json to OpenApi format ...'
-    conversion_output = `yarn run json-schema-to-openapi-schema convert ../sam/layers/ruby/config/author.json`
+    p 'Loading JSON schema in ../sam/gems/uc3-dmp-id/lib/schemas/author.rb ...'
+    schema_file = File.open('./dmp_schema.json', 'w+')
+    schema_file.write(Uc3DmpId::Schemas::Author.load.to_json)
+    schema_file.close
+
+    conversion_output = `yarn run json-schema-to-openapi-schema convert ./dmp_schema.json`
     conversion_output = conversion_output.split(/\n/)[2]
     begin
       dmp_component = JSON.parse(conversion_output)
@@ -85,7 +91,9 @@ if ARGV.length == 2
       FileUtils.cp('default_index.html', "#{swagger_dir}/dist/index.html")
 
       output = File.open("#{swagger_dir}/dist/docs/v0-openapi-spec.json", 'w+')
-      output.write(openapi_spec.to_json)
+      json_out = openapi_spec.to_json
+      json_out = json_out.gsub('uc3dev', "uc3#{ARGV[0]}")
+      output.write(json_out)
       output.close
 
       # Push Swagger UI distro to S3 using CLI because SDK doesn't have 'sync'

@@ -3,11 +3,15 @@ template:
   type: 'file'
 
 parameters:
-  HostedZoneId: !ssm_parameter /uc3/dmp/hub/dev/HostedZoneId
+  # HostedZoneId: !ssm_parameter /uc3/dmp/hub/dev/HostedZoneId
+  HostedZoneId: !stack_attr sceptre_user_data.hosted_zone
 
+  Env: !stack_attr sceptre_user_data.env
   Domain: !stack_attr sceptre_user_data.domain
   RecordType: 'A'
 
   TargetName: !stack_output dev/global/cloudfront.yaml::CloudfrontDistroDomainName
   # This HostedZone is the default for ALL CloudFront Distributions
   TargetHostedZoneId: 'Z2FDTNDATAQYW2'
+
+  SetIdentifier: 'Slartibartfast'

@@ -1,0 +1,259 @@
+________________________________________________________________________________
+4/17/2023
+
+These are my rough working notes for lauching dmp-hub-cfn in cdl-uc3-prd account.
+
+All work was done from sso role uc3-prd-ops
+
+
+todo
+
+DONE - create iam role for sso role uc3-prd-ops
+DONE - create cfn service role for use by uc3-prd-ops to launch cfn stacks
+DONE - update scepter configs under dmp-hub-cfn/config/stg/
+DONE - create hosted zone uc3stg.cdlib.org
+DONE - get IAS to delegate to this HZ
+DONE - post ssm vars
+DONE - launch stacks
+
+
+
+
+SSM Vars
+--------
+ssm_path: '/uc3/dmp/hub/stg/'
+
+  HostedZoneId: !ssm_parameter /uc3/dmp/hub/stg/HostedZoneId
+  CodeStarConnectionArn: !ssm_parameter /uc3/CodeStarConnectionArn
+  AdminEmail: !ssm_parameter /uc3/dmp/hub/stg/AdminEmail
+
+agould@localhost:~/git/github/cdluc3/dmp-hub-cfn/config/stg> ssm-param-put /uc3/CodeStarConnectionArn AQICAHhUgNDinhYKoQ5ogHS0diBImbeueT7MYCH/D1dwALHOzQFBXH8i7qYkquL3zgZX23vcAAAAxTCBwgYJKoZIhvcNAQcGoIG0MIGxAgEAMIGrBgkqhkiG9w0BBwEwHgYJYIZIAWUDBAEuMBEEDKMhwHT5qDvE7et4pQIBEIB+9zIy8guEshutaCKQy93FA7WzZ1TppjjHTR4ukO7FplE+Hgov5umEBBuJuobHjd+AG839MxrOj1todzjVJc+g8pb7o3/YoMh3V3a5S/dJbopjmGhuSwLcoXoDoFn6jSDkDF/baE3rkHG+ZCzczfv8OwjuT2VLthamfgVakY+C
+
+agould@localhost:~> route53-hz-show-id uc3stg.cdlib.org | json2yaml.py
+- Id: /hostedzone/Z09062843G453TTT9OC0N
+  PrivateZone: false
+
+agould@localhost:~> ssm-param-put /uc3/dmp/hub/stg/HostedZoneId Z09062843G453TTT9OC0N
+
+agould@localhost:~> aws-profile uc3-dev-ops
+uc3-dev-ops
+
+agould@localhost:~> ssm-param-get /uc3/dmp/hub/dev/AdminEmail
+AQICAHhUgNDinhYKoQ5ogHS0diBImbeueT7MYCH/D1dwALHOzQHNJp5JbTMJTFn5xByGHsHOAAAAcjBwBgkqhkiG9w0BBwagYzBhAgEAMFwGCSqGSIb3DQEHATAeBglghkgBZQMEAS4wEQQM/jaW7KIhXZwcuRkEAgEQgC/MbUU2ba9TuW4n+4rIEuBzRpDhO3USXNma71RdA2v+Z8g5r0yw28jV0JAwrSKREQ==
+
+agould@localhost:~> aws ssm get-parameter --name /uc3/dmp/hub/dev/AdminEmail --with-decryption  --output yaml
+Parameter:
+  ARN: arn:aws:ssm:us-west-2:671846987296:parameter/uc3/dmp/hub/dev/AdminEmail
+  DataType: text
+  LastModifiedDate: '2022-08-24T08:48:54.716000-07:00'
+  Name: /uc3/dmp/hub/dev/AdminEmail
+  Type: SecureString
+  Value: brian.riley@ucop.edu
+  Version: 1
+
+agould@localhost:~> aws ssm put-parameter --name /uc3/dmp/hub/stg/AdminEmail --value brian.riley@ucop.edu --type SecureString
+
+agould@localhost:~> ssm-param-by-path /uc3/
+/uc3/CodeStarConnectionArn      AQICAHhUgNDinhYKoQ5ogHS0diBImbeueT7MYCH/D1dwALHOzQFBXH8i7qYkquL3zgZX23vcAAAAxTCBwgYJKoZIhvcNAQcGoIG0MIGxAgEAMIGrBgkqhkiG9w0BBwEwHgYJYIZIAWUDBAEuMBEEDKMhwHT5qDvE7et4pQIBEIB+9zIy8guEshutaCKQy93FA7WzZ1TppjjHTR4ukO7FplE+Hgov5umEBBuJuobHjd+AG839MxrOj1todzjVJc+g8pb7o3/YoMh3V3a5S/dJbopjmGhuSwLcoXoDoFn6jSDkDF/baE3rkHG+ZCzczfv8OwjuT2VLthamfgVakY+C
+/uc3/dmp/hub/stg/AdminEmail     AQICAHik43G7oh9P6a9E2AxSoLHTPxNAmEGH4ffx1bmeKaRdvQFlqiGRVyICqxBSVPfvGtwKAAAAcjBwBgkqhkiG9w0BBwagYzBhAgEAMFwGCSqGSIb3DQEHATAeBglghkgBZQMEAS4wEQQMFR7NCbpmA03JWZefAgEQgC/h2LwhS4U1IwMgdGaeTyEMiRXnCt6upFA9GDUrAAGLs/ANr3R7EzdBXsFkvU78nA==
+/uc3/dmp/hub/stg/HostedZoneId   Z09062843G453TTT9OC0N
+
+
+
+
+Questions
+---------
+
+1) Should waf stack enable logging to s3?
+
+
+2) hardcoded domain in cloudfront template
+
+ CloudfrontDistro:
+  ¦ Type: 'AWS::CloudFront::Distribution'
+  ¦ Properties:
+  ¦ ¦ DistributionConfig:
+  ¦ ¦ ¦ Origins:
+  ¦ ¦ ¦ ¦ - DomainName: !Sub "${S3CloudFrontBucketId}.s3.amazonaws.com"
+[cut]
+  ¦ ¦ ¦ Aliases:
+  ¦ ¦ ¦ ¦ - 'dmphub.uc3dev.cdlib.net'
+
+I ended up setting this as a var. see in errors below.
+
+
+3) Hardcoded Cognito UserpoolClient name.  will this trip us up if we have more than one instnace
+in this account (i.e. stg and prd):
+
+  UiUserPoolClient:
+  ¦ Type: 'AWS::Cognito::UserPoolClient'
+  ¦ DeletionPolicy: Retain
+  ¦ Properties:
+  ¦ ¦ ClientName: 'dmphub'
+
+
+4) Do you really need to add Transform: 'AWS::Serverless-2016-10-31' to all templates?  I
+think that is strictly a SAM thing.
+
+
+________________________________________________________________________________
+cfn errors
+
+[2023-04-18 14:39:11] - stg/global/cloudfront CloudfrontDistro AWS::CloudFront::Distribution CREATE_FAILED Resource handler returned message: "Invalid request provided: AWS::CloudFront::Distribution: The S3 bucket that you specified for CloudFront logs does not enable ACL access: uc3-dmp-hub-stg-regional-s3-s3logbucket-1rz7n252tl5vf.s3.amazonaws.com (Service: CloudFront, Status Code: 400, Request ID: cfa3fec8-a710-4795-9822-d41f00eac8da)" (RequestToken: 2ed590c9-16c6-f8d5-50a5-8fbb786b000b, HandlerErrorCode: InvalidRequest)
+
+appearantly this is the result of new S3 security defaults put in place just this month:
+https://aws.amazon.com/blogs/aws/heads-up-amazon-s3-security-changes-are-coming-in-april-of-2023/
+
+
+But CloudFront logging still requires an ACL:
+https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/AccessLogs.html
+
+  Permissions required to configure standard logging and to access your log files
+  Important
+
+  Starting in April 2023, you will need to enable S3 access control lists
+  (ACLs) for new S3 buckets being used for CloudFront standard logs.
+
+  ACL for the bucket
+
+    When you create or update a distribution and enable logging, CloudFront
+    uses these permissions to update the ACL for the bucket to give the
+    awslogsdelivery account FULL_CONTROL permission. The awslogsdelivery account
+    writes log files to the bucket. If your account doesn't have the required
+    permissions to update the ACL, creating or updating the distribution will fail.
+
+
+https://docs.aws.amazon.com/AmazonS3/latest/userguide/managing-acls.html
+  Important
+
+  If your bucket uses the bucket owner enforced setting for S3 Object Ownership,
+  you must use policies to grant access to your bucket and the objects in it.
+  Requests to set ACLs or update ACLs fail and return the
+  AccessControlListNotSupported error code. Requests to read ACLs are still
+  supported.
+
+  A majority of modern use cases in Amazon S3 no longer require the use of ACLs,
+  and we recommend that you disable ACLs except in unusual circumstances where
+  you need to control access for each object individually. With Object Ownership,
+  you can disable ACLs and rely on policies for access control. When you disable
+  ACLs, you can easily maintain a bucket with objects uploaded by different AWS
+  accounts.
+
+
+https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-ownership-new-bucket.html
+
+  S3 Object Ownership is an Amazon S3 bucket-level setting that you can use to
+  disable access control lists (ACLs) and take ownership of every object in your
+  bucket, simplifying access management for data stored in Amazon S3. We
+  recommend that you disable ACLs unless you to need to control access at the
+  individual object level.
+
+  Object Ownership has three settings that you can use to control ownership of
+  objects uploaded to your bucket and to disable or enable ACLs:
+
+  ACLs disabled
+
+      Bucket owner enforced (recommended) – ACLs are disabled, and the bucket
+      owner automatically owns and has full control over every object in the bucket.
+      ACLs no longer affect permissions to data in the S3 bucket. The bucket uses
+      policies to define access control.
+
+  ACLs enabled
+
+      Bucket owner preferred – The bucket owner owns and has full control over
+      new objects that other accounts write to the bucket with the
+      bucket-owner-full-control canned ACL.
+
+      Object writer (default) – The AWS account that uploads an object owns the
+      object, has full control over it, and can grant other users access to it
+      through ACLs.
+
+
+https://docs.aws.amazon.com/AmazonS3/latest/userguide/about-object-ownership.html
+
+  Re-enabling ACLs
+
+  You can re-enable ACLs by changing from the bucket owner enforced setting to
+  another Object Ownership setting at any time.
+
+links on s3 and cloudformation
+
+https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket.html#aws-properties-s3-bucket--examples
+
+I added the following to the s3.yaml template for the logbucket:
+
+  ¦ ¦ OwnershipControls:
+  ¦ ¦ ¦ Rules:
+  ¦ ¦ ¦ ¦ - ObjectOwnership: ObjectWriter
+
+________________________________________________________________________________
+4/19/2023
+
+new error:
+
+[2023-04-19 10:45:48] - stg/global/cloudfront CloudfrontDistro AWS::CloudFront::Distribution CREATE_FAILED Resource handler returned message: "Invalid request provided: AWS::CloudFront::Distribution: The certificate that is attached to your distribution doesn't cover the alternate domain name (CNAME) that you're trying to add. For more details, see: https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/CNAMEs.html#alternate-domain-names-requirements (Service: CloudFront, Status Code: 400, Request ID: 36f5249e-4176-412e-af63-a3df4bc104fe)" (RequestToken: b29cf191-ee81-dfb7-4755-2b529ae145f2, HandlerErrorCode: InvalidRequest)
+
+This was resolved by supplying the correct parameter for the Cloudfront::Distribution Alias attribute:
+
+diff --git a/templates/cloudfront.yaml b/templates/cloudfront.yaml
+index 4bee15c..3cbfd42 100644
+--- a/templates/cloudfront.yaml
++++ b/templates/cloudfront.yaml
+@@ -128,7 +128,7 @@ Resources:
+           Bucket: !Sub "${S3LogBucketId}.s3.amazonaws.com"
+           Prefix: 'cloudfront'
+         Aliases:
+-          - 'dmphub.uc3dev.cdlib.net'
++          - !Ref Domain
+
+________________________________________________________________________________
+
+new error:
+
+[2023-04-19 13:08:54] - stg/global/route53 RecordSet AWS::Route53::RecordSet CREATE_FAILED Invalid request: Missing field 'SetIdentifier' in Change with [Action=CREATE, Name=dmphub.uc3stg.cdlib.org., Type=A, SetIdentifier=null] (Service: AmazonRoute53; Status Code: 400; Error Code: InvalidInput; Request ID: 128f847b-1ae0-41c6-b238-cbfdc4dda6dc; Proxy: null)
+
+it Appears cloudformation for resource type route53::recordset does not
+recognized AWS::NoValue as a valide value for attribute SetIdentifier.  The
+conditional works fine, but it fails unless I provide a real string for the
+template param:
+
+
+Parameters:
+[cut]
+  SetIdentifier:
+  ¦ Type: 'String'
+  ¦ Default: ''
+
+Conditions:
+  UseSetIdentifier:
+  ¦ !Not [!Equals [!Ref SetIdentifier, '']]
+
+Resources:
+  # -----------------------------------------------------------
+  # Route53 - DNS configuration
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_Route53.html
+  # -----------------------------------------------------------
+  RecordSet:
+  ¦ Type: 'AWS::Route53::RecordSet'
+  ¦ Properties:
+  ¦ ¦ HostedZoneId: !Ref HostedZoneId
+  ¦ ¦ Name: !Ref Domain
+  ¦ ¦ Type: !Ref RecordType
+  ¦ ¦ Region: !Ref TargetRegion
+  ¦ ¦ SetIdentifier: !If
+  ¦ ¦ ¦ - UseSetIdentifier
+  ¦ ¦ ¦ - !Ref SetIdentifier
+  ¦ ¦ ¦ - !Ref AWS::NoValue
+
+________________________________________________________________________________
+
+new error:
+
+[2023-04-19 15:08:36] - stg/regional/cognito DmptoolUserPoolClient AWS::Cognito::UserPoolClient CREATE_FAILED Invalid scope requested: https://auth.dmphub.uc3stg.cdlib.org/stg.read (Service: AWSCognitoIdentityProviderService; Status Code: 400; Error Code: ScopeDoesNotExistException; Request ID: da3b3ef1-125b-4085-9024-0dc04f7b25c8; Proxy: null)
+
+adding DependsOn resource attribute:
+
+  DmptoolUserPoolClient:
+  ¦ Type: 'AWS::Cognito::UserPoolClient'
+  ¦ DeletionPolicy: Retain
+  ¦ DependsOn: UserPoolResourceServer
