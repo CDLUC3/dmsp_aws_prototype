@@ -1,5 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Transform: 'AWS::Serverless-2016-10-31'
+
+Transform: 'AWS::SecretsManager-2020-07-23'
 
 Description: 'Persistent resources for the DMPRoadmap system'
 
@@ -9,6 +10,10 @@ Parameters:
 
   Subnets:
     Type: 'List<AWS::EC2::Subnet::Id>'
+
+  Env:
+    Type: 'String'
+    Default: 'dev'
 
   DbSnapshot:
     Type: 'String'
@@ -24,18 +29,24 @@ Parameters:
 
   DbEngine:
     Type: 'String'
-    Default: 'MySQL'
+    Default: 'postgres'
 
   DbEngineVersion:
     Type: 'String'
+    Default: '15.4'
 
   DbName:
     Type: 'String'
 
-  DbUsername:
+  DbPort:
     Type: 'String'
+    Default: '5432'
 
-  DbPassword:
+  DbBackupRetentionDays:
+    Type: 'Number'
+    Default: 7
+
+  DbMasterUsername:
     Type: 'String'
 
 Conditions:
@@ -67,23 +78,27 @@ Resources:
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-security-group.html
   # -----------------------------------------------------------
   DbSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
+    Type: 'AWS::EC2::SecurityGroup'
     Properties:
-      GroupDescription: !Sub 'RDS security group for ${AWS::StackName}'
+      GroupDescription: !Sub '${AWS::StackName} RDS security group'
       GroupName: !Sub '${AWS::StackName}-rds-sec'
       VpcId: !Ref VpcId
 
-  # -----------------------------------------------------------
-  # Relational Database Service (RDS) - DB for the application
-  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_RDS.html
-  # -----------------------------------------------------------
+  # -------------------------------------------------
+  # Subnet Group
+  #  See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-rds-dbsubnetgroup.html
+  # -------------------------------------------------
   DbSubnetGroup:
-    Type: AWS::RDS::DBSubnetGroup
+    Type: 'AWS::RDS::DBSubnetGroup'
     Properties:
-      DBSubnetGroupDescription: !Sub 'Subnet group for ${AWS::StackName}'
+      DBSubnetGroupDescription: !Sub '${AWS::StackName} DB Subnet group'
       SubnetIds:
         !Ref Subnets
 
+  # -----------------------------------------------------------
+  # Relational Database Service (RDS) - DB for the Rails application
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_RDS.html
+  # -----------------------------------------------------------
   Database:
     Type: 'AWS::RDS::DBInstance'
     DeletionPolicy: Snapshot # Will create a snapshot before deleting
@@ -94,32 +109,87 @@ Resources:
       VPCSecurityGroups:
         - !Ref DbSecurityGroup
       DBSubnetGroupName: !Ref DbSubnetGroup
-
       # If an RDS Snapshot was defined, then instruct CF to restore it
       DBSnapshotIdentifier: !If
         - InitializeDb
         - !Ref DbSnapshot
         - !Ref AWS::NoValue
-
       PubliclyAccessible: false
       AllowMajorVersionUpgrade: true
       AutoMinorVersionUpgrade: true
-      BackupRetentionPeriod: 7 # days
+      BackupRetentionPeriod: !Ref DbBackupRetentionDays
       CopyTagsToSnapshot: true
       AllocatedStorage: !Ref DbSizeGb
-      Port: '3306'
+      Port: !Ref DbPort
       Engine: !Ref DbEngine
       EngineVersion: !Ref DbEngineVersion
       MonitoringInterval: '60'
       MonitoringRoleArn: !GetAtt DbMonitoringRole.Arn
       DBName: !Ref DbName
       DBInstanceClass: !Ref DbInstanceType
-      MasterUsername: !Ref DbUsername
-      MasterUserPassword: !Ref DbPassword
+      # The default rotation schedule for the RDS instance's master credentials is 7 days
+      ManageMasterUserPassword: true
+      MasterUsername: !Ref DbMasterUsername
+
+  # ----------------------------------------------------------
+  # Secrets Manager
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_SecretsManager.html
+  # ----------------------------------------------------------
+  # Rails application (Pulled into the Rails app by an initializer)
+  AppCredentials:
+    Type: 'AWS::SecretsManager::Secret'
+    Properties:
+      Name: !Sub 'dmp-hub-${Env}-rails-app'
+      Description: !Sub '${AWS::StackName} Rails application credentials'
+      GenerateSecretString:
+        ExcludeCharacters: '/@"'
+        GenerateStringKey: 'password'
+        SecretStringTemplate: !Sub >
+          {
+            "host": "${Database.Endpoint.Address}",
+            "port": "${Database.Endpoint.Port}",
+            "dbname": "${DbName}",
+            "username": "rails-app"
+          }
+
+  # AppCredentialsRotationSchedule:
+  #   Type: 'AWS::SecretsManager::RotationSchedule'
+  #   Properties:
+  #     HostedRotationLambda:
+  #       ExcludeCharacters: '/@"'
+  #       MasterSecretArn: !Ref Database.MasterUserSecret.SecretArn
+  #       RotationType: 'PostgreSQLMultiUser' #!Sub >
+          # {
+          #   "masterarn": "${Database.MasterUserSecret.SecretArn}",
+          #   "host": "${Database.Endpoint.Address}",
+          #   "port": "${Database.Endpoint.Port}",
+          #   "dbname": "${DbName}",
+          #   "username": "rails-app"
+          # }
+  #       VpcSecurityGroupIds:
+  #         - !Ref DbSecurityGroup
+  #       VpcSubnetIds:
+  #         - !Ref DbSubnetGroup
+  #     RotationRules:
+  #       ScheduleExpression: 'rate(30 days)'
+  #       Duration: '2h'
+  #     SecretId: !Ref AppCredentials
 
 Outputs:
+  DbMonitoringRoleArn:
+    Value: !Ref DbMonitoringRole
+
+  DbSecurityGroupId:
+    Value: !GetAtt DbSecurityGroup.GroupId
+
+  DbSubnetName:
+    Value: !Ref DbSubnetGroup
+
   DbInstanceName:
     Value: !Ref Database
+
+  DbInstanceArn:
+    Value: !GetAtt Database.DBInstanceArn
 
   DbAddress:
     Value: !GetAtt Database.Endpoint.Address
@@ -130,5 +200,14 @@ Outputs:
   DbName:
     Value: !Ref DbName
 
-  DbSecurityGroupId:
-    Value: !GetAtt DbSecurityGroup.GroupId
+  DbaCredentialsArn:
+    Value: !GetAtt Database.MasterUserSecret.SecretArn
+
+  AppCredentialsArn:
+    Value: !Ref AppCredentials
+
+  AppCredentialsId:
+    Value: !GetAtt AppCredentials.Id
+
+  # AppCredentialsRotationScheduleArn:
+  #   Value: !Ref AppCredentialsRotationSchedule

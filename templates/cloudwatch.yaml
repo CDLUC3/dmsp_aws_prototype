@@ -1,0 +1,25 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+
+Description: 'CloudWatch LogGroups that are shared so we need to create in a separate template'
+
+Parameters:
+  LogRetentionDays:
+    Type: 'String'
+
+Resources:
+  # ----------------------------------------------------
+  # CloudWatch LogGroup
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_Logs.html
+  # ----------------------------------------------------
+  CodePipelineLogGroup:
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      RetentionInDays: !Ref LogRetentionDays
+
+Outputs:
+  CodePipelineLogGroupArn:
+    Value: !GetAtt CodePipelineLogGroup.Arn
+
+  CodePipelineLogGroupName:
+    Value: !Ref CodePipelineLogGroup

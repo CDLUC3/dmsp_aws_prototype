@@ -1,0 +1,124 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: 'Code build and pipeline for the a Pipeline to watch a DMP system codebase'
+
+Parameters:
+  CodeStarConnectionArn:
+    Type: 'String'
+
+  S3ArtifactBucketId:
+    Type: 'String'
+
+  CodeBuildProjectName:
+    Type: 'String'
+
+  RepositoryName:
+    Type: 'String'
+
+  BranchToMonitor:
+    Type: 'String'
+    Default: 'main'
+
+  SourceOutputArtifactFormat:
+    Type: 'String'
+    Default: 'CODEBUILD_CLONE_REF'
+
+Resources:
+  # -----------------------------------------------------------
+  # Identitity and Access Management (IAM)
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_IAM.html
+  # -----------------------------------------------------------
+  CodePipelineRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service:
+                - 'codepipeline.amazonaws.com'
+            Action:
+              - 'sts:AssumeRole'
+      Policies:
+        - PolicyName: !Sub '${AWS::StackName}-pipeline-policy'
+          PolicyDocument: !Sub >
+            {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": ["codestar-connections:UseConnection"],
+                  "Resource": "${CodeStarConnectionArn}"
+                }
+              ]
+            }
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AWSCodePipeline_FullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonS3FullAccess'
+        - 'arn:aws:iam::aws:policy/AWSCodeBuildDeveloperAccess'
+        - 'arn:aws:iam::aws:policy/AmazonECS_FullAccess'
+        - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
+
+  # -----------------------------------------------------------
+  # CodePipeline
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-codepipeline-pipeline.html
+  # -----------------------------------------------------------
+  CodePipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      ArtifactStore:
+        Location: !Ref S3ArtifactBucketId
+        # CloudFormation only supports S3 at the moment!
+        Type: 'S3'
+      RestartExecutionOnUpdate: true
+      RoleArn: !GetAtt CodePipelineRole.Arn
+      Stages:
+        - Name: 'MonitorRepos'
+          Actions:
+            - Name: 'GitHub'
+              RunOrder: 1
+              ActionTypeId:
+                Category: 'Source'
+                Owner: 'AWS'
+                Provider: 'CodeStarSourceConnection'
+                Version: '1'
+              # See: https://docs.aws.amazon.com/codepipeline/latest/userguide/action-reference-CodestarConnectionSource.html
+              # for info on tying CodeBuild in
+              Configuration:
+                ConnectionArn: !Ref CodeStarConnectionArn
+                FullRepositoryId: !Ref RepositoryName
+                BranchName: !Ref BranchToMonitor
+                OutputArtifactFormat: !Ref SourceOutputArtifactFormat
+              OutputArtifacts:
+                - Name: 'github_commit'
+
+        - Name: 'BuildPublish'
+          Actions:
+            - Name: 'Build'
+              RunOrder: 2
+              ActionTypeId:
+                Category: 'Build'
+                Owner: 'AWS'
+                Provider: 'CodeBuild'
+                Version: '1'
+              Configuration:
+                ProjectName: !Ref CodeBuildProjectName
+                PrimarySource: !Sub 'github_commit'
+              InputArtifacts:
+                - Name: 'github_commit'
+              OutputArtifacts:
+                - Name: 'docker_img'
+
+        # No need for a CodeDeploy here. Fargate will automatically pick up the new ECR image added to S3
+        # during the CodeBuild step
+
+Outputs:
+  CodePipelineRoleArn:
+    Value: !GetAtt CodePipelineRole.Arn
+
+  CodePipelineId:
+    Value: !Ref CodePipeline
+
+  CodePipelineVersion:
+    Value: !GetAtt CodePipeline.Version

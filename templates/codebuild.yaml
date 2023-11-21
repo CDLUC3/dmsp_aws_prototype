@@ -1,0 +1,230 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: 'CodeBuild for the Rails application'
+
+Parameters:
+  VpcId:
+    Type: 'AWS::EC2::VPC::Id'
+
+  Subnets:
+    Type: 'List<AWS::EC2::Subnet::Id>'
+
+  Env:
+    Type: 'String'
+    Default: 'dev'
+
+  SsmPath:
+    Type: 'String'
+
+  CodeStarConnectionArn:
+    Type: 'String'
+
+  CodePipelineLogGroupArn:
+    Type: 'String'
+
+  CodePipelineLogGroupName:
+    Type: 'String'
+
+  EcrRepositoryUri:
+    Type: 'String'
+
+  EcrRepositoryName:
+    Type: 'String'
+
+  S3ArtifactBucketId:
+    Type: 'String'
+
+  CodeBuildEnvironmentType:
+    Type: 'String'
+    Default: 'LINUX_CONTAINER'
+
+  CodeBuildEnvironmentComputeType:
+    Type: 'String'
+    Default: 'BUILD_GENERAL1_SMALL'
+
+  CodeBuildEnvironmentImage:
+    Type: 'String'
+    Default: 'aws/codebuild/amazonlinux2-x86_64-standard:5.0'
+
+  CodeBuildArtifactType:
+    Type: 'String'
+    Default: 'CODEPIPELINE'
+
+  CodeBuildTimeout:
+    Type: 'Number'
+    Default: 15 # minutes
+
+  ProgramTag:
+    Type: 'String'
+
+  ServiceTag:
+    Type: 'String'
+
+  SubserviceTag:
+    Type: 'String'
+
+  CodeRepoTag:
+    Type: 'String'
+
+  ContactTag:
+    Type: 'String'
+
+Resources:
+  # -----------------------------------------------------------
+  # Identitity and Access Management (IAM)
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_IAM.html
+  # -----------------------------------------------------------
+  CodeBuildRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service: 'codebuild.amazonaws.com'
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AmazonS3FullAccess'
+        - 'arn:aws:iam::aws:policy/EC2InstanceProfileForImageBuilderECRContainerBuilds'
+      Policies:
+        - PolicyName: !Sub '${AWS::StackName}-build-policy'
+          PolicyDocument: !Sub >
+            {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "logs:CreateLogGroup",
+                    "logs:CreateLogStream",
+                    "logs:PutLogEvents",
+                    "logs:AssociateKmsKey"
+                  ],
+                  "Resource": [
+                    "${CodePipelineLogGroupArn}"
+                  ]
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "cloudwatch:PutMetricData"
+                  ],
+                  "Resource": [
+                    "*"
+                  ]
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "logs:*",
+                    "ec2:CreateNetworkInterface",
+                    "ec2:DescribeNetworkInterfaces",
+                    "ec2:DeleteNetworkInterface",
+                    "ec2:DescribeSubnets",
+                    "ec2:DescribeSecurityGroups",
+                    "ec2:DescribeDhcpOptions",
+                    "ec2:DescribeVpcs",
+                    "ec2:CreateNetworkInterfacePermission"
+                  ],
+                  "Resource": [
+                    "*"
+                  ]
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": ["codestar-connections:UseConnection"],
+                  "Resource": "${CodeStarConnectionArn}"
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": ["ssm:GetParameters"],
+                  "Resource": ["*"]
+                }
+              ]
+            }
+
+  # -----------------------------------------------------------
+  # CodeBuild Sec Group
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-ec2-securitygroup.html
+  # -----------------------------------------------------------
+  CodeBuildSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupName: !Sub '${AWS::StackName}-build-sec'
+      GroupDescription: !Sub '${AWS::StackName} CodeBuild SecurityGroup'
+      VpcId: !Ref VpcId
+      Tags:
+        # This tag is required so that the SecurityGroup does not trigger alerts after the
+        # CodeBuild process finishes and deprovisions the EC2 instance.
+        #
+        # This also means that we needed to pass in each tag individually
+        - Key: 'ConfigExclude'
+          Value: 'Security-group-attached-to-ENI'
+        - Key: 'Program'
+          Value: !Ref ProgramTag
+        - Key: 'Service'
+          Value: !Ref ServiceTag
+        - Key: 'Subservice'
+          Value: !Ref SubserviceTag
+        - Key: 'Environment'
+          Value: !Ref Env
+        - Key: 'CodeRepo'
+          Value: !Ref CodeRepoTag
+        - Key: 'Contact'
+          Value: !Ref ContactTag
+
+  # -----------------------------------------------------------
+  # CodeBuild
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_CodeBuild.html
+  # -----------------------------------------------------------
+  CodeBuildProject:
+    Type: 'AWS::CodeBuild::Project'
+    Properties:
+      ServiceRole: !GetAtt CodeBuildRole.Arn
+      Artifacts:
+        Type: !Ref CodeBuildArtifactType
+      LogsConfig:
+        CloudWatchLogs:
+          GroupName: !Ref CodePipelineLogGroupName
+          Status: 'ENABLED'
+          StreamName: 'codebuild'
+      Environment:
+        Type: !Ref CodeBuildEnvironmentType
+        ComputeType: !Ref CodeBuildEnvironmentComputeType
+        Image: !Ref CodeBuildEnvironmentImage
+        # This is required in order for the Docker daemon to work!
+        PrivilegedMode: true
+        EnvironmentVariables:
+          - Name: 'ECR_REPOSITORY_URI'
+            Value: !Ref EcrRepositoryUri
+          - Name: 'ECR_REPOSITORY_NAME'
+            Value: !Ref EcrRepositoryName
+          - Name: 'CREDENTIALS_ENC'
+            Type: 'PARAMETER_STORE'
+            Value: !Sub "${SsmPath}RailsCredentials"
+      Source:
+        Type: !Ref CodeBuildArtifactType
+      TimeoutInMinutes: 15
+      VpcConfig:
+        VpcId: !Ref VpcId
+        Subnets: !Ref Subnets
+        SecurityGroupIds:
+          - !Ref CodeBuildSecurityGroup
+      Cache:
+        Type: 'S3'
+        Location: !Sub '${S3ArtifactBucketId}/rails/build-cache'
+
+Outputs:
+  CodeBuildRoleArn:
+    Value: !GetAtt CodeBuildRole.Arn
+
+  CodebuildSecurityGroupId:
+    Value: !Ref CodeBuildSecurityGroup
+
+  CodeBuildProjectId:
+    Value: !Ref CodeBuildProject
+
+  CodeBuildProjectArn:
+    Value: !GetAtt CodeBuildProject.Arn

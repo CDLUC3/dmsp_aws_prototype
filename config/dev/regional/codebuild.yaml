@@ -1,0 +1,36 @@
+template:
+  path: 'codebuild.yaml'
+  type: 'file'
+
+parameters:
+  VpcId: !stack_attr sceptre_user_data.vpc_id
+  Subnets: !stack_attr sceptre_user_data.public_subnets
+
+  Env: !stack_attr sceptre_user_data.env
+
+  SsmPath: !stack_attr sceptre_user_data.ssm_path
+
+  CodeStarConnectionArn: !ssm_parameter /uc3/CodeStarConnectionArn
+
+  EcrRepositoryUri: !stack_output dev/regional/ecr.yaml::EcrRepositoryUri
+  EcrRepositoryName: !stack_output dev/regional/ecr.yaml::EcrRepositoryName
+
+  S3ArtifactBucketId: !stack_output dev/regional/s3.yaml::S3PrivateBucketId
+
+  CodePipelineLogGroupArn: !stack_output dev/regional/cloudwatch.yaml::CodePipelineLogGroupArn
+  CodePipelineLogGroupName: !stack_output dev/regional/cloudwatch.yaml::CodePipelineLogGroupName
+
+  # We need to set a special tag for the CodeBuild SecGroup so that it does not trigger IAS security warnings
+  # doing so though means that Sceptre will not auto-add the tags like it does for the other Resources, so
+  # we need to pass them in here as params
+  ProgramTag: !stack_attr stack_tags.Program
+  ServiceTag: !stack_attr stack_tags.Service
+  SubserviceTag: !stack_attr stack_tags.Subservice
+  CodeRepoTag: !stack_attr stack_tags.CodeRepo
+  ContactTag: !stack_attr stack_tags.Contact
+
+  CodeBuildEnvironmentType: 'LINUX_CONTAINER'
+  CodeBuildEnvironmentComputeType: 'BUILD_GENERAL1_SMALL'
+  CodeBuildEnvironmentImage: 'aws/codebuild/amazonlinux2-x86_64-standard:5.0'
+  CodeBuildArtifactType: 'CODEPIPELINE'
+  CodeBuildTimeout: '15'
