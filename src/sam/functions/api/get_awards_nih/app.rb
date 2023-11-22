@@ -195,15 +195,15 @@ module Functions
         response_body['results'].map do |result|
           next if result['project_title'].nil? || result['appl_id'].nil? || result['principal_investigators'].nil?
 
-          contact_pi = result['principal_investigators'].select { |pi| pi['is_contact_pi'] }.first
-          other_pis = result['principal_investigators'].reject { |pi| pi['is_contact_pi'] }
+          contact_pi = result.fetch('principal_investigators', []).select { |pi| pi['is_contact_pi'] }&.first
+          other_pis = result.fetch('principal_investigators', []).reject { |pi| pi['is_contact_pi'] }
 
           {
             project: {
               title: result['project_title'],
               description: result['abstract_text'],
-              start: result.fetch('project_start_date', '').split('T').first,
-              end: result.fetch('project_end_date', '').split('T').first,
+              start: result.fetch('project_start_date', '')&.split('T')&.first,
+              end: result.fetch('project_end_date', '')&.split('T')&.first,
               funding: [
                 dmproadmap_opportunity_number: result['full_foa'],
                 dmproadmap_award_amount: result['award_amount'],
