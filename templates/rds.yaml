@@ -142,7 +142,7 @@ Resources:
       Name: !Sub 'dmp-hub-${Env}-rails-app'
       Description: !Sub '${AWS::StackName} Rails application credentials'
       GenerateSecretString:
-        ExcludeCharacters: '/@"'
+        ExcludeCharacters: '/@\`|:;"'
         GenerateStringKey: 'password'
         SecretStringTemplate: !Sub >
           {

@@ -34,78 +34,7 @@ Parameters:
     Type: 'String'
 
 Resources:
-  # -----------------------------------------------------------
-  # Identitity and Access Management (IAM)
-  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_IAM.html
-  # -----------------------------------------------------------
-  IamPipelineRole:
-    Type: 'AWS::IAM::Role'
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: 'Allow'
-            Principal:
-              Service:
-                - 'codepipeline.amazonaws.com'
-            Action:
-              - 'sts:AssumeRole'
-      Policies:
-        - PolicyName: !Sub '${AWS::StackName}-pipline-policy'
-          PolicyDocument: !Sub >
-            {
-              "Version": "2012-10-17",
-              "Statement": [
-                {
-                  "Effect": "Allow",
-                  "Action": ["codestar-connections:UseConnection"],
-                  "Resource": "${CodeStarConnectionArn}"
-                }
-              ]
-            }
-      ManagedPolicyArns:
-        - 'arn:aws:iam::aws:policy/AWSCodePipeline_FullAccess'
-        - 'arn:aws:iam::aws:policy/AmazonS3FullAccess'
-        - 'arn:aws:iam::aws:policy/AWSCodeBuildDeveloperAccess'
-        - 'arn:aws:iam::aws:policy/AmazonECS_FullAccess'
-        - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
 
-  # ----------------------------------------------------
-  # CloudWatch LogGroup
-  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_Logs.html
-  # ----------------------------------------------------
-  PipelineLogGroup:
-    Type: 'AWS::Logs::LogGroup'
-    Properties:
-      RetentionInDays: !Ref LogRetentionDays
-
-  # -----------------------------------------------------------
-  # CodeBuild
-  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_CodeBuild.html
-  # -----------------------------------------------------------
-  CodeBuildSecurityGroup:
-    Type: 'AWS::EC2::SecurityGroup'
-    Properties:
-      GroupName: !Sub '${AWS::StackName}-build-sec'
-      GroupDescription: !Sub '${AWS::StackName} CodeBuild SecurityGroup'
-      VpcId: !Ref VpcId
-      Tags:
-        # This tag is required so that the SecurityGroup does not trigger alerts after the
-        # CodeBuild process finishes and deprovisions the EC2 instance.
-        - Key: 'ConfigExclude'
-          Value: 'Security-group-attached-to-ENI'
-        - Key: 'Program'
-          Value: !Ref ProgramTag
-        - Key: 'Service'
-          Value: !Ref ServiceTag
-        - Key: 'Subservice'
-          Value: !Ref SubserviceTag
-        - Key: 'Environment'
-          Value: !Ref Env
-        - Key: 'CodeRepo'
-          Value: !Ref CodeRepoTag
-        - Key: 'Contact'
-          Value: !Ref ContactTag
 
 Outputs:
   IamPipelineRoleArn:
