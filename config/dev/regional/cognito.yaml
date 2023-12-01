@@ -24,6 +24,12 @@ parameters:
 
   DmptoolCallbackUri: 'https://dmptool-dev.cdlib.org/callback'
 
+  DmspUiCallbackUrls:
+    - 'https://dmphub.uc3dev.cdlib.net/authenticate/'
+
+  DmspLogoutUrls:
+    - 'https://dmphub.uc3dev.cdlib.net/logout'
+
   OnlyAllowAdminsToCreateUsers: 'false'
   UnusedAccountValidityDays: '14'
   MinimumPasswordLength: '8'
