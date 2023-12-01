@@ -1,11 +1,15 @@
 import { inDevMode } from "./utils";
 
 export class DmpApi {
+
+  getApiHostName() {
+    return inDevMode() ? 'api.dmphub.uc3dev.cdlib.net' : `api.${window.location.hostname}`;
+  }
+
   getUrl() {
-    let apiHost = inDevMode() ? 'api.dmphub.uc3dev.cdlib.net' : `api.${window.location.hostname}`;
     let version = window.location.search !== undefined ? window.location.search : '';
     version = version.replace('?', '%3F').replace('=', '%3D')
-    return `https://${apiHost}${window.location.pathname}${version}`;
+    return `https://${this.getApiHostName()}${window.location.pathname}${version}`;
   }
 
   getHeaders(extra_headers) {

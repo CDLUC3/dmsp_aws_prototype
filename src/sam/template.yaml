@@ -279,7 +279,7 @@ Resources:
       # Lambdas do not! For example, "'GET,PUT'" defined here should be "GET, PUT" when passed
       # into the Lambdas as an ENV!
       Cors:
-        AllowHeaders: !Sub "'Accept, Authorization, Content-Type, Origin, Referer, User-Agent'"
+        AllowHeaders: !Sub "'Accept, Accept-Encoding, Accept-Language, Authorization, Cache-Control, Connection, Content-Type, Host, Origin, Referer, Sec-Fetch-Dest, Sec-Fetch-Mode, Sec-Fetch-Site, User-Agent'"
         AllowMethods: "'GET, PUT, POST, DELETE, OPTIONS'"
         AllowOrigin: !If
         - IsDev
@@ -343,11 +343,63 @@ Resources:
         # Bucket: !Ref S3PrivateBucketId
         # Key: !Sub 'lambdas/uc3-dmp-hub-${Env}-sam-resources-lambda-layer.zip'
       CompatibleRuntimes:
+        - 'ruby2.7'
         - 'ruby3.2'
       RetentionPolicy: 'Delete'
     Metadata:
       BuildMethod: 'makefile'
       BuildArchitecture: 'x86_64'
+
+  # ----------------------------------------------------
+  # API Lambdas
+  #  See: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-property-function-api.html
+  # ----------------------------------------------------
+  OAuthCallbackFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      CodeUri: 'functions/oauth_callback/'
+      Handler: 'app.Functions::OauthCallback.process'
+      Runtime: 'ruby3.2'
+      Timeout: 15
+      Architectures:
+        - 'x86_64'
+      Layers:
+        - !Ref LambdaLayer
+      Policies:
+        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSQSFullAccess'
+      DeadLetterQueue:
+        Type: 'SQS'
+        TargetArn: !Ref DeadLetterQueueArn
+      Environment:
+        Variables:
+          LAMBDA_ENV: !Ref Env
+          LOG_LEVEL: 'debug'
+          AUTH_ENDPOINT: !Sub 'https://auth.${DomainName}/oauth2/token'
+          CALLBACK_ENDPOINT: !Sub 'https://${DomainName}/authenticate/'
+          SSM_PATH: !Sub '/uc3/dmp/hub/${Env}/'
+          CORS_ORIGIN: !If
+            - IsDev
+            - "*"
+            - !Sub "https://${DomainName}"
+      Events:
+        OAuthCallbackEvent:
+          # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Type: 'Api'
+          Properties:
+            RestApiId: !Ref DmpHubRestApi
+            Path: '/oauth_callback'
+            Method: 'get'
+            Auth:
+              Authorizer: 'NONE'
+
+  OauthCallbackLogGroup:
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${OAuthCallbackFunction}"
+      # Explicit retention time
+      RetentionInDays: !Ref LogRetentionDays
 
   # ----------------------------------------------------
   # API Lambdas
@@ -1332,7 +1384,7 @@ Resources:
             RetryPolicy:
               MaximumEventAgeInSeconds: 180
               MaximumRetryAttempts: 3
-            State: 'ENABLED'  # 'DISABLED'
+            State: 'ENABLED'
 
   AugmentationSchedulerPermission:
     Type: 'AWS::Lambda::Permission'
@@ -1352,22 +1404,22 @@ Resources:
 
   # Scheduled events
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-events-rule.html#cfn-events-rule-scheduleexpression
-  AugmentationSchedulerDaily:
-    Type: 'AWS::Events::Rule'
-    Properties:
-      # AWS CRON expressions have some nuances: https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-cron-expressions.html
-      ScheduleExpression: 'cron(0 0 ? * * *)' # Every night at midnight
-      Targets:
-        - Id: !Ref AugmentationSchedulerFunction
-          Arn: !GetAtt AugmentationSchedulerFunction.Arn
+  # AugmentationSchedulerDaily:
+  #   Type: 'AWS::Events::Rule'
+  #   Properties:
+  #     # AWS CRON expressions have some nuances: https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-cron-expressions.html
+  #     ScheduleExpression: 'cron(0 0 ? * * *)' # Every night at midnight
+  #     Targets:
+  #       - Id: !Ref AugmentationSchedulerFunction
+  #         Arn: !GetAtt AugmentationSchedulerFunction.Arn
 
-  AugmentationSchedulerDailyPermission:
-    Type: 'AWS::Lambda::Permission'
-    Properties:
-      FunctionName: !GetAtt AugmentationSchedulerFunction.Arn
-      Action: 'lambda:InvokeFunction'
-      Principal: 'events.amazonaws.com'
-      SourceArn: !GetAtt AugmentationSchedulerDaily.Arn
+  # AugmentationSchedulerDailyPermission:
+  #   Type: 'AWS::Lambda::Permission'
+  #   Properties:
+  #     FunctionName: !GetAtt AugmentationSchedulerFunction.Arn
+  #     Action: 'lambda:InvokeFunction'
+  #     Principal: 'events.amazonaws.com'
+  #     SourceArn: !GetAtt AugmentationSchedulerDaily.Arn
 
   # Scheduled events to keep some of the API lambdas warm
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-events-rule.html#cfn-events-rule-scheduleexpression
