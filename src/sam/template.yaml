@@ -410,6 +410,7 @@ Resources:
       # Explicit retention time
       RetentionInDays: !Ref LogRetentionDays
 
+  # Tombstone a DMP
   DeleteDmpFunction:
     Type: 'AWS::Serverless::Function'
     Properties:
