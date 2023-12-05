@@ -15,3 +15,5 @@ build-LambdaLayer:
 	mkdir -p "$(ARTIFACTS_DIR)/ruby/gems"
 	cp -rf "$(ARTIFACTS_DIR)/ruby/$(TARGET_RUBY_GEM_DIR)/gems" "$(ARTIFACTS_DIR)/ruby/gems/$(TARGET_RUBY_GEM_DIR)"
 	rm -rf "$(ARTIFACTS_DIR)/ruby/$(TARGET_RUBY_GEM_DIR)"
+
+	echo "    Layer build complete"

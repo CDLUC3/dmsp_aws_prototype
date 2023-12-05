@@ -13,6 +13,7 @@ group :test do
   gem "aws-sdk-s3"
   gem "aws-sdk-sns"
   gem "aws-sdk-ssm"
+  gem "opensearch-ruby"
 
   gem "uc3-dmp-api-core"
   gem "uc3-dmp-citation"

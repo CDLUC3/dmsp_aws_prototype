@@ -6,6 +6,9 @@
 my_gem_path = Dir['/opt/ruby/gems/**/lib/']
 $LOAD_PATH.unshift(*my_gem_path)
 
+puts "GEMS:"
+puts my_gem_path
+
 require 'uc3-dmp-api-core'
 require 'uc3-dmp-cloudwatch'
 require 'uc3-dmp-id'
