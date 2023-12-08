@@ -70,6 +70,9 @@ GEM
     multi_json (1.15.0)
     multi_xml (0.6.0)
     namae (1.1.1)
+    opensearch-aws-sigv4 (1.2.1)
+      aws-sigv4 (>= 1)
+      opensearch-ruby (>= 1.0.1)
     opensearch-ruby (3.0.1)
       faraday (>= 1.0, < 3)
       multi_json (>= 1.0)
@@ -177,6 +180,7 @@ DEPENDENCIES
   digest
   httparty
   json-schema
+  opensearch-aws-sigv4
   opensearch-ruby
   rspec
   rubocop

@@ -1,0 +1,197 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Transform: 'AWS::SecretsManager-2020-07-23'
+
+Description: 'OpenSearch related resources'
+
+Parameters:
+  Env:
+    Type: 'String'
+    Default: 'dev'
+
+  SsmPath:
+    Type: 'String'
+
+  OSLogsDomainId:
+    Type: 'String'
+
+  OSLogsDomainEndpoint:
+    Type: 'String'
+
+  CognitoUserPoolId:
+    Type: 'String'
+
+  CognitoIdentityPoolId:
+    Type: 'String'
+
+  CognitoOpenSearchRoleArn:
+    Type: 'String'
+
+  LogRetentionDays:
+    Type: 'Number'
+    Default: 14
+
+Resources:
+  # ----------------------------------------------
+  # SSM Parameter Store
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-ssm-parameter.html
+  # ----------------------------------------------
+  OSLogsDomainIdParameter:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: !Sub "${AWS::StackName} OpenSearch Domain Id"
+      Name: !Sub "${SsmPath}OSLogsDomainId"
+      Type: 'String'
+      Value: !Sub "https://${OSLogsDomainId}"
+
+  OSLogsDomainEndpointParameter:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: !Sub "${AWS::StackName} OpenSearch Domain URL"
+      Name: !Sub "${SsmPath}OSLogsDomainEndpoint"
+      Type: 'String'
+      Value: !Sub "https://${OSLogsDomainEndpoint}"
+
+  # --------------------------------------------------------
+  # CloudWatch LogGroups
+  #   See:
+  # --------------------------------------------------------
+  OpenSearchLogGroup:
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      LogGroupName: !Sub "${AWS::StackName}-opensearch-app"
+      RetentionInDays: !Ref LogRetentionDays
+
+  # --------------------------------------------------------
+  # IAM Policies
+  #   See:
+  # --------------------------------------------------------
+  OpenSearchLogPolicy:
+    Type: 'AWS::Logs::ResourcePolicy'
+    Properties:
+      PolicyName: !Sub 'DmpHub${Env}OSAppLog'
+      PolicyDocument: !Sub '{"Version": "2012-10-17","Statement": {"Effect": "Allow", "Principal": { "Service": "es.amazonaws.com" }, "Action": ["logs:PutLogEvents", "logs:CreateLogStream"], "Resource": ["${OpenSearchLogGroup.Arn}"]}}'
+
+  # --------------------------------------------------------
+  # OpenSearch Domain for DMP search functionality
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-opensearchservice-domain.html
+  # --------------------------------------------------------
+  OpenSearchDomain:
+    Type: 'AWS::OpenSearchService::Domain'
+    Properties:
+      ClusterConfig:
+        DedicatedMasterEnabled: false
+        InstanceCount: 3
+        InstanceType: 't3.small.search'
+        MultiAZWithStandbyEnabled: false
+        ZoneAwarenessEnabled: true
+        ZoneAwarenessConfig:
+          AvailabilityZoneCount: 3
+      CognitoOptions:
+        Enabled: true
+        IdentityPoolId: !Ref CognitoIdentityPoolId
+        RoleArn: !Ref CognitoOpenSearchRoleArn
+        UserPoolId: !Ref CognitoUserPoolId
+      DomainEndpointOptions:
+        EnforceHTTPS: true
+      EBSOptions:
+        EBSEnabled: true
+        VolumeSize: 10
+        VolumeType: 'gp2'
+      EncryptionAtRestOptions:
+        Enabled: true
+      EngineVersion: 'OpenSearch_2.7'
+      LogPublishingOptions:
+        'ES_APPLICATION_LOGS':
+          Enabled: true
+          CloudWatchLogsLogGroupArn: !GetAtt OpenSearchLogGroup.Arn
+      NodeToNodeEncryptionOptions:
+        Enabled: true
+      SoftwareUpdateOptions:
+        AutoSoftwareUpdateEnabled: true
+
+  # Role given to authorized users so they can access OpenSearch
+  CognitoAuthorizedOpenSearchRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Federated: 'cognito-identity.amazonaws.com'
+            Action:
+              - 'sts:AssumeRoleWithWebIdentity'
+            Condition:
+              StringEquals:
+                'cognito-identity.amazonaws.com:aud': !Ref CognitoIdentityPoolId
+              ForAnyValue:StringLike:
+                'cognito-identity.amazonaws.com:amr': 'authenticated'
+      Policies:
+        - PolicyName: !Sub '${AWS::StackName}-Cognito-OpenSearch-Access'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              Effect: 'Allow'
+              Action:
+                - 'es:*'
+              Resource:
+                - !GetAtt OpenSearchDomain.Arn
+                - !Sub '${OpenSearchDomain.Arn}/*'
+
+  CognitoLambdaOpenSearchRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Action: 'sts:AssumeRole'
+            Principal:
+              Service: 'lambda.amazonaws.com'
+      Policies:
+        - PolicyName: !Sub '${AWS::StackName}-Cognito-OpenSearch-Access'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              Effect: 'Allow'
+              Action:
+                - 'es:ESHttp*'
+              Resource:
+                - !GetAtt OpenSearchDomain.Arn
+                - !Sub '${OpenSearchDomain.Arn}/*'
+
+  CognitoIdentityPoolRoleMapping:
+    Type: 'AWS::Cognito::IdentityPoolRoleAttachment'
+    Properties:
+      IdentityPoolId: !Ref CognitoIdentityPoolId
+      Roles:
+        authenticated: !GetAtt CognitoAuthorizedOpenSearchRole.Arn
+        unauthenticated: !GetAtt CognitoAuthorizedOpenSearchRole.Arn
+
+Outputs:
+  OpenSearchDomainId:
+    Value: !Ref OpenSearchDomain
+
+  OpenSearchDomainArn:
+    Value: !GetAtt OpenSearchDomain.Arn
+    Export:
+      Name: !Sub '${Env}-OpenSearchDomainArn'
+
+  OpenSearchDomainEndpoint:
+    Value: !GetAtt OpenSearchDomain.DomainEndpoint
+    Export:
+      Name: !Sub '${Env}-OpenSearchDomainEndpoint'
+
+  OpenSearchApplicationLogGroupArn:
+    Value: !GetAtt OpenSearchLogGroup.Arn
+
+  CognitoAuthorizedOpenSearchRoleArn:
+    Value: !GetAtt CognitoAuthorizedOpenSearchRole.Arn
+    Export:
+      Name: !Sub '${Env}-CognitoAuthorizedOpenSearchRoleArn'
+
+  CognitoLambdaOpenSearchRoleArn:
+    Value: !GetAtt CognitoLambdaOpenSearchRole.Arn
+    Export:
+      Name: !Sub '${Env}-CognitoLambdaOpenSearchRoleArn'

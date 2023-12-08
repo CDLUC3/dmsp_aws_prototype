@@ -23,6 +23,9 @@ Parameters:
     Type: 'String'
     Default: 'dev'
 
+  SsmPath:
+    Type: 'String'
+
   DebugLevel:
     Type: 'String'
     Default: 'error'
@@ -49,7 +52,13 @@ Parameters:
   DynamoTableStreamArn:
     Type: 'String'
 
-  OpenSearchDomain:
+  OpenSearchDomainArn:
+    Type: 'String'
+
+  OpenSearchDomainEndpoint:
+    Type: 'String'
+
+  CognitoLambdaOpenSearchRoleArn:
     Type: 'String'
 
   # ResourcesDynamoTableArn:
@@ -103,7 +112,7 @@ Resources:
     Type: 'AWS::IAM::ManagedPolicy'
     Properties:
       Description: 'DMPHub - Read access to the DynamoDB Table'
-      ManagedPolicyName: 'DmpHubDynamoReadPolicy'
+      ManagedPolicyName: !Sub 'DmpHub${Env}DynamoReadPolicy'
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -124,7 +133,7 @@ Resources:
     Type: 'AWS::IAM::ManagedPolicy'
     Properties:
       Description: 'DMPHub - Write access (and GetItem) to the DynamoDB Table'
-      ManagedPolicyName: 'DmpHubDynamoWritePolicy'
+      ManagedPolicyName: !Sub 'DmpHub${Env}DynamoWritePolicy'
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -173,7 +182,8 @@ Resources:
           Effect: 'Allow'
           Action: 'sts:AssumeRole'
           Principal:
-            Service: 'lambda.amazonaws.com'
+            AWS: '*'
+            # Service: 'lambda.amazonaws.com'
       ManagedPolicyArns:
         - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
         - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
@@ -191,15 +201,24 @@ Resources:
                 - 'dynamodb:GetShardIterator'
                 - 'dynamodb:ListStreams'
               Resource: !Sub '${DynamoTableArn}/stream/*'
-        - PolicyName: !Sub '${AWS::StackName}-LambdaWriteOpenSearch'
+        # - PolicyName: !Sub '${AWS::StackName}-LambdaAssumeOpenSearch'
+        #   PolicyDocument:
+        #     Version: '2012-10-17'
+        #     Statement:
+        #       Effect: 'Allow'
+        #       Action:
+        #         - 'sts:AssumeRole'
+        #       Resource: !Ref CognitoLambdaOpenSearchRoleArn
+        - PolicyName: !Sub '${AWS::StackName}-Cognito-OpenSearch-Access'
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
               Effect: 'Allow'
               Action:
-                - 'es:ESHttpPost'
-                - 'es:ESHttpPut'
-              Resource: '*'
+                - 'es:ESHttp*'
+              Resource:
+                - !Ref OpenSearchDomainArn
+                - !Sub '${OpenSearchDomainArn}/*'
 
   EventBusPolicy:
     Type: 'AWS::IAM::ManagedPolicy'
@@ -218,7 +237,7 @@ Resources:
     Type: 'AWS::IAM::ManagedPolicy'
     Properties:
       Description: 'DMPHub - Access to the Cognito User Pool Client'
-      ManagedPolicyName: 'DmpHubCognitoPolicy'
+      ManagedPolicyName: !Sub 'DmpHub${Env}CognitoPolicy'
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -231,7 +250,7 @@ Resources:
     Type: 'AWS::IAM::ManagedPolicy'
     Properties:
       Description: 'DMPHub - Access to the S3 Bucket'
-      ManagedPolicyName: 'DmpHubS3Policy'
+      ManagedPolicyName: !Sub 'DmpHub${Env}S3Policy'
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -660,6 +679,15 @@ Resources:
       # Explicit retention time
       RetentionInDays: !Ref LogRetentionDays
 
+  # GetDmpOpenSearchSubscription:
+  #   Type: 'AWS::Logs::SubscriptionFilter'
+  #   Properties:
+  #     DestinationArn: !Ref OpenSearchDomainArn
+  #     LogGroupName: !Ref GetDmpLogGroup
+  #     Distribution: 'Random'
+  #     FilterPattern: 'RequestId'
+  #     RoleArn: !GetAtt DynamoTableStreamRole.Arn
+
   # Search for DMP IDs
   GetDmpsFunction:
     Type: 'AWS::Serverless::Function'
@@ -1051,7 +1079,7 @@ Resources:
       CodeUri: 'functions/triggered/dynamo_to_opensearch/'
       Handler: 'app.Functions::DynamoToOpensearch.process'
       Runtime: 'ruby3.2'
-      Timeout: 30
+      Timeout: 600
       Architectures:
         - 'x86_64'
       Layers:
@@ -1061,7 +1089,10 @@ Resources:
         Variables:
           LAMBDA_ENV: !Ref Env
           LOG_LEVEL: !Ref DebugLevel # 'debug'
-          OPEN_SEARCH_DOMAIN: !Ref OpenSearchDomain
+          OPEN_SEARCH_DOMAIN: !Sub 'https://${OpenSearchDomainEndpoint}'
+          OPEN_SEARCH_INDEX: !Sub '${AWS::StackName}-DynamoSearchIdx'
+          # OPEN_SEARCH_ROLE: !Ref CognitoLambdaOpenSearchRoleArn
+          OPEN_SEARCH_ROLE: !GetAtt DynamoTableStreamRole.Arn
       Events:
         DynamoDbOpenSearchEvent:
           # See: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-property-function-dynamodb.html

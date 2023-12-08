@@ -158,7 +158,8 @@ if ARGV.length >= 3
     @static_params = [
       { template_param_name: 'Env', value: ARGV[0] },
       { template_param_name: 'DebugLevel', value: log_level },
-      { template_param_name: 'LogRetentionDays', value: 14 }
+      { template_param_name: 'LogRetentionDays', value: 14 },
+      { template_param_name: 'SsmPath', value: @ssm_key_prefix }
     ]
 
     @fetchable_params = [
@@ -176,7 +177,9 @@ if ARGV.length >= 3
       { template_param_name: 'S3PrivateBucketId', lookup_name: "#{@cf_export_prefix}S3PrivateBucketId" },
       { template_param_name: 'S3CloudFrontBucketArn', lookup_name: "#{@cf_export_prefix}S3CloudFrontBucketArn" },
       { template_param_name: 'SnsEmailTopicArn', lookup_name: "#{@cf_export_prefix}SnsTopicEmailArn" },
-      { template_param_name: 'OpenSearchDomain', lookup_name: "OpenSearchDomain" }
+      { template_param_name: 'OpenSearchDomainEndpoint', lookup_name: "#{@cf_export_prefix}OpenSearchDomainEndpoint" },
+      { template_param_name: 'OpenSearchDomainArn', lookup_name: "#{@cf_export_prefix}OpenSearchDomainArn" },
+      { template_param_name: 'CognitoLambdaOpenSearchRoleArn', lookup_name: "#{@cf_export_prefix}CognitoLambdaOpenSearchRoleArn" }
     ]
   end
 

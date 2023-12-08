@@ -13,9 +13,6 @@ Parameters:
   SsmPath:
     Type: 'String'
 
-  OpenSearchDomain:
-    Type: 'String'
-
   DynamoTableClass:
     Type: 'String'
     Default: 'STANDARD'
@@ -254,20 +251,7 @@ Resources:
       Type: 'String'
       Value: !Select [1, !Split ['/', !GetAtt DynamoTable.Arn]]
 
-  OpenSearchDomainParameter:
-    Type: 'AWS::SSM::Parameter'
-    Properties:
-      Description: !Sub "${AWS::StackName} OpenSearch Domain"
-      Name: !Sub "${SsmPath}OpenSearchDomain"
-      Type: 'String'
-      Value: !Ref OpenSearchDomain
-
 Outputs:
-  ResourcesDynamoTableName:
-    Value: !Select [1, !Split ['/', !GetAtt ResourcesDynamoTable.Arn]]
-    Export:
-      Name: !Sub '${Env}-ResourcesDynamoTableName'
-
   DynamoTableName:
     Value: !Select [1, !Split ['/', !GetAtt DynamoTable.Arn]]
     Export:
@@ -286,7 +270,12 @@ Outputs:
     Export:
       Name: !Sub '${Env}-DynamoTableArn'
 
-  ResourcesDynamoTableArn:
-    Value: !GetAtt ResourcesDynamoTable.Arn
-    Export:
-      Name: !Sub '${Env}-ResourcesDynamoTableArn'
+  # ResourcesDynamoTableArn:
+  #   Value: !GetAtt ResourcesDynamoTable.Arn
+  #   Export:
+  #     Name: !Sub '${Env}-ResourcesDynamoTableArn'
+
+  # ResourcesDynamoTableName:
+  #   Value: !Select [1, !Split ['/', !GetAtt ResourcesDynamoTable.Arn]]
+  #   Export:
+  #     Name: !Sub '${Env}-ResourcesDynamoTableName'
