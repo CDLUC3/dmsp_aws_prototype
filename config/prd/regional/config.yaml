@@ -9,7 +9,7 @@ sceptre_user_data:
     - !stack_output_external cdl-uc3-prd-defaultsubnet-stack::defaultsubnet2b
     - !stack_output_external cdl-uc3-prd-defaultsubnet-stack::defaultsubnet2c
 
-  hosted_zone: !ssm_parameter /uc3/dmp/hub/prd/HostedZoneId
+  # hosted_zone: !stack_output_external uc3-ops-aws-prd-route53::HostedZoneIdUc3PrdCdlibNet
 
   env: 'prd'
   domain: 'dmphub.uc3prd.cdlib.net'
