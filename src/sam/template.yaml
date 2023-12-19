@@ -103,7 +103,7 @@ Resources:
     Type: 'AWS::IAM::ManagedPolicy'
     Properties:
       Description: 'DMPHub - Read access to the DynamoDB Table'
-      ManagedPolicyName: 'DmpHubDynamoReadPolicy'
+      ManagedPolicyName: !Sub 'DmpHub${Env}DynamoReadPolicy'
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -124,7 +124,7 @@ Resources:
     Type: 'AWS::IAM::ManagedPolicy'
     Properties:
       Description: 'DMPHub - Write access (and GetItem) to the DynamoDB Table'
-      ManagedPolicyName: 'DmpHubDynamoWritePolicy'
+      ManagedPolicyName: !Sub 'DmpHub${Env}DynamoWritePolicy'
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -205,7 +205,7 @@ Resources:
     Type: 'AWS::IAM::ManagedPolicy'
     Properties:
       Description: 'DMPHub - Access to the EventBus'
-      ManagedPolicyName: 'DmpHubEventBusPolicy'
+      ManagedPolicyName: !Sub 'DmpHub${Env}EventBusPolicy'
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -218,7 +218,7 @@ Resources:
     Type: 'AWS::IAM::ManagedPolicy'
     Properties:
       Description: 'DMPHub - Access to the Cognito User Pool Client'
-      ManagedPolicyName: 'DmpHubCognitoPolicy'
+      ManagedPolicyName: !Sub 'DmpHub${Env}CognitoPolicy'
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -231,7 +231,7 @@ Resources:
     Type: 'AWS::IAM::ManagedPolicy'
     Properties:
       Description: 'DMPHub - Access to the S3 Bucket'
-      ManagedPolicyName: 'DmpHubS3Policy'
+      ManagedPolicyName: !Sub 'DmpHub${Env}S3Policy'
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
