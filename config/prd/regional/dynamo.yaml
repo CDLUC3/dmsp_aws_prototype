@@ -31,4 +31,4 @@ hooks:
 
     # Build and deploy the React based DMP ID Landing Page to the CloudFront S3 bucket
     # Args are: environment
-    - !cmd 'cd ./src/landing_page && ruby build_deply.sh prd'
+    - !cmd 'cd ./src/landing_page && ruby build_deply.rb prd'
