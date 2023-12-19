@@ -8,6 +8,7 @@ OptionParser.new do |parser|
   parser.on("-r", "--region AWS_REGION", "The AWS region (Default: us-west-2)") { |r| @opts[:region] = r }
   parser.on("-o", "--override", TrueClass, "Replace existing values") { |o| @opts[:override] = o }
 
+  parser.on("-h", "--hosted-zone ZONE", "The HostedZoneId") { |h| @opts[:hosted_zone] = h }
   parser.on("-a", "--admin-email EMAIL", "The Administrator email address") { |a| @opts[:email] = a }
 
   parser.on("-x", "--pause-ezid", TrueClass, "Pause EZID submissions") { |o| @opts[:pause_ezid] = o }
@@ -41,6 +42,7 @@ if @opts.length > 3 && !@opts[:env].nil?
   ezid_doi_base = 'https://doi.org/'
   ezid_url = @opts[:env].downcase == 'prd' ? 'https://ezid.cdlib.org/' : 'https://ezid-stg.cdlib.org/'
 
+  put_param(key: 'HostedZoneId', val: @opts[:hosted_zone]) unless @opts[:hosted_zone].nil?
   put_param(key: 'AdminEmail', val: @opts[:email]) unless @opts[:email].nil?
 
   put_param(key: 'EzidApiUrl', val: ezid_url)

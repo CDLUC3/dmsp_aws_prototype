@@ -2,6 +2,7 @@
 # provide the name of an existing bucket.
 #
 template_bucket_name: 'uc3-dmp-hub-cf-bucket-cdluc3prd'
+
 # Stack tags are attached to every AWS resource created by these CloudFormation templates
 # with the exception of the Lambda functions and layers which are managed by AWS SAM.
 #
