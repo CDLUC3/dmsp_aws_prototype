@@ -1,5 +1,5 @@
 template:
-  path: 'codebuild.yaml'
+  path: 'codebuild-rails.yaml'
   type: 'file'
 
 parameters:
@@ -12,9 +12,11 @@ parameters:
 
   CodeStarConnectionArn: !ssm_parameter /uc3/CodeStarConnectionArn
 
+  EcrRepositoryArn: !stack_output dev/regional/ecr.yaml::EcrRepositoryArn
   EcrRepositoryUri: !stack_output dev/regional/ecr.yaml::EcrRepositoryUri
   EcrRepositoryName: !stack_output dev/regional/ecr.yaml::EcrRepositoryName
 
+  S3ArtifactBucketArn: !stack_output dev/regional/s3.yaml::S3PrivateBucketArn
   S3ArtifactBucketId: !stack_output dev/regional/s3.yaml::S3PrivateBucketId
 
   CodePipelineLogGroupArn: !stack_output dev/regional/cloudwatch.yaml::CodePipelineLogGroupArn

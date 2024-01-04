@@ -44,12 +44,6 @@ Parameters:
   RailsMasterKey:
     Type: 'String'
 
-  RailsServeStaticFiles:
-    Type: 'String'
-    Default: 'false'
-    AllowedValues:
-      - 'true'
-      - 'false'
   RailsLogLevel:
     Type: 'String'
     Default: 'warn'
@@ -58,44 +52,39 @@ Parameters:
       - 'warn'
       - 'error'
 
-  DbSecurityGroupId:
-    Type: 'String'
-  DbAdapter:
-    Type: 'String'
-    Default: 'mysql2'
-  DbAddress:
-    Type: 'String'
-  DbPort:
-    Type: 'String'
   DbName:
     Type: 'String'
-    Default: 'dmp'
+
   DbUsername:
     Type: 'String'
+
   DbPassword:
+    Type: 'String'
+
+  DynamoTableName:
+    Type: 'String'
+
+  DynamoPoolSize:
+    Type: 'Number'
+    Default: 5
+
+  DynamoTimeout:
+    Type: 'Number'
+    Default: 5
+
+  DoiShoulder:
+    Type: 'String'
+
+  DoiBaseUrl:
+    Type: 'String'
+
+  DbSecurityGroupId:
     Type: 'String'
 
   DoNotReplyEmail:
     Type: 'String'
+
   HelpdeskEmail:
-    Type: 'String'
-  BlogRss:
-    Type: 'String'
-  EnableOrcidPublication:
-    Type: 'String'
-    Default: 'false'
-    AllowedValues:
-      - 'true'
-      - 'false'
-  EnableDmphub:
-    Type: 'String'
-    Default: 'false'
-    AllowedValues:
-      - 'true'
-      - 'false'
-  DmphubApiUrl:
-    Type: 'String'
-  DmphubLandingPageUrl:
     Type: 'String'
 
 Resources:
@@ -235,45 +224,34 @@ Resources:
             - ContainerPort: 3306
               Protocol: 'tcp'
           Environment:
+            - Name: 'AWS_REGION'
+              Value: !Ref AWS::Region
             - Name: 'RAILS_MASTER_KEY'
               Value: !Ref RailsMasterKey
-
             - Name: 'RAILS_LOG_LEVEL'
               Value: !Ref RailsLogLevel
-
-            - Name: 'RAILS_SERVE_STATIC_FILES'
-              Value: !Ref RailsServeStaticFiles
-
-            - Name: 'SSM_ROOT_PATH'
-              Value: !Ref SsmPath
-
-            - Name: DMPROADMAP_DRAGONFLY_URL_SCHEME
-              Value: true
-            - Name: DMPROADMAP_DRAGONFLY_BUCKET
-              Value: !Ref S3CloudFrontBucketId
-            - Name: DMPROADMAP_DRAGONFLY_ROOT_PATH
-              Value: 'assets/logos'
-
-            - Name: 'DMPROADMAP_SERVER_HOST'
-              Value: !Ref DomainName
-            - Name: 'DMPROADMAP_NAME'
-              Value: !Ref AppName
-            - Name: 'DMPROADMAP_DO_NOT_REPLY_EMAIL'
-              Value: !Ref DoNotReplyEmail
-            - Name: 'DMPROADMAP_HELPDESK_EMAIL'
+            - Name: 'RAILS_HOST'
+              Value: !Sub 'api.${DomainName}'
+            - Name: 'DB_NAME'
+              Value: !Ref DbName
+            - Name: 'DB_USER'
+              Value: !Ref DbUsername
+            - Name: 'DB_PASSWORD'
+              Value: !Ref DbPassword
+            - Name: 'NOSQL_TABLE'
+              Value: !Ref DynamoTableName
+            - Name: 'NOSQL_POOL_SIZE'
+              Value: !Ref DynamoPoolSize
+            - Name: 'NOSQL_TIMEOUT'
+              Value: !Ref DynamoTimeout
+            - Name: 'DOI_SHOULDER'
+              Value: !Ref DoiShoulder
+            - Name: 'DOI_BASE_URL'
+              Value: !Ref DoiBaseUrl
+            - Name: 'HELPDESK_EMAIL'
               Value: !Ref HelpdeskEmail
-            - Name: 'DMPROADMAP_BLOG_RSS'
-              Value: !Ref BlogRss
-
-            - Name: 'DMPROADMAP_ENABLE_ORCID_PUBLICATION'
-              Value: !Ref EnableOrcidPublication
-
-            - Name: 'DMPROADMAP_DMPHUB_ACTIVE'
-              Value: !Ref EnableDmphub
-            - Name: 'DMPROADMAP_DMPHUB_LANDING_PAGE_URL'
-              Value: !Ref DmphubLandingPageUrl
-            - Name: 'DMPROADMAP_DMPHUB_URL'
-              Value: !Ref DmphubApiUrl
+            - Name: 'DO_NOT_REPLY_EMAIL'
+              Value: !Ref DoNotReplyEmail
 
   # Container Service definition
   EcsService:

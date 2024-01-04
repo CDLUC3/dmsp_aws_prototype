@@ -1,5 +1,5 @@
 template:
-  path: 'pipeline-dmptool.yaml'
+  path: 'codepipeline-rails.yaml'
   type: 'file'
 
 parameters:
@@ -7,8 +7,8 @@ parameters:
 
   S3ArtifactBucketId: !stack_output dev/regional/s3.yaml::S3PrivateBucketId
 
-  CodeBuildProjectName: !stack_output dev/regional/codebuild.yaml::CodeBuildProject
+  CodeBuildProjectName: !stack_output dev/regional/codebuild-rails.yaml::CodeBuildProjectId
 
-  RepositoryName: 'CDLUC3/dmsp_prototype'
-  BranchToMonitor: 'main'
+  RepositoryName: 'CDLUC3/dmsp_rails_prototype'
+  BranchToMonitor: 'development'
   SourceOutputArtifactFormat: 'CODEBUILD_CLONE_REF'

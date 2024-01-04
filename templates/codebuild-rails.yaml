@@ -25,6 +25,9 @@ Parameters:
   CodePipelineLogGroupName:
     Type: 'String'
 
+  EcrRepositoryArn:
+    Type: 'String'
+
   EcrRepositoryUri:
     Type: 'String'
 
@@ -32,6 +35,9 @@ Parameters:
     Type: 'String'
 
   S3ArtifactBucketId:
+    Type: 'String'
+
+  S3ArtifactBucketArn:
     Type: 'String'
 
   CodeBuildEnvironmentType:
@@ -86,7 +92,6 @@ Resources:
             Action:
               - 'sts:AssumeRole'
       ManagedPolicyArns:
-        - 'arn:aws:iam::aws:policy/AmazonS3FullAccess'
         - 'arn:aws:iam::aws:policy/EC2InstanceProfileForImageBuilderECRContainerBuilds'
       Policies:
         - PolicyName: !Sub '${AWS::StackName}-build-policy'
@@ -141,6 +146,22 @@ Resources:
                   "Effect": "Allow",
                   "Action": ["ssm:GetParameters"],
                   "Resource": ["*"]
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "s3:PutObject",
+                    "s3:GetObject",
+                    "s3:GetObjectVersion",
+                    "s3:GetBucketAcl",
+                    "s3:GetBucketLocation"
+                  ],
+                  "Resource": ["${S3ArtifactBucketArn}"]
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": ["ecr:*"],
+                  "Resource": ["${EcrRepositoryArn}"]
                 }
               ]
             }
@@ -155,6 +176,11 @@ Resources:
       GroupName: !Sub '${AWS::StackName}-build-sec'
       GroupDescription: !Sub '${AWS::StackName} CodeBuild SecurityGroup'
       VpcId: !Ref VpcId
+      SecurityGroupEgress:
+        - CidrIp: '0.0.0.0/0'
+          FromPort: -1
+          ToPort: -1
+          IpProtocol: '-1'
       Tags:
         # This tag is required so that the SecurityGroup does not trigger alerts after the
         # CodeBuild process finishes and deprovisions the EC2 instance.

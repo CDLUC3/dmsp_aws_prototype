@@ -4,7 +4,7 @@ template:
 
 parameters:
   VpcId: !stack_attr sceptre_user_data.vpc_id
-  Subnets: !stack_attr sceptre_user_data.private_subnets
+  Subnets: !stack_attr sceptre_user_data.public_subnets
 
   DomainName: !stack_attr sceptre_user_data.domain
 
@@ -22,25 +22,23 @@ parameters:
   # ServiceCount should be greater than 1 for CodeDeploy rules!
   EcsDesiredServiceCount: '2'
 
-  DbAdapter: 'mysql'
+  RailsMasterKey: !ssm_parameter /uc3/dmsp/prototype/dev/RailsMasterKey
+  RailsLogLevel: 'debug'
+
   DbSecurityGroupId: !stack_output dev/regional/rds.yaml::DbSecurityGroupId
   DbAddress: !stack_output dev/regional/rds.yaml::DbAddress
   DbPort: !stack_output dev/regional/rds.yaml::DbPort
   DbName: !stack_output dev/regional/rds.yaml::DbName
-  DbUsername: !ssm_parameter /uc3/dmp/tool/dev/RdsDbaUsername
-  DbPassword: !ssm_parameter /uc3/dmp/tool/dev/RdsDbaPassword
+  DbUsername: 'foo'
+  DbPassword: 'test'
 
-  RailsMasterKey: !ssm_parameter /uc3/dmp/tool/dev/RailsMasterKey
-  RailsServeStaticFiles: 'false'
-  RailsLogLevel: 'debug'
+  DynamoTableName: !stack_output dev/regional/dynamo.yaml::DynamoTableName
+  DynamoPoolSize: '5'
+  DynamoTimeout: '5'
 
-  AppName: 'dmptool-dev'
-  DoNotReplyEmail: 'do-not-reply-dmptool-dev@cdlib.org'
-  HelpdeskEmail: !ssm_parameter /uc3/dmp/hub/dev/AdminEmail
-  BlogRss: 'https://blog.dmptool.org/feed/'
+  DoiShoulder: !ssm_parameter /uc3/dmsp/prototype/dev/DoiShoulder
+  DoiBaseUrl: !ssm_parameter /uc3/dmsp/prototype/dev/DoiBaseUrl
 
-  EnableOrcidPublication: 'true'
-
-  EnableDmphub: 'true'
-  DmphubLandingPageUrl: 'https://dmphub-dev.cdlib.org/dmps/'
-  DmphubApiUrl: 'https://api.dmphub-dev.cdlib.org/'
+  HelpdeskEmail: !ssm_parameter /uc3/dmsp/prototype/dev/AdminEmail
+  DoNotReplyEmail: 'do-not-reply-dmsp-prototype-dev@udmphub.uc3dev.cdlib.net'
+  AppName: 'dmsp-prototype-dev'

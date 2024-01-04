@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 
-Description: 'Code build and pipeline for the a Pipeline to watch a DMP system codebase'
+Description: 'Code build and pipeline for the Rails application hosted on ECS'
 
 Parameters:
   CodeStarConnectionArn:
@@ -17,7 +17,7 @@ Parameters:
 
   BranchToMonitor:
     Type: 'String'
-    Default: 'main'
+    Default: 'development'
 
   SourceOutputArtifactFormat:
     Type: 'String'
