@@ -16,9 +16,6 @@ Parameters:
   AppName:
     Type: 'String'
 
-  SsmPath:
-    Type: 'String'
-
   EcsDesiredServiceCount:
     Type: 'Number'
     Default: 1
@@ -41,9 +38,22 @@ Parameters:
   AlbSecurityGroupId:
     Type: 'String'
 
+  DbSecurityGroupId:
+    Type: 'String'
+
   RailsMasterKey:
     Type: 'String'
 
+  DoiShoulder:
+    Type: 'String'
+
+  DoiBaseUrl:
+    Type: 'String'
+
+  HelpdeskEmail:
+    Type: 'String'
+
+  # ServiceCount should be greater than 1 for CodeDeploy rules!
   RailsLogLevel:
     Type: 'String'
     Default: 'warn'
@@ -51,15 +61,6 @@ Parameters:
       - 'debug'
       - 'warn'
       - 'error'
-
-  DbName:
-    Type: 'String'
-
-  DbUsername:
-    Type: 'String'
-
-  DbPassword:
-    Type: 'String'
 
   DynamoTableName:
     Type: 'String'
@@ -72,19 +73,7 @@ Parameters:
     Type: 'Number'
     Default: 5
 
-  DoiShoulder:
-    Type: 'String'
-
-  DoiBaseUrl:
-    Type: 'String'
-
-  DbSecurityGroupId:
-    Type: 'String'
-
   DoNotReplyEmail:
-    Type: 'String'
-
-  HelpdeskEmail:
     Type: 'String'
 
 Resources:
@@ -211,7 +200,7 @@ Resources:
             Options:
               awslogs-region: !Ref AWS::Region
               awslogs-create-group: true
-              awslogs-group: !Sub '${AWS::StackName}-ecs'
+              awslogs-group: !Ref AWS::StackName
               awslogs-stream-prefix: !Ref AppName
           PortMappings:
             # SES port
@@ -228,28 +217,22 @@ Resources:
               Value: !Ref AWS::Region
             - Name: 'RAILS_MASTER_KEY'
               Value: !Ref RailsMasterKey
-            - Name: 'RAILS_LOG_LEVEL'
-              Value: !Ref RailsLogLevel
-            - Name: 'RAILS_HOST'
-              Value: !Sub 'api.${DomainName}'
-            - Name: 'DB_NAME'
-              Value: !Ref DbName
-            - Name: 'DB_USER'
-              Value: !Ref DbUsername
-            - Name: 'DB_PASSWORD'
-              Value: !Ref DbPassword
-            - Name: 'NOSQL_TABLE'
-              Value: !Ref DynamoTableName
-            - Name: 'NOSQL_POOL_SIZE'
-              Value: !Ref DynamoPoolSize
-            - Name: 'NOSQL_TIMEOUT'
-              Value: !Ref DynamoTimeout
             - Name: 'DOI_SHOULDER'
               Value: !Ref DoiShoulder
             - Name: 'DOI_BASE_URL'
               Value: !Ref DoiBaseUrl
             - Name: 'HELPDESK_EMAIL'
               Value: !Ref HelpdeskEmail
+            - Name: 'RAILS_LOG_LEVEL'
+              Value: !Ref RailsLogLevel
+            - Name: 'RAILS_HOST'
+              Value: !Sub 'api.${DomainName}'
+            - Name: 'NOSQL_TABLE'
+              Value: !Ref DynamoTableName
+            - Name: 'NOSQL_POOL_SIZE'
+              Value: !Ref DynamoPoolSize
+            - Name: 'NOSQL_TIMEOUT'
+              Value: !Ref DynamoTimeout
             - Name: 'DO_NOT_REPLY_EMAIL'
               Value: !Ref DoNotReplyEmail
 
@@ -278,7 +261,6 @@ Resources:
             - !GetAtt EcsSecurityGroup.GroupId
             - !Ref AlbSecurityGroupId
             - !Ref DbSecurityGroupId
-            # - !Ref S3SecurityGroupID
           AssignPublicIp: 'ENABLED'
           Subnets: !Ref Subnets
       PlatformVersion: 'LATEST'

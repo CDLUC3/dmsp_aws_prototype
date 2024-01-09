@@ -65,19 +65,17 @@ Resources:
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-codepipeline-pipeline.html
   # -----------------------------------------------------------
   CodePipeline:
-    Type: AWS::CodePipeline::Pipeline
+    Type: 'AWS::CodePipeline::Pipeline'
     Properties:
+      RoleArn: !GetAtt CodePipelineRole.Arn
       ArtifactStore:
-        Location: !Ref S3ArtifactBucketId
         # CloudFormation only supports S3 at the moment!
         Type: 'S3'
-      RestartExecutionOnUpdate: true
-      RoleArn: !GetAtt CodePipelineRole.Arn
+        Location: !Ref S3ArtifactBucketId
       Stages:
-        - Name: 'MonitorRepos'
+        - Name: 'Source'
           Actions:
-            - Name: 'GitHub'
-              RunOrder: 1
+            - Name: 'Source'
               ActionTypeId:
                 Category: 'Source'
                 Owner: 'AWS'
@@ -89,14 +87,13 @@ Resources:
                 ConnectionArn: !Ref CodeStarConnectionArn
                 FullRepositoryId: !Ref RepositoryName
                 BranchName: !Ref BranchToMonitor
-                OutputArtifactFormat: !Ref SourceOutputArtifactFormat
               OutputArtifacts:
-                - Name: 'github_commit'
-
-        - Name: 'BuildPublish'
+                - Name: 'SourceArtifact'
+        - Name: 'Build'
           Actions:
             - Name: 'Build'
-              RunOrder: 2
+              InputArtifacts:
+                - Name: 'SourceArtifact'
               ActionTypeId:
                 Category: 'Build'
                 Owner: 'AWS'
@@ -104,14 +101,22 @@ Resources:
                 Version: '1'
               Configuration:
                 ProjectName: !Ref CodeBuildProjectName
-                PrimarySource: !Sub 'github_commit'
-              InputArtifacts:
-                - Name: 'github_commit'
               OutputArtifacts:
-                - Name: 'docker_img'
-
-        # No need for a CodeDeploy here. Fargate will automatically pick up the new ECR image added to S3
-        # during the CodeBuild step
+                - Name: 'BuildArtifact'
+        # - Name: 'Deploy'
+        #   Actions:
+        #     - Name: 'Deploy'
+        #       InputArtifacts:
+        #         - Name: 'BuildArtifact'
+        #       ActionTypeId:
+        #         Category: Deploy
+        #         Owner: 'AWS'
+        #         Provider: 'ECS'
+        #         Version: '1'
+        #       Configuration:
+        #         ClusterName: !Ref EcsCluster
+        #         ServiceName: !Ref EcsServiceName
+        #         DeploymentTimeout: '15'
 
 Outputs:
   CodePipelineRoleArn:

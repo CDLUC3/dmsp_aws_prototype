@@ -8,7 +8,7 @@ parameters:
 
   HostedZoneId: !stack_attr sceptre_user_data.hosted_zone_id
 
-  CertificateArn: !stack_output dev/global/cert.yaml::CertificateArn
+  CertificateArn: !stack_output dev/regional/cert.yaml::CertificateArn
 
   Domain: !stack_attr sceptre_user_data.domain
   Subdomain: 'tool'

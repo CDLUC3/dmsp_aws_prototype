@@ -12,3 +12,6 @@ parameters:
   RepositoryName: 'CDLUC3/dmsp_rails_prototype'
   BranchToMonitor: 'development'
   SourceOutputArtifactFormat: 'CODEBUILD_CLONE_REF'
+
+  # EcsCluster: !stack_output dev/regional/ecs.yaml::EcsFargateClusterId
+  # EcsServiceName: !stack_output dev/regional/ecs.yaml::EcsServiceName

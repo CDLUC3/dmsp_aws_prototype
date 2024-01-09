@@ -3,12 +3,9 @@ template:
   type: 'file'
 
 parameters:
-  VpcId: !stack_attr sceptre_user_data.vpc_id
-  Subnets: !stack_attr sceptre_user_data.public_subnets
-
   Env: !stack_attr sceptre_user_data.env
 
-  SsmPath: !stack_attr sceptre_user_data.ssm_path
+  DomainName: !stack_attr sceptre_user_data.domain
 
   CodeStarConnectionArn: !ssm_parameter /uc3/CodeStarConnectionArn
 
@@ -34,5 +31,7 @@ parameters:
   CodeBuildEnvironmentType: 'LINUX_CONTAINER'
   CodeBuildEnvironmentComputeType: 'BUILD_GENERAL1_SMALL'
   CodeBuildEnvironmentImage: 'aws/codebuild/amazonlinux2-x86_64-standard:5.0'
-  CodeBuildArtifactType: 'CODEPIPELINE'
+
+  RepositoryUrl: 'https://github.com/CDLUC3/dmsp_rails_prototype.git'
+  BranchToMonitor: 'development'
   CodeBuildTimeout: '15'

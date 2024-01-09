@@ -3,18 +3,9 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: 'CodeBuild for the Rails application'
 
 Parameters:
-  VpcId:
-    Type: 'AWS::EC2::VPC::Id'
-
-  Subnets:
-    Type: 'List<AWS::EC2::Subnet::Id>'
-
   Env:
     Type: 'String'
     Default: 'dev'
-
-  SsmPath:
-    Type: 'String'
 
   CodeStarConnectionArn:
     Type: 'String'
@@ -52,9 +43,16 @@ Parameters:
     Type: 'String'
     Default: 'aws/codebuild/amazonlinux2-x86_64-standard:5.0'
 
+  RepositoryUrl:
+    Type: 'String'
+
+  BranchToMonitor:
+    Type: 'String'
+    Default: 'main'
+
   CodeBuildArtifactType:
     Type: 'String'
-    Default: 'CODEPIPELINE'
+    Default: 'GITHUB'
 
   CodeBuildTimeout:
     Type: 'Number'
@@ -92,7 +90,8 @@ Resources:
             Action:
               - 'sts:AssumeRole'
       ManagedPolicyArns:
-        - 'arn:aws:iam::aws:policy/EC2InstanceProfileForImageBuilderECRContainerBuilds'
+        # - 'arn:aws:iam::aws:policy/EC2InstanceProfileForImageBuilderECRContainerBuilds'
+        - 'arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPowerUser'
       Policies:
         - PolicyName: !Sub '${AWS::StackName}-build-policy'
           PolicyDocument: !Sub >
@@ -108,16 +107,35 @@ Resources:
                     "logs:AssociateKmsKey"
                   ],
                   "Resource": [
-                    "${CodePipelineLogGroupArn}"
+                    "${CodePipelineLogGroupArn}",
+                    "${CodePipelineLogGroupArn}:*"
                   ]
                 },
                 {
                   "Effect": "Allow",
                   "Action": [
-                    "cloudwatch:PutMetricData"
+                    "codebuild:CreateReportGroup",
+                    "codebuild:CreateReport",
+                    "codebuild:UpdateReport",
+                    "codebuild:BatchPutTestCases",
+                    "codebuild:BatchPutCodeCoverages"
                   ],
                   "Resource": [
-                    "*"
+                    "arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:report-group/*'"
+                  ]
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "s3:PutObject",
+                    "s3:GetObject",
+                    "s3:GetObjectVersion",
+                    "s3:GetBucketAcl",
+                    "s3:GetBucketLocation"
+                  ],
+                  "Resource": [
+                    "${S3ArtifactBucketArn}",
+                    "${S3ArtifactBucketArn}/*"
                   ]
                 },
                 {
@@ -139,24 +157,13 @@ Resources:
                 },
                 {
                   "Effect": "Allow",
-                  "Action": ["codestar-connections:UseConnection"],
-                  "Resource": "${CodeStarConnectionArn}"
-                },
-                {
-                  "Effect": "Allow",
                   "Action": ["ssm:GetParameters"],
                   "Resource": ["*"]
                 },
                 {
                   "Effect": "Allow",
-                  "Action": [
-                    "s3:PutObject",
-                    "s3:GetObject",
-                    "s3:GetObjectVersion",
-                    "s3:GetBucketAcl",
-                    "s3:GetBucketLocation"
-                  ],
-                  "Resource": ["${S3ArtifactBucketArn}"]
+                  "Action": ["secretsmanager:GetSecretValue"],
+                  "Resource": ["*"]
                 },
                 {
                   "Effect": "Allow",
@@ -167,87 +174,45 @@ Resources:
             }
 
   # -----------------------------------------------------------
-  # CodeBuild Sec Group
-  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-ec2-securitygroup.html
-  # -----------------------------------------------------------
-  CodeBuildSecurityGroup:
-    Type: 'AWS::EC2::SecurityGroup'
-    Properties:
-      GroupName: !Sub '${AWS::StackName}-build-sec'
-      GroupDescription: !Sub '${AWS::StackName} CodeBuild SecurityGroup'
-      VpcId: !Ref VpcId
-      SecurityGroupEgress:
-        - CidrIp: '0.0.0.0/0'
-          FromPort: -1
-          ToPort: -1
-          IpProtocol: '-1'
-      Tags:
-        # This tag is required so that the SecurityGroup does not trigger alerts after the
-        # CodeBuild process finishes and deprovisions the EC2 instance.
-        #
-        # This also means that we needed to pass in each tag individually
-        - Key: 'ConfigExclude'
-          Value: 'Security-group-attached-to-ENI'
-        - Key: 'Program'
-          Value: !Ref ProgramTag
-        - Key: 'Service'
-          Value: !Ref ServiceTag
-        - Key: 'Subservice'
-          Value: !Ref SubserviceTag
-        - Key: 'Environment'
-          Value: !Ref Env
-        - Key: 'CodeRepo'
-          Value: !Ref CodeRepoTag
-        - Key: 'Contact'
-          Value: !Ref ContactTag
-
-  # -----------------------------------------------------------
   # CodeBuild
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_CodeBuild.html
   # -----------------------------------------------------------
   CodeBuildProject:
     Type: 'AWS::CodeBuild::Project'
     Properties:
-      ServiceRole: !GetAtt CodeBuildRole.Arn
+      QueuedTimeoutInMinutes: 5
       Artifacts:
-        Type: !Ref CodeBuildArtifactType
-      LogsConfig:
-        CloudWatchLogs:
-          GroupName: !Ref CodePipelineLogGroupName
-          Status: 'ENABLED'
-          StreamName: 'codebuild'
+        Type: 'CODEPIPELINE'
+        OverrideArtifactName: true
+      ConcurrentBuildLimit: 1
+      Cache:
+        Type: 'S3'
+        Location: !Sub '${S3ArtifactBucketId}/rails/build-cache'
       Environment:
-        Type: !Ref CodeBuildEnvironmentType
         ComputeType: !Ref CodeBuildEnvironmentComputeType
         Image: !Ref CodeBuildEnvironmentImage
-        # This is required in order for the Docker daemon to work!
+        ImagePullCredentialsType: 'CODEBUILD'
         PrivilegedMode: true
+        Type: !Ref CodeBuildEnvironmentType
         EnvironmentVariables:
+          - Name: 'GIT_BRANCH'
+            Value: !Ref BranchToMonitor
           - Name: 'ECR_REPOSITORY_URI'
             Value: !Ref EcrRepositoryUri
           - Name: 'ECR_REPOSITORY_NAME'
             Value: !Ref EcrRepositoryName
-          - Name: 'CREDENTIALS_ENC'
-            Type: 'PARAMETER_STORE'
-            Value: !Sub "${SsmPath}RailsCredentials"
+      LogsConfig:
+        CloudWatchLogs:
+          GroupName: !Ref CodePipelineLogGroupName
+          Status: 'ENABLED'
+      ServiceRole: !Ref CodeBuildRole
       Source:
-        Type: !Ref CodeBuildArtifactType
+        Type: 'CODEPIPELINE'
       TimeoutInMinutes: 15
-      VpcConfig:
-        VpcId: !Ref VpcId
-        Subnets: !Ref Subnets
-        SecurityGroupIds:
-          - !Ref CodeBuildSecurityGroup
-      Cache:
-        Type: 'S3'
-        Location: !Sub '${S3ArtifactBucketId}/rails/build-cache'
 
 Outputs:
   CodeBuildRoleArn:
     Value: !GetAtt CodeBuildRole.Arn
-
-  CodebuildSecurityGroupId:
-    Value: !Ref CodeBuildSecurityGroup
 
   CodeBuildProjectId:
     Value: !Ref CodeBuildProject

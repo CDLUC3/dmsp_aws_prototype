@@ -8,8 +8,6 @@ parameters:
 
   DomainName: !stack_attr sceptre_user_data.domain
 
-  SsmPath: !stack_attr sceptre_user_data.ssm_path
-
   EcrRepositoryUri: !stack_output dev/regional/ecr.yaml::EcrRepositoryUri
   EcrRepositoryName: !stack_output dev/regional/ecr.yaml::EcrRepositoryName
 
@@ -19,26 +17,19 @@ parameters:
   AlbDnsName: !stack_output dev/regional/alb.yaml::AlbDnsName
   AlbSecurityGroupId: !stack_output dev/regional/alb.yaml::AlbSecurityGroupId
 
-  # ServiceCount should be greater than 1 for CodeDeploy rules!
-  EcsDesiredServiceCount: '2'
-
-  RailsMasterKey: !ssm_parameter /uc3/dmsp/prototype/dev/RailsMasterKey
-  RailsLogLevel: 'debug'
-
   DbSecurityGroupId: !stack_output dev/regional/rds.yaml::DbSecurityGroupId
-  DbAddress: !stack_output dev/regional/rds.yaml::DbAddress
-  DbPort: !stack_output dev/regional/rds.yaml::DbPort
-  DbName: !stack_output dev/regional/rds.yaml::DbName
-  DbUsername: 'foo'
-  DbPassword: 'test'
 
   DynamoTableName: !stack_output dev/regional/dynamo.yaml::DynamoTableName
-  DynamoPoolSize: '5'
-  DynamoTimeout: '5'
 
+  RailsMasterKey: !ssm_parameter /uc3/dmsp/prototype/dev/RailsMasterKey
   DoiShoulder: !ssm_parameter /uc3/dmsp/prototype/dev/DoiShoulder
   DoiBaseUrl: !ssm_parameter /uc3/dmsp/prototype/dev/DoiBaseUrl
+  HelpdeskEmail: !ssm_parameter /uc3/dmsp/prototype/dev/HelpdeskEmail
 
-  HelpdeskEmail: !ssm_parameter /uc3/dmsp/prototype/dev/AdminEmail
-  DoNotReplyEmail: 'do-not-reply-dmsp-prototype-dev@udmphub.uc3dev.cdlib.net'
+  # ServiceCount should be greater than 1 for CodeDeploy rules!
+  EcsDesiredServiceCount: '2'
   AppName: 'dmsp-prototype-dev'
+  RailsLogLevel: 'debug'
+  DynamoPoolSize: '5'
+  DynamoTimeout: '5'
+  DoNotReplyEmail: 'do-not-reply-dmsp-prototype-dev@udmphub.uc3dev.cdlib.net'
