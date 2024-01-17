@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 
-Description: 'CodeBuild for the Rails application'
+Description: 'CodeBuild for the UI application'
 
 Parameters:
   Env:
@@ -13,19 +13,19 @@ Parameters:
   CodePipelineLogGroupName:
     Type: 'String'
 
-  EcrRepositoryArn:
-    Type: 'String'
-
-  EcrRepositoryUri:
-    Type: 'String'
-
-  EcrRepositoryName:
-    Type: 'String'
-
   S3ArtifactBucketId:
     Type: 'String'
 
   S3ArtifactBucketArn:
+    Type: 'String'
+
+  S3DeployBucketId:
+    Type: 'String'
+
+  S3DeployBucketArn:
+    Type: 'String'
+
+  CloudFrontDistributionId:
     Type: 'String'
 
   CodeBuildEnvironmentType:
@@ -39,10 +39,6 @@ Parameters:
   CodeBuildEnvironmentImage:
     Type: 'String'
     Default: 'aws/codebuild/amazonlinux2-x86_64-standard:5.0'
-
-  CodeBuildArtifactType:
-    Type: 'String'
-    Default: 'GITHUB'
 
   CodeBuildTimeout:
     Type: 'Number'
@@ -105,11 +101,21 @@ Resources:
                     "s3:GetObject",
                     "s3:GetObjectVersion",
                     "s3:GetBucketAcl",
-                    "s3:GetBucketLocation"
+                    "s3:GetBucketLocation",
+                    "s3:ListBucket"
                   ],
                   "Resource": [
                     "${S3ArtifactBucketArn}",
-                    "${S3ArtifactBucketArn}/*"
+                    "${S3ArtifactBucketArn}/*",
+                    "${S3DeployBucketArn}",
+                    "${S3DeployBucketArn}/*"
+                  ]
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": ["cloudfront:CreateInvalidation"],
+                  "Resource": [
+                    "arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistributionId}"
                   ]
                 },
                 {
@@ -128,21 +134,6 @@ Resources:
                   "Resource": [
                     "*"
                   ]
-                },
-                {
-                  "Effect": "Allow",
-                  "Action": ["ssm:GetParameters"],
-                  "Resource": ["*"]
-                },
-                {
-                  "Effect": "Allow",
-                  "Action": ["secretsmanager:GetSecretValue"],
-                  "Resource": ["*"]
-                },
-                {
-                  "Effect": "Allow",
-                  "Action": ["ecr:*"],
-                  "Resource": ["${EcrRepositoryArn}"]
                 }
               ]
             }
@@ -161,7 +152,7 @@ Resources:
       ConcurrentBuildLimit: 1
       Cache:
         Type: 'S3'
-        Location: !Sub '${S3ArtifactBucketId}/rails/build-cache'
+        Location: !Sub '${S3ArtifactBucketId}/ui/build-cache'
       Environment:
         ComputeType: !Ref CodeBuildEnvironmentComputeType
         Image: !Ref CodeBuildEnvironmentImage
@@ -169,10 +160,14 @@ Resources:
         PrivilegedMode: true
         Type: !Ref CodeBuildEnvironmentType
         EnvironmentVariables:
-          - Name: 'ECR_REPOSITORY_URI'
-            Value: !Ref EcrRepositoryUri
-          - Name: 'ECR_REPOSITORY_NAME'
-            Value: !Ref EcrRepositoryName
+          - Name: 'BUILD_ENV'
+            Value: !Ref Env
+          - Name: 'GLOBAL_REGION'
+            Value: 'us-east-1'
+          - Name: 'CLOUDFRONT_DISTRO'
+            Value: !Ref CloudFrontDistributionId
+          - Name: 'S3_BUCKET'
+            Value: !Ref S3DeployBucketId
       LogsConfig:
         CloudWatchLogs:
           GroupName: !Ref CodePipelineLogGroupName

@@ -53,6 +53,10 @@ Parameters:
   HelpdeskEmail:
     Type: 'String'
 
+  RailsEnv:
+    Type: 'String'
+    Default: 'awsdev'
+
   # ServiceCount should be greater than 1 for CodeDeploy rules!
   RailsLogLevel:
     Type: 'String'
@@ -96,7 +100,24 @@ Resources:
               - 'sts:AssumeRole'
       ManagedPolicyArns:
         - 'arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy'
+        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonRDSDataFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSESFullAccess'
         - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
+      Policies:
+        - PolicyName: !Sub '${AWS::StackName}-build-policy'
+          PolicyDocument: !Sub >
+            {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": ["secretsmanager:GetSecretValue"],
+                  "Resource": ["*"]
+                }
+              ]
+            }
 
   # Role that grants containers in the task permission to call AWS APIs on your behalf
   EcsTaskRole:
@@ -114,8 +135,22 @@ Resources:
       ManagedPolicyArns:
         - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
         - 'arn:aws:iam::aws:policy/AmazonRDSDataFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess'
         - 'arn:aws:iam::aws:policy/AmazonSESFullAccess'
         - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
+      Policies:
+        - PolicyName: !Sub '${AWS::StackName}-build-policy'
+          PolicyDocument: !Sub >
+            {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": ["secretsmanager:GetSecretValue"],
+                  "Resource": ["*"]
+                }
+              ]
+            }
 
   # -----------------------------------------------------------
   # EC2 Security Groups for ECS containers (see their definitions in application.yaml)
@@ -135,8 +170,8 @@ Resources:
       - EcsSecurityGroup
     Properties:
       IpProtocol: 'tcp'
-      FromPort: 80
-      ToPort: 80
+      FromPort: 3000
+      ToPort: 3000
       GroupId: !GetAtt EcsSecurityGroup.GroupId
       SourceSecurityGroupId: !Ref AlbSecurityGroupId
 
@@ -192,9 +227,14 @@ Resources:
           Interactive: true
           Memory: 2000
           Name: !Ref AppName
-          StartTimeout: 180
+          StartTimeout: 60
           StopTimeout: 60
-          # TODO: Figure out why this is invalid for FARGATE
+          # TODO: Figure out what container health check should be run (e.g. memory usage)
+          # HealthCheck:
+          #   Command:  ["CMD-SHELL", "echo hello"]
+          #   Interval: 5
+          #   Retries: 2
+          #   Timeout: 3
           LogConfiguration:
             LogDriver: 'awslogs'
             Options:
@@ -207,14 +247,18 @@ Resources:
             - ContainerPort: 25
               Protocol: 'tcp'
             # ALB port
-            - ContainerPort: 80
+            - ContainerPort: 3000
               Protocol: 'tcp'
             # RDS port
             - ContainerPort: 3306
               Protocol: 'tcp'
           Environment:
+            - Name: 'PORT'
+              Value: '3000'
             - Name: 'AWS_REGION'
               Value: !Ref AWS::Region
+            - Name: 'RAILS_ENV'
+              Value: !Ref RailsEnv
             - Name: 'RAILS_MASTER_KEY'
               Value: !Ref RailsMasterKey
             - Name: 'DOI_SHOULDER'
@@ -253,7 +297,7 @@ Resources:
           Rollback: true
       LoadBalancers:
         - TargetGroupArn: !Ref AlbTargetGroupArn
-          ContainerPort: 80
+          ContainerPort: 3000
           ContainerName: !Ref AppName
       NetworkConfiguration:
         AwsvpcConfiguration:

@@ -9,6 +9,9 @@ require_relative '../sam/gems/uc3-dmp-id/lib/uc3-dmp-id/schemas/author.rb'
 DEFAULT_REGION = 'us-west-2'
 GLOBAL_REGION = 'us-east-1'
 
+# When Swagger gets upset and will not load the page, try validating the compiled JSON
+# from `./dist/docs` in Swagger's online validator at https://editor.swagger.io
+
 if ARGV.length == 2
   # Setup AWS SDK clients
   resource_groups = Aws::ResourceGroups::Client.new(region: DEFAULT_REGION)

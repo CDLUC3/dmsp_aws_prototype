@@ -4,12 +4,12 @@
   <head>
     <meta charset="UTF-8">
     <title>DMPHub API Documentation</title>
-    <link rel="stylesheet" type="text/css" href="./swagger-ui.css" >
+    <link rel="stylesheet" type="text/css" href="./api-docs/swagger-ui.css" >
 
-    <link rel="icon" type="image/png" href="./assets/favicon.ico" sizes="32x32" />
-    <link rel="icon" type="image/png" href="./assets/favicon.ico" sizes="16x16" />
+    <link rel="icon" type="image/png" href="./api-docs/assets/favicon.ico" sizes="32x32" />
+    <link rel="icon" type="image/png" href="./api-docs/assets/favicon.ico" sizes="16x16" />
 
-    <link rel="stylesheet" type="text/css" href="./assets/dmphub.css" >
+    <link rel="stylesheet" type="text/css" href="./api-docs/assets/dmphub.css" >
 
     <style>
       html
@@ -37,8 +37,8 @@
   <body>
     <div id="swagger-ui"></div>
 
-    <script src="./swagger-ui-bundle.js"> </script>
-    <script src="./swagger-ui-standalone-preset.js"> </script>
+    <script src="./api-docs/swagger-ui-bundle.js"> </script>
+    <script src="./api-docs/swagger-ui-standalone-preset.js"> </script>
 
     <script>
       window.onload = function() {
@@ -61,7 +61,7 @@
           rawFile.send();
         }
 
-        readTextFile("./docs-list.json")
+        readTextFile("./api-docs/docs-list.json")
 
         const ui = SwaggerUIBundle({
           urls:JSON.parse(allText),

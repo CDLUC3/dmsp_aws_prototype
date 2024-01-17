@@ -15,6 +15,12 @@ Parameters:
     Type: 'String'
     Default: 'dev'
 
+  CognitoClientId:
+    Type: 'String'
+
+  CognitoClientSecret:
+    Type: 'String'
+
   DbSnapshot:
     Type: 'String'
     Default: 'none'
@@ -149,7 +155,9 @@ Resources:
             "host": "${Database.Endpoint.Address}",
             "port": "${Database.Endpoint.Port}",
             "dbname": "${DbName}",
-            "username": "rails-app"
+            "username": "rails-app",
+            "cognito_client_id": "${CognitoClientId}",
+            "cognito_client_secret": "${CognitoClientSecret}"
           }
 
   # AppCredentialsRotationSchedule:

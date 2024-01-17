@@ -183,10 +183,8 @@ Resources:
     Properties:
       Bucket: !Ref S3CloudFrontBucketId
       PolicyDocument:
-        # Version: '2008-10-27'
         Version: '2012-10-17'
         Statement:
-          # Sid: 'AllowCloudFrontServicePrincipal'
           Sid: 'AllowCloudFrontServicePrincipalReadOnly'
           Effect: 'Allow'
           Principal:

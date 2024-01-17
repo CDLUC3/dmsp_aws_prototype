@@ -44,7 +44,7 @@ Resources:
         - Name: 'AWS-AWSManagedRulesAmazonIpReputationList'
           Priority: 0
           OverrideAction:
-            Count: {}
+            None: {}
           VisibilityConfig:
             SampledRequestsEnabled: true
             CloudWatchMetricsEnabled: true
@@ -57,7 +57,7 @@ Resources:
         - Name: 'AWS-AWSManagedRulesCommonRuleSet'
           Priority: 1
           OverrideAction:
-            Count: {}
+            None: {}
           VisibilityConfig:
             SampledRequestsEnabled: true
             CloudWatchMetricsEnabled: true
@@ -70,7 +70,7 @@ Resources:
         - Name: 'AWS-AWSManagedRulesKnownBadInputsRuleSet'
           Priority: 2
           OverrideAction:
-            Count: {}
+            None: {}
           VisibilityConfig:
             SampledRequestsEnabled: true
             CloudWatchMetricsEnabled: true

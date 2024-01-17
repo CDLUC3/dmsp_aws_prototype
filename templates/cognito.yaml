@@ -230,7 +230,7 @@ Resources:
       # The length of time the user can refresh their token
       RefreshTokenValidity: !Ref RefreshTokenValidity
 
-  # Add the client for the DMPTool
+  # Add the client for the new React pages of the DMPTool
   UiUserPoolClient:
     Type: 'AWS::Cognito::UserPoolClient'
     DeletionPolicy: Retain
@@ -327,6 +327,9 @@ Outputs:
 
   DmspUserPoolClientId:
     Value: !Ref DmspUserPoolClient
+
+  DmspUserPoolClientSecret:
+    Value: !GetAtt DmspUserPoolClient.ClientSecret
 
   # DmspUserPoolclientUrl:
   #   Value: !Sub 'https://${Subdomain}.${Domain}.${AWS::Region}.amazoncognito.com/login?response_type=code&client_id=${DmspUserPoolClient}&redirect_uri=${DmspUiRedirectUrl}'

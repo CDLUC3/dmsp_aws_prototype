@@ -10,6 +10,11 @@ parameters:
 
   CertificateArn: !stack_output dev/regional/cert.yaml::CertificateArn
 
+  WafArn: !stack_output dev/regional/waf.yaml::WafArn
+
+  S3LogBucketArn: !stack_output dev/regional/s3.yaml::S3LogBucketArn
+  S3LogBucketId: !stack_output dev/regional/s3.yaml::S3LogBucketId
+
   Domain: !stack_attr sceptre_user_data.domain
   Subdomain: 'tool'
 

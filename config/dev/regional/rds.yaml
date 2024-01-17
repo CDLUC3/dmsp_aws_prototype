@@ -8,6 +8,9 @@ parameters:
 
   Env: !stack_attr sceptre_user_data.env
 
+  CognitoClientId: !stack_output dev/regional/cognito.yaml::DmspUserPoolClientId
+  CognitoClientSecret: !stack_output dev/regional/cognito.yaml::DmspUserPoolClientSecret
+
   # If you have an existing RDS snapshot of your DB, you can include it here and CF will
   # restore that snapshot. If not, just leave this commented out and Docker will initialize the DB
   # DBSnapshot: 'arn:aws:rds:us-west-2:671846987296:snapshot:uc3-dmp-roadmap-initial'

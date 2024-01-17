@@ -61,9 +61,15 @@ Outputs:
   HostedZoneId:
     Value: !Ref HostedZoneId
     Export:
-      Name: !Sub '${Env}-HostedZoneId'
+      Name: !If
+        - UseSetIdentifier
+        - !Sub '${SetIdentifier}-HostedZoneId'
+        - !Sub '${Env}-HostedZoneId'
 
   DomainName:
     Value: !Ref RecordSet
     Export:
-      Name: !Sub '${Env}-DomainName'
+      Name: !If
+        - UseSetIdentifier
+        - !Sub '${SetIdentifier}-DomainName'
+        - !Sub '${Env}-DomainName'

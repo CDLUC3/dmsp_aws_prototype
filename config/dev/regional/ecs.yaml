@@ -2,6 +2,9 @@ template:
   path: 'ecs.yaml'
   type: 'file'
 
+dependencies:
+  - dev/global/dmsp-rails-route53.yaml
+
 parameters:
   VpcId: !stack_attr sceptre_user_data.vpc_id
   Subnets: !stack_attr sceptre_user_data.public_subnets
@@ -26,9 +29,14 @@ parameters:
   DoiBaseUrl: !ssm_parameter /uc3/dmsp/prototype/dev/DoiBaseUrl
   HelpdeskEmail: !ssm_parameter /uc3/dmsp/prototype/dev/HelpdeskEmail
 
-  # ServiceCount should be greater than 1 for CodeDeploy rules!
-  EcsDesiredServiceCount: '2'
+  # Set this value to '0' when you first create the stack otherwise the stack creation will
+  # hang indefinitely on `EcsService AWS::ECS::Service CREATE_IN_PROGRESS Resource creation Initiated`
+  # see: https://stackoverflow.com/questions/32727520/cloudformation-template-for-creating-ecs-service-stuck-in-create-in-progress
+  #
+  # After it is created, change the value to a positive integer
+  EcsDesiredServiceCount: '2' # '0'
   AppName: 'dmsp-prototype-dev'
+  RailsEnv: 'awsdev'
   RailsLogLevel: 'debug'
   DynamoPoolSize: '5'
   DynamoTimeout: '5'

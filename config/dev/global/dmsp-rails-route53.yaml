@@ -5,7 +5,7 @@ template:
 parameters:
   HostedZoneId: !ssm_parameter /uc3/dmp/hub/dev/HostedZoneId
 
-  Domain: 'dmptool.dmphub-dev.cdlib.org'
+  Domain: 'dmsp-api.dmphub.uc3dev.cdlib.net'
   RecordType: 'A'
 
   TargetName: !stack_output dev/regional/alb.yaml::AlbDnsName
@@ -14,4 +14,4 @@ parameters:
   # We need to tell it which region our ALB lives in
   TargetRegion: 'us-west-2'
 
-  SetIdentifier: 'dmptool-dev'
+  SetIdentifier: 'dmsp-prototype'
