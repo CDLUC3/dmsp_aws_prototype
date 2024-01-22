@@ -193,9 +193,18 @@ RSpec.describe 'Full Integration Tests' do
     expect(new_dmp['dmp']['dmphub_versions'].nil?).to be(true)
     # There are no :dmphub_modifications at this point
     expect(new_dmp['dmp']['dmphub_modifications'].nil?).to be(true)
-    # Replaced the incoming :created and :modified timestamps
-    expect(new_dmp['dmp']['created'] > original['dmp']['created']).to be(true)
-    expect(new_dmp['dmp']['modified'] > original['dmp']['modified']).to be(true)
+
+    # Replaced the incoming :created and :modified timestamps when not seeding
+    if seeding
+      expect(new_dmp['dmp']['created']).to eql(original['dmp']['created'])
+      expect(new_dmp['dmp']['modified']).to eql(original['dmp']['modified'])
+    else
+      expect(new_dmp['dmp']['created'] > original['dmp']['created']).to be(true)
+      expect(new_dmp['dmp']['modified'] > original['dmp']['modified']).to be(true)
+    end
+    # The internal modification date should reflect the current timestamp regardless of seeding
+    mod_date = Time.now
+    expect(dynamo_rec['dmphub_modification_day']).to eql(mod_date.strftime('%Y-%m-%d'))
 
     # Validate the record sent to the Dynamo data store
     expect(dynamo_rec['dmp'].nil?).to be(true)
@@ -208,8 +217,6 @@ RSpec.describe 'Full Integration Tests' do
     expect(dynamo_rec['dmphub_provenance_id']).to eql(owner['PK'])
     expected = original.fetch('dmp', {}).fetch('dmp_id', {})['identifier']&.gsub(%r{https?://}, "#{owner['name']}#")
     expect(dynamo_rec['dmphub_provenance_identifier']).to eql(expected)
-    mod_date = Time.parse(dynamo_rec['modified'])
-    expect(dynamo_rec['dmphub_modification_day']).to eql(mod_date.strftime('%Y-%m-%d'))
     expected = original.fetch('dmp', {}).fetch('contact', {}).fetch('contact_id', {})['identifier']
     expect(dynamo_rec['dmphub_owner_id']).to eql(expected)
     expected = original.fetch('dmp', {}).fetch('contact', {}).fetch('dmproadmap_affiliation', {})
