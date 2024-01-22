@@ -10,6 +10,10 @@ Parameters:
   Subnets:
     Type: 'List<AWS::EC2::Subnet::Id>'
 
+  Env:
+    Type: 'String'
+    Default: 'dev'
+
   DomainName:
     Type: 'String'
 
@@ -79,6 +83,10 @@ Parameters:
 
   DoNotReplyEmail:
     Type: 'String'
+
+Conditions:
+  IsDev:
+    !Equals [!Ref Env, 'dev']
 
 Resources:
   # -----------------------------------------------------------
@@ -289,12 +297,18 @@ Resources:
       Cluster: !Ref EcsCluster
       DesiredCount: !Ref EcsDesiredServiceCount
       EnableECSManagedTags: true
-      HealthCheckGracePeriodSeconds: 300 # 5 minutes for app startup
+      HealthCheckGracePeriodSeconds: 180
       LaunchType: 'FARGATE'
       DeploymentConfiguration:
         DeploymentCircuitBreaker:
           Enable: true
           Rollback: true
+      DeploymentController:
+        # If this is dev then just do a rolling deploy, otherwise use the blue/green strategy
+        Type: !If
+          - IsDev
+          - 'ECS'
+          - 'CODE_DEPLOY'
       LoadBalancers:
         - TargetGroupArn: !Ref AlbTargetGroupArn
           ContainerPort: 3000
