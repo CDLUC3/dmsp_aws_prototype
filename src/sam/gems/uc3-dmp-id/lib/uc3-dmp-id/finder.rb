@@ -216,8 +216,8 @@ module Uc3DmpId
 
       # Remove the download URL if the DMP is private
       def _remove_narrative_if_private(json:)
-        return json if json['dmp'].fetch('dmproadmap_privacy', '')&.downcase&.strip == 'public' &&
-                       json['dmp'].fetch('dmproadmap_related_identifiers', []).any?
+        privacy_mode = json['dmp'].fetch('dmproadmap_privacy', 'private')&.downcase&.strip
+        return json if privacy_mode == 'public' || json['dmp'].fetch('dmproadmap_related_identifiers', []).empty?
 
         json['dmp']['dmproadmap_related_identifiers'] = json['dmp']['dmproadmap_related_identifiers'].reject do |id|
           id['descriptor'] == 'is_metadata_for' && id['work_type'] == 'output_management_plan'
