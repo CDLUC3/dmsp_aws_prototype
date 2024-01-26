@@ -76,6 +76,7 @@ module Uc3DmpId
         return nil if dmp['dmp']['PK'].nil?
 
         dmp = Versioner.append_versions(p_key: dmp['dmp']['PK'], dmp:, client:, logger:) if cleanse
+        dmp = _remove_narrative_if_private(json: dmp)
         cleanse ? Helper.cleanse_dmp_json(json: dmp) : dmp
       end
       # rubocop:enable Metrics/AbcSize
@@ -207,9 +208,21 @@ module Uc3DmpId
           next if item.nil?
 
           dmp = item['dmp'].nil? ? JSON.parse({ dmp: item }.to_json) : item
+          dmp = _remove_narrative_if_private(json: dmp)
           Helper.cleanse_dmp_json(json: dmp)
         end
         results.compact.uniq
+      end
+
+      # Remove the download URL if the DMP is private
+      def _remove_narrative_if_private(json:)
+        return json if json['dmp'].fetch('dmproadmap_privacy', '')&.downcase&.strip == 'public' &&
+                       json['dmp'].fetch('dmproadmap_related_identifiers', []).any?
+
+        json['dmp']['dmproadmap_related_identifiers'] = json['dmp']['dmproadmap_related_identifiers'].reject do |id|
+          id['descriptor'] == 'is_metadata_for' && id['work_type'] == 'output_management_plan'
+        end
+        json
       end
     end
   end
