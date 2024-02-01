@@ -32,7 +32,7 @@ module Uc3DmpCitation
         resp = Uc3DmpExternalApi::Client.call(url: uri, method: :get, additional_headers: headers, logger:)
         return nil if resp.nil? || resp.to_s.strip.empty?
 
-        bibtex_to_citation(bibtex_as_string: resp)
+        bibtex_to_citation(uri: uri, bibtex_as_string: resp)
       end
       # rubocop:enable Metrics/AbcSize
 

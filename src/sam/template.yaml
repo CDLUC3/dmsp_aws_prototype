@@ -279,7 +279,7 @@ Resources:
       # Lambdas do not! For example, "'GET,PUT'" defined here should be "GET, PUT" when passed
       # into the Lambdas as an ENV!
       Cors:
-        AllowHeaders: !Sub "'Accept, Accept-Encoding, Accept-Language, Authorization, Cache-Control, Connection, Content-Type, Host, Origin, Referer, Sec-Fetch-Dest, Sec-Fetch-Mode, Sec-Fetch-Site, User-Agent'"
+        AllowHeaders: !Sub "'*'"
         AllowMethods: "'GET, PUT, POST, DELETE, OPTIONS'"
         AllowOrigin: !If
         - IsDev
