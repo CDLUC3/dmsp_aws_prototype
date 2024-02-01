@@ -8,6 +8,7 @@ $LOAD_PATH.unshift(*my_gem_path)
 
 require 'uc3-dmp-api-core'
 require 'uc3-dmp-citation'
+require 'uc3-dmp-external-api'
 require 'uc3-dmp-cloudwatch'
 
 module Functions
@@ -35,6 +36,10 @@ module Functions
         resp = Uc3DmpCitation::Citer.fetch_citation(doi: entry['value']&.strip, work_type: entry['work_type']&.strip,
                                                     style:, logger:)
         citations << { doi: entry['value'], citation: resp }
+      rescue Uc3DmpExternalApi::ExternalApiError => e
+        # The host site did not return a citation, so leave it blank
+        logger.info(message: "Unable to retrieve BibTex citation for #{entry['value']&.strip}")
+        citations << { doi: entry['value'], citation: nil }
       end
       _respond(status: 200, items: citations, event:)
     rescue JSON::ParserError
@@ -44,7 +49,7 @@ module Functions
       logger.debug(message: e.message, details: body.to_s)
       _respond(status: 500, errors: e.message, event:)
     rescue StandardError => e
-      logger.error(message: e.message, details: e.backtrace)
+      logger.error(message: "#{e.class.name}: #{e.message}", details: e.backtrace)
       deets = { message: e.message, body: }
       Uc3DmpApiCore::Notifier.notify_administrator(source: SOURCE, details: deets, event:)
       { statusCode: 500, body: { errors: [Uc3DmpApiCore::MSG_SERVER_ERROR] }.to_json }
