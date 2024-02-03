@@ -4,8 +4,5 @@ source 'https://rubygems.org'
 
 ruby '>= 3.2'
 
-gem 'aws-sdk-cloudformation'
+gem 'httparty'
 
-gem 'uc3-dmp-dynamo'
-gem 'uc3-dmp-event-bridge'
-gem 'uc3-dmp-id'

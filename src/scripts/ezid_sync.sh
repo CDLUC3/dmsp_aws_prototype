@@ -37,12 +37,10 @@ echo "Verifying existence of $KEY"
 DMP=$(aws dynamodb get-item --table-name $TABLE --key $KEY --projection-expression 'PK' --region $AWS_REGION)
 if [[ $DMP != *"Item"* ]]; then echo "Item does not exist in the Dynamo Table!"; exit 3; fi
 
-# EventBridge requires us to use the
-
 echo "Triggering EZID sync"
 SOURCE="$DOMAIN:lambda:event_publisher"
 DETAIL_TYPE="EZID%20update"
 DETAIL="{\\\"PK\\\":\\\"DMP#$2\\\",\\\"SK\\\":\\\"VERSION#latest\\\",\\\"dmphub_provenance_id\\\":\\\"dmptool\\\"}"
 ENTRY="[{\"Source\":\"$SOURCE\",\"DetailType\":\"$DETAIL_TYPE\",\"Detail\":\"$DETAIL\",\"EventBusName\":\"$BUS\"}]"
-EVENT=$(aws events put-events --entries $ENTRY --region $AWS_REGION --no-sign-request)
+EVENT=$(aws events put-events --entries $ENTRY --region $AWS_REGION)
 echo $EVENT
