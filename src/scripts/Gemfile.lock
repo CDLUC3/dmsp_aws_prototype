@@ -1,76 +1,18 @@
 GEM
   remote: https://rubygems.org/
   specs:
-    addressable (2.8.6)
-      public_suffix (>= 2.0.2, < 6.0)
-    aws-eventstream (1.3.0)
-    aws-partitions (1.885.0)
-    aws-sdk-cloudformation (1.99.0)
-      aws-sdk-core (~> 3, >= 3.191.0)
-      aws-sigv4 (~> 1.1)
-    aws-sdk-core (3.191.0)
-      aws-eventstream (~> 1, >= 1.3.0)
-      aws-partitions (~> 1, >= 1.651.0)
-      aws-sigv4 (~> 1.8)
-      jmespath (~> 1, >= 1.6.1)
-    aws-sdk-dynamodb (1.101.0)
-      aws-sdk-core (~> 3, >= 3.191.0)
-      aws-sigv4 (~> 1.1)
-    aws-sdk-eventbridge (1.57.0)
-      aws-sdk-core (~> 3, >= 3.191.0)
-      aws-sigv4 (~> 1.1)
-    aws-sdk-sns (1.71.0)
-      aws-sdk-core (~> 3, >= 3.191.0)
-      aws-sigv4 (~> 1.1)
-    aws-sdk-ssm (1.164.0)
-      aws-sdk-core (~> 3, >= 3.191.0)
-      aws-sigv4 (~> 1.1)
-    aws-sigv4 (1.8.0)
-      aws-eventstream (~> 1, >= 1.0.2)
     httparty (0.21.0)
       mini_mime (>= 1.0.0)
       multi_xml (>= 0.5.2)
-    jmespath (1.6.2)
-    json (2.7.1)
-    json-schema (3.0.0)
-      addressable (>= 2.8)
-    logger (1.6.0)
     mini_mime (1.1.5)
     multi_xml (0.6.0)
-    public_suffix (5.0.4)
-    text (1.3.1)
-    uc3-dmp-citation (0.0.13)
-    uc3-dmp-dynamo (0.0.21)
-      aws-sdk-dynamodb (~> 1.83)
-      json (~> 2.6)
-      logger (~> 1.4)
-    uc3-dmp-event-bridge (0.0.8)
-      aws-sdk-eventbridge (~> 1.44)
-      json (~> 2.6)
-      logger (~> 1.4)
-    uc3-dmp-external-api (0.0.20)
-      aws-sdk-sns (~> 1.60)
-      aws-sdk-ssm (~> 1.150)
-      httparty (~> 0.21.0)
-      json (~> 2.6)
-    uc3-dmp-id (0.1.22)
-      json (~> 2.6)
-      json-schema (~> 3.0)
-      text (~> 1.3)
-      uc3-dmp-citation (~> 0.0)
-      uc3-dmp-dynamo (~> 0.0)
-      uc3-dmp-event-bridge (~> 0.0)
-      uc3-dmp-external-api (~> 0.0)
 
 PLATFORMS
   arm64-darwin-22
   ruby
 
 DEPENDENCIES
-  aws-sdk-cloudformation
-  uc3-dmp-dynamo
-  uc3-dmp-event-bridge
-  uc3-dmp-id
+  httparty
 
 RUBY VERSION
    ruby 3.2.2p53
