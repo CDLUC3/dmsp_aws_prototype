@@ -477,6 +477,7 @@ RSpec.describe 'Uc3DmpId::Helper' do
         PK: 'FOO',
         SK: described_class::DMP_LATEST_VERSION,
         dmp_id: { type: 'doi', identifier: 'https://FOO' },
+        contact: { name: 'Foo, Bar', mbox: 'foo@bar.org' },
         dmproadmap_featured: '1',
         dmphub_modification_day: Time.now.utc.strftime('%Y-%m-%d'),
         dmphub_owner_id: 'orcid123',
@@ -497,6 +498,7 @@ RSpec.describe 'Uc3DmpId::Helper' do
       expected = JSON.parse({
         title: 'Foo bar',
         dmp_id: { type: 'doi', identifier: 'https://FOO' },
+        contact: { name: 'Foo, Bar' },
         dmproadmap_featured: '1',
         dmphub_modifications: 'still here',
         dmphub_versions: { result: 'still here' }

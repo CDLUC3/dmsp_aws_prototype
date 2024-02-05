@@ -2,6 +2,7 @@
 # provide the name of an existing bucket.
 #
 template_bucket_name: 'uc3-dmp-hub-cf-bucket-cdluc3prd'
+
 # Stack tags are attached to every AWS resource created by these CloudFormation templates
 # with the exception of the Lambda functions and layers which are managed by AWS SAM.
 #
@@ -14,4 +15,4 @@ stack_tags:
   Contact: 'briley'
 
 # In the cdl-uc3-prd account devs must call cloudformation using a service role
-cloudformation_service_role: 'arn:aws:iam::834750697783:role/uc3-prd-ops-cfn-service-role'
+cloudformation_service_role: !ssm_parameter /uc3/prd/CfnServiceRoleArn

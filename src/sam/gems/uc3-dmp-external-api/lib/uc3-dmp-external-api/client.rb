@@ -34,6 +34,8 @@ module Uc3DmpExternalApi
         raise ExternalApiError, format(MSG_UNABLE_TO_PARSE, url:)
       rescue HTTParty::Error => e
         raise ExternalApiError, "#{format(MSG_HTTPARTY_ERR, url:)} - #{e.message}"
+      rescue HTTParty::ResponseError => e
+        raise ExternalApiError, "#{format(MSG_HTTPARTY_ERR, url:)} - #{e.message}"
       rescue URI::InvalidURIError
         raise ExternalApiError, format(MSG_INVALID_URI, url:)
       end

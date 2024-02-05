@@ -348,4 +348,42 @@ RSpec.describe 'Uc3DmpId::Finder' do
       expect(result.last).to eql(JSON.parse({ dmp: items[1] }.to_json))
     end
   end
+
+  describe '_remove_narrative_if_private(json:)' do
+    let!(:json) do
+      JSON.parse({
+        dmp: {
+          dmproadmap_privacy: 'private',
+          dmproadmap_related_identifiers: [
+            { descriptor: 'references', work_type: 'dataset', type: 'doi', identifier: 'dataset' },
+            { descriptor: 'references', work_type: 'output_management_plan', type: 'doi', identifier: 'other_dmp' },
+            { descriptor: 'is_metadata_for', work_type: 'dataset', type: 'doi', identifier: 'fake_narrative' },
+            { descriptor: 'is_metadata_for', work_type: 'output_management_plan', type: 'doi', identifier: 'narrative' }
+          ]
+        }
+      }.to_json)
+    end
+
+    it 'returns the :json as-is if the DMP is "public"' do
+      json['dmp']['dmproadmap_privacy'] = 'public'
+      expect(described_class.send(:_remove_narrative_if_private, json:)).to eql(json)
+    end
+
+    it 'returns the :json as-is if the DMP has no narrative' do
+      json['dmp']['dmproadmap_related_identifiers'] = json['dmp']['dmproadmap_related_identifiers'].reject do |id|
+        id['descriptor'] == 'is_metadata_for' && id['work_type'] == 'output_management_plan'
+      end
+      expect(described_class.send(:_remove_narrative_if_private, json:)).to eql(json)
+    end
+
+    it 'returns the :json without the narrative' do
+      resp = described_class.send(:_remove_narrative_if_private, json:)
+      ids = resp['dmp']['dmproadmap_related_identifiers'].map { |id| id['identifier'] }
+      expect(ids.length).to be(3)
+      expect(ids.include?('dataset')).to be(true)
+      expect(ids.include?('other_dmp')).to be(true)
+      expect(ids.include?('fake_narrative')).to be(true)
+      expect(ids.include?('narrative')).to be(false)
+    end
+  end
 end

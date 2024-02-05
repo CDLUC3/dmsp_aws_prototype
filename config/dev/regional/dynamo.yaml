@@ -21,8 +21,8 @@ parameters:
 hooks:
   after_create:
     # Add Provenance items to the Dynamo Table
-    - !cmd './seed_dynamo.sh dev DMPTool dmptool-dev.cdlib.org'
-    - !cmd './seed_dynamo.sh dev DMPHub dmphub.uc3dev.cdlib.net'
+    - !cmd './src/scripts/seed_dynamo.sh dev DMPTool dmptool-dev.cdlib.org'
+    - !cmd './src/scripts/seed_dynamo.sh dev DMPHub dmphub.uc3dev.cdlib.net'
 
     # Once the Dynamo table has been created, we can deploy our Lambdas and
     # the API Gateway which are managed by AWS SAM.

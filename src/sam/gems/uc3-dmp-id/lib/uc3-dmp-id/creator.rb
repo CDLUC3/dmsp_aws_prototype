@@ -44,8 +44,10 @@ module Uc3DmpId
 
         # Set the :created and :modified timestamps
         now = Time.now.utc.iso8601
-        annotated['created'] = now
-        annotated['modified'] = now
+        seeding = provenance.fetch('seedingWithLiveDmpIds', false).to_s.downcase == 'true'
+        # Do not overwrite the created/modified timestamps if we are seeding!
+        annotated['created'] = now unless seeding
+        annotated['modified'] = now unless seeding
 
         # Create the item
         resp = client.put_item(json: annotated, logger:)
