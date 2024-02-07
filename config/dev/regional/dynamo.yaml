@@ -9,8 +9,6 @@ parameters:
 
   SsmPath: !stack_attr sceptre_user_data.ssm_path
 
-  # OpenSearchDomain: !stack_output_external Uc3OpsOpensearchStack::domainEndpoint
-
   # Dynamo settings
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html
   DynamoTableClass: 'STANDARD'

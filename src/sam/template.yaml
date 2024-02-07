@@ -13,6 +13,18 @@ Globals:
     Tracing: 'Active'
 
 Parameters:
+  VpcId:
+    Type: 'AWS::EC2::VPC::Id'
+
+  SubnetA:
+    Type: 'AWS::EC2::Subnet::Id'
+
+  SubnetB:
+    Type: 'AWS::EC2::Subnet::Id'
+
+  SubnetC:
+    Type: 'AWS::EC2::Subnet::Id'
+
   HostedZoneId:
     Type: 'String'
 
@@ -22,6 +34,9 @@ Parameters:
   Env:
     Type: 'String'
     Default: 'dev'
+
+  SsmPath:
+    Type: 'String'
 
   DebugLevel:
     Type: 'String'
@@ -46,10 +61,19 @@ Parameters:
   DynamoTableName:
     Type: 'String'
 
-  # DynamoTableStreamArn:
-  #   Type: 'String'
+  DynamoTableStreamArn:
+    Type: 'String'
 
-  # OpenSearchDomain:
+  OpenSearchSecGrpId:
+    Type: 'String'
+
+  OpenSearchDomainArn:
+    Type: 'String'
+
+  OpenSearchDomainEndpoint:
+    Type: 'String'
+
+  # CognitoLambdaOpenSearchRoleArn:
   #   Type: 'String'
 
   # ResourcesDynamoTableArn:
@@ -163,43 +187,55 @@ Resources:
   #           - !Sub '${ResourcesDynamoTableArn}/index/*'
 
   # # Role to allow a Lambda function to read from the DynamoDB Table Stream and Send an SNS notification
-  # DynamoTableStreamRole:
-  #   Type: 'AWS::IAM::Role'
-  #   Properties:
-  #     Description: !Sub '%{AWS::StackName} - Allow Lambda to access the Dynamo Stream and write to OpenSearch'
-  #     AssumeRolePolicyDocument:
-  #       Version: '2012-10-17'
-  #       Statement:
-  #         Effect: 'Allow'
-  #         Action: 'sts:AssumeRole'
-  #         Principal:
-  #           Service: 'lambda.amazonaws.com'
-  #     ManagedPolicyArns:
-  #       - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
-  #       - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
-  #       - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
-  #       - 'arn:aws:iam::aws:policy/AmazonSQSFullAccess'
-  #     Policies:
-  #       - PolicyName: !Sub '${AWS::StackName}-LambdaReadDynamoStream'
-  #         PolicyDocument:
-  #           Version: '2012-10-17'
-  #           Statement:
-  #             Effect: 'Allow'
-  #             Action:
-  #               - 'dynamodb:DescribeStream'
-  #               - 'dynamodb:GetRecords'
-  #               - 'dynamodb:GetShardIterator'
-  #               - 'dynamodb:ListStreams'
-  #             Resource: !Sub '${DynamoTableArn}/stream/*'
-  #       - PolicyName: !Sub '${AWS::StackName}-LambdaWriteOpenSearch'
-  #         PolicyDocument:
-  #           Version: '2012-10-17'
-  #           Statement:
-  #             Effect: 'Allow'
-  #             Action:
-  #               - 'es:ESHttpPost'
-  #               - 'es:ESHttpPut'
-  #             Resource: '*'
+  DynamoTableStreamRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      Description: !Sub '%{AWS::StackName} - Allow Lambda to access the Dynamo Stream and write to OpenSearch'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          Effect: 'Allow'
+          Action: 'sts:AssumeRole'
+          Principal:
+            AWS: '*'
+            # Service: 'lambda.amazonaws.com'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSQSFullAccess'
+      Policies:
+        - PolicyName: !Sub '${AWS::StackName}-LambdaReadDynamoStream'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              Effect: 'Allow'
+              Action:
+                - 'dynamodb:DescribeStream'
+                - 'dynamodb:GetRecords'
+                - 'dynamodb:GetShardIterator'
+                - 'dynamodb:ListStreams'
+              Resource: !Sub '${DynamoTableArn}/stream/*'
+        - PolicyName: !Sub '${AWS::StackName}-LambdaVpcAccess'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              Effect: 'Allow'
+              Action:
+                - 'ec2:DescribeNetworkInterfaces'
+                - 'ec2:CreateNetworkInterface'
+                - 'ec2:DeleteNetworkInterface'
+              Resource: '*'
+        - PolicyName: !Sub '${AWS::StackName}-Lambda-OpenSearch-Access'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              Effect: 'Allow'
+              Action:
+                - 'es:*'
+              Resource:
+                - !Ref OpenSearchDomainArn
+                - !Sub '${OpenSearchDomainArn}/*'
 
   EventBusPolicy:
     Type: 'AWS::IAM::ManagedPolicy'
@@ -247,6 +283,27 @@ Resources:
           Resource:
             - !Ref S3CloudFrontBucketArn
             - !Sub "${S3CloudFrontBucketArn}/*"
+
+  # -----------------------------------------------------------
+  # EC2 Security Groups for ECS containers (see their definitions in application.yaml)
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-security-group.html
+  # -----------------------------------------------------------
+  LambdaSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: !Sub '${AWS::StackName} Lambda Sec-grp'
+      GroupName: !Sub '${AWS::StackName}-sec-grp'
+      VpcId: !Ref VpcId
+
+  # Allow traffic to the ECS instances from the ALB
+  LambdaSecurityGroupIngressFromOpenSearch:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      IpProtocol: 'tcp'
+      FromPort: 443
+      ToPort: 443
+      GroupId: !GetAtt LambdaSecurityGroup.GroupId
+      SourceSecurityGroupId: !Ref OpenSearchSecGrpId
 
   # ----------------------------------------------------
   # CloudWatch LogGroup
@@ -411,6 +468,7 @@ Resources:
       # Explicit retention time
       RetentionInDays: !Ref LogRetentionDays
 
+  # Tombstone a DMP
   DeleteDmpFunction:
     Type: 'AWS::Serverless::Function'
     Properties:
@@ -659,6 +717,15 @@ Resources:
       LogGroupName: !Sub "/aws/lambda/${GetDmpFunction}"
       # Explicit retention time
       RetentionInDays: !Ref LogRetentionDays
+
+  # GetDmpOpenSearchSubscription:
+  #   Type: 'AWS::Logs::SubscriptionFilter'
+  #   Properties:
+  #     DestinationArn: !Ref OpenSearchDomainArn
+  #     LogGroupName: !Ref GetDmpLogGroup
+  #     Distribution: 'Random'
+  #     FilterPattern: 'RequestId'
+  #     RoleArn: !GetAtt DynamoTableStreamRole.Arn
 
   # Search for DMP IDs
   GetDmpsFunction:
@@ -1045,51 +1112,60 @@ Resources:
       RetentionInDays: !Ref LogRetentionDays
 
   # Lambda that converts DynamoDB Stream events into OpenSearch records
-  # DynamoToOpenSearchFunction:
-  #   Type: 'AWS::Serverless::Function'
-  #   Properties:
-  #     CodeUri: 'functions/triggered/dynamo_to_opensearch/'
-  #     Handler: 'app.Functions::DynamoToOpensearch.process'
-  #     Runtime: 'ruby3.2'
-  #     Timeout: 30
-  #     Architectures:
-  #       - 'x86_64'
-  #     Layers:
-  #       - !Ref LambdaLayer
-  #     Role: !GetAtt DynamoTableStreamRole.Arn
-  #     Environment:
-  #       Variables:
-  #         LAMBDA_ENV: !Ref Env
-  #         LOG_LEVEL: !Ref DebugLevel # 'debug'
-  #         OPEN_SEARCH_DOMAIN: !Ref OpenSearchDomain
-  #     Events:
-  #       DynamoDbOpenSearchEvent:
-  #         # See: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-property-function-dynamodb.html
-  #         Type: 'DynamoDB'
-  #         Properties:
-  #           Enabled: true
-  #           StartingPosition: 'TRIM_HORIZON' # Other Options are 'AT_TIMESTAMP' and 'LATEST'
-  #           # StartingPositionTimestamp: Double
-  #           Stream: !Ref DynamoTableStreamArn
-  #           DestinationConfig:
-  #             OnFailure:
-  #               Destination: !Ref DeadLetterQueueArn
+  DynamoToOpenSearchFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      CodeUri: 'functions/triggered/dynamo_to_opensearch/'
+      Handler: 'app.Functions::DynamoToOpensearch.process'
+      Runtime: 'ruby3.2'
+      Timeout: 600
+      Architectures:
+        - 'x86_64'
+      Layers:
+        - !Ref LambdaLayer
+      Role: !GetAtt DynamoTableStreamRole.Arn
+      Environment:
+        Variables:
+          LAMBDA_ENV: !Ref Env
+          LOG_LEVEL: !Ref DebugLevel # 'debug'
+          OPEN_SEARCH_DOMAIN: !Sub 'https://${OpenSearchDomainEndpoint}'
+          OPEN_SEARCH_INDEX: !Sub '${Env}-dmp-id-search'
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+          - !Ref OpenSearchSecGrpId
+        SubnetIds:
+          - !Ref SubnetA
+          - !Ref SubnetB
+          - !Ref SubnetC
+      Events:
+        DynamoDbOpenSearchEvent:
+          # See: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-property-function-dynamodb.html
+          Type: 'DynamoDB'
+          Properties:
+            Enabled: true
+            StartingPosition: 'TRIM_HORIZON' # Other Options are 'AT_TIMESTAMP' and 'LATEST'
+            # StartingPositionTimestamp: Double
+            Stream: !Ref DynamoTableStreamArn
+            DestinationConfig:
+              OnFailure:
+                Destination: !Ref DeadLetterQueueArn
 
-  # DynamoToOpenSearchPermission:
-  #   Type: 'AWS::Lambda::Permission'
-  #   Properties:
-  #     FunctionName: !Ref DynamoToOpenSearchFunction
-  #     Action: 'lambda:InvokeFunction'
-  #     Principal: 'events.amazonaws.com'
+  DynamoToOpenSearchPermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      FunctionName: !Ref DynamoToOpenSearchFunction
+      Action: 'lambda:InvokeFunction'
+      Principal: 'events.amazonaws.com'
 
   # Annoyingly, SAM does not auto-generate LogGroup for a non-API tiggered lambda
-  # DynamoToOpenSearchFunctionLogGroup:
-  #   Type: 'AWS::Logs::LogGroup'
-  #   DependsOn:
-  #     - DynamoToOpenSearchFunction
-  #   Properties:
-  #     LogGroupName: !Sub "/aws/lambda/${DynamoToOpenSearchFunction}"
-  #     RetentionInDays: !Ref LogRetentionDays
+  DynamoToOpenSearchFunctionLogGroup:
+    Type: 'AWS::Logs::LogGroup'
+    DependsOn:
+      - DynamoToOpenSearchFunction
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${DynamoToOpenSearchFunction}"
+      RetentionInDays: !Ref LogRetentionDays
 
   # Lambda responsible for communications with EZID
   EzidPublisherFunction:

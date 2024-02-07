@@ -6,8 +6,10 @@
 my_gem_path = Dir['/opt/ruby/gems/**/lib/']
 $LOAD_PATH.unshift(*my_gem_path)
 
-require 'opensearch'
+require 'opensearch-aws-sigv4'
+require 'aws-sigv4'
 
+require 'uc3-dmp-api-core'
 require 'uc3-dmp-cloudwatch'
 require 'uc3-dmp-id'
 
@@ -15,10 +17,6 @@ module Functions
   # A service that queries DataCite EventData
   class DynamoToOpensearch
     SOURCE = 'DynamoDb Table Stream to OpenSearch'
-
-    OPEN_SEARCH_DOMAIN = ''
-    OPEN_SEARCH_INDEX = ''
-
 
     # Parameters
     # ----------
@@ -77,17 +75,30 @@ module Functions
         records.each do |record|
           pk = record.fetch('dynamodb', {}).fetch('Keys', []).fetch('PK', {})['S']
           sk = record.fetch('dynamodb', {}).fetch('Keys', []).fetch('SK', {})['S']
-          next if pk.nil? || sk.nil? || sk != Uc3DmpId::Helper::DMP_LATEST_VERSION
+          payload = record.fetch('dynamodb', {}).fetch('NewImage', {})
+          next if pk.nil? || sk.nil? || payload.nil? || sk != Uc3DmpId::Helper::DMP_LATEST_VERSION
 
           logger&.debug(message: "Processing change to DynamoDB record #{pk}", details: record)
 
           case record['eventName']
           when 'REMOVE'
-            p "Removing OpenSearch record"
+            logger&.info(message: "Removing OpenSearch record")
           when 'MODIFY'
-            p "Updating OpenSearch record"
+            logger&.info(message: "Updating OpenSearch record")
+            client.index(
+              index: ENV['OPEN_SEARCH_INDEX'],
+              body: _dmp_to_os_doc(hash: payload, logger:),
+              id: pk,
+              refresh: true
+            )
           else
-            p "Creating OpenSearch record"
+            logger&.info(message: "Creating OpenSearch record")
+            client.index(
+              index: ENV['OPEN_SEARCH_INDEX'],
+              body: _dmp_to_os_doc(hash: payload, logger:),
+              id: pk,
+              refresh: true
+            )
           end
 
           record_count += 1
@@ -95,18 +106,219 @@ module Functions
 
         logger&.info(message: "Processed #{record_count} records.")
         "Processed #{record_count} records."
+      rescue StandardError => e
+        puts "ERROR: Updating OpenSearch index: #{e.message}"
+        puts e.backtrace
       end
 
       private
 
       # Establish a connection to OpenSearch
       def _open_search_connect(logger:)
-        OpenSearch::Client.new(
-          url: OPEN_SEARCH_DOMAIN,
-          retry_on_failure: 5,
-          request_timeout: 120,
-          log: logger&.level == 'debug'
+        # NOTE the AWS credentials are supplied to the Lambda at Runtime, NOT passed in by CloudFormation
+        signer = Aws::Sigv4::Signer.new(
+          service: 'es',
+          region: ENV['AWS_REGION'],
+          access_key_id: ENV['AWS_ACCESS_KEY_ID'],
+          secret_access_key: ENV['AWS_SECRET_ACCESS_KEY'],
+          session_token: ENV['AWS_SESSION_TOKEN']
         )
+        client = OpenSearch::Aws::Sigv4Client.new({ host: ENV['OPEN_SEARCH_DOMAIN'], log: true }, signer)
+        logger&.debug(message: client&.info)
+
+        # Create the index if it does not already exist
+        index_exists = client.indices.exists(index: ENV['OPEN_SEARCH_INDEX'])
+        logger&.info(message: "Creating index '#{ENV['OPEN_SEARCH_INDEX']}' because it does not exist") unless index_exists
+        client.indices.create(index: ENV['OPEN_SEARCH_INDEX']) unless index_exists
+
+        client
+      rescue StandardError => e
+        puts "ERROR: Establishing connection to OpenSearch: #{e.message}"
+        puts e.backtrace
+      end
+
+      # Convert the incoming DynamoStream payload to the OpenSearch index format
+      # Incoming:
+      #   {
+      #     "contact": {
+      #       "M": {
+      #         "name": { "S": "Riley, Brian" },
+      #         "contact_id": {
+      #           "M": {
+      #             "identifier": { "S": "https://orcid.org/0000-0001-0001-0001" },
+      #             "type": { "S": "orcid" }
+      #           }
+      #         }
+      #       }
+      #     },
+      #     "SK": { "S": "VERSION#latest" },
+      #     "description": { "S": "Update 4" },
+      #     "PK": { "S": "DMP#stream_test_1" },
+      #     "title": { "S": "Stream test 1" }
+      #   }
+      #
+      # Index Doc:
+      #   {
+      #     "dmp_id": "stream_test_1",
+      #     "title": "Stream test 1",
+      #     "description": "Update 4",
+      #     "contact_id": "https://orcid.org/0000-0001-0001-0001"
+      #     "contact_name": "Riley"
+      #   }
+      def dmp_to_os_doc(hash:)
+        parts = { people: [], people_ids: [], affiliations: [], affiliation_ids: [] }
+        parts = parts_from_dmp(parts_hash: parts, hash:)
+        parts.merge({
+          dmp_id: Uc3DmpId::Helper.pk_to_dmp_id(p_key: hash.fetch('PK', {})['S'])['identifier'],
+          title: hash.fetch('title', {})['S']&.downcase,
+          description: hash.fetch('description', {})['S']&.downcase
+        })
+      end
+
+      # Convert the contact section of the Dynamo record to an OpenSearch Document
+      def parts_from_dmp(parts_hash:, hash:)
+        contributors = hash.fetch('contributor', []).map { |c| c.fetch('M', {})}
+
+        # Process the contact
+        parts_hash = parts_from_person(parts_hash:, hash: hash.fetch('contact', {}).fetch('M', {}))
+        # Process each contributor
+        hash.fetch('contributor', []).map { |c| c.fetch('M', {})}.each do |contributor|
+          parts_hash = parts_from_person(parts_hash:, hash: contributor)
+        end
+
+        # Deduplicate and remove nils and convert to lower case
+        parts_hash&.each_key { |key| parts_hash[key] = parts_hash[key].compact.uniq.map(&:downcase) }
+        parts_hash
+      end
+
+      # Convert the person metadata for OpenSearch
+      def parts_from_person(parts_hash:, hash:)
+        return parts_hash unless hash.is_a?(Hash) && hash.keys.any?
+
+        id = hash.fetch('contact_id', hash.fetch('contributor_id', {}))['M']
+        a_id = hash.fetch('dmproadmap_affiliation', {})['M']
+
+        parts_hash[:people] << hash.fetch('name', {})['S']
+        parts_hash[:people] << hash.fetch('mbox', {})['S']
+        parts_hash[:affiliations] << affil.fetch('name', {})['S']
+
+        parts_hash[:people_ids] << id.fetch('identifier', {})['S']
+        parts_hash[:affiliation_ids] << a_id.fetch('affiliation_id', {}).fetch('M', {}).fetch('identifier', {})['S']
+        parts_hash
+      end
+
+      # Extract all of the important information from the DMP to create our OpenSearch Doc
+      def _dmp_to_os_doc(hash:, logger:)
+        people = _extract_people(hash:, logger:)
+        doc = people.merge({
+          dmp_id: Uc3DmpId::Helper.pk_to_dmp_id(p_key: hash.fetch('PK', {})['S']),
+          title: hash.fetch('title', {})['S']&.downcase,
+          description: hash.fetch('description', {})['S']&.downcase
+        })
+        logger.debug(message: 'New OpenSearch Document', details: { document: doc })
+        doc
+      end
+
+      # Extract the important information from each contact and contributor
+      def _extract_people(hash:, logger:)
+        return {} unless hash.is_a?(Hash)
+
+        # Fetch the important parts from each person
+        people = hash.fetch('contributor', {})['L']&.map { |contrib| _process_person(hash: contrib) }
+        people = [] if people.nil?
+        people << _process_person(hash: hash['contact'])
+        logger.debug(message: "Extracted the people from the DMP", details: { people: people })
+
+        # Distill the individual people
+        parts = _people_to_os_doc_parts(people:)
+        # Dedeplicate and remove any nils
+        parts = parts.each_key { |key| parts[key] = parts[key]&.compact&.uniq }
+        parts
+      end
+
+      # Combine all of the people metadata into arrays for our OpenSearch Doc
+      def _people_to_os_doc_parts(people:)
+        parts = { people: [], people_ids: [], affiliations: [], affiliation_ids: [] }
+
+        # Add each person's info to the appropriate part or the OpenSearch doc
+        people.each do |person|
+          parts[:people] << person[:name] unless person[:name].nil?
+          parts[:people] << person[:email] unless person[:email].nil?
+          parts[:people_ids] << person[:id] unless person[:id].nil?
+          parts[:affiliations] << person[:affiliation] unless person[:affiliation].nil?
+          parts[:affiliation_ids] << person[:affiliation_id] unless person[:affiliation_id].nil?
+        end
+        parts
+      end
+
+      # Extract the important patrts of the contact/contributor from the DynamoStream image
+      #   "M": {
+      #     "name": { "S": "DMPTool Researcher" },
+      #     "dmproadmap_affiliation": {
+      #       "M": {
+      #         "name": { "S": "University of California, Office of the President (UCOP)" },
+      #         "affiliation_id": {
+      #           "M": {
+      #             "identifier": { "S": "https://ror.org/00pjdza24" },
+      #             "type": { "S": "ror" }
+      #           }
+      #         }
+      #       }
+      #     },
+      #     "contact_id|contributor_id": {
+      #       "M": {
+      #         "identifier": { "S": "https://orcid.org/0000-0002-5491-6036" },
+      #         "type": { "S": "orcid" }
+      #       }
+      #     },
+      #     "mbox": { "S": "dmptool.researcher@gmail.com" }
+      #     "role": {
+      #       "L": [{ "S": "http://credit.niso.org/contributor-roles/investigation" }]
+      #     }
+      #   }
+      def _process_person(hash:)
+        return {} unless hash.is_a?(Hash) && !hash['M'].nil?
+
+        id_type = hash['M']['contact_id'].nil? ? 'contributor_id' : 'contact_id'
+        affiliation = _process_affiliation(hash: hash['M'].fetch('dmproadmap_affiliation', {}))
+
+        {
+          name: hash['M'].fetch('name', {})['S']&.downcase,
+          email: hash['M'].fetch('mbox', {})['S']&.downcase,
+          id: _process_id(hash: hash['M'].fetch(id_type, {})),
+          affiliation: affiliation[:name],
+          affiliation_id: affiliation[:id]
+        }
+      end
+
+      # Extract the important patrts of the affiliation from the DynamoStream image
+      #
+      #  "M": {
+      #    "name": { "S": "University of California, Office of the President (UCOP)" },
+      #    "affiliation_id": {
+      #      "M": {
+      #        "identifier": { "S": "https://ror.org/00pjdza24" },
+      #        "type": { "S": "ror" }
+      #      }
+      #    }
+      #  }
+      def _process_affiliation(hash:)
+        return {} unless hash.is_a?(Hash) && !hash['M'].nil?
+
+        {
+          name: hash['M'].fetch('name', {})['S']&.downcase,
+          id: _process_id(hash: hash['M'].fetch('affiliation_id', {}))
+        }
+      end
+
+      # Extract the important patrts of the identifier from the DynamoStream image
+      #
+      #    "M": {
+      #      "identifier": { "S": "https://ror.org/00987cb86" },
+      #      "type": { "S": "ror" }
+      #    }
+      def _process_id(hash:)
+        hash.is_a?(Hash) ? hash.fetch('M', {}).fetch('identifier', {})['S']&.downcase : nil
       end
     end
   end
