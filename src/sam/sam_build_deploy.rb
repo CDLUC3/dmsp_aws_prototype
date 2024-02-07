@@ -28,6 +28,7 @@ DEFAULT_REGION = 'us-west-2'
 def fetch_ssm_parameter(key:)
   return nil if key.nil?
 
+  key = key.gsub("#{@env}-", '')
   name = key.start_with?(@ssm_key_prefix) ? key : "#{@ssm_key_prefix}#{key}"
   @ssm_client.get_parameter(name: name, with_decryption: true)&.parameter&.value
 rescue Aws::SSM::Errors::ParameterNotFound => e
@@ -151,6 +152,12 @@ if ARGV.length >= 3
     @cf_role = @cf_roles.first&.value
   end
 
+  @vpcs = @stack_exports.select do |export|
+    aws_env = @env == 'dev' ? 'dev' : 'prd'
+    export.exporting_stack_id.include?("cdl-uc3-#{aws_env}-vpc-stack") && export.name == "cdl-uc3-#{aws_env}-vpc-stack-vpc"
+  end
+  @vpc = @vpcs.first&.value
+
   if ARGV[1].to_s.downcase.strip == 'true' || ARGV[2].to_s.downcase.strip == 'true'
     log_level = ARGV[3].nil? ? 'error' : ARGV[3]
 
@@ -159,7 +166,8 @@ if ARGV.length >= 3
       { template_param_name: 'Env', value: ARGV[0] },
       { template_param_name: 'DebugLevel', value: log_level },
       { template_param_name: 'LogRetentionDays', value: 14 },
-      { template_param_name: 'SsmPath', value: @ssm_key_prefix }
+      { template_param_name: 'SsmPath', value: @ssm_key_prefix },
+      { template_param_name: 'VpcId', value: @vpc }
     ]
 
     @fetchable_params = [
@@ -177,9 +185,12 @@ if ARGV.length >= 3
       { template_param_name: 'S3PrivateBucketId', lookup_name: "#{@cf_export_prefix}S3PrivateBucketId" },
       { template_param_name: 'S3CloudFrontBucketArn', lookup_name: "#{@cf_export_prefix}S3CloudFrontBucketArn" },
       { template_param_name: 'SnsEmailTopicArn', lookup_name: "#{@cf_export_prefix}SnsTopicEmailArn" },
+      { template_param_name: 'OpenSearchSecGrpId', lookup_name: "#{@cf_export_prefix}OpenSearchSecurityGroupId" },
       { template_param_name: 'OpenSearchDomainEndpoint', lookup_name: "#{@cf_export_prefix}OpenSearchDomainEndpoint" },
       { template_param_name: 'OpenSearchDomainArn', lookup_name: "#{@cf_export_prefix}OpenSearchDomainArn" },
-      { template_param_name: 'CognitoLambdaOpenSearchRoleArn', lookup_name: "#{@cf_export_prefix}CognitoLambdaOpenSearchRoleArn" }
+      { template_param_name: 'SubnetA', lookup_name: "#{@cf_export_prefix}SubnetA" },
+      { template_param_name: 'SubnetB', lookup_name: "#{@cf_export_prefix}SubnetB" },
+      { template_param_name: 'SubnetC', lookup_name: "#{@cf_export_prefix}SubnetC" }
     ]
   end
 

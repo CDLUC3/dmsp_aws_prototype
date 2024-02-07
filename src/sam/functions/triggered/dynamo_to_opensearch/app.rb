@@ -6,7 +6,6 @@
 my_gem_path = Dir['/opt/ruby/gems/**/lib/']
 $LOAD_PATH.unshift(*my_gem_path)
 
-# require 'opensearch'
 require 'opensearch-aws-sigv4'
 require 'aws-sigv4'
 
@@ -83,9 +82,9 @@ module Functions
 
           case record['eventName']
           when 'REMOVE'
-            p "Removing OpenSearch record"
+            logger&.info(message: "Removing OpenSearch record")
           when 'MODIFY'
-            p "Updating OpenSearch record"
+            logger&.info(message: "Updating OpenSearch record")
             client.index(
               index: ENV['OPEN_SEARCH_INDEX'],
               body: _dmp_to_os_doc(hash: payload, logger:),
@@ -93,7 +92,7 @@ module Functions
               refresh: true
             )
           else
-            p "Creating OpenSearch record"
+            logger&.info(message: "Creating OpenSearch record")
             client.index(
               index: ENV['OPEN_SEARCH_INDEX'],
               body: _dmp_to_os_doc(hash: payload, logger:),
@@ -107,34 +106,35 @@ module Functions
 
         logger&.info(message: "Processed #{record_count} records.")
         "Processed #{record_count} records."
+      rescue StandardError => e
+        puts "ERROR: Updating OpenSearch index: #{e.message}"
+        puts e.backtrace
       end
 
       private
 
       # Establish a connection to OpenSearch
       def _open_search_connect(logger:)
-        # username = Uc3DmpApiCore::SsmReader.fetch_value(key: "#{ENV['SSM_PATH']}OpenSearchUsername", logger:)
-        # password = Uc3DmpApiCore::SsmReader.fetch_value(key: "#{ENV['SSM_PATH']}OpenSearchPassword", logger:)
-        # creds = Aws::AssumeRoleCredentials.new(
-        #   role_arn: 'arn:aws:iam::671846987296:role/uc3-dmp-hub-dev-sam-resources-DynamoTableStreamRole-iVzcLupZoLUy',
-        #   role_session_name: 'uc3-dmp-hub-dev-lambda-opensearch'
-        # )
-
-        creds = Aws::AssumeRoleCredentials.new(
-          # client: Aws::STS::Client.new(...),
-          role_arn: ENV['OPEN_SEARCH_ROLE'],
-          role_session_name: "dynamo-opensearch-sess"
+        # NOTE the AWS credentials are supplied to the Lambda at Runtime, NOT passed in by CloudFormation
+        signer = Aws::Sigv4::Signer.new(
+          service: 'es',
+          region: ENV['AWS_REGION'],
+          access_key_id: ENV['AWS_ACCESS_KEY_ID'],
+          secret_access_key: ENV['AWS_SECRET_ACCESS_KEY'],
+          session_token: ENV['AWS_SESSION_TOKEN']
         )
-        signer = Aws::Sigv4::Signer.new(service: 'es', region: ENV['AWS_REGION'], credentials: creds)
+        client = OpenSearch::Aws::Sigv4Client.new({ host: ENV['OPEN_SEARCH_DOMAIN'], log: true }, signer)
+        logger&.debug(message: client&.info)
 
-        # OpenSearch::Client.new(
-        OpenSearch::Aws::Sigv4Client.new({
-          url: ENV['OPEN_SEARCH_DOMAIN'],
-          retry_on_failure: 3,
-          request_timeout: 60,
-          log: logger&.level == 'debug'
-        # )
-        }, signer)
+        # Create the index if it does not already exist
+        index_exists = client.indices.exists(index: ENV['OPEN_SEARCH_INDEX'])
+        logger&.info(message: "Creating index '#{ENV['OPEN_SEARCH_INDEX']}' because it does not exist") unless index_exists
+        client.indices.create(index: ENV['OPEN_SEARCH_INDEX']) unless index_exists
+
+        client
+      rescue StandardError => e
+        puts "ERROR: Establishing connection to OpenSearch: #{e.message}"
+        puts e.backtrace
       end
 
       # Convert the incoming DynamoStream payload to the OpenSearch index format

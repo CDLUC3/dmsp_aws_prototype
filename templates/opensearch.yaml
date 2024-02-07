@@ -5,6 +5,21 @@ Transform: 'AWS::SecretsManager-2020-07-23'
 Description: 'OpenSearch related resources'
 
 Parameters:
+  VpcId:
+    Type: 'AWS::EC2::VPC::Id'
+
+  SubnetA:
+    Type: 'AWS::EC2::Subnet::Id'
+
+  SubnetB:
+    Type: 'AWS::EC2::Subnet::Id'
+
+  SubnetC:
+    Type: 'AWS::EC2::Subnet::Id'
+
+  DomainName:
+    Type: 'String'
+
   Env:
     Type: 'String'
     Default: 'dev'
@@ -16,15 +31,6 @@ Parameters:
     Type: 'String'
 
   OSLogsDomainEndpoint:
-    Type: 'String'
-
-  CognitoUserPoolId:
-    Type: 'String'
-
-  CognitoIdentityPoolId:
-    Type: 'String'
-
-  CognitoOpenSearchRoleArn:
     Type: 'String'
 
   LogRetentionDays:
@@ -52,6 +58,39 @@ Resources:
       Type: 'String'
       Value: !Sub "https://${OSLogsDomainEndpoint}"
 
+  # Adding a few here so that they can be pulled in to SAM build/deploy
+  DomainNameParameter:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: !Sub "${AWS::StackName} Domain Name"
+      Name: !Sub "${SsmPath}DomainName"
+      Type: 'String'
+      Value: !Ref DomainName
+
+  SubnetAParameter:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: !Sub "${AWS::StackName} Subnet 1"
+      Name: !Sub "${SsmPath}SubnetA"
+      Type: 'String'
+      Value: !Ref SubnetA
+
+  SubnetBParameter:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: !Sub "${AWS::StackName} Subnet 2"
+      Name: !Sub "${SsmPath}SubnetB"
+      Type: 'String'
+      Value: !Ref SubnetB
+
+  SubnetCParameter:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: !Sub "${AWS::StackName} Subnet 3"
+      Name: !Sub "${SsmPath}SubnetC"
+      Type: 'String'
+      Value: !Ref SubnetC
+
   # --------------------------------------------------------
   # CloudWatch LogGroups
   #   See:
@@ -72,6 +111,27 @@ Resources:
       PolicyName: !Sub 'DmpHub${Env}OSAppLog'
       PolicyDocument: !Sub '{"Version": "2012-10-17","Statement": {"Effect": "Allow", "Principal": { "Service": "es.amazonaws.com" }, "Action": ["logs:PutLogEvents", "logs:CreateLogStream"], "Resource": ["${OpenSearchLogGroup.Arn}"]}}'
 
+  # -----------------------------------------------------------
+  # EC2 Security Groups for ECS containers (see their definitions in application.yaml)
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-security-group.html
+  # -----------------------------------------------------------
+  OpensearchSecGrp:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: !Sub 'OpenSearch security group for ${AWS::StackName}'
+      GroupName: !Sub '${AWS::StackName}-sec-grp'
+      VpcId: !Ref VpcId
+
+  OpensearchSecGrpIngress:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      Description: 'Ingress rules for ${AWS::StackName} sec-grp'
+      IpProtocol: 'tcp'
+      CidrIp: 0.0.0.0/0
+      FromPort: 443
+      ToPort: 443
+      GroupId: !Ref OpensearchSecGrp
+
   # --------------------------------------------------------
   # OpenSearch Domain for DMP search functionality
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-opensearchservice-domain.html
@@ -87,13 +147,9 @@ Resources:
         ZoneAwarenessEnabled: true
         ZoneAwarenessConfig:
           AvailabilityZoneCount: 3
-      CognitoOptions:
-        Enabled: true
-        IdentityPoolId: !Ref CognitoIdentityPoolId
-        RoleArn: !Ref CognitoOpenSearchRoleArn
-        UserPoolId: !Ref CognitoUserPoolId
       DomainEndpointOptions:
         EnforceHTTPS: true
+        TLSSecurityPolicy: 'Policy-Min-TLS-1-2-PFS-2023-10'
       EBSOptions:
         EBSEnabled: true
         VolumeSize: 10
@@ -109,69 +165,25 @@ Resources:
         Enabled: true
       SoftwareUpdateOptions:
         AutoSoftwareUpdateEnabled: true
-
-  # Role given to authorized users so they can access OpenSearch
-  CognitoAuthorizedOpenSearchRole:
-    Type: 'AWS::IAM::Role'
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: 'Allow'
-            Principal:
-              Federated: 'cognito-identity.amazonaws.com'
-            Action:
-              - 'sts:AssumeRoleWithWebIdentity'
-            Condition:
-              StringEquals:
-                'cognito-identity.amazonaws.com:aud': !Ref CognitoIdentityPoolId
-              ForAnyValue:StringLike:
-                'cognito-identity.amazonaws.com:amr': 'authenticated'
-      Policies:
-        - PolicyName: !Sub '${AWS::StackName}-Cognito-OpenSearch-Access'
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              Effect: 'Allow'
-              Action:
-                - 'es:*'
-              Resource:
-                - !GetAtt OpenSearchDomain.Arn
-                - !Sub '${OpenSearchDomain.Arn}/*'
-
-  CognitoLambdaOpenSearchRole:
-    Type: 'AWS::IAM::Role'
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: 'Allow'
-            Action: 'sts:AssumeRole'
-            Principal:
-              Service: 'lambda.amazonaws.com'
-      Policies:
-        - PolicyName: !Sub '${AWS::StackName}-Cognito-OpenSearch-Access'
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              Effect: 'Allow'
-              Action:
-                - 'es:ESHttp*'
-              Resource:
-                - !GetAtt OpenSearchDomain.Arn
-                - !Sub '${OpenSearchDomain.Arn}/*'
-
-  CognitoIdentityPoolRoleMapping:
-    Type: 'AWS::Cognito::IdentityPoolRoleAttachment'
-    Properties:
-      IdentityPoolId: !Ref CognitoIdentityPoolId
-      Roles:
-        authenticated: !GetAtt CognitoAuthorizedOpenSearchRole.Arn
-        unauthenticated: !GetAtt CognitoAuthorizedOpenSearchRole.Arn
+      VPCOptions:
+        SecurityGroupIds:
+          - !Ref OpensearchSecGrp
+        SubnetIds:
+          - !Ref SubnetA
+          - !Ref SubnetB
+          - !Ref SubnetC
 
 Outputs:
   OpenSearchDomainId:
     Value: !Ref OpenSearchDomain
+
+  OpenSearchSecurityGroupId:
+    Value: !GetAtt OpensearchSecGrp.GroupId
+    Export:
+      Name: !Sub '${Env}-OpenSearchSecurityGroupId'
+
+  OpenSearchHostedZoneId:
+    Value: !GetAtt OpensearchSecGrp.GroupId
 
   OpenSearchDomainArn:
     Value: !GetAtt OpenSearchDomain.Arn
@@ -185,13 +197,3 @@ Outputs:
 
   OpenSearchApplicationLogGroupArn:
     Value: !GetAtt OpenSearchLogGroup.Arn
-
-  CognitoAuthorizedOpenSearchRoleArn:
-    Value: !GetAtt CognitoAuthorizedOpenSearchRole.Arn
-    Export:
-      Name: !Sub '${Env}-CognitoAuthorizedOpenSearchRoleArn'
-
-  CognitoLambdaOpenSearchRoleArn:
-    Value: !GetAtt CognitoLambdaOpenSearchRole.Arn
-    Export:
-      Name: !Sub '${Env}-CognitoLambdaOpenSearchRoleArn'

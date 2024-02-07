@@ -13,6 +13,18 @@ Globals:
     Tracing: 'Active'
 
 Parameters:
+  VpcId:
+    Type: 'AWS::EC2::VPC::Id'
+
+  SubnetA:
+    Type: 'AWS::EC2::Subnet::Id'
+
+  SubnetB:
+    Type: 'AWS::EC2::Subnet::Id'
+
+  SubnetC:
+    Type: 'AWS::EC2::Subnet::Id'
+
   HostedZoneId:
     Type: 'String'
 
@@ -52,14 +64,17 @@ Parameters:
   DynamoTableStreamArn:
     Type: 'String'
 
+  OpenSearchSecGrpId:
+    Type: 'String'
+
   OpenSearchDomainArn:
     Type: 'String'
 
   OpenSearchDomainEndpoint:
     Type: 'String'
 
-  CognitoLambdaOpenSearchRoleArn:
-    Type: 'String'
+  # CognitoLambdaOpenSearchRoleArn:
+  #   Type: 'String'
 
   # ResourcesDynamoTableArn:
   #   Type: 'String'
@@ -201,21 +216,23 @@ Resources:
                 - 'dynamodb:GetShardIterator'
                 - 'dynamodb:ListStreams'
               Resource: !Sub '${DynamoTableArn}/stream/*'
-        # - PolicyName: !Sub '${AWS::StackName}-LambdaAssumeOpenSearch'
-        #   PolicyDocument:
-        #     Version: '2012-10-17'
-        #     Statement:
-        #       Effect: 'Allow'
-        #       Action:
-        #         - 'sts:AssumeRole'
-        #       Resource: !Ref CognitoLambdaOpenSearchRoleArn
-        - PolicyName: !Sub '${AWS::StackName}-Cognito-OpenSearch-Access'
+        - PolicyName: !Sub '${AWS::StackName}-LambdaVpcAccess'
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
               Effect: 'Allow'
               Action:
-                - 'es:ESHttp*'
+                - 'ec2:DescribeNetworkInterfaces'
+                - 'ec2:CreateNetworkInterface'
+                - 'ec2:DeleteNetworkInterface'
+              Resource: '*'
+        - PolicyName: !Sub '${AWS::StackName}-Lambda-OpenSearch-Access'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              Effect: 'Allow'
+              Action:
+                - 'es:*'
               Resource:
                 - !Ref OpenSearchDomainArn
                 - !Sub '${OpenSearchDomainArn}/*'
@@ -266,6 +283,27 @@ Resources:
           Resource:
             - !Ref S3CloudFrontBucketArn
             - !Sub "${S3CloudFrontBucketArn}/*"
+
+  # -----------------------------------------------------------
+  # EC2 Security Groups for ECS containers (see their definitions in application.yaml)
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-security-group.html
+  # -----------------------------------------------------------
+  LambdaSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: !Sub '${AWS::StackName} Lambda Sec-grp'
+      GroupName: !Sub '${AWS::StackName}-sec-grp'
+      VpcId: !Ref VpcId
+
+  # Allow traffic to the ECS instances from the ALB
+  LambdaSecurityGroupIngressFromOpenSearch:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      IpProtocol: 'tcp'
+      FromPort: 443
+      ToPort: 443
+      GroupId: !GetAtt LambdaSecurityGroup.GroupId
+      SourceSecurityGroupId: !Ref OpenSearchSecGrpId
 
   # ----------------------------------------------------
   # CloudWatch LogGroup
@@ -1090,9 +1128,15 @@ Resources:
           LAMBDA_ENV: !Ref Env
           LOG_LEVEL: !Ref DebugLevel # 'debug'
           OPEN_SEARCH_DOMAIN: !Sub 'https://${OpenSearchDomainEndpoint}'
-          OPEN_SEARCH_INDEX: !Sub '${AWS::StackName}-DynamoSearchIdx'
-          # OPEN_SEARCH_ROLE: !Ref CognitoLambdaOpenSearchRoleArn
-          OPEN_SEARCH_ROLE: !GetAtt DynamoTableStreamRole.Arn
+          OPEN_SEARCH_INDEX: !Sub '${Env}-dmp-id-search'
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+          - !Ref OpenSearchSecGrpId
+        SubnetIds:
+          - !Ref SubnetA
+          - !Ref SubnetB
+          - !Ref SubnetC
       Events:
         DynamoDbOpenSearchEvent:
           # See: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-property-function-dynamodb.html
