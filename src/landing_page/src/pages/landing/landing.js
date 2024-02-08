@@ -152,7 +152,7 @@ function Landing() {
         )}
       </div>
 
-      {formData.contributors && formData.contributors.length > 0 &&
+      {(formData.contact !== undefined || (formData.contributors !== undefined && formData.contributors.length > 0)) &&
         <Contributors persons={formData.contributors}
                       primary={formData.contact}/>
       }
@@ -171,6 +171,7 @@ function Landing() {
                   title={formData.title}
                   created={formData.created}
                   persons={formData.contributors}
+                  primary={formData.contact}
                   dmptoolName='DMPTool'/>
       }
 
