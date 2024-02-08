@@ -16,18 +16,19 @@ function Citation(props) {
   let title = props?.title;
   let created = props?.created;
   let persons = props?.persons || [];
+  let primary = props?.primary;
   let dmptoolName = props?.dmptoolName || 'DMPTool';
 
   let year = created === undefined ? currentYear() : new Date(Date.parse(created))?.toDateString()?.split(' ')[3];
 
-  if (dmp_id !== undefined && title !== undefined && year !== undefined && Array.isArray(persons) && persons.length > 0) {
+  if (dmp_id !== undefined && title !== undefined && year !== undefined && (primary !== undefined || (Array.isArray(persons) && persons.length > 0))) {
     let investigators = investigatorNames(persons);
 
-    if (investigators.length > 0) {
-      return (
-        <div className="t-step__content">
-          <h2>Citation</h2>
+    return (
+      <div className="t-step__content">
+        <h2>Citation</h2>
 
+        {investigators.length > 0 &&
           <ul className="landing-list citation">
             <li><strong>When citing this DMP use:</strong></li>
             <li className="margin10 period-separated">
@@ -39,15 +40,15 @@ function Citation(props) {
               <Link href={dmp_id}/>
             </li>
           </ul>
-          <ul className="landing-list">
-            <li>
-              <strong>When connecting to this DMP to related project outputs (such as datasets) use the ID:</strong><br/>
-              <Link href={dmp_id}/>
-            </li>
-          </ul>
-        </div>
-      );
-    }
+        }
+        <ul className="landing-list">
+          <li>
+            <strong>When connecting to this DMP to related project outputs (such as datasets) use the ID:</strong><br/>
+            <Link href={dmp_id}/>
+          </li>
+        </ul>
+      </div>
+    );
   }
 }
 
