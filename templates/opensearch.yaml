@@ -138,6 +138,8 @@ Resources:
   # --------------------------------------------------------
   OpenSearchDomain:
     Type: 'AWS::OpenSearchService::Domain'
+    DependsOn:
+      - OpenSearchLogPolicy
     Properties:
       ClusterConfig:
         DedicatedMasterEnabled: false

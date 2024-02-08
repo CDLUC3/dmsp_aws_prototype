@@ -64,6 +64,15 @@ Parameters:
   DynamoTableStreamArn:
     Type: 'String'
 
+  TypeaheadTableArn:
+    Type: 'String'
+
+  TypeaheadTableName:
+    Type: 'String'
+
+  TypeaheadTableStreamArn:
+    Type: 'String'
+
   OpenSearchSecGrpId:
     Type: 'String'
 
@@ -215,7 +224,9 @@ Resources:
                 - 'dynamodb:GetRecords'
                 - 'dynamodb:GetShardIterator'
                 - 'dynamodb:ListStreams'
-              Resource: !Sub '${DynamoTableArn}/stream/*'
+              Resource:
+                - !Sub '${DynamoTableArn}/stream/*'
+                - !Sub '${TypeaheadTableArn}/stream/*'
         - PolicyName: !Sub '${AWS::StackName}-LambdaVpcAccess'
           PolicyDocument:
             Version: '2012-10-17'
@@ -406,67 +417,6 @@ Resources:
     Metadata:
       BuildMethod: 'makefile'
       BuildArchitecture: 'x86_64'
-
-  # ----------------------------------------------------
-  # API Lambdas
-  #  See: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-property-function-api.html
-  # ----------------------------------------------------
-  TmpAsserterFunction:
-    Type: 'AWS::Serverless::Function'
-    Properties:
-      CodeUri: 'functions/tmp_asserter/'
-      Handler: 'app.Functions::TmpAsserter.process'
-      Runtime: 'ruby3.2'
-      Timeout: 5
-      Architectures:
-        - 'x86_64'
-      Layers:
-        - !Ref LambdaLayer
-      Policies:
-        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
-        - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
-        - 'arn:aws:iam::aws:policy/AmazonSQSFullAccess'
-        - !Ref DmpHubDynamoTableWritePolicy
-        - !Ref EventBusPolicy
-        - !Ref CognitoPolicy
-      DeadLetterQueue:
-        Type: 'SQS'
-        TargetArn: !Ref DeadLetterQueueArn
-      Environment:
-        Variables:
-          LAMBDA_ENV: !Ref Env
-          LOG_LEVEL: 'debug'
-          DOMAIN: !Ref DomainName
-          DMP_ID_BASE_URL: 'doi.org'
-          SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
-          EVENT_BUS_NAME: !Ref EventBusArn
-          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolArn
-          DYNAMO_TABLE: !Ref DynamoTableName
-          CORS_ORIGIN: !If
-            - IsDev
-            - "*"
-            - !Sub "https://${DomainName}"
-      Events:
-        TmpAsserterEvent:
-          # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
-          Type: 'Api'
-          Properties:
-            RestApiId: !Ref DmpHubRestApi
-            Path: '/tmp/{dmp_id+}/'
-            Method: 'put'
-            RequestParameters:
-              - 'method.request.header.Authorization'
-            Auth:
-              Authorizer: 'DmpHubCognitoAuthorizer'
-              AuthorizationScopes:
-                - !Sub 'https://auth.${DomainName}/${Env}.write'
-
-  TmpAsserterLogGroup:
-    Type: 'AWS::Logs::LogGroup'
-    Properties:
-      LogGroupName: !Sub "/aws/lambda/${TmpAsserterFunction}"
-      # Explicit retention time
-      RetentionInDays: !Ref LogRetentionDays
 
   # Tombstone a DMP
   DeleteDmpFunction:
@@ -1165,6 +1115,62 @@ Resources:
       - DynamoToOpenSearchFunction
     Properties:
       LogGroupName: !Sub "/aws/lambda/${DynamoToOpenSearchFunction}"
+      RetentionInDays: !Ref LogRetentionDays
+
+  # Lambda that converts DynamoDB Stream events into OpenSearch records
+  TypeaheadToOpenSearchFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      CodeUri: 'functions/triggered/typeahead_to_opensearch/'
+      Handler: 'app.Functions::TypeaheadToOpensearch.process'
+      Runtime: 'ruby3.2'
+      Timeout: 600
+      Architectures:
+        - 'x86_64'
+      Layers:
+        - !Ref LambdaLayer
+      Role: !GetAtt DynamoTableStreamRole.Arn
+      Environment:
+        Variables:
+          LAMBDA_ENV: !Ref Env
+          LOG_LEVEL: !Ref DebugLevel # 'debug'
+          OPEN_SEARCH_DOMAIN: !Sub 'https://${OpenSearchDomainEndpoint}'
+          OPEN_SEARCH_INDEX: !Sub '${Env}-typeahead-search'
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+          - !Ref OpenSearchSecGrpId
+        SubnetIds:
+          - !Ref SubnetA
+          - !Ref SubnetB
+          - !Ref SubnetC
+      Events:
+        TypeaheadOpenSearchEvent:
+          # See: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-property-function-dynamodb.html
+          Type: 'DynamoDB'
+          Properties:
+            Enabled: true
+            StartingPosition: 'TRIM_HORIZON' # Other Options are 'AT_TIMESTAMP' and 'LATEST'
+            # StartingPositionTimestamp: Double
+            Stream: !Ref TypeaheadTableStreamArn
+            DestinationConfig:
+              OnFailure:
+                Destination: !Ref DeadLetterQueueArn
+
+  TypeaheadToOpenSearchPermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      FunctionName: !Ref TypeaheadToOpenSearchFunction
+      Action: 'lambda:InvokeFunction'
+      Principal: 'events.amazonaws.com'
+
+  # Annoyingly, SAM does not auto-generate LogGroup for a non-API tiggered lambda
+  TypeaheadToOpenSearchFunctionLogGroup:
+    Type: 'AWS::Logs::LogGroup'
+    DependsOn:
+      - TypeaheadToOpenSearchFunction
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${TypeaheadToOpenSearchFunction}"
       RetentionInDays: !Ref LogRetentionDays
 
   # Lambda responsible for communications with EZID
