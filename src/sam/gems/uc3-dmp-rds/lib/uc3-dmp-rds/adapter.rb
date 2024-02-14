@@ -2,7 +2,7 @@
 
 require 'active_record'
 require 'active_record_simple_execute'
-require 'mysql2'
+require 'trilogy'
 
 module Uc3DmpRds
   # Error from the Rds Adapter
@@ -32,7 +32,7 @@ module Uc3DmpRds
                                                        password.nil? || password.to_s.strip.empty?
 
         connection = ActiveRecord::Base.establish_connection(
-          adapter: 'mysql2',
+          adapter: 'trilogy',
           host: ENV.fetch('DATABASE_HOST', nil),
           port: ENV.fetch('DATABASE_PORT', nil),
           database: ENV.fetch('DATABASE_NAME', nil),

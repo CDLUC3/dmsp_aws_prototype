@@ -1,0 +1,160 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+
+Description: 'ROR Harvesting function that runs monthly and syncs ROR data with the `institutions` table in RDS.'
+
+Parameters:
+  Env:
+    Type: 'String'
+    Default: 'dev'
+
+  DomainName:
+    Type: 'String'
+
+  DebugLevel:
+    Type: 'String'
+    Default: 'debug'
+
+  LogRetentionDays:
+    Type: 'Number'
+    Default: 14
+
+  SubnetA:
+    Type: 'AWS::EC2::Subnet::Id'
+
+  SubnetB:
+    Type: 'AWS::EC2::Subnet::Id'
+
+  SubnetC:
+    Type: 'AWS::EC2::Subnet::Id'
+
+  HarvesterRoleArn:
+    Type: 'String'
+
+  S3PrivateBucketId:
+    Type: 'String'
+
+  LambdaSecurityGroupId:
+    Type: 'String'
+
+  DbSecurityGroupId:
+    Type: 'String'
+
+  EventBusArn:
+    Type: 'String'
+
+  DeadLetterQueueArn:
+    Type: 'String'
+
+  HarvesterBaseLayer:
+    Type: 'String'
+
+  RdsAccessLayer:
+    Type: 'String'
+
+Resources:
+  # ----------------------------------------------------
+  # Scheduled Lambda
+  #   See: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-property-function-sns.html
+  # ----------------------------------------------------
+  Function:
+    Type: 'AWS::Serverless::Function'
+    Metadata:
+      Dockerfile: Dockerfile
+      DockerContext: ./
+      DockerTag: v1
+    Properties:
+      PackageType: 'Image'
+      # Extended timeout to 15 minutes and nbump the memory to .5GB here since we download the complete
+      # ROR file and it is a large ZIP archive
+      Timeout: 900
+      MemorySize: 512
+      Role: !Ref HarvesterRoleArn
+      Layers:
+        - !Ref HarvesterBaseLayer
+        - !Ref RdsAccessLayer
+      Environment:
+        Variables:
+          LAMBDA_ENV: !Ref Env
+          LOG_LEVEL: !Ref DebugLevel # 'debug'
+          S3_BUCKET: !Ref S3PrivateBucketId
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroupId
+          - !Ref DbSecurityGroupId
+        SubnetIds:
+          - !Ref SubnetA
+          - !Ref SubnetB
+          - !Ref SubnetC
+      Events:
+        RorHarvesterEvent:
+          Type: 'EventBridgeRule'
+          Properties:
+            DeadLetterConfig:
+              Arn: !Ref DeadLetterQueueArn
+            EventBusName: !Ref EventBusArn
+            Pattern: !Sub >
+              {
+                "source": ["${DomainName}:lambda:event_publisher"],
+                "detail-type": ["HarvestROR"]
+              }
+            RetryPolicy:
+              MaximumEventAgeInSeconds: 180
+              MaximumRetryAttempts: 2
+            State: 'ENABLED'  # 'DISABLED'
+
+  FunctionPermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      FunctionName: !Ref Function
+      Action: 'lambda:InvokeFunction'
+      Principal: 'events.amazonaws.com'
+
+  # Annoyingly, SAM does not auto-generate LogGroup for a non-API tiggered lambda
+  FunctionLogGroup:
+    Type: 'AWS::Logs::LogGroup'
+    DependsOn:
+      - Function
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${Function}"
+      RetentionInDays: !Ref LogRetentionDays
+
+  # ----------------------------------------------------
+  # EventBus Scheduled Tasks - Trigger Lambdas defined below
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-events-rule.html#cfn-events-rule-scheduleexpression
+  # ----------------------------------------------------
+  HarvesterScheduleMonthly:
+    Type: 'AWS::Events::Rule'
+    Properties:
+      # AWS CRON expressions have some nuances: https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-cron-expressions.html
+      ScheduleExpression: 'cron(0 0 1 * ? *)' # 1st day of the month
+      Targets:
+        - Id: !Ref Function
+          Arn: !GetAtt Function.Arn
+
+  HarvesterScheduleMonthlyPermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      FunctionName: !GetAtt Function.Arn
+      Action: 'lambda:InvokeFunction'
+      Principal: 'events.amazonaws.com'
+      SourceArn: !GetAtt HarvesterScheduleMonthly.Arn
+
+Outputs:
+  FunctionId:
+    Value: !Ref Function
+
+  FunctionArn:
+    Value: !GetAtt Function.Arn
+
+  LogGroupId:
+    Value: !Ref FunctionLogGroup
+
+  LogGroupArn:
+    Value: !GetAtt FunctionLogGroup.Arn
+
+  EventBusRuleId:
+    Value: !Ref HarvesterScheduleMonthly
+
+  EventBusRuleArn:
+    Value: !GetAtt HarvesterScheduleMonthly.Arn

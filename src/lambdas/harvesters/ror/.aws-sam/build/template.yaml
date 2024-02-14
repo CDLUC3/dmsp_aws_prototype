@@ -1,0 +1,136 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: ROR Harvesting function that runs monthly and syncs ROR data with the
+  `institutions` table in RDS.
+Parameters:
+  Env:
+    Type: String
+    Default: dev
+  DomainName:
+    Type: String
+  DebugLevel:
+    Type: String
+    Default: debug
+  LogRetentionDays:
+    Type: Number
+    Default: 14
+  LambdaLayer:
+    Type: String
+  HarvesterRoleArn:
+    Type: String
+  S3PrivateBucketId:
+    Type: String
+  EventBusArn:
+    Type: String
+  DeadLetterQueueArn:
+    Type: String
+  TypeaheadTableName:
+    Type: String
+Resources:
+  Function:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: Function
+      Handler: app.Functions::RorHarvester.process
+      Runtime: ruby3.2
+      Timeout: 900
+      MemorySize: 2000
+      Architectures:
+      - x86_64
+      Layers:
+      - Ref: LambdaLayer
+      Role:
+        Ref: HarvesterRoleArn
+      Environment:
+        Variables:
+          LAMBDA_ENV:
+            Ref: Env
+          LOG_LEVEL:
+            Ref: DebugLevel
+          S3_BUCKET:
+            Ref: S3PrivateBucketId
+          DYNAMO_TABLE:
+            Ref: TypeaheadTableName
+      Events:
+        RorHarvesterEvent:
+          Type: EventBridgeRule
+          Properties:
+            DeadLetterConfig:
+              Arn:
+                Ref: DeadLetterQueueArn
+            EventBusName:
+              Ref: EventBusArn
+            Pattern:
+              Fn::Sub: "{\n  \"source\": [\"${DomainName}:lambda:event_publisher\"\
+                ],\n  \"detail-type\": [\"RorHarvester\"]\n}\n"
+            RetryPolicy:
+              MaximumEventAgeInSeconds: 180
+              MaximumRetryAttempts: 2
+            State: ENABLED
+    Metadata:
+      SamResourceId: Function
+  FunctionPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName:
+        Ref: Function
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+  FunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    DependsOn:
+    - Function
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${Function}
+      RetentionInDays:
+        Ref: LogRetentionDays
+  HarvesterScheduleMonthly:
+    Type: AWS::Events::Rule
+    Properties:
+      ScheduleExpression: cron(0 0 1 * ? *)
+      Targets:
+      - Id:
+          Ref: Function
+        Arn:
+          Fn::GetAtt:
+          - Function
+          - Arn
+  HarvesterScheduleMonthlyPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName:
+        Fn::GetAtt:
+        - Function
+        - Arn
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn:
+        Fn::GetAtt:
+        - HarvesterScheduleMonthly
+        - Arn
+Outputs:
+  FunctionId:
+    Value:
+      Ref: Function
+  FunctionArn:
+    Value:
+      Fn::GetAtt:
+      - Function
+      - Arn
+  LogGroupId:
+    Value:
+      Ref: FunctionLogGroup
+  LogGroupArn:
+    Value:
+      Fn::GetAtt:
+      - FunctionLogGroup
+      - Arn
+  EventBusRuleId:
+    Value:
+      Ref: HarvesterScheduleMonthly
+  EventBusRuleArn:
+    Value:
+      Fn::GetAtt:
+      - HarvesterScheduleMonthly
+      - Arn

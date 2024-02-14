@@ -1,0 +1,135 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+
+Description: 'ROR Harvesting function that runs monthly and syncs ROR data with the `institutions` table in RDS.'
+
+Parameters:
+  Env:
+    Type: 'String'
+    Default: 'dev'
+
+  DomainName:
+    Type: 'String'
+
+  DebugLevel:
+    Type: 'String'
+    Default: 'debug'
+
+  LogRetentionDays:
+    Type: 'Number'
+    Default: 14
+
+  LambdaLayer:
+    Type: 'String'
+
+  HarvesterRoleArn:
+    Type: 'String'
+
+  S3PrivateBucketId:
+    Type: 'String'
+
+  EventBusArn:
+    Type: 'String'
+
+  DeadLetterQueueArn:
+    Type: 'String'
+
+  TypeaheadTableName:
+    Type: 'String'
+
+Resources:
+  # ----------------------------------------------------
+  # Scheduled Lambda
+  #   See: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-property-function-sns.html
+  # ----------------------------------------------------
+  Function:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      CodeUri: './'
+      Handler: 'app.Functions::RorHarvester.process'
+      Runtime: 'ruby3.2'
+      Timeout: 900
+      MemorySize: 2000
+      Architectures:
+        - 'x86_64'
+      Layers:
+        - !Ref LambdaLayer
+      Role: !Ref HarvesterRoleArn
+      Environment:
+        Variables:
+          LAMBDA_ENV: !Ref Env
+          LOG_LEVEL: !Ref DebugLevel # 'debug'
+          S3_BUCKET: !Ref S3PrivateBucketId
+          DYNAMO_TABLE: !Ref TypeaheadTableName
+      Events:
+        RorHarvesterEvent:
+          Type: 'EventBridgeRule'
+          Properties:
+            DeadLetterConfig:
+              Arn: !Ref DeadLetterQueueArn
+            EventBusName: !Ref EventBusArn
+            Pattern: !Sub >
+              {
+                "source": ["${DomainName}:lambda:event_publisher"],
+                "detail-type": ["RorHarvester"]
+              }
+            RetryPolicy:
+              MaximumEventAgeInSeconds: 180
+              MaximumRetryAttempts: 2
+            State: 'ENABLED'  # 'DISABLED'
+
+  FunctionPermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      FunctionName: !Ref Function
+      Action: 'lambda:InvokeFunction'
+      Principal: 'events.amazonaws.com'
+
+  # Annoyingly, SAM does not auto-generate LogGroup for a non-API tiggered lambda
+  FunctionLogGroup:
+    Type: 'AWS::Logs::LogGroup'
+    DependsOn:
+      - Function
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${Function}"
+      RetentionInDays: !Ref LogRetentionDays
+
+  # ----------------------------------------------------
+  # EventBus Scheduled Tasks - Trigger Lambdas defined below
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-events-rule.html#cfn-events-rule-scheduleexpression
+  # ----------------------------------------------------
+  HarvesterScheduleMonthly:
+    Type: 'AWS::Events::Rule'
+    Properties:
+      # AWS CRON expressions have some nuances: https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-cron-expressions.html
+      ScheduleExpression: 'cron(0 0 1 * ? *)' # 1st day of the month
+      Targets:
+        - Id: !Ref Function
+          Arn: !GetAtt Function.Arn
+
+  HarvesterScheduleMonthlyPermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      FunctionName: !GetAtt Function.Arn
+      Action: 'lambda:InvokeFunction'
+      Principal: 'events.amazonaws.com'
+      SourceArn: !GetAtt HarvesterScheduleMonthly.Arn
+
+Outputs:
+  FunctionId:
+    Value: !Ref Function
+
+  FunctionArn:
+    Value: !GetAtt Function.Arn
+
+  LogGroupId:
+    Value: !Ref FunctionLogGroup
+
+  LogGroupArn:
+    Value: !GetAtt FunctionLogGroup.Arn
+
+  EventBusRuleId:
+    Value: !Ref HarvesterScheduleMonthly
+
+  EventBusRuleArn:
+    Value: !GetAtt HarvesterScheduleMonthly.Arn

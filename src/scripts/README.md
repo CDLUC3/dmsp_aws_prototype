@@ -42,8 +42,13 @@ In the event that you need to manually insert an entry into the DynamoTable, you
 
 ### seed_dynamo.sh
 
-This script will seed the DynamoTable with the initial Provenance and Augmenter records. It is triggered by the Sceptre dynamo config as a hook. You must include 3 arguments, the environment, the name of your UI system that will be the primary source of your DMP-IDs and that system's URL. For example:
+This script will seed the DMP-ID DynamoTable with the initial Provenance and Augmenter records. It is triggered by the Sceptre dynamo config as a hook. You must include 3 arguments, the environment, the name of your UI system that will be the primary source of your DMP-IDs and that system's URL. For example:
 `> ./seed_dynamo.sh dev MySystem my-system.org`
+
+### clear_typeahead_for_source.rb
+
+This script can be used to delete all entries from the typeahead table for a given type and source (e.g INSTITUTION and ROR). This is useful when your notice that data has been improperly loaded into the table and you want to reload everything.
+`> ruby clear_typeahead_for_source.rb dev INSTITUTION ROR uc3-dmp-hub-dev-regional-dynamo-TypeaheadTable-123`
 
 ## OpenSearch management
 

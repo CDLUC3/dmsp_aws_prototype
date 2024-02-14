@@ -1,0 +1,41 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: 'VPC Security Group resources used by the Lambdas managed via AWS SAM (e.g. acces too OpenSearch, RDS, etc.)'
+
+Parameters:
+  Env:
+    Type: 'String'
+    Default: 'dev'
+
+  VpcId:
+    Type: 'AWS::EC2::VPC::Id'
+
+  RdsSecGrpId:
+    Type: 'String'
+
+Resources:
+  # ---------------------------------------------------------------------------------
+  # EC2 Security Groups for Lambdas that need to communicate VPC protected resources
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-security-group.html
+  # ---------------------------------------------------------------------------------
+  LambdaSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: !Sub '${AWS::StackName} Lambda Security Group'
+      GroupName: !Sub '${AWS::StackName}-sec-grp'
+      VpcId: !Ref VpcId
+
+  LambdaSecurityGroupIngressFromRds:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      IpProtocol: 'tcp'
+      FromPort: 3306
+      ToPort: 3306
+      GroupId: !GetAtt LambdaSecurityGroup.GroupId
+      SourceSecurityGroupId: !Ref RdsSecGrpId
+
+Outputs:
+  LambdaSecurityGroupId:
+    Value: !GetAtt LambdaSecurityGroup.GroupId
+    Export:
+      Name: !Sub '${Env}-LambdaSecurityGroupId'

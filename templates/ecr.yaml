@@ -4,6 +4,9 @@ Transform: 'AWS::Serverless-2016-10-31'
 Description: 'Elastic container registry for DMPTool build images'
 
 Parameters:
+  Env:
+    Type: 'String'
+
   ECRLifecyclePolicyTagPrefix:
     Type: 'String'
 
@@ -64,3 +67,5 @@ Outputs:
 
   EcrRepositoryUri:
     Value: !GetAtt EcrRepository.RepositoryUri
+    Export:
+      Name: !Sub '${Env}-EcrRepositoryUri'

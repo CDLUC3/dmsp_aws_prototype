@@ -189,9 +189,13 @@ Outputs:
 
   DbSecurityGroupId:
     Value: !GetAtt DbSecurityGroup.GroupId
+    Export:
+      Name: !Sub '${Env}-DbSecurityGroupId'
 
   DbSubnetName:
     Value: !Ref DbSubnetGroup
+    Export:
+      Name: !Sub '${Env}-DbSubnetName'
 
   DbInstanceName:
     Value: !Ref Database
