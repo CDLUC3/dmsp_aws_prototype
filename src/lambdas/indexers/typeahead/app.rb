@@ -154,40 +154,42 @@ module Functions
 
       # Convert an Institution record into an OpenSearch index document
       def process_institution_record(sk:, hash:, logger:)
+        logger&.debug(message: 'Incoming Dynamo Item:', details: hash)
+
         doc = {
           identifier: sk,
           funder: hash.fetch('funder', {})['N'] == 1 ? 1 : 0,
-          source: hash.fetch('_SOURCE', {})['S']&.downcase,
-          types: hash.fetch('types', {}).fetch('L', []).map { |item| item['S'] },
-          parent: hash.fetch('parent', {})['S']&.downcase,
-          children: hash.fetch('children', {}).fetch('L', []).map { |kid| kid['S'] },
-          ids: [sk],
-          names: [
-            hash.fetch('name', {})['S']&.downcase,
-            hash.fetch('domain', {})['S']&.downcase
-          ],
-          country: []
+          source: hash.fetch('_SOURCE', {})['S']&.downcase
         }
-        logger&.debug(message: 'Incoming Dynamo Item:', details: hash)
+        types = hash.fetch('types', {}).fetch('L', []).map { |item| item['S'] }
+        doc[:types] = types.flatten.compact.uniq if types.any?
+
+        # Collect all of the relationships
+        parents = hash.fetch('parents', {}).fetch('L', []).map { |item| item['S'] }
+        parents = [hash.fetch('parent', {})['S']] unless parents.any?
+        doc[:parent] = parents.flatten.compact.uniq if parents.any?
+
+        children = hash.fetch('children', {}).fetch('L', []).map { |kid| kid['S'] }
+        doc[:children] = children.flatten.compact.uniq if children.any?
+
+        related = hash.fetch('related', {}).fetch('L', []).map { |item| item['S'] }
+        doc[:related] = related.flatten.compact.uniq if related.any?
 
         # Collect all of the identifiers
-        externals = hash.fetch('external_ids', {}).fetch('M', {})
-        externals.keys.each { |key| doc[:ids] << externals.fetch(key, {})['S'] }
+        ids = [sk]
+        ext_ids = hash.fetch('external_ids', {}).fetch('M', {})
+        ext_ids.each_key { |key| ids << ext_ids.fetch(key, {}).fetch('M', {}).fetch('preferred', {})['S'] }
+        doc[:ids] = ids.flatten.compact.uniq
 
         # Collect all of the names
-        doc[:names] += hash.fetch('aliases', {}).fetch('SS', [])
-        doc[:names] += hash.fetch('acronyms', {}).fetch('SS', [])
+        names = [hash.fetch('name', {})['S']&.downcase, hash.fetch('domain', {})['S']&.downcase]
+        names += hash.fetch('acronyms', {}).fetch('L', []).map { |item| item['S']&.downcase }
+        names += hash.fetch('aliases', {}).fetch('L', []).map { |item| item['S']&.downcase }
+        doc[:names] = names.flatten.compact.uniq
 
         # Collect the country name and code
         country_hash = hash.fetch('country', {}).fetch('M', {})
-        doc[:country] = [
-          country_hash.fetch('country_name', {})['S'],
-          country_hash.fetch('country_code', {})['S']
-        ]
-        doc[:ids] = doc[:ids].flatten.compact.uniq
-        doc[:names] = doc[:names].flatten.compact.uniq
-        doc[:country] = doc[:country].flatten.compact.uniq
-        doc[:children] = doc[:children].flatten.compact.uniq
+        doc[:country] = [country_hash.fetch('country_name', {})['S'], country_hash.fetch('country_code', {})['S']]
         doc
       end
     end

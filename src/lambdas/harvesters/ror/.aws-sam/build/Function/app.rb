@@ -10,6 +10,8 @@ require 'digest'
 require 'uri'
 require 'zip'
 
+require 'aws-sdk-s3'
+
 require 'uc3-dmp-api-core'
 require 'uc3-dmp-cloudwatch'
 require 'uc3-dmp-dynamo'
@@ -91,7 +93,7 @@ module Functions
         logger&.info(message: "Created/Updated #{rec_count} in the Dynamo Typeaheads table.")
 
         # Finally update the harvester record in RDS
-        update_harvester_record(client:, table:, metadata: file_metadata, tstamp:, logger:)
+        update_harvester_record(client:, table:, source:, metadata: file_metadata, tstamp:, logger:)
         return { statusCode: 200, body: "Success - Created/Updated #{rec_count} entries in the Dynamo Typeaheads table" }
       rescue StandardError => e
         puts "Fatal error in RorHarvester! #{e.message}"
@@ -116,12 +118,12 @@ module Functions
 
       # Update the harvester's record in the RDS database
       def update_harvester_record(client:, table:, source:, metadata: nil, tstamp: nil, logger: nil)
-        source['last_metadata'] = metadata&.to_json
+        source['last_metadata'] = metadata
         source['last_synced_at'] = tstamp
         resp = client.put_item({ table_name: table, item: source,
                                  return_consumed_capacity: logger&.level == 'debug' ? 'TOTAL' : 'NONE' })
 
-        logger.debug(message: "#{SOURCE} put_item DMP ID: #{json['PK']}", details: json) if logger.respond_to?(:debug)
+        logger.debug(message: "#{SOURCE} put_item DMP ID: #{source['PK']}", details: source) if logger.respond_to?(:debug)
         resp
       rescue Aws::Errors::ServiceError => e
         logger&.error(message: format(MSG_DYNAMO_ERROR, msg: e.message, trace: e.backtrace))
@@ -201,12 +203,13 @@ module Functions
         # Fetch the file from Zenodo
         additional_headers = { host: HEADERS_HOST, Accept: 'application/json' }
         logger&.debug(message: "Downloading Zip file: #{url}", details: file_metadata)
-        zip_file = Uc3DmpExternalApi::Client.call(url: url, method: :get, additional_headers:, logger:)
+        # Setting ligger to nil here because it fills up the log with the ZIP contents
+        zip_file = Uc3DmpExternalApi::Client.call(url: url, method: :get, additional_headers:, logger: nil)
         return nil if zip_file.nil?
 
         # Stash a copy of the Zip archive in our S3 Bucket
-        key = "#{source[1]}/#{file_metadata['key']}"
-        stash_file_in_s3(source:, key:, file: zip_file, file_metadata:, tstamp:, logger: nil)
+        key = "#{source['PK'].gsub('HARVESTER#', '')}/#{file_metadata['key']}"
+        stash_file_in_s3(source:, key:, file: zip_file, file_metadata:, tstamp:, logger:)
         zip_file
       rescue Uc3DmpExternalApi::ExternalApiError => e
         logger&.error(message: "Failure fetching ROR file from Zenodo: #{e.message}", details: e.backtrace)
@@ -326,7 +329,8 @@ module Functions
         names = [hash['name']&.downcase&.strip, domain&.downcase&.strip]
         names = names + hash['aliases'] + hash['acronyms']
         kids = hash.fetch('relationships', []).select { |e| e['type']&.downcase == 'child' }.map { |c| c['id'] }
-        parents = hash.fetch('relationships', []).reject { |e| e['type']&.downcase == 'child' }.map { |p| p['id'] }
+        parents = hash.fetch('relationships', []).select { |e| e['type']&.downcase == 'parent' }.map { |p| p['id'] }
+        related = hash.fetch('relationships', []).select { |e| e['type']&.downcase == 'related' }.map { |p| p['id'] }
         wikipedia_url = hash['wikipedia_url']
 
         out = {
@@ -346,12 +350,14 @@ module Functions
         out[:types] = hash['types'] if hash['types'].is_a?(Array)
         out[:children] = kids unless kids.nil? || kids.empty?
         out[:parents] = parents unless parents.nil? || parents.empty?
+        out[:related] = related unless related.nil? || related.empty?
         out[:addresses] = hash['addresses'] if hash['addresses'].is_a?(Array)
+        out[:relationships] = hash['relationships'] if hash['relationships'].is_a?(Array)
         out[:links] = hash['links'] if hash['links'].is_a?(Array)
         out[:aliases] = hash['aliases'] if hash['aliases'].is_a?(Array)
         out[:acronyms] = hash['acronyms'] if hash['acronyms'].is_a?(Array)
-        out[:country] = hash['country'] if hash['country'].is_a?(Array)
-        out[:external_ids] = hash['external_ids'] if if hash['external_ids'].is_a?(Array)
+        out[:country] = hash['country'] if hash['country'].is_a?(Hash)
+        out[:external_ids] = hash['external_ids'] if hash['external_ids'].is_a?(Hash)
 
         resp = client.put_item({ table_name: table, item: out,
                                  return_consumed_capacity: logger&.level == 'debug' ? 'TOTAL' : 'NONE' })
