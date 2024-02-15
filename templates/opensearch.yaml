@@ -46,6 +46,10 @@ Parameters:
     Type: 'Number'
     Default: 14
 
+Conditions:
+  IsDev:
+    !Equals [!Ref Env, 'dev']
+
 Resources:
   # ----------------------------------------------
   # SSM Parameter Store
@@ -152,12 +156,12 @@ Resources:
     Properties:
       ClusterConfig:
         DedicatedMasterEnabled: false
-        InstanceCount: 1 #3
+        InstanceCount: !If
+          - IsDev
+          - 1
+          - 3
         InstanceType: 't3.small.search'
         MultiAZWithStandbyEnabled: false
-        ZoneAwarenessEnabled: false #true
-        # ZoneAwarenessConfig:
-        #   AvailabilityZoneCount: 3
       DomainEndpointOptions:
         EnforceHTTPS: true
         TLSSecurityPolicy: 'Policy-Min-TLS-1-2-PFS-2023-10'
@@ -179,10 +183,12 @@ Resources:
       VPCOptions:
         SecurityGroupIds:
           - !Ref OpensearchSecGrp
-        SubnetIds:
-          - !Ref SubnetA
-          - !Ref SubnetB
-          - !Ref SubnetC
+        SubnetIds: !If
+          - IsDev
+          - - !Ref SubnetA
+          - - !Ref SubnetA
+            - !Ref SubnetB
+            - !Ref SubnetC
 
 Outputs:
   OpenSearchDomainId:
