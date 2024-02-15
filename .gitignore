@@ -16,6 +16,9 @@ src/sam/.aws-sam/
 src/sam/layers/ruby/
 src/sam/gems/**/.rspec_status
 
+src/lambdas/**/.aws-sam
+src/lambdas/layers/**/ruby
+
 # Ignore downloaded content from the scripts folder
 src/scripts/*.gz
 src/scripts/*.csv
