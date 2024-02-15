@@ -158,6 +158,7 @@ module Functions
 
         doc = {
           identifier: sk,
+          type: hash['PK'],
           funder: hash.fetch('funder', {})['N'] == 1 ? 1 : 0,
           source: hash.fetch('_SOURCE', {})['S']&.downcase
         }

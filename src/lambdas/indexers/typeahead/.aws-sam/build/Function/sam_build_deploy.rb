@@ -57,6 +57,11 @@ if ARGV.length >= 3
   # match the final part of the SSM key name. This script will append the prefix automatically.
   #    For example if the parameter is 'DomainName' this script will look for '/uc3/dmp/hub/dev/DomainName'
   @ssm_params = %w[SubnetA SubnetB SubnetC DomainName]
+  #
+  #
+  # DON'T FORGET TO: Add an entry to the Sceptre config for lambda-iam.yaml and lambda-vpc.yaml for this Lambda!
+  # ----------------
+  #
   # =======================================================================================================
   # =======================================================================================================
 

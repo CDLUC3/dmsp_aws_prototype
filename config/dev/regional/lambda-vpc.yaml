@@ -8,14 +8,3 @@ parameters:
   VpcId: !stack_attr sceptre_user_data.vpc_id
 
   RdsSecGrpId: !stack_output dev/regional/rds.yaml::DbSecurityGroupId
-
-hooks:
-  after_update:
-    # Update the Lambdas responsible for updating the OpenSearch Indexes
-    - !cmd 'cd ./src/lambdas/indexers/dmp && ruby sam_build_deploy.rb dev true true info'
-    - !cmd 'cd ./src/lambdas/indexers/typeahead && ruby sam_build_deploy.rb dev true true info'
-
-  before_delete:
-    # Delete any dependent Lambdas
-    - !cmd 'cd ./src/lambdas/indexers/dmp && ruby sam_build_deploy.rb dev false false'
-    - !cmd 'cd ./src/lambdas/indexers/typeahead && ruby sam_build_deploy.rb dev false false'

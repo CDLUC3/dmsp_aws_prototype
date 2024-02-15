@@ -11,10 +11,10 @@
 #   For most scenarios, you should not need to change anything else in this file
 #
 # Usage:
-#   Expected 3 arguments: environment, run a SAM build? and run a SAM deploy?
-#   For example: `ruby sam_build_deploy.rb dev true false`.
+#   Expected 3-4 arguments: environment, run a SAM build?, run a SAM deploy? and the logging level
+#   For example: `ruby sam_build_deploy.rb dev true false debug`.
 #
-#   NOTE: Setting the last 2 build and deploy boolean arguments to `false` will trigger a `sam delete`.
+#   NOTE: Setting the build and deploy boolean arguments to `false` will trigger a `sam delete`.
 # ------------------------------------------------------------------------------------------------------------
 # ------------------------------------------------------------------------------------------------------------
 
@@ -28,6 +28,7 @@ if ARGV.length >= 3
   @env = ARGV[0]
   @run_build = ARGV[1].to_s.downcase.strip == 'true'
   @run_deploy = ARGV[2].to_s.downcase.strip == 'true'
+  @log_level = ARGV.length >= 4 ? ARGV[3]&.downcase&.strip : 'error'
 
   # =======================================================================================================
   # =======================================================================================================
@@ -55,7 +56,9 @@ if ARGV.length >= 3
   # match the final part of the SSM key name. This script will append the prefix automatically.
   #    For example if the parameter is 'DomainName' this script will look for '/uc3/dmp/hub/dev/DomainName'
   @ssm_params = %w[]
-  #
+
+  # List any Lambdas that use this Layer so they are auto rebuilt/deployed or deleted after this Lambda is
+  @dependent_lambdas = ['../../harvesters/ror', '../../indexers/dmp', '../../indexers/typeahead', '../../../sam']
   #
   # DON'T FORGET TO: Add an entry to the Sceptre config for lambda-iam.yaml and lambda-vpc.yaml for this Layer!
   # ----------------
@@ -197,15 +200,24 @@ if ARGV.length >= 3
       system("sam deploy #{args.join(' ')}")
     end
 
+    # Build/Deploy all of the related Lambda functions
+    @dependent_lambdas.each do |lambda_dir|
+      system("cd #{lambda_dir} && ruby sam_build_deploy.rb #{@env} #{@run_build} #{@run_deploy} #{@log_level}")
+    end
+
   else
     args = ["--stack-name #{@stack_name}"]
+
+    @dependent_lambdas.each do |lambda_dir|
+      system("cd #{lambda_dir} && ruby sam_build_deploy.rb #{@env} false false")
+    end
 
     puts "Deleting SAM CloudFormation stack #{@stack_name} ..."
     system("sam delete #{args.join(' ')}")
   end
 else
-  p 'Expected 3 arguments: environment, run a SAM build?, run a SAM deploy?'
-  p '    For example: `ruby sam_build_deploy.rb dev true false`.'
+  p 'Expected 4 arguments: environment, run a SAM build?, run a SAM deploy? and the logging level'
+  p '    For example: `ruby sam_build_deploy.rb dev true false debug`.'
   p ''
   p 'NOTE: Setting the last 2 arguments to false will trigger a `sam delete`.'
 end

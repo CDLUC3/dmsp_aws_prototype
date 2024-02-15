@@ -2,6 +2,10 @@ AWSTemplateFormatVersion: '2010-09-09'
 
 Description: 'VPC Security Group resources used by the Lambdas managed via AWS SAM (e.g. acces too OpenSearch, RDS, etc.)'
 
+# NOTE: Lambda's deployed into a VPC are given ENIs in the SecurityGroup defined below. The way that AWS cleans up
+#       these ENIs is slow (in excess of 45 minutes), so be patient when trying to delete the this stack or any
+#       of the associated Lambda's stacks! See: https://stackoverflow.com/questions/47957820/lambda-in-vpc-deletion-takes-more-time
+
 Parameters:
   Env:
     Type: 'String'
