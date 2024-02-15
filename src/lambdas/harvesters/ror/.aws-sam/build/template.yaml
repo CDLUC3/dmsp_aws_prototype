@@ -14,7 +14,7 @@ Parameters:
   LogRetentionDays:
     Type: Number
     Default: 14
-  LambdaLayer:
+  BaselineLayerId:
     Type: String
   HarvesterRoleArn:
     Type: String
@@ -38,7 +38,7 @@ Resources:
       Architectures:
       - x86_64
       Layers:
-      - Ref: LambdaLayer
+      - Ref: BaselineLayerId
       Role:
         Ref: HarvesterRoleArn
       Environment:

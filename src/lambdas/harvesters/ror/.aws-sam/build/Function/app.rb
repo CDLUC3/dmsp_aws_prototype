@@ -79,7 +79,7 @@ module Functions
         return { statusCode: 500, body: UNABLE_TO_DOWNLOAD_METADATA } if file_metadata.nil?
 
         # If the latest harvester metadata in the record matches what Zenodo has then we can skip
-        logger&.warn(message: ALREADY_PROCESSED_MSG) if source['last_metadata'] == file_metadata
+        logger&.info(message: ALREADY_PROCESSED_MSG) if source['last_metadata'] == file_metadata
         return { statusCode: 200, body: ALREADY_PROCESSED_MSG } if source['last_metadata'] == file_metadata
 
         # Download the Zip archive and extract the JSON from it

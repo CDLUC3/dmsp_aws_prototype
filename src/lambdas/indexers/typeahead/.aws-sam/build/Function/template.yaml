@@ -37,7 +37,7 @@ Parameters:
   OpenSearchDomainEndpoint:
     Type: 'String'
 
-  LambdaLayer:
+  BaselineLayerId:
     Type: 'String'
 
   TypeaheadTableStreamArn:
@@ -61,7 +61,7 @@ Resources:
       Architectures:
         - 'x86_64'
       Layers:
-        - !Ref LambdaLayer
+        - !Ref BaselineLayerId
       Role: !Ref IndexerRoleArn
       Environment:
         Variables:

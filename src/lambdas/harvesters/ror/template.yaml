@@ -19,7 +19,7 @@ Parameters:
     Type: 'Number'
     Default: 14
 
-  LambdaLayer:
+  BaselineLayerId:
     Type: 'String'
 
   HarvesterRoleArn:
@@ -53,7 +53,7 @@ Resources:
       Architectures:
         - 'x86_64'
       Layers:
-        - !Ref LambdaLayer
+        - !Ref BaselineLayerId
       Role: !Ref HarvesterRoleArn
       Environment:
         Variables:

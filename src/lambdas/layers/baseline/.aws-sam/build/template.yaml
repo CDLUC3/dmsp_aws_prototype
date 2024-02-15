@@ -1,0 +1,31 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Baseline LambdaLayer
+Parameters:
+  Env:
+    Type: String
+    Default: dev
+Resources:
+  BaselineLayerVersion:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName:
+        Fn::Sub: ${AWS::StackName}-baseline-layer
+      Description:
+        Fn::Sub: Core Lambda Layer for ${Env}
+      ContentUri: BaselineLayerVersion
+      CompatibleRuntimes:
+      - ruby2.7
+      - ruby3.2
+      RetentionPolicy: Delete
+    Metadata:
+      BuildArchitecture: x86_64
+      BuildMethod: makefile
+      SamResourceId: BaselineLayerVersion
+Outputs:
+  BaselineLayerId:
+    Value:
+      Ref: BaselineLayerVersion
+    Export:
+      Name:
+        Fn::Sub: ${Env}-BaselineLayerId

@@ -165,7 +165,7 @@ module Functions
         doc[:types] = types.flatten.compact.uniq if types.any?
 
         # Collect all of the relationships
-        parents = hash.fetch('parents', []).fetch('L', []).map { |item| item['S'] }
+        parents = hash.fetch('parents', {}).fetch('L', []).map { |item| item['S'] }
         parents = [hash.fetch('parent', {})['S']] unless parents.any?
         doc[:parent] = parents.flatten.compact.uniq if parents.any?
 
@@ -182,7 +182,7 @@ module Functions
         doc[:ids] = ids.flatten.compact.uniq
 
         # Collect all of the names
-        names = [hash.fetch('name', {})['S']&.downcase, hash.fetch('domain', {})['S']&.downcase],
+        names = [hash.fetch('name', {})['S']&.downcase, hash.fetch('domain', {})['S']&.downcase]
         names += hash.fetch('acronyms', {}).fetch('L', []).map { |item| item['S']&.downcase }
         names += hash.fetch('aliases', {}).fetch('L', []).map { |item| item['S']&.downcase }
         doc[:names] = names.flatten.compact.uniq

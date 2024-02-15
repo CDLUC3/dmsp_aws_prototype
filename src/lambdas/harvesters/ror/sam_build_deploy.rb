@@ -50,12 +50,17 @@ if ARGV.length >= 3
   # List the names of all other parameters whose values should be available as exported CloudFormation stack
   # outputs. The env prefix will be appended to each name your provide.
   #    For example if the name of the parameter is 'DomainName' this script will look for 'dev-DomainName'
-  @cf_params = %w[HarvesterRoleArn S3PrivateBucketId LambdaLayer TypeaheadTableName EventBusArn DeadLetterQueueArn]
+  @cf_params = %w[HarvesterRoleArn S3PrivateBucketId BaselineLayerId TypeaheadTableName EventBusArn DeadLetterQueueArn]
 
   # List the names of all other parameters whose values should be available as SSM parameters. The name must
   # match the final part of the SSM key name. This script will append the prefix automatically.
   #    For example if the parameter is 'DomainName' this script will look for '/uc3/dmp/hub/dev/DomainName'
   @ssm_params = %w[DomainName]
+  #
+  #
+  # DON'T FORGET TO: Add an entry to the Sceptre config for lambda-iam.yaml and lambda-vpc.yaml for this Lambda!
+  # ----------------
+  #
   # =======================================================================================================
   # =======================================================================================================
 
