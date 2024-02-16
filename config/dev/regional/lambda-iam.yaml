@@ -7,6 +7,8 @@ parameters:
 
   OpenSearchDomainArn: !stack_output dev/regional/opensearch.yaml::OpenSearchDomainArn
 
+  EventBusArn: !stack_output dev/regional/eventbridge.yaml::EventBusArn
+
   DmpTableArn: !stack_output dev/regional/dynamo.yaml::DynamoTableArn
 
   TypeaheadTableArn: !stack_output dev/regional/dynamo.yaml::TypeaheadTableArn

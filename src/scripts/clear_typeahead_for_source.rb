@@ -13,8 +13,9 @@ def fetch_records(client:, table:, item_type:, source:, items: [], last_key: '')
         comparison_operator: 'EQ'
       }
     },
-    filter_expression: '_SOURCE = :source',
-    expression_attribute_values: { ':source': source&.upcase }
+    filter_expression: '#source = :source',
+    expression_attribute_names: { '#source': '_SOURCE' },
+    expression_attribute_values: { ':source': source&.upcase },
     projection_expression: 'SK'
   }
   args[:exclusive_start_key] = last_key unless last_key == ''
@@ -47,6 +48,6 @@ if ARGV.length >= 4
     })
   end
 else
-  puts "Expected 3 arguments, the environment, the typeahead item type (aka: PK) and the DynamoTable name!"
-  puts "    (e.g. `ruby clear_typeahead_for_source.rb dev INSTITUTION uc3-dmp-hub-dev-regional-dynamo-TypeaheadTable-123`)"
+  puts "Expected 4 arguments, the environment, the typeahead item type (aka: PK) and the DynamoTable name!"
+  puts "    (e.g. `ruby clear_typeahead_for_source.rb dev INSTITUTION ROR uc3-dmp-hub-dev-regional-dynamo-TypeaheadTable-123`)"
 end

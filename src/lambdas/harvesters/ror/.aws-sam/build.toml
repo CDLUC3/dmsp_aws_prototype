@@ -7,6 +7,6 @@ architecture = "x86_64"
 handler = "app.Functions::RorHarvester.process"
 manifest_hash = ""
 packagetype = "Zip"
-functions = ["Function"]
+functions = ["DownloaderFunction", "ProcessorFunction"]
 
 [layer_build_definitions]

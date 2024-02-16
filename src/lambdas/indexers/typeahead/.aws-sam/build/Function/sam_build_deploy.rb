@@ -202,6 +202,7 @@ if ARGV.length >= 3
   else
     args = ["--stack-name #{@stack_name}"]
 
+    puts "NOTE: This Lambda is deployed within the VPC. It can take in excess of 45 minutes for the associated ENIs to be deleted!"
     puts "Deleting SAM CloudFormation stack #{@stack_name} ..."
     system("sam delete #{args.join(' ')}")
   end

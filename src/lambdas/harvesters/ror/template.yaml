@@ -19,6 +19,10 @@ Parameters:
     Type: 'Number'
     Default: 14
 
+  MaxRecordsPerProcessor:
+    Type: 'Number'
+    Default: 50000
+
   BaselineLayerId:
     Type: 'String'
 
@@ -42,11 +46,50 @@ Resources:
   # Scheduled Lambda
   #   See: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-property-function-sns.html
   # ----------------------------------------------------
-  Function:
+  DownloaderFunction:
     Type: 'AWS::Serverless::Function'
     Properties:
       CodeUri: './'
-      Handler: 'app.Functions::RorHarvester.process'
+      Handler: 'downloader.Functions::RorDownloader.process'
+      Runtime: 'ruby3.2'
+      Timeout: 900
+      MemorySize: 2000
+      Architectures:
+        - 'x86_64'
+      Layers:
+        - !Ref BaselineLayerId
+      Role: !Ref HarvesterRoleArn
+      Environment:
+        Variables:
+          LAMBDA_ENV: !Ref Env
+          LOG_LEVEL: !Ref DebugLevel # 'debug'
+          DOMAIN: !Ref DomainName
+          S3_BUCKET: !Ref S3PrivateBucketId
+          DYNAMO_TABLE: !Ref TypeaheadTableName
+          EVENT_BUS_NAME: !Ref EventBusArn
+          PROCESSOR_RECORD_COUNT: !Ref MaxRecordsPerProcessor
+      Events:
+        RorDownloaderEvent:
+          Type: 'EventBridgeRule'
+          Properties:
+            DeadLetterConfig:
+              Arn: !Ref DeadLetterQueueArn
+            EventBusName: !Ref EventBusArn
+            Pattern: !Sub >
+              {
+                "source": ["${DomainName}:lambda:event_publisher"],
+                "detail-type": ["RorDownloader"]
+              }
+            RetryPolicy:
+              MaximumEventAgeInSeconds: 180
+              MaximumRetryAttempts: 2
+            State: 'ENABLED'  # 'DISABLED'
+
+  ProcessorFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      CodeUri: './'
+      Handler: 'processor.Functions::RorProcessor.process'
       Runtime: 'ruby3.2'
       Timeout: 900
       MemorySize: 2000
@@ -62,7 +105,7 @@ Resources:
           S3_BUCKET: !Ref S3PrivateBucketId
           DYNAMO_TABLE: !Ref TypeaheadTableName
       Events:
-        RorHarvesterEvent:
+        RorHarvesterProcessorEvent:
           Type: 'EventBridgeRule'
           Properties:
             DeadLetterConfig:
@@ -71,65 +114,92 @@ Resources:
             Pattern: !Sub >
               {
                 "source": ["${DomainName}:lambda:event_publisher"],
-                "detail-type": ["RorHarvester"]
+                "detail-type": ["RorProcessor"]
               }
             RetryPolicy:
               MaximumEventAgeInSeconds: 180
               MaximumRetryAttempts: 2
             State: 'ENABLED'  # 'DISABLED'
 
-  FunctionPermission:
+  DownloaderPermission:
     Type: 'AWS::Lambda::Permission'
     Properties:
-      FunctionName: !Ref Function
+      FunctionName: !Ref DownloaderFunction
+      Action: 'lambda:InvokeFunction'
+      Principal: 'events.amazonaws.com'
+
+  ProcessorPermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      FunctionName: !Ref ProcessorFunction
       Action: 'lambda:InvokeFunction'
       Principal: 'events.amazonaws.com'
 
   # Annoyingly, SAM does not auto-generate LogGroup for a non-API tiggered lambda
-  FunctionLogGroup:
+  DownloaderLogGroup:
     Type: 'AWS::Logs::LogGroup'
     DependsOn:
-      - Function
+      - DownloaderFunction
     Properties:
-      LogGroupName: !Sub "/aws/lambda/${Function}"
+      LogGroupName: !Sub "/aws/lambda/${DownloaderFunction}"
+      RetentionInDays: !Ref LogRetentionDays
+
+  ProcessorLogGroup:
+    Type: 'AWS::Logs::LogGroup'
+    DependsOn:
+      - ProcessorFunction
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${ProcessorFunction}"
       RetentionInDays: !Ref LogRetentionDays
 
   # ----------------------------------------------------
   # EventBus Scheduled Tasks - Trigger Lambdas defined below
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-events-rule.html#cfn-events-rule-scheduleexpression
   # ----------------------------------------------------
-  HarvesterScheduleMonthly:
+  DownloaderScheduleMonthly:
     Type: 'AWS::Events::Rule'
     Properties:
       # AWS CRON expressions have some nuances: https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-cron-expressions.html
       ScheduleExpression: 'cron(0 0 1 * ? *)' # 1st day of the month
       Targets:
-        - Id: !Ref Function
-          Arn: !GetAtt Function.Arn
+        - Id: !Ref DownloaderFunction
+          Arn: !GetAtt DownloaderFunction.Arn
 
-  HarvesterScheduleMonthlyPermission:
+  DownloaderScheduleMonthlyPermission:
     Type: 'AWS::Lambda::Permission'
     Properties:
-      FunctionName: !GetAtt Function.Arn
+      FunctionName: !GetAtt DownloaderFunction.Arn
       Action: 'lambda:InvokeFunction'
       Principal: 'events.amazonaws.com'
-      SourceArn: !GetAtt HarvesterScheduleMonthly.Arn
+      SourceArn: !GetAtt DownloaderScheduleMonthly.Arn
 
 Outputs:
-  FunctionId:
-    Value: !Ref Function
+  DownloaderFunctionId:
+    Value: !Ref DownloaderFunction
 
-  FunctionArn:
-    Value: !GetAtt Function.Arn
+  DownloaderFunctionArn:
+    Value: !GetAtt DownloaderFunction.Arn
 
-  LogGroupId:
-    Value: !Ref FunctionLogGroup
+  ProcessorFunctionId:
+    Value: !Ref ProcessorFunction
 
-  LogGroupArn:
-    Value: !GetAtt FunctionLogGroup.Arn
+  ProcessorFunctionArn:
+    Value: !GetAtt ProcessorFunction.Arn
 
-  EventBusRuleId:
-    Value: !Ref HarvesterScheduleMonthly
+  DownloaderLogGroupId:
+    Value: !Ref DownloaderLogGroup
 
-  EventBusRuleArn:
-    Value: !GetAtt HarvesterScheduleMonthly.Arn
+  DownloaderLogGroupArn:
+    Value: !GetAtt DownloaderLogGroup.Arn
+
+  ProcessorLogGroupId:
+    Value: !Ref ProcessorLogGroup
+
+  ProcessorLogGroupArn:
+    Value: !GetAtt ProcessorLogGroup.Arn
+
+  DownloaderEventBusRuleId:
+    Value: !Ref DownloaderScheduleMonthly
+
+  DownloaderEventBusRuleArn:
+    Value: !GetAtt DownloaderScheduleMonthly.Arn

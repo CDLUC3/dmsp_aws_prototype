@@ -15,12 +15,13 @@ require 'aws-sdk-s3'
 require 'uc3-dmp-api-core'
 require 'uc3-dmp-cloudwatch'
 require 'uc3-dmp-dynamo'
+require 'uc3-dmp-event-bridge'
 require 'uc3-dmp-external-api'
 
 module Functions
   # A service that fetches the latest ROR file
-  class RorHarvester
-    SOURCE = 'ROR Harvester'
+  class RorDownloader
+    SOURCE = 'ROR Downloader'
 
     HARVESTER_PK = 'HARVESTER#ror'
     HARVESTER_SK = 'PROFILE'
@@ -62,7 +63,7 @@ module Functions
         req_id = context.is_a?(LambdaContext) ? context.aws_request_id : nil
         logger = Uc3DmpCloudwatch::Logger.new(source: SOURCE, request_id: req_id, event:, level: log_level)
 
-        # Connect to MySQL
+        # Connect to Dynamo
         client = Aws::DynamoDB::Client.new(region: ENV.fetch('AWS_REGION', 'us-west-2'))
         table = ENV.fetch('DYNAMO_TABLE')
 
@@ -88,13 +89,10 @@ module Functions
         logger&.error(message: DOWNLOAD_FAILURE_MSG) if json.nil?
         return { statusCode: 500, body: DOWNLOAD_FAILURE_MSG } if json.nil?
 
-        # Process the ROR records in the JSON file
-        rec_count = process_json(client:, table:, json:, tstamp:, logger:)
-        logger&.info(message: "Created/Updated #{rec_count} in the Dynamo Typeaheads table.")
-
         # Finally update the harvester record in RDS
         update_harvester_record(client:, table:, source:, metadata: file_metadata, tstamp:, logger:)
-        return { statusCode: 200, body: "Success - Created/Updated #{rec_count} entries in the Dynamo Typeaheads table" }
+        alert_processors(source:, file_metadata:, json:, tstamp:, logger:)
+        return { statusCode: 200, body: "Success - Downloaded and stashed Zip file in S3 and invoked processors." }
       rescue StandardError => e
         puts "Fatal error in RorHarvester! #{e.message}"
         puts e.backtrace
@@ -304,67 +302,48 @@ module Functions
         nil
       end
 
-      # Process the ROR JSON file
-      def process_json(client:, table:, json:, tstamp:, logger: nil)
-        cntr = 0
-        total = json.length
-        json.each do |hash|
-          next unless hash.is_a?(Hash)
+      # Send signals to processors
+      def alert_processors(source:, file_metadata:, json:, tstamp:, logger: nil)
+        return false unless json.is_a?(Array) && !file_metadata['key'].nil?
 
-          successful = process_record(client:, table:, hash:, tstamp:, logger:)
-          cntr += 1 if successful
+        client = Aws::EventBridge::Client.new(region: ENV.fetch('AWS_REGION', 'us-west-2'))
+        total_recs = json.length
+        records_allowed = ENV.fetch('PROCESSOR_RECORD_COUNT', 50000).to_i
+        return false unless total_recs > 0
+
+        # Calculate the number of processors to kick off
+        processors = 1 if total_recs <= records_allowed || records_allowed <= 0
+        processors = (total_recs / records_allowed.to_f).ceil.round if processors.nil?
+        logger&.info(message: "Total records: #{total_recs}, Allowed per processor: #{records_allowed}, nbr processors needed: #{processors}")
+
+        last_rec = 0
+        events = []
+        # Format a message for each processor with the start/end record numbers
+        processors.times.each do |proc|
+          target_end = last_rec + records_allowed
+          target_end = total_recs if target_end > total_recs
+
+          events << {
+            time: Time.now.utc.iso8601,
+            source: "#{ENV.fetch('DOMAIN', nil)}:lambda:event_publisher",
+            detail_type: 'RorProcessor',
+            detail: {
+              zip_file: "#{source['PK'].gsub('HARVESTER#', '')}/#{file_metadata['key']}",
+              source: source['PK'].gsub('HARVESTER#', '')&.upcase,
+              tstamp: tstamp,
+              start_at: last_rec,
+              end_at: target_end > total_recs ? total_recs : target_end
+            }.to_json,
+            event_bus_name: ENV.fetch('EVENT_BUS_NAME', nil)
+          }
+          last_rec = target_end + 1
         end
-        cntr
-      end
+        return false if events.empty?
 
-      # Process the individual ROR record by creating/updating the equivalent record in our RDS database
-      def process_record(client:, table:, hash:, tstamp:, logger: nil)
-        return false unless hash.is_a?(Hash) && !hash['id'].nil? && !hash['name'].nil?
-
-        links = hash.fetch('links', [])
-        domain = URI.parse(links.first).host.gsub('www.', '') if links.any?
-        label = domain.nil? ? hash['name'] : "#{hash['name']} (#{domain})"
-        fundref = hash.fetch('external_ids', {}).fetch('FundRef', {})
-        funder = !fundref['preferred'].nil? || fundref.fetch('all', []).any?
-        names = [hash['name']&.downcase&.strip, domain&.downcase&.strip]
-        names = names + hash['aliases'] + hash['acronyms']
-        kids = hash.fetch('relationships', []).select { |e| e['type']&.downcase == 'child' }.map { |c| c['id'] }
-        parents = hash.fetch('relationships', []).select { |e| e['type']&.downcase == 'parent' }.map { |p| p['id'] }
-        related = hash.fetch('relationships', []).select { |e| e['type']&.downcase == 'related' }.map { |p| p['id'] }
-        wikipedia_url = hash['wikipedia_url']
-
-        out = {
-          PK: 'INSTITUTION',
-          SK: hash['id'],
-          label: label,
-          name: hash['name'],
-          searchable_names: names.flatten.compact.uniq,
-          active: hash['status']&.downcase&.strip == 'active' ? 1 : 0,
-          funder: funder ? 1 : 0,
-          "_SOURCE": HARVESTER_PK.gsub('HARVESTER#', '')&.upcase,
-          "_SOURCE_SYNCED_AT": tstamp
-        }
-
-        out[:domain] = domain unless domain.nil?
-        out[:wikipedia_url] = wikipedia_url.length > 250 ? nil : wikipedia_url unless wikipedia_url.nil?
-        out[:types] = hash['types'] if hash['types'].is_a?(Array)
-        out[:children] = kids unless kids.nil? || kids.empty?
-        out[:parents] = parents unless parents.nil? || parents.empty?
-        out[:related] = related unless related.nil? || related.empty?
-        out[:addresses] = hash['addresses'] if hash['addresses'].is_a?(Array)
-        out[:relationships] = hash['relationships'] if hash['relationships'].is_a?(Array)
-        out[:links] = hash['links'] if hash['links'].is_a?(Array)
-        out[:aliases] = hash['aliases'] if hash['aliases'].is_a?(Array)
-        out[:acronyms] = hash['acronyms'] if hash['acronyms'].is_a?(Array)
-        out[:country] = hash['country'] if hash['country'].is_a?(Hash)
-        out[:external_ids] = hash['external_ids'] if hash['external_ids'].is_a?(Hash)
-
-        resp = client.put_item({ table_name: table, item: out,
-                                 return_consumed_capacity: logger&.level == 'debug' ? 'TOTAL' : 'NONE' })
-        logger.debug(message: "Added/Updated #{out[:SK]}", details: out) if logger.respond_to?(:debug)
-        resp
-      rescue StandardError => e
-        logger&.error(message: "Unable to process ROR record: #{e.message}", details: { backtrace: e.backtrace, record: hash})
+        # Publish the Events
+        logger&.info(message: "RorDownloader published events", details: events)
+        resp = client.put_events({ entries: events })
+        true
       end
     end
   end
