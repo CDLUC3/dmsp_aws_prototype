@@ -1,0 +1,219 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: ROR Harvesting function that runs monthly and syncs ROR data with the
+  `institutions` table in RDS.
+Parameters:
+  Env:
+    Type: String
+    Default: dev
+  DomainName:
+    Type: String
+  DebugLevel:
+    Type: String
+    Default: debug
+  LogRetentionDays:
+    Type: Number
+    Default: 14
+  MaxRecordsPerProcessor:
+    Type: Number
+    Default: 50000
+  BaselineLayerId:
+    Type: String
+  HarvesterRoleArn:
+    Type: String
+  S3PrivateBucketId:
+    Type: String
+  EventBusArn:
+    Type: String
+  DeadLetterQueueArn:
+    Type: String
+  TypeaheadTableName:
+    Type: String
+Resources:
+  DownloaderFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: DownloaderFunction
+      Handler: downloader.Functions::RorDownloader.process
+      Runtime: ruby3.2
+      Timeout: 900
+      MemorySize: 2000
+      Architectures:
+      - x86_64
+      Layers:
+      - Ref: BaselineLayerId
+      Role:
+        Ref: HarvesterRoleArn
+      Environment:
+        Variables:
+          LAMBDA_ENV:
+            Ref: Env
+          LOG_LEVEL:
+            Ref: DebugLevel
+          DOMAIN:
+            Ref: DomainName
+          S3_BUCKET:
+            Ref: S3PrivateBucketId
+          DYNAMO_TABLE:
+            Ref: TypeaheadTableName
+          EVENT_BUS_NAME:
+            Ref: EventBusArn
+          PROCESSOR_RECORD_COUNT:
+            Ref: MaxRecordsPerProcessor
+      Events:
+        RorDownloaderEvent:
+          Type: EventBridgeRule
+          Properties:
+            DeadLetterConfig:
+              Arn:
+                Ref: DeadLetterQueueArn
+            EventBusName:
+              Ref: EventBusArn
+            Pattern:
+              Fn::Sub: "{\n  \"source\": [\"${DomainName}:lambda:event_publisher\"\
+                ],\n  \"detail-type\": [\"RorDownloader\"]\n}\n"
+            RetryPolicy:
+              MaximumEventAgeInSeconds: 180
+              MaximumRetryAttempts: 2
+            State: ENABLED
+    Metadata:
+      SamResourceId: DownloaderFunction
+  ProcessorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ProcessorFunction
+      Handler: processor.Functions::RorProcessor.process
+      Runtime: ruby3.2
+      Timeout: 900
+      MemorySize: 2000
+      Architectures:
+      - x86_64
+      Layers:
+      - Ref: BaselineLayerId
+      Role:
+        Ref: HarvesterRoleArn
+      Environment:
+        Variables:
+          LAMBDA_ENV:
+            Ref: Env
+          LOG_LEVEL:
+            Ref: DebugLevel
+          S3_BUCKET:
+            Ref: S3PrivateBucketId
+          DYNAMO_TABLE:
+            Ref: TypeaheadTableName
+      Events:
+        RorHarvesterProcessorEvent:
+          Type: EventBridgeRule
+          Properties:
+            DeadLetterConfig:
+              Arn:
+                Ref: DeadLetterQueueArn
+            EventBusName:
+              Ref: EventBusArn
+            Pattern:
+              Fn::Sub: "{\n  \"source\": [\"${DomainName}:lambda:event_publisher\"\
+                ],\n  \"detail-type\": [\"RorProcessor\"]\n}\n"
+            RetryPolicy:
+              MaximumEventAgeInSeconds: 180
+              MaximumRetryAttempts: 2
+            State: ENABLED
+    Metadata:
+      SamResourceId: ProcessorFunction
+  DownloaderPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName:
+        Ref: DownloaderFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+  ProcessorPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName:
+        Ref: ProcessorFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+  DownloaderLogGroup:
+    Type: AWS::Logs::LogGroup
+    DependsOn:
+    - DownloaderFunction
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${DownloaderFunction}
+      RetentionInDays:
+        Ref: LogRetentionDays
+  ProcessorLogGroup:
+    Type: AWS::Logs::LogGroup
+    DependsOn:
+    - ProcessorFunction
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${ProcessorFunction}
+      RetentionInDays:
+        Ref: LogRetentionDays
+  DownloaderScheduleMonthly:
+    Type: AWS::Events::Rule
+    Properties:
+      ScheduleExpression: cron(0 0 1 * ? *)
+      Targets:
+      - Id:
+          Ref: DownloaderFunction
+        Arn:
+          Fn::GetAtt:
+          - DownloaderFunction
+          - Arn
+  DownloaderScheduleMonthlyPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName:
+        Fn::GetAtt:
+        - DownloaderFunction
+        - Arn
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn:
+        Fn::GetAtt:
+        - DownloaderScheduleMonthly
+        - Arn
+Outputs:
+  DownloaderFunctionId:
+    Value:
+      Ref: DownloaderFunction
+  DownloaderFunctionArn:
+    Value:
+      Fn::GetAtt:
+      - DownloaderFunction
+      - Arn
+  ProcessorFunctionId:
+    Value:
+      Ref: ProcessorFunction
+  ProcessorFunctionArn:
+    Value:
+      Fn::GetAtt:
+      - ProcessorFunction
+      - Arn
+  DownloaderLogGroupId:
+    Value:
+      Ref: DownloaderLogGroup
+  DownloaderLogGroupArn:
+    Value:
+      Fn::GetAtt:
+      - DownloaderLogGroup
+      - Arn
+  ProcessorLogGroupId:
+    Value:
+      Ref: ProcessorLogGroup
+  ProcessorLogGroupArn:
+    Value:
+      Fn::GetAtt:
+      - ProcessorLogGroup
+      - Arn
+  DownloaderEventBusRuleId:
+    Value:
+      Ref: DownloaderScheduleMonthly
+  DownloaderEventBusRuleArn:
+    Value:
+      Fn::GetAtt:
+      - DownloaderScheduleMonthly
+      - Arn

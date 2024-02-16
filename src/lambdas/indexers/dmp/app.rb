@@ -14,9 +14,9 @@ require 'uc3-dmp-cloudwatch'
 require 'uc3-dmp-id'
 
 module Functions
-  # A service that queries DataCite EventData
-  class DynamoToOpensearch
-    SOURCE = 'DynamoDb Table Stream to OpenSearch'
+  # A service that indexes DMP-IDs into OpenSearch
+  class DmpIndexer
+    SOURCE = 'DMP-ID Dynamo Table Stream to OpenSearch'
 
     # Parameters
     # ----------
@@ -210,11 +210,27 @@ module Functions
       # Extract all of the important information from the DMP to create our OpenSearch Doc
       def _dmp_to_os_doc(hash:, logger:)
         people = _extract_people(hash:, logger:)
+        pk = Uc3DmpId::Helper.remove_pk_prefix(p_key: hash.fetch('PK', {})['S'])
+        visibility = hash.fetch('dmproadmap_privacy', {})['S']&.downcase&.strip == 'public' ? 'public' : 'private'
+
         doc = people.merge({
-          dmp_id: Uc3DmpId::Helper.pk_to_dmp_id(p_key: hash.fetch('PK', {})['S']),
+          dmp_id: Uc3DmpId::Helper.format_dmp_id(value: pk, with_protocol: true),
           title: hash.fetch('title', {})['S']&.downcase,
+          visibility: visibility,
+          featured: hash.fetch('dmproadmap_featured', {})['S']&.downcase&.strip == '1' ? 1 : 0,
           description: hash.fetch('description', {})['S']&.downcase
         })
+        logger.debug(message: 'New OpenSearch Document', details: { document: doc }) unless visibility == 'public'
+        return doc unless visibility == 'public'
+
+        # Attach the narrative PDF if the plan is public
+        pdfs = hash.fetch('dmproadmap_related_identifiers', {}).fetch('L', []).select do |related|
+          related.fetch('M', {}).fetch('descriptor', {})['S']&.downcase&.strip == 'is_metadata_for' &&
+            related.fetch('M', {}).fetch('work_type', {})['S']&.downcase&.strip == 'output_management_plan'
+        end
+        pdf = pdfs.is_a?(Array) ? pdfs.last : pdfs
+
+        doc[:narrative_url] = pdfs.last.fetch('M', {}).fetch('identifier', {})['S'] unless pdf.nil?
         logger.debug(message: 'New OpenSearch Document', details: { document: doc })
         doc
       end

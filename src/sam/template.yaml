@@ -1,10 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: 'AWS::Serverless-2016-10-31'
 
-Description: >
-  dmp-hub-sam
-
-  Sample SAM Template for dmp-hub-sam
+Description: 'API Gateway and Lambda Functions'
 
 # More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
 Globals:
@@ -13,18 +10,6 @@ Globals:
     Tracing: 'Active'
 
 Parameters:
-  VpcId:
-    Type: 'AWS::EC2::VPC::Id'
-
-  SubnetA:
-    Type: 'AWS::EC2::Subnet::Id'
-
-  SubnetB:
-    Type: 'AWS::EC2::Subnet::Id'
-
-  SubnetC:
-    Type: 'AWS::EC2::Subnet::Id'
-
   HostedZoneId:
     Type: 'String'
 
@@ -46,6 +31,9 @@ Parameters:
       - 'info'
       - 'debug'
 
+  BaselineLayerId:
+    Type: 'String'
+
   CertificateArn:
     Type: 'String'
 
@@ -63,24 +51,6 @@ Parameters:
 
   DynamoTableStreamArn:
     Type: 'String'
-
-  OpenSearchSecGrpId:
-    Type: 'String'
-
-  OpenSearchDomainArn:
-    Type: 'String'
-
-  OpenSearchDomainEndpoint:
-    Type: 'String'
-
-  # CognitoLambdaOpenSearchRoleArn:
-  #   Type: 'String'
-
-  # ResourcesDynamoTableArn:
-  #   Type: 'String'
-
-  # ResourcesDynamoTableName:
-  #   Type: 'String'
 
   S3CloudFrontBucketArn:
     Type: 'String'
@@ -165,78 +135,6 @@ Resources:
             - !Ref DynamoTableArn
             - !Sub '${DynamoTableArn}/index/*'
 
-  # ResourcesDynamoTableWritePolicy:
-  #   Type: 'AWS::IAM::ManagedPolicy'
-  #   Properties:
-  #     Description: '${AWS::StackName} - Write access (and GetItem) to the ResourcesDynamoDB Table'
-  #     ManagedPolicyName: !Sub 'DmpHub${Env}ResourcesDynamoWritePolicy'
-  #     PolicyDocument:
-  #       Version: '2012-10-17'
-  #       Statement:
-  #         Effect: 'Allow'
-  #         Action:
-  #           - 'dynamodb:DeleteItem'
-  #           - 'dynamodb:GetItem'
-  #           - 'dynamodb:PutItem'
-  #           - 'dynamodb:BatchWriteItem'
-  #           - 'dynamodb:PartiQLInsert'
-  #           - 'dynamodb:Query'
-  #           - 'dynamodb:Scan'
-  #         Resource:
-  #           - !Ref ResourcesDynamoTableArn
-  #           - !Sub '${ResourcesDynamoTableArn}/index/*'
-
-  # # Role to allow a Lambda function to read from the DynamoDB Table Stream and Send an SNS notification
-  DynamoTableStreamRole:
-    Type: 'AWS::IAM::Role'
-    Properties:
-      Description: !Sub '%{AWS::StackName} - Allow Lambda to access the Dynamo Stream and write to OpenSearch'
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          Effect: 'Allow'
-          Action: 'sts:AssumeRole'
-          Principal:
-            AWS: '*'
-            # Service: 'lambda.amazonaws.com'
-      ManagedPolicyArns:
-        - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
-        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
-        - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
-        - 'arn:aws:iam::aws:policy/AmazonSQSFullAccess'
-      Policies:
-        - PolicyName: !Sub '${AWS::StackName}-LambdaReadDynamoStream'
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              Effect: 'Allow'
-              Action:
-                - 'dynamodb:DescribeStream'
-                - 'dynamodb:GetRecords'
-                - 'dynamodb:GetShardIterator'
-                - 'dynamodb:ListStreams'
-              Resource: !Sub '${DynamoTableArn}/stream/*'
-        - PolicyName: !Sub '${AWS::StackName}-LambdaVpcAccess'
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              Effect: 'Allow'
-              Action:
-                - 'ec2:DescribeNetworkInterfaces'
-                - 'ec2:CreateNetworkInterface'
-                - 'ec2:DeleteNetworkInterface'
-              Resource: '*'
-        - PolicyName: !Sub '${AWS::StackName}-Lambda-OpenSearch-Access'
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              Effect: 'Allow'
-              Action:
-                - 'es:*'
-              Resource:
-                - !Ref OpenSearchDomainArn
-                - !Sub '${OpenSearchDomainArn}/*'
-
   EventBusPolicy:
     Type: 'AWS::IAM::ManagedPolicy'
     Properties:
@@ -283,27 +181,6 @@ Resources:
           Resource:
             - !Ref S3CloudFrontBucketArn
             - !Sub "${S3CloudFrontBucketArn}/*"
-
-  # -----------------------------------------------------------
-  # EC2 Security Groups for ECS containers (see their definitions in application.yaml)
-  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-security-group.html
-  # -----------------------------------------------------------
-  LambdaSecurityGroup:
-    Type: 'AWS::EC2::SecurityGroup'
-    Properties:
-      GroupDescription: !Sub '${AWS::StackName} Lambda Sec-grp'
-      GroupName: !Sub '${AWS::StackName}-sec-grp'
-      VpcId: !Ref VpcId
-
-  # Allow traffic to the ECS instances from the ALB
-  LambdaSecurityGroupIngressFromOpenSearch:
-    Type: 'AWS::EC2::SecurityGroupIngress'
-    Properties:
-      IpProtocol: 'tcp'
-      FromPort: 443
-      ToPort: 443
-      GroupId: !GetAtt LambdaSecurityGroup.GroupId
-      SourceSecurityGroupId: !Ref OpenSearchSecGrpId
 
   # ----------------------------------------------------
   # CloudWatch LogGroup
@@ -387,87 +264,6 @@ Resources:
       Type: 'String'
       Value: !Sub "https://api.${DomainName}"
 
-  # ----------------------------------------------------
-  # Lambda Layers
-  #   See: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-resource-layerversion.html
-  # ----------------------------------------------------
-  LambdaLayer:
-    Type: 'AWS::Serverless::LayerVersion'
-    Properties:
-      LayerName: !Sub '${AWS::StackName}-lambda-layer'
-      Description: !Sub 'Core Lambda Layer for DMPHub ${Env}'
-      ContentUri: !Sub 'layers'
-        # Bucket: !Ref S3PrivateBucketId
-        # Key: !Sub 'lambdas/uc3-dmp-hub-${Env}-sam-resources-lambda-layer.zip'
-      CompatibleRuntimes:
-        - 'ruby2.7'
-        - 'ruby3.2'
-      RetentionPolicy: 'Delete'
-    Metadata:
-      BuildMethod: 'makefile'
-      BuildArchitecture: 'x86_64'
-
-  # ----------------------------------------------------
-  # API Lambdas
-  #  See: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-property-function-api.html
-  # ----------------------------------------------------
-  TmpAsserterFunction:
-    Type: 'AWS::Serverless::Function'
-    Properties:
-      CodeUri: 'functions/tmp_asserter/'
-      Handler: 'app.Functions::TmpAsserter.process'
-      Runtime: 'ruby3.2'
-      Timeout: 5
-      Architectures:
-        - 'x86_64'
-      Layers:
-        - !Ref LambdaLayer
-      Policies:
-        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
-        - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
-        - 'arn:aws:iam::aws:policy/AmazonSQSFullAccess'
-        - !Ref DmpHubDynamoTableWritePolicy
-        - !Ref EventBusPolicy
-        - !Ref CognitoPolicy
-      DeadLetterQueue:
-        Type: 'SQS'
-        TargetArn: !Ref DeadLetterQueueArn
-      Environment:
-        Variables:
-          LAMBDA_ENV: !Ref Env
-          LOG_LEVEL: 'debug'
-          DOMAIN: !Ref DomainName
-          DMP_ID_BASE_URL: 'doi.org'
-          SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
-          EVENT_BUS_NAME: !Ref EventBusArn
-          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolArn
-          DYNAMO_TABLE: !Ref DynamoTableName
-          CORS_ORIGIN: !If
-            - IsDev
-            - "*"
-            - !Sub "https://${DomainName}"
-      Events:
-        TmpAsserterEvent:
-          # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
-          Type: 'Api'
-          Properties:
-            RestApiId: !Ref DmpHubRestApi
-            Path: '/tmp/{dmp_id+}/'
-            Method: 'put'
-            RequestParameters:
-              - 'method.request.header.Authorization'
-            Auth:
-              Authorizer: 'DmpHubCognitoAuthorizer'
-              AuthorizationScopes:
-                - !Sub 'https://auth.${DomainName}/${Env}.write'
-
-  TmpAsserterLogGroup:
-    Type: 'AWS::Logs::LogGroup'
-    Properties:
-      LogGroupName: !Sub "/aws/lambda/${TmpAsserterFunction}"
-      # Explicit retention time
-      RetentionInDays: !Ref LogRetentionDays
-
   # Tombstone a DMP
   DeleteDmpFunction:
     Type: 'AWS::Serverless::Function'
@@ -479,7 +275,7 @@ Resources:
       Architectures:
         - 'x86_64'
       Layers:
-        - !Ref LambdaLayer
+        - !Ref BaselineLayerId
       Policies:
         - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
         - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
@@ -537,7 +333,7 @@ Resources:
       Architectures:
         - 'x86_64'
       Layers:
-        - !Ref LambdaLayer
+        - !Ref BaselineLayerId
       Policies:
         - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
         - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
@@ -585,7 +381,7 @@ Resources:
       Architectures:
         - 'x86_64'
       Layers:
-        - !Ref LambdaLayer
+        - !Ref BaselineLayerId
       Policies:
         - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
         - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
@@ -633,7 +429,7 @@ Resources:
       Architectures:
         - 'x86_64'
       Layers:
-        - !Ref LambdaLayer
+        - !Ref BaselineLayerId
       Policies:
         - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
         - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
@@ -681,7 +477,7 @@ Resources:
       Architectures:
         - 'x86_64'
       Layers:
-        - !Ref LambdaLayer
+        - !Ref BaselineLayerId
       Policies:
         - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
         - !Ref DmpHubDynamoTableReadPolicy
@@ -718,15 +514,6 @@ Resources:
       # Explicit retention time
       RetentionInDays: !Ref LogRetentionDays
 
-  # GetDmpOpenSearchSubscription:
-  #   Type: 'AWS::Logs::SubscriptionFilter'
-  #   Properties:
-  #     DestinationArn: !Ref OpenSearchDomainArn
-  #     LogGroupName: !Ref GetDmpLogGroup
-  #     Distribution: 'Random'
-  #     FilterPattern: 'RequestId'
-  #     RoleArn: !GetAtt DynamoTableStreamRole.Arn
-
   # Search for DMP IDs
   GetDmpsFunction:
     Type: 'AWS::Serverless::Function'
@@ -738,7 +525,7 @@ Resources:
       Architectures:
         - 'x86_64'
       Layers:
-        - !Ref LambdaLayer
+        - !Ref BaselineLayerId
       Policies:
         - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
         - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
@@ -789,7 +576,7 @@ Resources:
       Architectures:
         - 'x86_64'
       Layers:
-        - !Ref LambdaLayer
+        - !Ref BaselineLayerId
       Policies:
         - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
         - 'arn:aws:iam::aws:policy/AmazonSQSFullAccess'
@@ -839,7 +626,7 @@ Resources:
       Architectures:
         - 'x86_64'
       Layers:
-        - !Ref LambdaLayer
+        - !Ref BaselineLayerId
       Policies:
         - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
         - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
@@ -896,7 +683,7 @@ Resources:
       Architectures:
         - 'x86_64'
       Layers:
-        - !Ref LambdaLayer
+        - !Ref BaselineLayerId
       Policies:
         - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
         - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
@@ -950,7 +737,7 @@ Resources:
       Architectures:
         - 'x86_64'
       Layers:
-        - !Ref LambdaLayer
+        - !Ref BaselineLayerId
       Policies:
         - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
         - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
@@ -1007,7 +794,7 @@ Resources:
       Architectures:
         - 'x86_64'
       Layers:
-        - !Ref LambdaLayer
+        - !Ref BaselineLayerId
       Policies:
         - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
       DeadLetterQueue:
@@ -1056,7 +843,7 @@ Resources:
       Architectures:
         - 'x86_64'
       Layers:
-        - !Ref LambdaLayer
+        - !Ref BaselineLayerId
       Policies:
         - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
         - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
@@ -1111,62 +898,6 @@ Resources:
       LogGroupName: !Sub "/aws/lambda/${CiterFunction}"
       RetentionInDays: !Ref LogRetentionDays
 
-  # Lambda that converts DynamoDB Stream events into OpenSearch records
-  DynamoToOpenSearchFunction:
-    Type: 'AWS::Serverless::Function'
-    Properties:
-      CodeUri: 'functions/triggered/dynamo_to_opensearch/'
-      Handler: 'app.Functions::DynamoToOpensearch.process'
-      Runtime: 'ruby3.2'
-      Timeout: 600
-      Architectures:
-        - 'x86_64'
-      Layers:
-        - !Ref LambdaLayer
-      Role: !GetAtt DynamoTableStreamRole.Arn
-      Environment:
-        Variables:
-          LAMBDA_ENV: !Ref Env
-          LOG_LEVEL: !Ref DebugLevel # 'debug'
-          OPEN_SEARCH_DOMAIN: !Sub 'https://${OpenSearchDomainEndpoint}'
-          OPEN_SEARCH_INDEX: !Sub '${Env}-dmp-id-search'
-      VpcConfig:
-        SecurityGroupIds:
-          - !Ref LambdaSecurityGroup
-          - !Ref OpenSearchSecGrpId
-        SubnetIds:
-          - !Ref SubnetA
-          - !Ref SubnetB
-          - !Ref SubnetC
-      Events:
-        DynamoDbOpenSearchEvent:
-          # See: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-property-function-dynamodb.html
-          Type: 'DynamoDB'
-          Properties:
-            Enabled: true
-            StartingPosition: 'TRIM_HORIZON' # Other Options are 'AT_TIMESTAMP' and 'LATEST'
-            # StartingPositionTimestamp: Double
-            Stream: !Ref DynamoTableStreamArn
-            DestinationConfig:
-              OnFailure:
-                Destination: !Ref DeadLetterQueueArn
-
-  DynamoToOpenSearchPermission:
-    Type: 'AWS::Lambda::Permission'
-    Properties:
-      FunctionName: !Ref DynamoToOpenSearchFunction
-      Action: 'lambda:InvokeFunction'
-      Principal: 'events.amazonaws.com'
-
-  # Annoyingly, SAM does not auto-generate LogGroup for a non-API tiggered lambda
-  DynamoToOpenSearchFunctionLogGroup:
-    Type: 'AWS::Logs::LogGroup'
-    DependsOn:
-      - DynamoToOpenSearchFunction
-    Properties:
-      LogGroupName: !Sub "/aws/lambda/${DynamoToOpenSearchFunction}"
-      RetentionInDays: !Ref LogRetentionDays
-
   # Lambda responsible for communications with EZID
   EzidPublisherFunction:
     Type: 'AWS::Serverless::Function'
@@ -1178,7 +909,7 @@ Resources:
       Architectures:
         - 'x86_64'
       Layers:
-        - !Ref LambdaLayer
+        - !Ref BaselineLayerId
       Policies:
         - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
         - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
@@ -1234,70 +965,6 @@ Resources:
       RetentionInDays: !Ref LogRetentionDays
 
   # Lambda responsible for communications with EZID
-  # ExplorerRorFunction:
-  #   Type: 'AWS::Serverless::Function'
-  #   Properties:
-  #     CodeUri: 'functions/triggered/explorer_ror/'
-  #     Handler: 'app.Functions::ExplorerRor.process'
-  #     Runtime: 'ruby3.2'
-  #     # Extended timeout to 15 minutes and nbump the memory to .5GB here since we download the complete
-  #     # ROR file and it is a large ZIP archive
-  #     Timeout: 900
-  #     MemorySize: 512
-  #     Architectures:
-  #       - 'x86_64'
-  #     Layers:
-  #       - !Ref LambdaLayer
-  #     Policies:
-  #       - 'arn:aws:iam::aws:policy/AmazonS3FullAccess'
-  #       - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
-  #       - 'arn:aws:iam::aws:policy/AmazonSQSFullAccess'
-  #       - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
-  #       - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
-  #       - !Ref ResourcesDynamoTableWritePolicy
-  #       - !Ref EventBusPolicy
-  #     Environment:
-  #       Variables:
-  #         LAMBDA_ENV: !Ref Env
-  #         LOG_LEVEL: !Ref DebugLevel # 'debug'
-  #         DOMAIN: !Ref DomainName
-  #         SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
-  #         DYNAMO_TABLE: !Ref ResourcesDynamoTableName
-  #         S3_BUCKET: !Ref S3PrivateBucketId
-  #     Events:
-  #       ExplorerRorEvent:
-  #         Type: 'EventBridgeRule'
-  #         Properties:
-  #           DeadLetterConfig:
-  #             Arn: !Ref DeadLetterQueueArn
-  #           EventBusName: !Ref EventBusArn
-  #           Pattern: !Sub >
-  #             {
-  #               "source": ["${DomainName}:lambda:event_publisher"],
-  #               "detail-type": ["ExploreRor"]
-  #             }
-  #           RetryPolicy:
-  #             MaximumEventAgeInSeconds: 180
-  #             MaximumRetryAttempts: 3
-  #           State: 'ENABLED'  # 'DISABLED'
-
-  # ExplorerRorPermission:
-  #   Type: 'AWS::Lambda::Permission'
-  #   Properties:
-  #     FunctionName: !Ref ExplorerRorFunction
-  #     Action: 'lambda:InvokeFunction'
-  #     Principal: 'events.amazonaws.com'
-
-  # # Annoyingly, SAM does not auto-generate LogGroup for a non-API tiggered lambda
-  # ExplorerRorFunctionLogGroup:
-  #   Type: 'AWS::Logs::LogGroup'
-  #   DependsOn:
-  #     - ExplorerRorFunction
-  #   Properties:
-  #     LogGroupName: !Sub "/aws/lambda/${ExplorerRorFunction}"
-  #     RetentionInDays: !Ref LogRetentionDays
-
-  # Lambda responsible for communications with EZID
   AugmenterDataciteFunction:
     Type: 'AWS::Serverless::Function'
     Properties:
@@ -1309,7 +976,7 @@ Resources:
       Architectures:
         - 'x86_64'
       Layers:
-        - !Ref LambdaLayer
+        - !Ref BaselineLayerId
       Policies:
         - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
         - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
@@ -1376,7 +1043,7 @@ Resources:
       Architectures:
         - 'x86_64'
       Layers:
-        - !Ref LambdaLayer
+        - !Ref BaselineLayerId
       Policies:
         - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
         - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'

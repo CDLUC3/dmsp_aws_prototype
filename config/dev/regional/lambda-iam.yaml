@@ -1,0 +1,27 @@
+template:
+  path: 'lambda-iam.yaml'
+  type: 'file'
+
+parameters:
+  Env: !stack_attr sceptre_user_data.env
+
+  OpenSearchDomainArn: !stack_output dev/regional/opensearch.yaml::OpenSearchDomainArn
+
+  EventBusArn: !stack_output dev/regional/eventbridge.yaml::EventBusArn
+
+  DmpTableArn: !stack_output dev/regional/dynamo.yaml::DynamoTableArn
+
+  TypeaheadTableArn: !stack_output dev/regional/dynamo.yaml::TypeaheadTableArn
+
+hooks:
+  after_create:
+    # Create the dependent Lambdas (note the Layer script will also create dependent Lambdas)
+    - !cmd 'cd ./src/lambdas/layers/baseline && ruby sam_build_deploy.rb dev true true debug'
+
+  after_update:
+    # Update the dependent Lambdas (note the Layer script will also rebuild dependent Lambdas)
+    - !cmd 'cd ./src/lambdas/layers/baseline && ruby sam_build_deploy.rb dev true true debug'
+
+  before_delete:
+    # Delete any dependent Lambdas (note the Layer script will also delete dependent Lambdas)
+    - !cmd 'cd ./src/lambdas/layers/baseline && ruby sam_build_deploy.rb dev false false'

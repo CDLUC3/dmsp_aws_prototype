@@ -1,0 +1,230 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: 'IAM resources used by the Lambdas managed via AWS SAM'
+
+Parameters:
+  Env:
+    Type: 'String'
+    Default: 'dev'
+
+  OpenSearchDomainArn:
+    Type: 'String'
+
+  EventBusArn:
+    Type: 'String'
+
+  DmpTableArn:
+    Type: 'String'
+
+  TypeaheadTableArn:
+    Type: 'String'
+
+Resources:
+  # ----------------------------------------------------
+  # Managed IAM Policies for DMPHub resources
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-iam-managedpolicy.html
+  # ----------------------------------------------------
+  DynamoPolicy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          Effect: 'Allow'
+          Action:
+            - 'dynamodb:BatchGetItem'
+            - 'dynamodb:BatchWriteItem'
+            - 'dynamodb:DeleteItem'
+            - 'dynamodb:Describe*'
+            - 'dynamodb:GetItem'
+            - 'dynamodb:List*'
+            - 'dynamodb:Query'
+            - 'dynamodb:PartiQLSelect'
+            - 'dynamodb:PartiQLInsert'
+            - 'dynamodb:PutItem'
+            - 'dynamodb:Query'
+            - 'dynamodb:Scan'
+          Resource:
+            - !Ref DmpTableArn
+            - !Sub '${DmpTableArn}/index/*'
+            - !Ref TypeaheadTableArn
+            - !Sub '${TypeaheadTableArn}/index/*'
+
+  DynamoStreamPolicy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      Description: !Sub '${AWS::StackName} - Permissions to read from Dynamo'
+      ManagedPolicyName: !Sub '${Env}LambdaDynamoPolicy'
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          Effect: 'Allow'
+          Action:
+            - 'dynamodb:DescribeStream'
+            - 'dynamodb:GetRecords'
+            - 'dynamodb:GetShardIterator'
+            - 'dynamodb:ListStreams'
+          Resource:
+            - !Sub '${DmpTableArn}/stream/*'
+            - !Sub '${TypeaheadTableArn}/stream/*'
+
+  EventBusPutEventPolicy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      Description: !Sub '${AWS::StackName} - Permission to put events on the EventBus'
+      ManagedPolicyName: !Sub '${Env}LambdaEventBusPutPolicy'
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          Effect: 'Allow'
+          Action:
+            - 'events:PutEvents'
+          Resource: !Ref EventBusArn
+
+  OpenSearchPolicy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      Description: !Sub '${AWS::StackName} - Permissions to read/write to OpenSearch'
+      ManagedPolicyName: !Sub '${Env}LambdaOpenSearchPolicy'
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          Effect: 'Allow'
+          Action:
+            - 'es:*'
+          Resource:
+            - !Ref OpenSearchDomainArn
+            - !Sub '${OpenSearchDomainArn}/*'
+
+  VpcPolicy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      Description: !Sub '${AWS::StackName} - Permissions to attach to the Vpc and Subnets'
+      ManagedPolicyName: !Sub '${Env}LambdaVpcPolicy'
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          Effect: 'Allow'
+          Action:
+            - 'ec2:DescribeNetworkInterfaces'
+            - 'ec2:CreateNetworkInterface'
+            - 'ec2:DeleteNetworkInterface'
+          Resource: '*'
+
+  # --------------------------------------------------------------------
+  # IAM Roles used by Lambdas managed via AWS SAM and defined in ./src/
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-iam-role.html
+  # --------------------------------------------------------------------
+  HarvesterRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      Description: !Sub '%{AWS::StackName} - Lambda Data Harvesters'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          Effect: 'Allow'
+          Action: 'sts:AssumeRole'
+          Principal:
+            AWS: '*'
+            # Service: 'lambda.amazonaws.com'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AmazonS3FullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSQSFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
+        - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
+        - !Ref DynamoPolicy
+        - !Ref EventBusPutEventPolicy
+
+  IndexerRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      Description: !Sub '%{AWS::StackName} - Allow Lambda to access the Dynamo Stream and write to OpenSearch'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          Effect: 'Allow'
+          Action: 'sts:AssumeRole'
+          Principal:
+            AWS: '*'
+            # Service: 'lambda.amazonaws.com'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSQSFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
+        - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
+        - !Ref DynamoStreamPolicy
+        - !Ref OpenSearchPolicy
+        - !Ref VpcPolicy
+
+  RdsUpdaterRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      Description: !Sub '%{AWS::StackName} - Lambda Data Harvesters'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          Effect: 'Allow'
+          Action: 'sts:AssumeRole'
+          Principal:
+            AWS: '*'
+            # Service: 'lambda.amazonaws.com'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AmazonRDSDataFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSQSFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
+        - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
+        - 'arn:aws:iam::aws:policy/SecretsManagerReadWrite'
+        - !Ref VpcPolicy
+
+Outputs:
+  DynamoPolicyArn:
+    Value: !Ref DynamoPolicy
+    Export:
+      Name: !Sub '${Env}-DynamoPolicyArn'
+
+  DynamoStreamPolicyArn:
+    Value: !Ref DynamoStreamPolicy
+    Export:
+      Name: !Sub '${Env}-DynamoStreamPolicyArn'
+
+  OpenSearchPolicyArn:
+    Value: !Ref OpenSearchPolicy
+    Export:
+      Name: !Sub '${Env}-OpenSearchPolicyArn'
+
+  VpcPolicyArn:
+    Value: !Ref VpcPolicy
+    Export:
+      Name: !Sub '${Env}-VpcPolicyArn'
+
+  HarvesterRoleId:
+    Value: !Ref HarvesterRole
+    Export:
+      Name: !Sub '${Env}-HarvesterRoleId'
+
+  HarvesterRoleArn:
+    Value: !GetAtt HarvesterRole.Arn
+    Export:
+      Name: !Sub '${Env}-HarvesterRoleArn'
+
+  IndexerRoleId:
+    Value: !Ref IndexerRole
+    Export:
+      Name: !Sub '${Env}-IndexerRoleId'
+
+  IndexerRoleArn:
+    Value: !GetAtt IndexerRole.Arn
+    Export:
+      Name: !Sub '${Env}-IndexerRoleArn'
+
+  RdsUpdaterRoleId:
+    Value: !Ref RdsUpdaterRole
+    Export:
+      Name: !Sub '${Env}-RdsUpdaterRoleId'
+
+  RdsUpdaterRoleArn:
+    Value: !GetAtt RdsUpdaterRole.Arn
+    Export:
+      Name: !Sub '${Env}-RdsUpdaterRoleArn'

@@ -4,6 +4,15 @@ Transform: 'AWS::SecretsManager-2020-07-23'
 
 Description: 'OpenSearch related resources'
 
+# NOTE: You should ensure that any related Lambda stacks from the ./src/lambdas/indexers directory have been
+#       successfully deleted prior to deleting this stack!
+#       The SecurityGroup defined below will have ENIs defined for those Lambdas and the deletion of this stack
+#       will hang indefinetly until the Lambdas are deleted and their ENIs are cleaned up.
+#
+#       If you do get stuck, you can speed this process up by detaching and deleting the ENIs manually in the
+#       console, but you have to wait until their status becomes 'Available'
+#       See: https://stackoverflow.com/questions/47957820/lambda-in-vpc-deletion-takes-more-time
+
 Parameters:
   VpcId:
     Type: 'AWS::EC2::VPC::Id'
@@ -36,6 +45,10 @@ Parameters:
   LogRetentionDays:
     Type: 'Number'
     Default: 14
+
+Conditions:
+  IsDev:
+    !Equals [!Ref Env, 'dev']
 
 Resources:
   # ----------------------------------------------
@@ -138,15 +151,17 @@ Resources:
   # --------------------------------------------------------
   OpenSearchDomain:
     Type: 'AWS::OpenSearchService::Domain'
+    DependsOn:
+      - OpenSearchLogPolicy
     Properties:
       ClusterConfig:
         DedicatedMasterEnabled: false
-        InstanceCount: 3
+        InstanceCount: !If
+          - IsDev
+          - 1
+          - 3
         InstanceType: 't3.small.search'
         MultiAZWithStandbyEnabled: false
-        ZoneAwarenessEnabled: true
-        ZoneAwarenessConfig:
-          AvailabilityZoneCount: 3
       DomainEndpointOptions:
         EnforceHTTPS: true
         TLSSecurityPolicy: 'Policy-Min-TLS-1-2-PFS-2023-10'
@@ -156,7 +171,7 @@ Resources:
         VolumeType: 'gp2'
       EncryptionAtRestOptions:
         Enabled: true
-      EngineVersion: 'OpenSearch_2.7'
+      EngineVersion: 'OpenSearch_2.11'
       LogPublishingOptions:
         'ES_APPLICATION_LOGS':
           Enabled: true
@@ -168,10 +183,12 @@ Resources:
       VPCOptions:
         SecurityGroupIds:
           - !Ref OpensearchSecGrp
-        SubnetIds:
-          - !Ref SubnetA
-          - !Ref SubnetB
-          - !Ref SubnetC
+        SubnetIds: !If
+          - IsDev
+          - - !Ref SubnetA
+          - - !Ref SubnetA
+            - !Ref SubnetB
+            - !Ref SubnetC
 
 Outputs:
   OpenSearchDomainId:
