@@ -44,12 +44,11 @@ function Landing() {
   });
 
   const navigate = useNavigate();
-  const controller = new AbortController();
+
   useEffect(() => {
     // Fetch the DMP ID metadata from the DMPHub
     let api = new DmpApi();
-
-
+    const controller = new AbortController();
     const fetchData = async () => {
       try{
         const response = await fetch(api.getUrl(),api.getOptions(),{signal:controller.signal});
@@ -136,12 +135,8 @@ function Landing() {
     }
   }
 
-  function handleAbort() {
-    controller.abort();
-  }
   return (
     <div id="Dashboard">
-      <button onClick={handleAbort}>Abort</button>
       <header className="t_step__landing-header">
         <div className="dmptool-logo">
           <DmptoolLink withLogo='true'/>
