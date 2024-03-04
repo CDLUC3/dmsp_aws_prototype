@@ -37,7 +37,7 @@ module Functions
 
       params = event.fetch('queryStringParameters', {})
       pi_names = params.fetch('pi_names', '')
-      project_num = params.fetch('project', '')
+      project_num = params.fetch('project', '')&.gsub(' ', '+')
       title = params.fetch('keywords', '')
       years = params.fetch('years', (Date.today.year..Date.today.year - 3).to_a.join(','))
       years = years.split(',').map(&:to_i)
