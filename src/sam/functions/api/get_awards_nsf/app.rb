@@ -58,7 +58,9 @@ module Functions
 
       logger.debug(message: 'Found the following results:', details: resp) if logger.respond_to?(:debug)
       results = _transform_response(response_body: resp)
-      _respond(status: 200, items: results.compact.uniq, event:, params:)
+      results = results.compact.uniq
+      logger&.debug(message: 'Normalized response:', details: results)
+      _respond(status: 200, items: results, event:, params:)
     rescue Uc3DmpExternalApi::ExternalApiError => e
       logger.error(message: "External API error: #{e.message}", details: e.backtrace)
       deets = { message: "External API error: #{e.message}", query_string: params }
@@ -102,7 +104,7 @@ module Functions
         end_date = "12/31/#{years.last}"
         qs << _sanitize_params(str: 'dateStart=:start', params: { start: start_date }) unless years.first.nil?
         qs << _sanitize_params(str: 'dateEnd=:end', params: { end: end_date }) unless years.last.nil?
-        qs << 'printFields=pdPIName,piEmail,title,awardee,ueiNumber,cfdaNumber,startDate,expDate,abstractText'
+        qs << 'printFields=id,pdPIName,piEmail,title,awardee,ueiNumber,startDate,expDate,abstractText,fundsObligatedAmt'
         qs.join('&')
       end
       # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
@@ -134,13 +136,25 @@ module Functions
         return [] unless response_body.is_a?(Hash)
 
         response_body.fetch('response', {}).fetch('award', []).map do |award|
-          next if award['title'].nil? || award['id'].nil? # || award['piLastName'].nil?
+          next if award['title'].nil? || award['id'].nil? || award['pdPIName'].nil?
 
-          date_parts = award.fetch('date', '').split('/')
+          start_parts = award.fetch('startDate', '').split('/')
+          end_parts = award.fetch('expDate', '').split('/')
+          # The dates are in US format MM/DD/YYYY so we cannot simply reverse the order since we want YYYY-MM-DD
+          start_date = start_parts.length == 3 ? "#{start_parts[2]}-#{start_parts[0]}-#{start_parts[1]}" : ''
+          end_date = end_parts.length == 3 ? "#{end_parts[2]}-#{end_parts[0]}-#{end_parts[1]}" : ''
+          # Get the primary PI name
+          pi_name = [award['piLastName'], award['piFirstName']].compact.join(', ')
+          pi_name = award.fetch('pdPIName', '').split&.reverse&.join(', ') if pi_name.nil? || pi_name.empty?
+          # Get the co-PI names (skip if the PI name is duplicated)
+          contribs = award.fetch('coPDPI', []).map { |nm| nm.split.reverse.join(', ') }
+          contribs = contribs.reject { |nm| nm == pi_name }
           {
             project: {
               title: award['title'],
-              start: date_parts.length == 3 ? [date_parts[2], date_parts[0], date_parts[1]].join('-') : '',
+              description: award['abstractText'],
+              start: start_date,
+              end: end_date,
               funding: [
                 dmproadmap_award_amount: award['fundsObligatedAmt'],
                 dmproadmap_project_number: award['id'],
@@ -150,9 +164,8 @@ module Functions
                 }
               ]
             },
-            contact: {
-              name: [award['piLastName'], award['piFirstName']].join(', ')
-            }
+            contact: { name: pi_name, mbox: award['piEmail'] },
+            contributor: contribs.map { |nm| { name: nm, role: ['http://credit.niso.org/contributor-roles/investigation'] } }
           }
         end
       end
