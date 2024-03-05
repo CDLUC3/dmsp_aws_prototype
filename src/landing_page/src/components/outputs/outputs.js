@@ -133,7 +133,7 @@ function Outputs(props) {
 
         <ul className="landing-list">
           {outputs.map((output, idx) => (
-            <Output output={output} index={'output' + idx}/>
+            <Output output={output} index={'output' + idx} key={idx}/>
           ))}
         </ul>
       </div>

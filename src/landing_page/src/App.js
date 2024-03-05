@@ -1,25 +1,19 @@
 import React from "react";
-import { createBrowserRouter, RouterProvider } from "react-router-dom";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 
 import Landing from "./pages/landing/landing";
 import PageNotFound from "./pages/not_found/not_found";
-
-const router = createBrowserRouter([
-  {
-    path: "/dmps/*",
-    element: <Landing />,
-  },
-  {
-    path: "*",
-    element: <PageNotFound />,
-  }
-]);
 
 function App() {
   return (
     <div id="App">
       <main>
-        <RouterProvider router={router} />
+      <BrowserRouter>
+        <Routes>
+          <Route path="/dmps/*" element={<Landing />}/>
+          <Route path="*" element={<PageNotFound/>} />
+        </Routes>
+      </BrowserRouter>
       </main>
     </div>
   );
