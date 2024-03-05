@@ -42,7 +42,7 @@ module Functions
 
       params = event.fetch('queryStringParameters', {})
       pi_names = params.fetch('pi_names', '')
-      project_num = params.fetch('project', '')
+      project_num = URI.encode_www_form_component(params.fetch('project', ''))
       title = params.fetch('keywords', '')
       years = params.fetch('years', (Date.today.year..Date.today.year - 3).to_a.join(','))
       years = years.split(',').map(&:to_i)
@@ -52,7 +52,7 @@ module Functions
                                                                       (years.nil? || years.empty?)
 
       url = "/#{project_num}" unless project_num.nil? || project_num.empty?
-      url = "?#{_prepare_query_string2(funder:, pi_names:, title:, years:)}" if url.nil?
+      url = "?#{_prepare_query_string(funder:, pi_names:, title:, years:)}" if url.nil?
       url = "#{API_BASE_URL}#{url}"
       logger.debug(message: "Calling Crossref Award API: #{url}") if logger.respond_to?(:debug)
 
@@ -135,7 +135,7 @@ module Functions
           end: "#{years.last}-12-31"
         }
         qs += _sanitize_params(str: ',from-awarded-date::start,until-awarded-date::end', params: filter_params)
-        qs += "&mailto:#{ENV.fetch('ADMIN_EMAIL', 'dmptool@ucop.edu')}"
+        qs += "&mailto=#{ENV.fetch('ADMIN_EMAIL', 'dmptool@ucop.edu')}"
         qs
       end
       # rubocop:enable Metrics/AbcSize
@@ -155,6 +155,7 @@ module Functions
         affil = { name: affiliation['name'] }
         affil['affiliation_id'] = affiliation_id unless affiliation_id.nil?
         pi[:dmproadmap_affiliation] = affil
+        pi[:role] = ['http://credit.niso.org/contributor-roles/investigation']
         pi
       end
       # rubocop:enable Metrics/AbcSize
