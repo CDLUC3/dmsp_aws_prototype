@@ -113,7 +113,7 @@ function Contributors(props) {
 
         <ul className="landing-list">
           {persons.map((person, idx) => (
-            <Contributor person={person} index={'contrib' + idx}/>
+            <Contributor person={person} index={'contrib' + idx} key={idx}/>
           ))}
         </ul>
       </div>

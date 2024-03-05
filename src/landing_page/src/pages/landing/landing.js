@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { getValue } from "../../utils";
 import { DmpApi } from "../../api";
 
 import { DmptoolLink, Link } from '../../components/link/link';
@@ -49,54 +48,66 @@ function Landing() {
   useEffect(() => {
     // Fetch the DMP ID metadata from the DMPHub
     let api = new DmpApi();
-
-    fetch(api.getUrl(), api.getOptions())
-      .then((resp) => {
-        api.handleResponse(resp);
-        return resp.json();
-      })
-      .then((data) => {
-        // console.log(data.items[0].dmp);
+    const controller = new AbortController();
+    const fetchData = async () => {
+      try{
+        const response = await fetch(api.getUrl(),api.getOptions(),{signal:controller.signal});
+        api.handleResponse(response);
+        const data = await response.json();
         if (Array.isArray(data?.items) && data?.items[0] !== null) {
           let dmp = data.items[0].dmp;
-          //console.log(dmp);
 
           setFormData({
             json_url: api.getUrl(),
-            title: getValue(dmp, "title", ""),
-            description: getValue(dmp, "description", ""),
-            dmp_id: getValue(dmp, "dmp_id.identifier", ""),
-            privacy: getValue(dmp, "dmproadmap_privacy", "private"),
-            created: getValue(dmp, "created", ""),
-            modified: getValue(dmp, "modified", ""),
-            ethical_issues_exist: getValue(dmp, "ethical_issues_exits", "unknown"),
-            ethical_issues_report: getValue(dmp, "ethical_issues_report", ""),
+            title: dmp.title || "",
+            description: dmp.description || "",
+            dmp_id: dmp.dmp_id?.identifier || "",
+            privacy: dmp.dmproadmap_privacy || "private",
+            created: dmp.created || "",
+            modified: dmp.modified || "",
+            ethical_issues_exist: dmp.ethical_issues_exits || "unknown",
+            ethical_issues_report: dmp.ethical_issues_reports || "",
 
-            funder_name: getValue(dmp, "project.0.funding.0.name", ""),
-            funder_id: getValue(dmp, "project.0.funding.0.funder_id.identifier", ""),
-            award_id: getValue(dmp, "project.0.funding.0.grant_id.identifier", ""),
-            opportunity_number: getValue(dmp, "project.0.funding.0.dmproadmap_funding_opportunity_id.identifier", ""),
+            funder_name: dmp.project[0]?.funding[0]?.name || "",
+            funder_id: dmp.project[0]?.funding[0]?.funder_id?.identifier || "",
+            award_id: dmp.project[0]?.funding[0]?.grant_id?.identifier || "",
+            opportunity_number: dmp.project[0]?.funding[0]?.dmproadmap_funding_opportunity_id?.identifiergetValue || "",
 
-            project_title: getValue(dmp, "project.0.title", ""),
-            project_abstract: getValue(dmp, "project.0.description", ""),
-            project_start: getValue(dmp, "project.0.start", ""),
-            project_end: getValue(dmp, "project.0.end", ""),
-
-            contact: getValue(dmp, "contact", {}),
-            contributors: getValue(dmp, "contributor", []),
-            datasets: getValue(dmp, "dataset", []),
-            related_identifiers: getValue(dmp, "dmproadmap_related_identifiers", []),
-            versions: getValue(dmp, "dmphub_versions", []),
+            project_title: dmp.project[0]?.title || "",
+            project_abstract: dmp.project[0]?.description || "",
+            project_start: dmp.project[0]?.start || "",
+            project_end: dmp.project[0]?.end || "",
+            contact: dmp.contact || {},
+            contributors: dmp.contributor || [],
+            datasets: dmp.dataset || [],
+            related_identifiers: dmp.dmproadmap_related_identifiers || [],
+            versions: dmp.dmphub_versions || [],
           });
         } else {
           navigate('/not_found');
         }
-      });
+      } catch(error) {
+        if(error.name === 'AbortError') {
+          console.log('Fetch aborted');
+        }else {
+          console.error('Error fetching data:', error)
+        }
+      }
+    }
+
+    fetchData();
+
+    return () => {
+      //Cleanup function
+      controller.abort();
+    }
+   
   }, [navigate]);
 
   function dmpIdWithoutAddress() {
     return formData.dmp_id?.replace('https://doi.org/', '');
   }
+
   function FunderLink() {
     let nameUrlRegex = /\s+\(.*\)\s?/i;
     if (formData.funder_id !== '') {
