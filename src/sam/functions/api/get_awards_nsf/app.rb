@@ -102,6 +102,7 @@ module Functions
         end_date = "12/31/#{years.last}"
         qs << _sanitize_params(str: 'dateStart=:start', params: { start: start_date }) unless years.first.nil?
         qs << _sanitize_params(str: 'dateEnd=:end', params: { end: end_date }) unless years.last.nil?
+        qs << 'printFields=pdPIName,piEmail,title,awardee,ueiNumber,cfdaNumber,startDate,expDate,abstractText'
         qs.join('&')
       end
       # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
