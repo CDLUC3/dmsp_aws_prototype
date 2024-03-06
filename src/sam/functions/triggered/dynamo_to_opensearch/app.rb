@@ -168,10 +168,19 @@ module Functions
       def dmp_to_os_doc(hash:)
         parts = { people: [], people_ids: [], affiliations: [], affiliation_ids: [] }
         parts = parts_from_dmp(parts_hash: parts, hash:)
+        # Set the project start date equal to the date specified or the DMP creation date
+        project_start = hash.fetch('project', [])['start']
+        project_start = hash['created'] if project_start.nil?
+        # Set the project end date equal to the specified end OR 5 years after the start
+        project_end = hash.fetch('project', [])['end']
+        project_end = Date.parse(proj_start) + 1825
+
         parts.merge({
           dmp_id: Uc3DmpId::Helper.pk_to_dmp_id(p_key: hash.fetch('PK', {})['S'])['identifier'],
           title: hash.fetch('title', {})['S']&.downcase,
-          description: hash.fetch('description', {})['S']&.downcase
+          description: hash.fetch('description', {})['S']&.downcase,
+          project_start: proj_start.to_s,
+          project_end: proj_end.to_s
         })
       end
 
