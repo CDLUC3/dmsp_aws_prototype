@@ -13,18 +13,6 @@ Globals:
     Tracing: 'Active'
 
 Parameters:
-  VpcId:
-    Type: 'AWS::EC2::VPC::Id'
-
-  SubnetA:
-    Type: 'AWS::EC2::Subnet::Id'
-
-  SubnetB:
-    Type: 'AWS::EC2::Subnet::Id'
-
-  SubnetC:
-    Type: 'AWS::EC2::Subnet::Id'
-
   HostedZoneId:
     Type: 'String'
 
@@ -34,9 +22,6 @@ Parameters:
   Env:
     Type: 'String'
     Default: 'dev'
-
-  SsmPath:
-    Type: 'String'
 
   DebugLevel:
     Type: 'String'
@@ -59,9 +44,6 @@ Parameters:
     Type: 'String'
 
   DynamoTableName:
-    Type: 'String'
-
-  DynamoTableStreamArn:
     Type: 'String'
 
   # ResourcesDynamoTableArn:
@@ -199,17 +181,6 @@ Resources:
           Resource:
             - !Ref S3CloudFrontBucketArn
             - !Sub "${S3CloudFrontBucketArn}/*"
-
-  # -----------------------------------------------------------
-  # EC2 Security Groups for ECS containers (see their definitions in application.yaml)
-  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-security-group.html
-  # -----------------------------------------------------------
-  LambdaSecurityGroup:
-    Type: 'AWS::EC2::SecurityGroup'
-    Properties:
-      GroupDescription: !Sub '${AWS::StackName} Lambda Sec-grp'
-      GroupName: !Sub '${AWS::StackName}-sec-grp'
-      VpcId: !Ref VpcId
 
   # ----------------------------------------------------
   # CloudWatch LogGroup
