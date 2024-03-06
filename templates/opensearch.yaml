@@ -156,7 +156,7 @@ Resources:
         VolumeType: 'gp2'
       EncryptionAtRestOptions:
         Enabled: true
-      EngineVersion: 'OpenSearch_2.7'
+      EngineVersion: 'OpenSearch_2.11'
       LogPublishingOptions:
         'ES_APPLICATION_LOGS':
           Enabled: true
