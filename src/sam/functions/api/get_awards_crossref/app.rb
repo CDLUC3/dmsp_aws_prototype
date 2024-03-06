@@ -142,7 +142,7 @@ module Functions
 
       # Convert the PI info from the response into "Last, First"
       # rubocop:disable Metrics/AbcSize
-      def _pi_from_response(pi_hash:)
+      def _pi_from_response(pi_hash:, contact: false)
         pi = { name: [pi_hash['family'], pi_hash['given']].compact.join(', ') }
         affiliation = pi_hash.fetch('affiliation', []).first
         return pi if affiliation.nil?
@@ -155,6 +155,9 @@ module Functions
         affil = { name: affiliation['name'] }
         affil['affiliation_id'] = affiliation_id unless affiliation_id.nil?
         pi[:dmproadmap_affiliation] = affil
+        orcid = pi_hash['ORCID']
+        pi[:contact_id] = { type: 'orcid', identifier: orcid } if contact && !orcid.nil?
+        pi[:contributor_id] = { type: 'orcid', identifier: orcid } if !contact && !orcid.nil?
         pi[:role] = ['http://credit.niso.org/contributor-roles/investigation']
         pi
       end
@@ -256,8 +259,8 @@ module Functions
 
           {
             project: {
-              title: project.fetch('project-title', []).first['title'],
-              description: item.fetch('abstract', project['project-description']&.first),
+              title: project.fetch('project-title', [{}]).first['title'],
+              description: project.fetch('project-description', [{}]).first['description'],
               start: award_start,
               end: award_end,
               funding: [
@@ -269,7 +272,7 @@ module Functions
                 }
               ]
             },
-            contact: _pi_from_response(pi_hash: project['lead-investigator'].first),
+            contact: _pi_from_response(pi_hash: project['lead-investigator'].first, contact: true),
             contributor: project.fetch('investigator', []).map { |contrib| _pi_from_response(pi_hash: contrib) }
           }
         end
