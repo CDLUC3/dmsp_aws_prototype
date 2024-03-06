@@ -14,9 +14,9 @@ require 'uc3-dmp-cloudwatch'
 require 'uc3-dmp-id'
 
 module Functions
-  # A service that queries DataCite EventData
-  class DynamoToOpensearch
-    SOURCE = 'DynamoDb Table Stream to OpenSearch'
+  # A service that indexes DMP-IDs into OpenSearch
+  class DmpIndexer
+    SOURCE = 'DMP-ID Dynamo Table Stream to OpenSearch'
 
     # Parameters
     # ----------
@@ -168,19 +168,10 @@ module Functions
       def dmp_to_os_doc(hash:)
         parts = { people: [], people_ids: [], affiliations: [], affiliation_ids: [] }
         parts = parts_from_dmp(parts_hash: parts, hash:)
-        # Set the project start date equal to the date specified or the DMP creation date
-        project_start = hash.fetch('project', [])['start']
-        project_start = hash['created'] if project_start.nil?
-        # Set the project end date equal to the specified end OR 5 years after the start
-        project_end = hash.fetch('project', [])['end']
-        project_end = Date.parse(proj_start) + 1825
-
         parts.merge({
           dmp_id: Uc3DmpId::Helper.pk_to_dmp_id(p_key: hash.fetch('PK', {})['S'])['identifier'],
           title: hash.fetch('title', {})['S']&.downcase,
-          description: hash.fetch('description', {})['S']&.downcase,
-          project_start: proj_start.to_s,
-          project_end: proj_end.to_s
+          description: hash.fetch('description', {})['S']&.downcase
         })
       end
 
@@ -219,11 +210,41 @@ module Functions
       # Extract all of the important information from the DMP to create our OpenSearch Doc
       def _dmp_to_os_doc(hash:, logger:)
         people = _extract_people(hash:, logger:)
+        pk = Uc3DmpId::Helper.remove_pk_prefix(p_key: hash.fetch('PK', {})['S'])
+        visibility = hash.fetch('dmproadmap_privacy', {})['S']&.downcase&.strip == 'public' ? 'public' : 'private'
+
+puts hash
+
+        # Set the project start date equal to the date specified or the DMP creation date
+        proj_start = hash.fetch('project', {}).fetch('L', []).first.fetch('start', {})['S']
+        proj_start = hash.fetch('created', {})['S'] if proj_start.nil?
+
+        # Set the project end date equal to the specified end OR 5 years after the start
+        proj_end = hash.fetch('project', {}).fetch('L', []).first.fetch('end', {})['S']
+        proj_end = Date.parse(proj_start.to_s) + 1825 if proj_end.nil?
+
         doc = people.merge({
-          dmp_id: Uc3DmpId::Helper.pk_to_dmp_id(p_key: hash.fetch('PK', {})['S']),
+          dmp_id: Uc3DmpId::Helper.format_dmp_id(value: pk, with_protocol: true),
           title: hash.fetch('title', {})['S']&.downcase,
-          description: hash.fetch('description', {})['S']&.downcase
+          visibility: visibility,
+          featured: hash.fetch('dmproadmap_featured', {})['S']&.downcase&.strip == '1' ? 1 : 0,
+          description: hash.fetch('description', {})['S']&.downcase,
+          project_start: proj_start&.to_s&.split('T')&.first,
+          project_end: proj_end&.to_s&.split('T')&.first
         })
+        logger.debug(message: 'New OpenSearch Document', details: { document: doc }) unless visibility == 'public'
+        return doc unless visibility == 'public'
+
+        # Attach the narrative PDF if the plan is public
+        pdfs = hash.fetch('dmproadmap_related_identifiers', {}).fetch('L', []).select do |related|
+          related.fetch('M', {}).fetch('descriptor', {})['S']&.downcase&.strip == 'is_metadata_for' &&
+            related.fetch('M', {}).fetch('work_type', {})['S']&.downcase&.strip == 'output_management_plan'
+        end
+        pdf = pdfs.is_a?(Array) ? pdfs.last : pdfs
+
+        doc[:created] = hash['created']['S']&.to_s&.split('T')&.first unless hash['created'].nil?
+        doc[:modified] = hash['modified']['S']&.to_s&.split('T')&.first unless hash['modified'].nil?
+        doc[:narrative_url] = pdfs.last.fetch('M', {}).fetch('identifier', {})['S'] unless pdf.nil?
         logger.debug(message: 'New OpenSearch Document', details: { document: doc })
         doc
       end
