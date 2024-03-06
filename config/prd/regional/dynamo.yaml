@@ -13,7 +13,7 @@ parameters:
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html
   DynamoTableClass: 'STANDARD'
   DynamoEnableContributorInsights: 'true'
-  DynamoEnablePointInTimeRecovery: 'false'
+  DynamoEnablePointInTimeRecovery: 'true'
   DynamoBillingMode: 'PAY_PER_REQUEST'
   DynamoReadCapacityUnits: '16'
   DynamoWriteCapacityUnits: '60'
