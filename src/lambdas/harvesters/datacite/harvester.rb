@@ -6,6 +6,7 @@
 my_gem_path = Dir['/opt/ruby/gems/**/lib/']
 $LOAD_PATH.unshift(*my_gem_path)
 
+require 'date'
 require 'text'
 
 require 'uc3-dmp-api-core'
@@ -57,7 +58,15 @@ module Functions
         req_id = context.is_a?(LambdaContext) ? context.aws_request_id : nil
         logger = Uc3DmpCloudwatch::Logger.new(source: SOURCE, request_id: req_id, event:, level: log_level)
 
+        # Establish the OpenSearch and Dynamo clients
+        os_client = _open_search_connect(logger:)
+        index = ENV['OPEN_SEARCH_INDEX']
+        dynamo_client = Aws::DynamoDB::Client.new(region: ENV.fetch('AWS_REGION', 'us-west-2'))
+        table = ENV['DYNAMO_TABLE']
+
         # Figure out which DMSPs we want to check on
+        dmps = _fetch_relevant_dmps(client: os_client, index:, logger:)
+        puts dmps
 
         # Query DataCite for information within the range
 
@@ -66,37 +75,6 @@ module Functions
         # Update the relevant DMSPs
 
 
-
-
-
-        # No need to validate the source and detail-type because that is done by the EventRule
-        details = _process_input(detail: event.fetch('detail', {}))
-
-        log_level = ENV.fetch('LOG_LEVEL', 'error')
-        req_id = context.is_a?(LambdaContext) ? context.aws_request_id : details[:run_id]
-        logger = Uc3DmpCloudwatch::Logger.new(source: SOURCE, request_id: req_id, event:, level: log_level)
-        logger&.debug(message: 'Augmenting DMP:', details:)
-
-        unless details[:dmp_pk].nil? || details[:augmenter_pk].nil? || details[:run_id].nil?
-          client = Uc3DmpDynamo::Client.new
-          augmenter = _fetch_augmenter(client:, id: details[:augmenter_pk], logger:)
-          dmp = Uc3DmpId::Finder.by_pk(client:, p_key: details[:dmp_pk], cleanse: false, logger:)
-
-          if dmp.is_a?(Hash) && !augmenter.nil?
-            dmp = dmp['dmp'] unless dmp['dmp'].nil?
-            comparator = Uc3DmpId::Comparator.new(dmp:, logger:)
-            logger&.debug(message: 'Working with the following DMP details:', details: comparator.details_hash)
-
-            # Figure out what years to search
-            years = _search_years(dmp:)
-            logger&.debug(message: 'Scanning DataCite for the following years:', details: years)
-            works = _find_related_works(years:, comparator:, logger:)
-            _augment_dmp(run_id: details[:run_id], augmenter:, dmp:, related_works: works, logger:) if works.any?
-            logger&.info(message: "Finished augmenting #{details[:dmp_pk]}", details: works)
-          end
-        else
-          logger&.error(message: 'Missing event detail!', details:)
-        end
       rescue Uc3DmpId::FinderError => e
         logger.error(message: "Finder error: #{e.message}", details: e.backtrace)
       rescue Uc3DmpExternalApi::ExternalApiError => e
@@ -109,26 +87,41 @@ module Functions
 
       private
 
+      # Establish a connection to OpenSearch
+      def _open_search_connect(logger:)
+        # NOTE the AWS credentials are supplied to the Lambda at Runtime, NOT passed in by CloudFormation
+        signer = Aws::Sigv4::Signer.new(
+          service: 'es',
+          region: ENV['AWS_REGION'],
+          access_key_id: ENV['AWS_ACCESS_KEY_ID'],
+          secret_access_key: ENV['AWS_SECRET_ACCESS_KEY'],
+          session_token: ENV['AWS_SESSION_TOKEN']
+        )
+        client = OpenSearch::Aws::Sigv4Client.new({ host: ENV['OPEN_SEARCH_DOMAIN'], log: true }, signer)
+        logger&.debug(message: client&.info)
+        client
+      rescue StandardError => e
+        puts "ERROR: Establishing connection to OpenSearch: #{e.message}"
+        puts e.backtrace
+      end
+
       # Fetch any DMPs that should be processed:
+      #    - Must be the latest version
+      #    - must have been registered
       #    - Those that were funded and have a `project: :end` within the next year
       #    - Those that were funded and have no `project: :end` BUT that were `:created` over a year ago
       #    - NOT those whose `project: :end` or `:created` dates are more than 3 years old!
-      def _fetch_relevant_dmps(client:, logger:)
-        # TODO: Update this to look at OpenSearch once we have that setup!
+      def _fetch_relevant_dmps(client:, index:, logger:)
+        today = Date.today
+        three_years_ago = today - 1095
 
-        #    Skip any with no :funding
-        #    Skip any whose :funding_status is 'rejected'
-        client = Uc3DmpDynamo::Client.new if client.nil?
-        args = {
-          select: 'ALL_PROJECTED_ATTRIBUTES',
-          scan_filter: {
-            created: { comparison_operator: '<=', attribute_value_list: [(Time.now - 86400).utc.iso8601] },
-            SK: { comparison_operator: 'EQ', attribute_value_list: [Uc3DmpId::Helper::DMP_LATEST_VERSION] }
-          },
-          expression_attribute_names: { '#proj': 'project' },
-          projection_expression: 'PK, created, #proj'
+        query = {
+          size: 5,
+          query: {
+            exists: { field: 'registered' }
+          }
         }
-        client.scan(args:, logger:)
+        client.search(body: query, index:)
       end
 
 
