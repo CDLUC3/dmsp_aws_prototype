@@ -97,7 +97,7 @@ Resources:
   # -----------------------------------------------------------
   UserPool:
     Type: 'AWS::Cognito::UserPool'
-    # DeletionPolicy: Retain
+    DeletionPolicy: 'Retain'
     Properties:
       UserPoolName: !Sub "${AWS::StackName}-user-pool"
       AdminCreateUserConfig:
@@ -183,6 +183,10 @@ Resources:
       Domain: !Sub "${Subdomain}.${Domain}"
       UserPoolId: !Ref UserPool
 
+  # --------------------------------------------------------------
+  # Cognito UserPool application clients
+  #   See:
+  # --------------------------------------------------------------
   # Add the client for the DMPTool
   DmptoolUserPoolClient:
     Type: 'AWS::Cognito::UserPoolClient'
