@@ -1,0 +1,12 @@
+template:
+  path: 'lambda-iam.yaml'
+  type: 'file'
+
+parameters:
+  Env: !stack_attr sceptre_user_data.env
+
+  OpenSearchDomainArn: !stack_output prd/regional/opensearch.yaml::OpenSearchDomainArn
+
+  EventBusArn: !stack_output prd/regional/eventbridge.yaml::EventBusArn
+
+  DmpTableArn: !stack_output prd/regional/dynamo.yaml::DynamoTableArn

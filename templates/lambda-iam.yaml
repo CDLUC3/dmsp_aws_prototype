@@ -16,9 +16,6 @@ Parameters:
   DmpTableArn:
     Type: 'String'
 
-  TypeaheadTableArn:
-    Type: 'String'
-
 Resources:
   # ----------------------------------------------------
   # Managed IAM Policies for DMPHub resources
@@ -77,6 +74,21 @@ Resources:
           Action:
             - 'events:PutEvents'
           Resource: !Ref EventBusArn
+
+  OpenSearchPolicy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      Description: !Sub '${AWS::StackName} - Permissions to read/write to OpenSearch'
+      ManagedPolicyName: !Sub '${Env}LambdaOpenSearchPolicy'
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          Effect: 'Allow'
+          Action:
+            - 'es:*'
+          Resource:
+            - !Ref OpenSearchDomainArn
+            - !Sub '${OpenSearchDomainArn}/*'
 
   VpcPolicy:
     Type: 'AWS::IAM::ManagedPolicy'

@@ -1,0 +1,66 @@
+# frozen_string_literal: true
+
+source 'https://rubygems.org'
+
+ruby '>= 3.2'
+
+# No need to include any AWS SDK gems here since the Lambda functions have access
+# to them by default
+gem 'httparty'
+gem 'json-schema'
+
+# BibTeX-Ruby is the Rubyist's swiss-army-knife for all things BibTeX.
+# https://github.com/inukshuk/bibtex-ruby
+gem "bibtex-ruby"
+
+# CSL-Ruby provides a Ruby parser and a comprehensive API for the
+# Citation Style Language (CSL), an XML-based format to describe the formatting
+# of citations, notes and bibliographies. (https://github.com/inukshuk/csl-ruby)
+gem 'csl-styles'
+
+# CiteProc-Ruby is a Citation Style Language (CSL) 1.0.1 cite processor written
+# in pure Ruby. (https://github.com/inukshuk/citeproc-ruby)
+gem 'citeproc-ruby'
+
+# This module provides a framework for message digest libraries. https://github.com/ruby/digest
+gem 'digest'
+
+# Rubyzip is a ruby library for reading and writing zip files. https://github.com/rubyzip/rubyzip
+gem 'rubyzip'
+
+# A collection of text algorithms (http://github.com/threedaymonk/text)
+gem 'text'
+
+# The OpenSearch Ruby client allows you to interact with your OpenSearch clusters through Ruby methods
+# rather than HTTP methods and raw JSON. https://opensearch.org/docs/latest/clients/ruby/
+gem 'opensearch-ruby'
+gem 'opensearch-aws-sigv4'
+
+# Support for working with Zip files
+gem 'zip'
+
+# Unfortunately you cannot include gems by path here because AWS doesn't have access when it builds the layer
+# so the gems must exist in RubyGems
+gem 'uc3-dmp-api-core'
+gem 'uc3-dmp-citation'
+gem 'uc3-dmp-cloudwatch'
+gem 'uc3-dmp-external-api'
+gem 'uc3-dmp-id'
+gem 'uc3-dmp-provenance'
+gem 'uc3-dmp-s3'
+
+# This is required to sign events published to EventBridge. The aws-crt is not automatically
+# available to the Lambdas so we install here in the layer
+# gem 'aws-sigv4', '1.4.1.crt'
+
+group :test do
+  gem 'rspec'
+  gem 'rubocop'
+  gem 'rubocop-rspec'
+  gem 'aws-sdk-cognitoidentityprovider'
+  gem 'aws-sdk-dynamodb'
+  gem 'aws-sdk-eventbridge'
+  gem 'aws-sdk-s3'
+  gem 'aws-sdk-sns'
+  gem 'aws-sdk-ssm'
+end
