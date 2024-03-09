@@ -19,13 +19,28 @@ Parameters:
     Type: 'Number'
     Default: 14
 
-  HarvesterRoleArn:
+  SubnetA:
+    Type: 'AWS::EC2::Subnet::Id'
+
+  SubnetB:
+    Type: 'AWS::EC2::Subnet::Id'
+
+  SubnetC:
+    Type: 'AWS::EC2::Subnet::Id'
+
+  IndexerRoleArn:
+    Type: 'String'
+
+  LambdaSecurityGroupId:
+    Type: 'String'
+
+  OpenSearchSecurityGroupId:
+    Type: 'String'
+
+  OpenSearchDomainEndpoint:
     Type: 'String'
 
   BaselineLayerId:
-    Type: 'String'
-
-  DynamoTableName:
     Type: 'String'
 
   EventBusArn:
@@ -40,19 +55,30 @@ Resources:
     Type: 'AWS::Serverless::Function'
     Properties:
       CodeUri: './'
-      Handler: 'app.Functions::DataCiteHarvester.process'
+      Handler: 'app.Functions::HarvestableDmps.process'
       Runtime: 'ruby3.2'
       Timeout: 600
       Architectures:
         - 'x86_64'
       Layers:
         - !Ref BaselineLayerId
-      Role: !Ref HarvesterRoleArn
+      Role: !Ref IndexerRoleArn
       Environment:
         Variables:
           LAMBDA_ENV: !Ref Env
           LOG_LEVEL: !Ref DebugLevel # 'debug'
-          DYNAMO_TABLE: !Ref DynamoTableName
+          OPEN_SEARCH_DOMAIN: !Sub 'https://${OpenSearchDomainEndpoint}'
+          OPEN_SEARCH_INDEX: !Sub '${Env}-dmp-id-search'
+          DOMAIN: !Ref DomainName
+          EVENT_BUS_NAME: !Ref EventBusArn
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroupId
+          - !Ref OpenSearchSecurityGroupId
+        SubnetIds:
+          - !Ref SubnetA
+          - !Ref SubnetB
+          - !Ref SubnetC
       Events:
         DataCiteHarvesting:
           Type: 'EventBridgeRule'
@@ -63,7 +89,7 @@ Resources:
             Pattern: !Sub >
               {
                 "source": ["${DomainName}:lambda:event_publisher"],
-                "detail-type": ["Harvest"]
+                "detail-type": ["ScheduleHarvest"]
               }
             RetryPolicy:
               MaximumEventAgeInSeconds: 180
@@ -85,6 +111,27 @@ Resources:
     Properties:
       LogGroupName: !Sub "/aws/lambda/${Function}"
       RetentionInDays: !Ref LogRetentionDays
+
+  # ----------------------------------------------------
+  # EventBus Scheduled Tasks - Trigger Lambdas defined below
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-events-rule.html#cfn-events-rule-scheduleexpression
+  # ----------------------------------------------------
+  ScheduledEventWeekly:
+    Type: 'AWS::Events::Rule'
+    Properties:
+      # AWS CRON expressions have some nuances: https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-cron-expressions.html
+      ScheduleExpression: 'cron(0 5 ? * SUN *)' # Every Sunday at 5am
+      Targets:
+        - Id: !Ref Function
+          Arn: !GetAtt Function.Arn
+
+  ScheduledEventWeeklyPermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      FunctionName: !GetAtt Function.Arn
+      Action: 'lambda:InvokeFunction'
+      Principal: 'events.amazonaws.com'
+      SourceArn: !GetAtt ScheduledEventWeekly.Arn
 
 Outputs:
   FunctionId:

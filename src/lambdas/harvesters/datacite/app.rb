@@ -12,9 +12,7 @@ require 'text'
 require 'uc3-dmp-api-core'
 require 'uc3-dmp-cloudwatch'
 require 'uc3-dmp-dynamo'
-require 'uc3-dmp-event-bridge'
 require 'uc3-dmp-external-api'
-require 'uc3-dmp-id'
 
 module Functions
   # A service that queries DataCite GraphQL API
@@ -22,7 +20,7 @@ module Functions
     SOURCE = 'DataCite Harvester'
 
     GRAPHQL_ENDPOINT = 'https://api.datacite.org/graphql'
-    GRAPHQL_TIMEOUT_SECONDS = 30
+    GRAPHQL_TIMEOUT_SECONDS = 120
 
     MSG_GRAPHQL_FAILURE = 'Unable to query the DataCite GraphQL API at this time.'
     MSG_EMPTY_RESPONSE = 'DataCite did not return any results.'
@@ -34,16 +32,55 @@ module Functions
     #       {
     #         "version": "0",
     #         "id": "5c9a3747-293c-59d7-dcee-a2210ac034fc",
-    #         "detail-type": "RelatedWorkScan",
+    #         "detail-type": "Harvest",
     #         "source": "dmphub.uc3dev.cdlib.net:lambda:event_publisher",
     #         "account": "1234567890",
     #         "time": "2023-02-14T16:42:06Z",
     #         "region": "us-west-2",
     #         "resources": [],
     #         "detail": {
-    #           "dmp_pk": "DMP#doi.org/10.12345/ABC123",
-    #           "augmenter": "AUGMENTERS#datacite",
-    #           "run_id": "2023-10-16_ABCD1234"
+    #           "ror": "https://ror.org/12345",
+    #           "dmps": [
+    #             {
+    #               "people": [
+    #                 "john doe",
+    #                 "jdoe@example.com"
+    #               ],
+    #               "people_ids": [
+    #                 "https://orcid.org/0000-0000-0000-0000"
+    #               ],
+    #               "affiliations": [
+    #                 "california digital library (cdlib.org)"
+    #               ],
+    #               "affiliation_ids": [
+    #                 "https://ror.org/03yrm5c26"
+    #               ],
+    #               "funder_ids": [
+    #                 "https://ror.org/12345"
+    #               ],
+    #               "funders": [
+    #                 "Example Funder (example.gov)"
+    #               ],
+    #               "funder_opportunity_ids": [
+    #                 "ABC123"
+    #               ],
+    #               "grant_ids": [
+    #                 "1234567890"
+    #               ],
+    #               "funding_status": "granted",
+    #               "dmp_id": "https://dmphub.uc3dev.cdlib.net/dmps/10.12345/A1b2C3",
+    #               "title": "my super awesome dmp",
+    #               "visibility": "public",
+    #               "featured": 1,
+    #               "description": "<p>a really interesting project!</p>",
+    #               "project_start": "2015-05-12",
+    #               "project_end": "2025-08-25",
+    #               "created": "2021-11-08",
+    #               "modified": "2023-08-25",
+    #               "registered": "2021-11-08",
+    #               "narrative_url": "https://dmphub.uc3dev.cdlib.net/narratives/af9d7b9533519785.pdf"
+    #             }
+    #           ]
     #         }
     #       }
     #
@@ -58,148 +95,76 @@ module Functions
         req_id = context.is_a?(LambdaContext) ? context.aws_request_id : nil
         logger = Uc3DmpCloudwatch::Logger.new(source: SOURCE, request_id: req_id, event:, level: log_level)
 
+        # return if there are no :dmps or no :ror in the details
+
         # Establish the OpenSearch and Dynamo clients
-        os_client = _open_search_connect(logger:)
-        index = ENV['OPEN_SEARCH_INDEX']
         dynamo_client = Aws::DynamoDB::Client.new(region: ENV.fetch('AWS_REGION', 'us-west-2'))
         table = ENV['DYNAMO_TABLE']
 
-        # Figure out which DMSPs we want to check on
-        dmps = _fetch_relevant_dmps(client: os_client, index:, logger:)
-        puts dmps
+        ror = details['ror']
+        # Find the start and end dates for our DataCite search
+        start_at = _find_start_date(entries: details['dmps'])
+        end_at = Date.today.to_s
+        range = "#{start_at} TO #{end_at}"
 
-        # Query DataCite for information within the range
+        # Query DataCite
+        query = _graphql_affiliation(ror:, range:)
+        logger&.debug(message: 'Querying DataCite:', details: query)
+        datacite_recs = _query_datacite(query:, logger:)
 
         # See if the returned DataCite info has any matches to our DMSPs
+        resp = _select_relevant_content(datacite_recs:, dmps: details['dmps'], logger:)
 
         # Update the relevant DMSPs
 
-
-      rescue Uc3DmpId::FinderError => e
-        logger.error(message: "Finder error: #{e.message}", details: e.backtrace)
       rescue Uc3DmpExternalApi::ExternalApiError => e
         logger.error(message: "External API error: #{e.message}", details: e.backtrace)
       rescue StandardError => e
         logger.error(message: e.message, details: e.backtrace)
-        deets = { message: "Fatal error - #{e.message}", event_details: dmp }
+        deets = { message: "Fatal error - #{e.message}", event_details: details }
         Uc3DmpApiCore::Notifier.notify_administrator(source: SOURCE, details: deets, event:)
       end
 
       private
 
-      # Establish a connection to OpenSearch
-      def _open_search_connect(logger:)
-        # NOTE the AWS credentials are supplied to the Lambda at Runtime, NOT passed in by CloudFormation
-        signer = Aws::Sigv4::Signer.new(
-          service: 'es',
-          region: ENV['AWS_REGION'],
-          access_key_id: ENV['AWS_ACCESS_KEY_ID'],
-          secret_access_key: ENV['AWS_SECRET_ACCESS_KEY'],
-          session_token: ENV['AWS_SESSION_TOKEN']
-        )
-        client = OpenSearch::Aws::Sigv4Client.new({ host: ENV['OPEN_SEARCH_DOMAIN'], log: true }, signer)
-        logger&.debug(message: client&.info)
-        client
-      rescue StandardError => e
-        puts "ERROR: Establishing connection to OpenSearch: #{e.message}"
-        puts e.backtrace
-      end
+      # Extract the earliest :project_end date and then subtract 2 years from that
+      # OR return the :project_start plus one year (if no :project_end was found)
+      def _find_start_date(entries:)
+        start_dates = entries.map { |e| e['_source'] }.map do |dmp|
+          return (Date.parse(dmp['project_end']) - 730).to_s unless dmp['project_end'].nil?
 
-      # Fetch any DMPs that should be processed:
-      #    - Must be the latest version
-      #    - must have been registered
-      #    - Those that were funded and have a `project: :end` within the next year
-      #    - Those that were funded and have no `project: :end` BUT that were `:created` over a year ago
-      #    - NOT those whose `project: :end` or `:created` dates are more than 3 years old!
-      def _fetch_relevant_dmps(client:, index:, logger:)
-        today = Date.today
-        three_years_ago = today - 1095
-
-        actions = [
-          { query: { bool: { filter: { term: { SK: 'VERSION#latest' } } } } },
-          { query: { exists: { field: 'registered' } } },
-          { query: { range: { project_end: { gte: '2023-06-01', lte: '2023-12-31' } } } }
-        ]
-        response = client.msearch(index:, size: 5, body: actions)
-
-      end
-
-
-
-
-
-
-
-
-
-
-      # Process the incoming Event detail
-      def _process_input(detail:)
-        json = detail.is_a?(Hash) ? detail : JSON.parse(detail)
-        {
-          dmp_pk: json['dmp_pk'],
-          augmenter_pk: json['augmenter'],
-          run_id: json['run_id']
-        }
-      end
-
-      # Load the Augmenter record from Dynamo
-      def _fetch_augmenter(client:, id:, logger:)
-        client = Uc3DmpDynamo::Client.new if client.nil?
-        client.get_item(key: { PK: id, SK: 'PROFILE' }, logger:)
-      end
-
-      # Determine what years we want to query for
-      def _search_years(dmp:)
-        current_year = Time.now.strftime('%Y').to_i
-        creation = Time.parse(dmp['created']).strftime('%Y').to_i
-        project = dmp.fetch('project', []).sort { |a, b| [b['end'], b['start']] <=> [a['end'], a['start']] }.first
-        proj_start = Time.parse(project['start']).strftime('%Y').to_i unless project['start'].nil?
-        proj_end = Time.parse(project['end']).strftime('%Y').to_i unless project['end'].nil?
-
-        # If the Project start year was nil, invent one based on the Project end year or the DMP ID creation date
-        proj_start = proj_end.nil? ? creation : proj_end - 1 if proj_start.nil?
-        proj_end = proj_start + 1 if proj_end.nil?
-        # Return an empty array if the start year is greater than the current year
-        return [] if proj_start > current_year
-        # Return the single year if the project start and end years match
-        return [proj_start] if proj_start == proj_end
-
-        # We don't want to query beyond the current year, so cap the end year to the current year
-        proj_end = proj_end + 1 > current_year ? current_year : proj_end + 1
-        # Cap the start year to 3 years prior to the project end
-        proj_start = proj_end - 3 if proj_end - proj_start > 3
-        (proj_start..proj_end).map { |idx| idx.to_s }
-      end
-
-      # Attempt to find related works for the DMP
-      def _find_related_works(years:, comparator:, logger:)
-        results = { publications: [], datasets: [], softwares: [] }
-        return results unless years.is_a?(Array) && years.any? && comparator.details_hash.is_a?(Hash)
-
-        # Process each year individually
-        years.each do |year|
-          comparator.details_hash[:funder_ids].each do |funder_id|
-            # Search for related works by the Funder
-            query = _graphql_funder(fundref: funder_id, year:)
-            data = _fetch_and_process_works(results:, query:, comparator:, logger:)
-            results = _select_relevant_content(data: data&.fetch('funder', {}), comparator:, logger:)
-          end
-          comparator.details_hash[:affiliation_ids].each do |affiliation_id|
-            # Search for related works by the ORCID
-            query = _graphql_affiliation(ror: affiliation_id, year:)
-            data = _fetch_and_process_works(query:, comparator:, logger:)
-            results = _select_relevant_content(results:, data: data&.fetch('organization', {}), comparator:, logger:)
-          end
-          comparator.details_hash[:orcids].each do |orcid|
-            # Search for related works by the ORCID
-            query = _graphql_researcher(orcid:, year:)
-            data = _fetch_and_process_works(query:, comparator:, logger:)
-            results = _select_relevant_content(results:, data: data&.fetch('person', {}), comparator:, logger:)
-          end
+          # Or 1 year after the project start if no project end date was defined
+          proj_start = (Date.parse(dmp.fetch('project_start', dmp['registered'])) + 365).to_s
         end
+        start_dates.sort.last
+      end
 
-        results
+      # Search DataCite using the supplied query and then process the response
+      def _query_datacite(query:, logger:)
+        logger&.debug(message: "GraphQL query used", details: query)
+        resp = _call_datacite(body: query, logger:)
+        data = resp.is_a?(Hash) ? resp['data'] : JSON.parse(resp)
+        logger&.debug(message: "Raw results from DataCite.", details: data)
+        data
+      end
+
+      # Search the Pid Graph by Affiliation ROR
+      def _graphql_affiliation(ror:, range:)
+        {
+          variables: { ror: ror },
+          operationName: 'affiliationQuery',
+          query: <<~TEXT
+            query affiliationQuery ($ror: ID!)
+            {
+              organization(id: $ror) {
+                id
+                name
+                alternateName
+                works(query: "created: [#{range}]") { nodes #{_related_work_fragment } }
+              }
+            }
+          TEXT
+        }.to_json
       end
 
       # Search DataCite using the supplied query and then process the response
@@ -233,30 +198,64 @@ module Functions
       end
 
       # Compare the related works from DataCite with the things we know about the DMP
-      def _select_relevant_content(results:, data:, comparator:, logger:)
-        return results if data.nil?
+      def _select_relevant_content(datacite_recs:, dmps:, logger:)
+        return [] unless datacite_recs.is_a?(Hash) && dmps.is_a?(Array)
 
-        # Datacite organizes things into  3 categories, so loop through each one
-        %w[publications datasets softwares].each do |term|
-          data.fetch(term, {}).fetch('nodes', []).each do |hash|
-            # Only include the fundingReference info if it is for the funder(s) on the DMP
-            hash['fundingReferences'] = hash.fetch('fundingReferences', []).select do |entry|
-              comparator.details_hash[:funder_ids].include?(entry['funderIdentifier']) ||
-                comparator.details_hash[:funder_names].include?(entry['funderName']&.downcase&.strip)
-            end
+        works = datacite_recs.fetch('organization', {}).fetch('works', {}).fetch('nodes', [])
+        comparator = Uc3DmpId::Comparator.new(dmps:, logger:)
 
-            work = _compare_result(comparator:, hash:)
-            next if work.nil?
+        works.each do |work|
+          comprable = _extract_comparable(hash: work)
+          next unless comprable.is_a?(Hash) && !comprable['title'].nil?
 
-            results[:"#{term}"] << work
-          end
+          puts comprable
+
+
+          #   next if work.nil?
+
+          #   results[:"#{term}"] << work
+          # end
         end
 
-        results
+        # results
+        []
       end
 
       # Compare the work to the DMP to see if its a possible match
       def _compare_result(comparator:, hash:)
+        response = { confidence: 'None', score: 0, notes: [] }
+        return response unless hash.is_a?(Hash) && !hash['title'].nil?
+
+        # Compare the grant ids. If we have a match return the response immediately since that is
+        # a very positive match!
+        response = _grants_match?(array: hash['fundings'], response:)
+        return response if response[:confidence] != 'None'
+
+        response = _opportunities_match?(array: hash['fundings'], response:)
+        response = _orcids_match?(array: hash['people'], response:)
+        response = _last_name_and_affiliation_match?(array: hash['people'], response:)
+
+        # Only process the following if we had some matching contributors, affiliations or opportuniy nbrs
+        response = _repository_match?(array: hash['repositories'], response:) if response[:score].positive?
+        response = _keyword_match?(array: hash['keywords'], response:) if response[:score].positive?
+        response = _text_match?(type: 'title', text: hash['title'], response:) if response[:score].positive?
+        response = _text_match?(type: 'abstract', text: hash['abstract'], response:) if response[:score].positive?
+        # If the score is less than 3 then we have no confidence that it is a match
+        return response if response[:score] <= 2
+
+        # Set the confidence level based on the score
+        response[:confidence] = if response[:score] > 10
+                                  'High'
+                                else
+                                  (response[:score] > 5 ? 'Medium' : 'Low')
+                                end
+        response
+
+
+
+
+
+
         details_hash = _extract_comparable(hash: hash)
         return nil unless details_hash.is_a?(Hash) && !details_hash['title'].nil?
 
@@ -362,27 +361,6 @@ module Functions
         }.to_json
       end
 
-      # Search the Pid Graph by Affiliation ROR
-      def _graphql_affiliation(ror:, year:)
-        {
-          variables: { ror: ror, year: year },
-          operationName: 'affiliationQuery',
-          query: <<~TEXT
-            query affiliationQuery ($ror: ID!, $year: String)
-            {
-              organization(id: $ror) {
-                id
-                name
-                alternateName
-                publications(published: $year) { nodes #{_related_work_fragment} }
-                datasets(published: $year) { nodes #{_related_work_fragment} }
-                softwares(published: $year) { nodes #{_related_work_fragment} }
-              }
-            }
-          TEXT
-        }.to_json
-      end
-
       # Search the Pid Graph by Researcher ORCID
       def _graphql_researcher(orcid:, year:)
         {
@@ -418,7 +396,11 @@ module Functions
           creators #{_creator_fragment}
           contributors #{_contributor_fragment}
           fundingReferences #{_funding_fragment}
-          publisher
+          publisher {
+            name
+            publisherIdentifier
+            publisherIdentifierScheme
+          }
           member {
             name
             rorId

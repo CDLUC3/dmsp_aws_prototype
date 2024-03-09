@@ -36,7 +36,7 @@ if ARGV.length >= 3
   # UPDATE ME!
   #
   # IF YOU ARE COPY/PASTING this script into a new folder you will likely only need to update this section
-  @function_name = 'DmpIndexer'
+  @function_name = 'DataciteHarvester'
 
   # If :use_docker is true, your AWS SAM template must have a `Metadata` section and the dir should have a
   # Dockerfile. This will cause SAM to build and deploy the image to our ECR. If set to false, the directory
@@ -50,13 +50,12 @@ if ARGV.length >= 3
   # List the names of all other parameters whose values should be available as exported CloudFormation stack
   # outputs. The env prefix will be appended to each name your provide.
   #    For example if the name of the parameter is 'DomainName' this script will look for 'dev-DomainName'
-  @cf_params = %w[HarvesterRoleArn S3PrivateBucketId LambdaSecurityGroupId OpenSearchSecurityGroupId
-                  OpenSearchDomainEndpoint BaselineLayerId EventBusArn DynamoTableName DeadLetterQueueArn]
+  @cf_params = %w[HarvesterRoleArn S3PrivateBucketId BaselineLayerId EventBusArn DynamoTableName DeadLetterQueueArn]
 
   # List the names of all other parameters whose values should be available as SSM parameters. The name must
   # match the final part of the SSM key name. This script will append the prefix automatically.
   #    For example if the parameter is 'DomainName' this script will look for '/uc3/dmp/hub/dev/DomainName'
-  @ssm_params = %w[SubnetA SubnetB SubnetC DomainName]
+  @ssm_params = %w[DomainName]
   #
   #
   # DON'T FORGET TO: Add an entry to the Sceptre config for lambda-iam.yaml and lambda-vpc.yaml for this Lambda!

@@ -11,10 +11,10 @@
 #   For most scenarios, you should not need to change anything else in this file
 #
 # Usage:
-#   Expected 3-4 arguments: environment, run a SAM build?, run a SAM deploy? and the logging level
-#   For example: `ruby sam_build_deploy.rb dev true false debug`.
+#   Expected 3-4 arguments: environment, run a SAM build?, run a SAM deploy? and the log lovel
+#   For example: `ruby sam_build_deploy.rb dev true false info`.
 #
-#   NOTE: Setting the build and deploy boolean arguments to `false` will trigger a `sam delete`.
+#   NOTE: Setting the last 2 build and deploy boolean arguments to `false` will trigger a `sam delete`.
 # ------------------------------------------------------------------------------------------------------------
 # ------------------------------------------------------------------------------------------------------------
 
@@ -28,7 +28,7 @@ if ARGV.length >= 3
   @env = ARGV[0]
   @run_build = ARGV[1].to_s.downcase.strip == 'true'
   @run_deploy = ARGV[2].to_s.downcase.strip == 'true'
-  @log_level = ARGV.length >= 4 ? ARGV[3]&.downcase&.strip : 'error'
+  @log_level = ARGV[3].nil? ? 'error' : ARGV[3]
 
   # =======================================================================================================
   # =======================================================================================================
@@ -36,7 +36,7 @@ if ARGV.length >= 3
   # UPDATE ME!
   #
   # IF YOU ARE COPY/PASTING this script into a new folder you will likely only need to update this section
-  @function_name = 'BaselineLambdaLayer'
+  @function_name = 'HarvestableDmps'
 
   # If :use_docker is true, your AWS SAM template must have a `Metadata` section and the dir should have a
   # Dockerfile. This will cause SAM to build and deploy the image to our ECR. If set to false, the directory
@@ -45,28 +45,21 @@ if ARGV.length >= 3
 
   # Define any Paramaters here that are required by your template and are not available in SSM or as
   # CloudFormation stack outputs
-  @native_params = { Env: @env }
+  @native_params = { Env: @env, DebugLevel: @log_level, LogRetentionDays: 14 }
 
   # List the names of all other parameters whose values should be available as exported CloudFormation stack
   # outputs. The env prefix will be appended to each name your provide.
   #    For example if the name of the parameter is 'DomainName' this script will look for 'dev-DomainName'
-  @cf_params = %w[]
+  @cf_params = %w[IndexerRoleArn S3PrivateBucketId LambdaSecurityGroupId OpenSearchSecurityGroupId
+                  OpenSearchDomainEndpoint BaselineLayerId EventBusArn DeadLetterQueueArn]
 
   # List the names of all other parameters whose values should be available as SSM parameters. The name must
   # match the final part of the SSM key name. This script will append the prefix automatically.
   #    For example if the parameter is 'DomainName' this script will look for '/uc3/dmp/hub/dev/DomainName'
-  @ssm_params = %w[]
-
-  # List any Lambdas that use this Layer so they are auto rebuilt/deployed or deleted after this Lambda is
-  @dependent_lambdas = [
-    '../../harvesters/datacite',
-    '../../harvesters/ror',
-    '../../indexers/dmp' #,
-    # '../../indexers/typeahead',
-    # '../../../sam'
-  ]
+  @ssm_params = %w[SubnetA SubnetB SubnetC DomainName]
   #
-  # DON'T FORGET TO: Add an entry to the Sceptre config for lambda-iam.yaml and lambda-vpc.yaml for this Layer!
+  #
+  # DON'T FORGET TO: Add an entry to the Sceptre config for lambda-iam.yaml and lambda-vpc.yaml for this Lambda!
   # ----------------
   #
   # =======================================================================================================
@@ -98,7 +91,7 @@ if ARGV.length >= 3
   # Search the stack outputs for the name
   def fetch_cf_output(name:)
     vals = @stack_exports.select do |exp|
-      (exp.exporting_stack_id.include?(@prefix) || exp.exporting_stack_id.include?("#{@program}-#{@env}") ) &&
+      (exp.exporting_stack_id.include?(@prefix) || exp.exporting_stack_id.include?("#{@program}-#{@env}")) &&
       exp.name.downcase.strip == "#{@env}-#{name&.downcase&.strip}"
     end
     vals&.first&.value
@@ -182,7 +175,7 @@ if ARGV.length >= 3
 
       # Add the CF Role if this is not development
       if @env != 'dev'
-        cf_roles = @stack_exports.select do |export|
+        cf_roles = stack_exports.select do |export|
           export.exporting_stack_id.include?('uc3-ops-aws-prd-iam') && export.name == 'uc3-prd-ops-cfn-service-role'
         end
         args << "--role-arn #{cf_roles.first&.value}"
@@ -206,24 +199,16 @@ if ARGV.length >= 3
       system("sam deploy #{args.join(' ')}")
     end
 
-    # Build/Deploy all of the related Lambda functions
-    @dependent_lambdas.each do |lambda_dir|
-      system("cd #{lambda_dir} && ruby sam_build_deploy.rb #{@env} #{@run_build} #{@run_deploy} #{@log_level}")
-    end
-
   else
     args = ["--stack-name #{@stack_name}"]
 
-    @dependent_lambdas.each do |lambda_dir|
-      system("cd #{lambda_dir} && ruby sam_build_deploy.rb #{@env} false false")
-    end
-
+    puts "NOTE: This Lambda is deployed within the VPC. It can take in excess of 45 minutes for the associated ENIs to be deleted!"
     puts "Deleting SAM CloudFormation stack #{@stack_name} ..."
     system("sam delete #{args.join(' ')}")
   end
 else
-  p 'Expected 4 arguments: environment, run a SAM build?, run a SAM deploy? and the logging level'
-  p '    For example: `ruby sam_build_deploy.rb dev true false debug`.'
+  p 'Expected 3 arguments: environment, run a SAM build?, run a SAM deploy?'
+  p '    For example: `ruby sam_build_deploy.rb dev true false`.'
   p ''
   p 'NOTE: Setting the last 2 arguments to false will trigger a `sam delete`.'
 end
