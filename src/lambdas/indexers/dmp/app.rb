@@ -148,25 +148,28 @@ module Functions
         pk = Uc3DmpId::Helper.remove_pk_prefix(p_key: hash.fetch('PK', {})['S'])
         visibility = hash.fetch('dmproadmap_privacy', {})['S']&.downcase&.strip == 'public' ? 'public' : 'private'
 
-        project = hash.fetch('project', {}).fetch('L', [{'M': {}}]).first['M']
+        project = hash.fetch('project', {}).fetch('L', [{}]).first
+        project = {} if project.nil?
         # Set the project start date equal to the date specified or the DMP creation date
         proj_start = project.fetch('start', hash.fetch('created', {}))['S']
         # Set the project end date equal to the specified end OR 5 years after the start
-        proj_end = project.fetch('end', Date.parse(proj_start.to_s) + 1825)['S']
+        proj_end = project.fetch('end', {})['S']
+        proj_end = (Date.parse(proj_start.to_s) + 1825).to_s if proj_end.nil? && !proj_start.nil?
 
         funding = project.fetch('funding', {}).fetch('L', [{}]).first.fetch('M', {})
         doc = people.merge(_extract_funding(hash: funding, logger:))
+        doc = doc.merge(_repos_to_os_doc_parts(datasets: hash.fetch('dataset', {}).fetch('L', [])))
         doc = doc.merge({
-          dmp_id: Uc3DmpId::Helper.format_dmp_id(value: pk, with_protocol: true),
+          dmp_id: Uc3DmpId::Helper.remove_pk_prefix(p_key: pk),
           title: hash.fetch('title', {})['S']&.downcase,
           visibility: visibility,
           featured: hash.fetch('dmproadmap_featured', {})['S']&.downcase&.strip == '1' ? 1 : 0,
           description: hash.fetch('description', {})['S']&.downcase,
           project_start: proj_start&.to_s&.split('T')&.first,
           project_end: proj_end&.to_s&.split('T')&.first,
-          created: hash['created']['S']&.to_s&.split('T')&.first,
-          modified: hash['modified']['S']&.to_s&.split('T')&.first,
-          registered: hash['registered']['S']&.to_s&.split('T')&.first
+          created: hash.fetch('created', {})['S']&.to_s&.split('T')&.first,
+          modified: hash.fetch('modified', {})['S']&.to_s&.split('T')&.first,
+          registered: hash.fetch('registered', {})['S']&.to_s&.split('T')&.first
         })
         logger.debug(message: 'New OpenSearch Document', details: { document: doc }) unless visibility == 'public'
         return doc unless visibility == 'public'
@@ -235,6 +238,30 @@ module Functions
           parts[:affiliations] << person[:affiliation] unless person[:affiliation].nil?
           parts[:affiliation_ids] << person[:affiliation_id] unless person[:affiliation_id].nil?
         end
+        parts
+      end
+
+      # Retreive all of the repositories defined for the research outputs
+      def _repos_to_os_doc_parts(datasets:)
+        parts = { repos: [], repo_ids: [] }
+        return parts unless datasets.is_a?(Array) && datasets.any?
+
+        outputs = datasets.map { |dataset| dataset.fetch('M', {}) }
+
+        outputs.each do |output|
+          hosts = output.fetch('distribution', {}).fetch('L', []).map { |d| d.fetch('M', {}).fetch('host', {})['M'] }
+          next unless hosts.is_a?(Array) && hosts.any?
+
+          hosts.each do |host|
+            next if host.nil?
+
+            parts[:repos] << host.fetch('title', {})['S']
+            parts[:repo_ids] << host.fetch('url', {})['S']
+            parts[:repo_ids] << host.fetch('dmproadmap_host_id', {}).fetch('M', {}).fetch('identifier', {})['S']
+          end
+        end
+        parts[:repo_ids] = parts[:repo_ids].compact.uniq
+        parts[:repos] = parts[:repos].compact.uniq
         parts
       end
 
