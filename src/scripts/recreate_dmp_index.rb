@@ -32,6 +32,8 @@ if ARGV.length >= 2
   puts "Found #{items.length} unique DMP-IDs. Updating the index ...."
   cntr = 0
   items.each do |item|
+    # next unless item['PK'] == 'DMP#doi.org/10.48321/D1CW23'
+
     # Fetch the full record
     resp = dynamo.get_item({
       table_name: table,
@@ -44,7 +46,8 @@ if ARGV.length >= 2
 
     # Update an internal field that will trigger the dynamo stream update without altering any of the
     # true DMP-ID fields
-    dmp['dmphub_forced_index_recreation_date'] = Time.now.strftime('%Y-%m-%d')
+    dmp['dmphub_forced_index_recreation_date'] = Time.now.strftime('%Y-%m-%dT%H:%M')
+    # dmp['registered'] = dmp['created']
     dynamo.put_item({
       table_name: table,
       item: dmp

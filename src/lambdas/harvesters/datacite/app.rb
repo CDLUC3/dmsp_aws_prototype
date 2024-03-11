@@ -13,6 +13,7 @@ require 'uc3-dmp-api-core'
 require 'uc3-dmp-cloudwatch'
 require 'uc3-dmp-dynamo'
 require 'uc3-dmp-external-api'
+require 'uc3-dmp-id'
 
 module Functions
   # A service that queries DataCite GraphQL API
@@ -199,7 +200,8 @@ module Functions
 
       # Compare the related works from DataCite with the things we know about the DMP
       def _select_relevant_content(datacite_recs:, dmps:, logger:)
-        return [] unless datacite_recs.is_a?(Hash) && dmps.is_a?(Array)
+        relevant = []
+        return relevant unless datacite_recs.is_a?(Hash) && dmps.is_a?(Array)
 
         works = datacite_recs.fetch('organization', {}).fetch('works', {}).fetch('nodes', [])
         comparator = Uc3DmpId::Comparator.new(dmps:, logger:)
@@ -208,66 +210,14 @@ module Functions
           comprable = _extract_comparable(hash: work)
           next unless comprable.is_a?(Hash) && !comprable['title'].nil?
 
-          puts comprable
+          logger&.debug(message: 'DataCite record reduced to it\'s comprable parts:', details: comprable)
+          result = comparator.compare(hash: comprable)
+          logger&.debug(message: "Uc3DmpId::Comparator result: #{result.nil? ? 'No matches' : result}")
 
+          # Determine what the mods are between the matching DMP and the DataCite work. then add it to the results
 
-          #   next if work.nil?
-
-          #   results[:"#{term}"] << work
-          # end
         end
-
-        # results
-        []
-      end
-
-      # Compare the work to the DMP to see if its a possible match
-      def _compare_result(comparator:, hash:)
-        response = { confidence: 'None', score: 0, notes: [] }
-        return response unless hash.is_a?(Hash) && !hash['title'].nil?
-
-        # Compare the grant ids. If we have a match return the response immediately since that is
-        # a very positive match!
-        response = _grants_match?(array: hash['fundings'], response:)
-        return response if response[:confidence] != 'None'
-
-        response = _opportunities_match?(array: hash['fundings'], response:)
-        response = _orcids_match?(array: hash['people'], response:)
-        response = _last_name_and_affiliation_match?(array: hash['people'], response:)
-
-        # Only process the following if we had some matching contributors, affiliations or opportuniy nbrs
-        response = _repository_match?(array: hash['repositories'], response:) if response[:score].positive?
-        response = _keyword_match?(array: hash['keywords'], response:) if response[:score].positive?
-        response = _text_match?(type: 'title', text: hash['title'], response:) if response[:score].positive?
-        response = _text_match?(type: 'abstract', text: hash['abstract'], response:) if response[:score].positive?
-        # If the score is less than 3 then we have no confidence that it is a match
-        return response if response[:score] <= 2
-
-        # Set the confidence level based on the score
-        response[:confidence] = if response[:score] > 10
-                                  'High'
-                                else
-                                  (response[:score] > 5 ? 'Medium' : 'Low')
-                                end
-        response
-
-
-
-
-
-
-        details_hash = _extract_comparable(hash: hash)
-        return nil unless details_hash.is_a?(Hash) && !details_hash['title'].nil?
-
-        result = comparator.compare(hash: details_hash)
-        return nil if result[:score] <= 0
-
-        src = hash.fetch('publisher', hash.fetch('member', {})&.fetch('name', nil))
-        result[:source] = ['Datatcite', src].compact.join(' via ')
-        result.merge(hash)
-      rescue Uc3DmpId::ComparatorError => e
-        logger.error(message: "Comparator error: #{e.message}", details: e.backtrace)
-        nil
+        relevant
       end
 
        # Check the DataCite results to see if we should make any updates to the DMP
@@ -278,55 +228,70 @@ module Functions
       end
 
       # Convert the DataCite :work into a hash for the Uc3DmpId::Comparator.
-      # It is expecting:
-      #  {
-      #    title: "Example research project",
-      #    abstract: "Lorem ipsum psuedo abstract",
-      #    keywords: ["foo", "bar"],z
-      #    people: [
-      #      {
-      #        id: "https://orcid.org/blah",
-      #        last_name: "doe",
-      #        affiliation: { id: "https://ror.org/blah", name: "Foo" }
-      #      }
-      #    ],
-      #    fundings: [
-      #      { id: "https://doi.org/crossref123", name: "Bar", grant: ["1234", "http://foo.bar/543"] }
-      #    ],
-      #    repositories: [
-      #      { id: ["http://some.repo.org", "https://doi.org/re3data123"], name: "Repo" }
-      #    ]
-      #  }
+      # It is expecting the same format as an OpenSearch document:
+      # {
+      #   "people": ["john doe", "jdoe@example.com"],
+      #   "people_ids": ["https://orcid.org/0000-0000-0000-ZZZZ"],
+      #   "affiliations": ["example college"],
+      #   "affiliation_ids": ["https://ror.org/00000zzzz"],
+      #   "funder_ids": ["https://doi.org/10.13039/00000000000"],
+      #   "funders": ["example funder (example.gov)"],
+      #   "funder_opportunity_ids": ["485yt8325ty"],
+      #   "grant_ids": [],
+      #   "title": "example data management plan",
+      #   "description": "the example project abstract"
+      # }
       def _extract_comparable(hash:)
         return nil unless hash.is_a?(Hash)
 
-        keywords = hash.fetch('subjects', []).map { |entry| entry['subject'] }
-        keywords << hash.fetch('fieldsOfScience', []).map { |entry| entry['name'] }
         people = hash.fetch('creators', []).map { |entry| _extract_person(hash: entry) }
         people << hash.fetch('contributors', []).map { |entry| _extract_person(hash: entry) }
+        people = people&.flatten&.compact&.uniq
+
+        people_parts = { people: [], people_ids: [], affiliations: [], affiliation_ids: [] }
+        people.each do |person|
+          people_parts[:people] << person[:name] unless person[:name].nil?
+          people_parts[:people_ids] << person[:id] unless person[:id].nil?
+          people_parts[:affiliations] << person[:affiliations] unless person[:affiliations].nil?
+          people_parts[:affiliation_ids] << person[:affiliation_ids] unless person[:affiliation_ids].nil?
+        end
+
         fundings = hash.fetch('fundingReferences', []).map { |entry| _extract_funding(hash: entry) }
-        repo = hash.fetch('repository', {})
-        repository = { name: repo['name'] } unless repo.nil?
-        repository[:id] = [repo['url'], repo['re3dataUrl']]&.flatten&.compact&.uniq unless repo.nil?
+        funder_parts = { funders: [], funder_ids: [], grant_ids: [] }
+        fundings.each do |funding|
+          funder_parts[:funders] << funding[:name] unless funding[:name].nil?
+          funder_parts[:funder_ids] << funding[:id] unless funding[:id].nil?
+          funder_parts[:grant_ids] << funding[:grant] unless funding[:grant].nil?
+        end
+
+        repo = hash['repository'].nil? ? {} : hash['repository']
 
         JSON.parse({
           title: hash.fetch('titles', []).map { |entry| entry['title'] }.join(' '),
           abstract: hash.fetch('descriptions', []).map { |entry| entry['description'] }.join(' '),
-          keywords: keywords&.flatten&.compact&.uniq,
-          people: people&.flatten&.compact&.uniq,
-          fundings: fundings,
-          repositories: [repository]
+          people: people_parts[:people].compact.uniq,
+          people_ids: people_parts[:people_ids].compact.uniq,
+          affiliations: people_parts[:affiliations].flatten.compact.uniq,
+          affiliation_ids: people_parts[:affiliation_ids].flatten.compact.uniq,
+          funders: funder_parts[:funders].compact.uniq,
+          funder_ids: funder_parts[:funder_ids].compact.uniq,
+          grant_ids: funder_parts[:grant_ids].compact.uniq,
+          repos: [repo['name']&.downcase&.strip].compact,
+          repo_ids: [repo['url'], repo['re3dataUrl']].compact.uniq
         }.to_json)
       end
 
       # Convert the incoming DataCite entry for the person into the hash for the Uc3DmpId::Comparator
       def _extract_person(hash:)
-        name = hash['familyName']
-        name = hash['name'].include?(', ') ? hash['name'].split(', ').first : hash['name'].split.last if name.nil?
+        # Names come through as `last, first` so reverse that so it's `first last`
+        name = hash['name']&.downcase&.strip&.split(', ')&.reverse&.join(' ')
+        name = [hash['givenName'], hash['familyName']].compact.map { |i| i.downcase.strip }.join(' ') if name.nil?
+        affil = hash.fetch('affiliation', {})
         {
           id: hash['id'],
-          last_name: name,
-          affiliation: hash['affiliation']
+          name: name,
+          affiliations: affil.map { |entry| entry['name']&.downcase&.strip },
+          affiliation_ids: affil.map { |entry| entry['id']&.downcase&.strip }
         }
       end
 
@@ -335,7 +300,7 @@ module Functions
         grants = [hash['awardUri']&.downcase&.strip, hash['awardNumber']&.downcase&.strip]
         {
           id: hash['funderIdentifier'],
-          name: hash['funderName'],
+          name: hash['funderName']&.downcase&.strip,
           grant: grants&.flatten&.compact&.uniq
         }
       end
