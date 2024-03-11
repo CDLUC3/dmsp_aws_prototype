@@ -136,7 +136,7 @@ module Functions
         return [] unless response_body.is_a?(Hash)
 
         response_body.fetch('response', {}).fetch('award', []).map do |award|
-          next if award['title'].nil? || award['id'].nil? || award['pdPIName'].nil?
+          next if award['title'].nil? || award['id'].nil?
 
           start_parts = award.fetch('startDate', '').split('/')
           end_parts = award.fetch('expDate', '').split('/')
