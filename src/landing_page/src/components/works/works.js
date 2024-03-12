@@ -44,7 +44,7 @@ function Works(props) {
               <h3 key={'work-cat' + idx + 'h3'}>{category[0].toUpperCase() + category.slice(1).replace('_', ' ')}</h3>
               <ul className="landing-list" key={'work-cat' + idx + 'ul'}>
                 {works[category].map((work, idx2) => (
-                  <Work work={work} index={'work-cat' + idx + idx2}/>
+                  <Work work={work} index={'work-cat' + idx + idx2} key={idx2}/>
                 ))}
               </ul>
             </li>
