@@ -9,13 +9,11 @@ parameters:
 
   SsmPath: !stack_attr sceptre_user_data.ssm_path
 
-  OpenSearchDomain: !stack_output_external Uc3OpsOpensearchStack::domainEndpoint
-
   # Dynamo settings
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html
   DynamoTableClass: 'STANDARD'
   DynamoEnableContributorInsights: 'true'
-  DynamoEnablePointInTimeRecovery: 'false'
+  DynamoEnablePointInTimeRecovery: 'true'
   DynamoBillingMode: 'PAY_PER_REQUEST'
   DynamoReadCapacityUnits: '8'
   DynamoWriteCapacityUnits: '30'
