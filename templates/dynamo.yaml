@@ -13,9 +13,6 @@ Parameters:
   SsmPath:
     Type: 'String'
 
-  # OpenSearchDomain:
-  #   Type: 'String'
-
   DynamoTableClass:
     Type: 'String'
     Default: 'STANDARD'
@@ -253,14 +250,6 @@ Resources:
       Name: !Sub "${SsmPath}DynamoTableName"
       Type: 'String'
       Value: !Select [1, !Split ['/', !GetAtt DynamoTable.Arn]]
-
-  # OpenSearchDomainParameter:
-  #   Type: 'AWS::SSM::Parameter'
-  #   Properties:
-  #     Description: !Sub "${AWS::StackName} OpenSearch Domain"
-  #     Name: !Sub "${SsmPath}OpenSearchDomain"
-  #     Type: 'String'
-  #     Value: !Ref OpenSearchDomain
 
 Outputs:
   # ResourcesDynamoTableName:
