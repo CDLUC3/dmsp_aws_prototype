@@ -166,7 +166,6 @@ GEM
       cgi (~> 0.3)
     unicode-display_width (2.5.0)
     uri (0.13.0)
-    zip (2.0.2)
 
 PLATFORMS
   arm64-darwin-22
@@ -199,7 +198,6 @@ DEPENDENCIES
   uc3-dmp-id
   uc3-dmp-provenance
   uc3-dmp-s3
-  zip
 
 RUBY VERSION
    ruby 3.2.2p53

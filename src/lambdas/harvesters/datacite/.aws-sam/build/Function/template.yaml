@@ -31,6 +31,9 @@ Parameters:
   EventBusArn:
     Type: 'String'
 
+  SnsTopicEmailArn:
+    Type: 'String'
+
   DeadLetterQueueArn:
     Type: 'String'
 
@@ -53,6 +56,7 @@ Resources:
           LAMBDA_ENV: !Ref Env
           LOG_LEVEL: !Ref DebugLevel # 'debug'
           DYNAMO_TABLE: !Ref DynamoTableName
+          SNS_FATAL_ERROR_TOPIC: !Ref SnsTopicEmailArn
       Events:
         DataCiteHarvesting:
           Type: 'EventBridgeRule'

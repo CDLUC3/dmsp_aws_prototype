@@ -50,7 +50,8 @@ if ARGV.length >= 3
   # List the names of all other parameters whose values should be available as exported CloudFormation stack
   # outputs. The env prefix will be appended to each name your provide.
   #    For example if the name of the parameter is 'DomainName' this script will look for 'dev-DomainName'
-  @cf_params = %w[HarvesterRoleArn S3PrivateBucketId BaselineLayerId EventBusArn DynamoTableName DeadLetterQueueArn]
+  @cf_params = %w[HarvesterRoleArn S3PrivateBucketId BaselineLayerId EventBusArn DynamoTableName
+                  SnsTopicEmailArn DeadLetterQueueArn]
 
   # List the names of all other parameters whose values should be available as SSM parameters. The name must
   # match the final part of the SSM key name. This script will append the prefix automatically.

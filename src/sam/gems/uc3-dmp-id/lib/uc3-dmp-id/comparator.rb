@@ -61,7 +61,7 @@ module Uc3DmpId
 
         # Compare the grant ids. If we have a match return the response immediately since that is
         # a very positive match!
-        response = { dmp_id: dmp['_id'], confidence: 'None', score: 0, notes: [] }
+        response = { confidence: 'None', score: 0, notes: [] }
         response = _grants_match?(array: hash.fetch('grant_ids', []), dmp:, response:)
         scoring << respoonse if response[:confidence] != 'None'
         next if response[:confidence] != 'None'
@@ -79,11 +79,13 @@ module Uc3DmpId
         next if response[:score] <= 2
 
         # Set the confidence level based on the score
+        response[:dmp_id] = entry['_id']
         response[:confidence] = if response[:score] > 10
                                   'High'
                                 else
                                   (response[:score] > 5 ? 'Medium' : 'Low')
                                 end
+        @logger&.debug(message: "Found a match!", details: { dmp: dmp, analysis: response })
         scoring << response
       end
 
@@ -221,7 +223,7 @@ module Uc3DmpId
         "incoming_#{type}": cleansed,
         nlp_score: nlp_processor.similarity(dmp_val, cleansed)
       }
-      @logger&.debug(message: 'Text::WhiteSimilarity score', details:)
+      # @logger&.debug(message: 'Text::WhiteSimilarity score', details:)
       return response if details[:nlp_score] < 0.5
 
       response[:score] += details[:nlp_score] >= 0.75 ? 5 : 2

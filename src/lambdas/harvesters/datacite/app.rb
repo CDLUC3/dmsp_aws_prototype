@@ -20,6 +20,8 @@ module Functions
   class DataCiteHarvester
     SOURCE = 'DataCite Harvester'
 
+    DMP_HARVESTER_MODS_SK = 'HARVESTER_MODS'
+
     GRAPHQL_ENDPOINT = 'https://api.datacite.org/graphql'
     GRAPHQL_TIMEOUT_SECONDS = 120
 
@@ -114,9 +116,15 @@ module Functions
         datacite_recs = _query_datacite(query:, logger:)
 
         # See if the returned DataCite info has any matches to our DMSPs
-        resp = _select_relevant_content(datacite_recs:, dmps: details['dmps'], logger:)
+        matches = _select_relevant_content(datacite_recs:, dmps: details['dmps'], logger:)
+        return true unless matches.is_a?(Array) && matches.any?
 
         # Update the relevant DMSPs
+        _process_matches(dynamo_client:, table:, matches:, logger:)
+
+        # Send log to admins
+        deets = { message: "Scanned DataCite for Org #{ror}. Found #{matches.count} possible matches!", matches: }
+        Uc3DmpApiCore::Notifier.notify_administrator(source: SOURCE, details: deets, event:)
 
       rescue Uc3DmpExternalApi::ExternalApiError => e
         logger.error(message: "External API error: #{e.message}", details: e.backtrace)
@@ -212,19 +220,108 @@ module Functions
 
           logger&.debug(message: 'DataCite record reduced to it\'s comprable parts:', details: comprable)
           result = comparator.compare(hash: comprable)
-          logger&.debug(message: "Uc3DmpId::Comparator result: #{result.nil? ? 'No matches' : result}")
+          next unless result.is_a?(Hash) && result[:score] >= 3
 
-          # Determine what the mods are between the matching DMP and the DataCite work. then add it to the results
-
+          src = work.fetch('publisher', work.fetch('member', {}))&.fetch('name', nil)
+          result[:source] = ['Datacite', src].compact.join(' via ')
+          result = result.merge({ work: })
+          logger&.info(message: 'Uc3DmpId::Comparator potential match:', details: result)
+          relevant << result
         end
         relevant
       end
 
-       # Check the DataCite results to see if we should make any updates to the DMP
-       def _augment_dmp(run_id:, augmenter:, dmp:, related_works:, logger:)
-        aug = Uc3DmpId::Augmenter.new(run_id:, dmp:, augmenter:, logger:)
-        mod_count = aug.add_modifications(works: JSON.parse(related_works.to_json))
-        logger&.debug(message: "Added #{mod_count} modifications to the DMP!")
+      # Add the relevant matches from DataCite to the DMP-IDs HARVESTER_MODS doc
+      def _process_matches(dynamo_client:, table:, matches:, logger:)
+        matches.each do |match|
+          next unless match[:work].is_a?(Hash) && match[:work]['id']
+
+          work_id = match[:work]['id']
+          # Fetch existing HARVESTER_MODS record (or initialize it)
+          mods_rec = _get_mods_record(client: dynamo_client, table:, dmp_id: match[:dmp_id], logger:)
+          mods_rec = JSON.parse({ PK: match[:dmp_id], SK: 'HARVESTER_MODS', tstamp: Time.now.utc.iso8601 }.to_json)
+          # Fetch the full DMP record
+          dmp = _get_dmp(client: dynamo_client, table:, dmp_id: match[:dmp_id], logger:)
+          # Skip if it already has the DOI OR the DMP already knows about it
+          next unless mods_rec.fetch('related_works', {})[:"#{work_id}"].nil? &&
+                      dmp.fetch('dmproadmap_related_identifiers', []).select { |ri| ri['identifier'] == work_id }.empty?
+
+          tstamp = mods_rec['tstamp']
+          # Prepare the related works (skip if they are already on the full DMP record)
+          related_work_mod = _prepare_related_work_mod(match:, logger:)
+          logger&.debug(message: 'Related work mod found:', details: related_work_mod)
+
+          # Refetch the DMP mods record to check the :tstamp and use the new one if applicable
+          mods_rec_check = _get_mods_record(client: dynamo_client, table:, dmp_id: match[:dmp_id], logger:)
+          mods_rec = mods_rec_check if mods_rec_check.is_a?(Hash) && tstamp != mods_rec_check['tstamp']
+
+          mods_rec['related_works'] = {} if mods_rec['related_works'].nil?
+          mods_rec['related_works'][:"#{work_id}"] = related_work_mod
+
+          puts related_work_mod
+          puts mods_rec
+
+          # Update the DMP mods record
+          dynamo_client.put_item(item: mods_rec, table_name: table)
+        end
+      end
+
+      # Convert CamelCase `IsCitedBy` to underscores `is_cited_by`
+      def _descriptor_to_underscore(str:)
+        str.tap do |s|
+          s.gsub!(/(.)([A-Z])/,'\1_\2')
+          s.downcase!
+        end
+        str
+      end
+
+      def _prepare_related_work_mod(match:, logger:)
+        work = match[:work]
+        typ = work.fetch('type', 'dataset')&.downcase&.strip
+        citation = Uc3DmpCitation::Citer.bibtex_to_citation(uri: work['id'], bibtex_as_string: work['bibtex'])
+        secondary_works = []
+        work.fetch('relatedIdentifiers', []).each do |related|
+          next if related['relatedIdentifier'].nil? || related['relationType'] == 'IsCitedBy'
+
+          secondary_works << {
+            type: related.fetch('relatedIdentifierType', 'url'),
+            identifier: related['relatedIdentifier'],
+            descriptor: _descriptor_to_underscore(str: related.fetch('relationType', 'references'))
+          }
+        end
+
+        {
+          provenance: match[:source],
+          score: match[:score],
+          confidence: match[:confidence],
+          logic: match[:notes],
+          discovered_at: Time.now.utc.iso8601,
+          status: 'pending',
+
+          type: 'doi',
+          identifier: work['id'],
+          descriptor: 'references',
+          work_type: typ == 'journalarticle' ? 'article' : typ,
+          citation:,
+
+          secondary_works: secondary_works&.flatten&.compact&.uniq
+        }
+      end
+
+      # Fetch the latest Harvester mods for the DMP
+      def _get_mods_record(client:, table:, dmp_id:, logger:)
+        resp = client.get_item(key: { PK: dmp_id, SK: DMP_HARVESTER_MODS_SK }, table_name: table)
+        resp[:item].is_a?(Array) ? resp[:item].first : resp[:item]
+      rescue Aws::Errors::ServiceError => e
+        logger&.error(message: "Unable to fetch the Harvester mods record #{dmp_id} - #{e.message}", details: e.backtrace)
+      end
+
+      # Fetch the latest version of the DMP
+      def _get_dmp(client:, table:, dmp_id:, logger:)
+        resp = client.get_item(key: { PK: dmp_id, SK: Uc3DmpId::Helper::DMP_LATEST_VERSION }, table_name: table)
+        resp[:item].is_a?(Array) ? resp[:item].first : resp[:item]
+      rescue Aws::Errors::ServiceError => e
+        logger&.error(message: "Unable to fetch DMP ID record #{dmp_id} - #{e.message}", details: e.backtrace)
       end
 
       # Convert the DataCite :work into a hash for the Uc3DmpId::Comparator.
@@ -275,7 +372,7 @@ module Functions
           affiliation_ids: people_parts[:affiliation_ids].flatten.compact.uniq,
           funders: funder_parts[:funders].compact.uniq,
           funder_ids: funder_parts[:funder_ids].compact.uniq,
-          grant_ids: funder_parts[:grant_ids].compact.uniq,
+          grant_ids: funder_parts[:grant_ids].flatten.compact.uniq,
           repos: [repo['name']&.downcase&.strip].compact,
           repo_ids: [repo['url'], repo['re3dataUrl']].compact.uniq
         }.to_json)

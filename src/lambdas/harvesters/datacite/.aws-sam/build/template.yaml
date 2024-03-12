@@ -21,6 +21,8 @@ Parameters:
     Type: String
   EventBusArn:
     Type: String
+  SnsTopicEmailArn:
+    Type: String
   DeadLetterQueueArn:
     Type: String
 Resources:
@@ -45,6 +47,8 @@ Resources:
             Ref: DebugLevel
           DYNAMO_TABLE:
             Ref: DynamoTableName
+          SNS_FATAL_ERROR_TOPIC:
+            Ref: SnsTopicEmailArn
       Events:
         DataCiteHarvesting:
           Type: EventBridgeRule
