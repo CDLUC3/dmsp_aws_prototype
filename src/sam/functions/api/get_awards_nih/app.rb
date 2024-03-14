@@ -130,7 +130,7 @@ module Functions
           nm = "#{hash['last_name']}, #{[hash['first_name'], hash['middle_name']].join(' ')}"
         end
 
-        { name: nm, mbox: hash['email', role: ['http://credit.niso.org/contributor-roles/investigation']] }
+        { name: nm, mbox: hash['email'], role: ['http://credit.niso.org/contributor-roles/investigation'] }
       end
 
       # Transform the NIH API results into our common funder API response
