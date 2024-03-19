@@ -1,6 +1,10 @@
 AWSTemplateFormatVersion: '2010-09-09'
 
-Description: 'CodeBuild for the Rails application'
+Description: 'CodeBuild for the DMPSP Apollo server backend application'
+
+# TODO: We may be able to consolidate this if the templates for the Apollo Server backend and the nextJS frontend
+#       are very similar. Chances are that the only diff might be with the ENV variables, which we can update
+#       here to to be passed in as a List<String>
 
 Parameters:
   Env:
@@ -38,6 +42,7 @@ Parameters:
 
   CodeBuildEnvironmentImage:
     Type: 'String'
+    # Default is AL2023
     Default: 'aws/codebuild/amazonlinux2-x86_64-standard:5.0'
 
   CodeBuildArtifactType:

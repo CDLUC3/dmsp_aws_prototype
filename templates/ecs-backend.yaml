@@ -14,9 +14,6 @@ Parameters:
     Type: 'String'
     Default: 'dev'
 
-  DomainName:
-    Type: 'String'
-
   AppName:
     Type: 'String'
 
@@ -27,61 +24,16 @@ Parameters:
   EcrRepositoryUri:
     Type: 'String'
 
-  EcrRepositoryName:
-    Type: 'String'
-
-  S3CloudFrontBucketId:
-    Type: 'String'
-
   AlbTargetGroupArn:
-    Type: 'String'
-
-  AlbDnsName:
     Type: 'String'
 
   AlbSecurityGroupId:
     Type: 'String'
 
-  DbSecurityGroupId:
-    Type: 'String'
-
-  RailsMasterKey:
-    Type: 'String'
-
-  DoiShoulder:
-    Type: 'String'
-
-  DoiBaseUrl:
-    Type: 'String'
-
-  HelpdeskEmail:
-    Type: 'String'
-
-  RailsEnv:
-    Type: 'String'
-    Default: 'awsdev'
-
-  # ServiceCount should be greater than 1 for CodeDeploy rules!
-  RailsLogLevel:
-    Type: 'String'
-    Default: 'warn'
-    AllowedValues:
-      - 'debug'
-      - 'warn'
-      - 'error'
-
   DynamoTableName:
     Type: 'String'
 
-  DynamoPoolSize:
-    Type: 'Number'
-    Default: 5
-
-  DynamoTimeout:
-    Type: 'Number'
-    Default: 5
-
-  DoNotReplyEmail:
+  HelpdeskEmail:
     Type: 'String'
 
 Conditions:
@@ -109,23 +61,9 @@ Resources:
       ManagedPolicyArns:
         - 'arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy'
         - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
-        - 'arn:aws:iam::aws:policy/AmazonRDSDataFullAccess'
         - 'arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess'
         - 'arn:aws:iam::aws:policy/AmazonSESFullAccess'
         - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
-      Policies:
-        - PolicyName: !Sub '${AWS::StackName}-build-policy'
-          PolicyDocument: !Sub >
-            {
-              "Version": "2012-10-17",
-              "Statement": [
-                {
-                  "Effect": "Allow",
-                  "Action": ["secretsmanager:GetSecretValue"],
-                  "Resource": ["*"]
-                }
-              ]
-            }
 
   # Role that grants containers in the task permission to call AWS APIs on your behalf
   EcsTaskRole:
@@ -142,23 +80,9 @@ Resources:
               - 'sts:AssumeRole'
       ManagedPolicyArns:
         - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
-        - 'arn:aws:iam::aws:policy/AmazonRDSDataFullAccess'
         - 'arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess'
         - 'arn:aws:iam::aws:policy/AmazonSESFullAccess'
         - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
-      Policies:
-        - PolicyName: !Sub '${AWS::StackName}-build-policy'
-          PolicyDocument: !Sub >
-            {
-              "Version": "2012-10-17",
-              "Statement": [
-                {
-                  "Effect": "Allow",
-                  "Action": ["secretsmanager:GetSecretValue"],
-                  "Resource": ["*"]
-                }
-              ]
-            }
 
   # -----------------------------------------------------------
   # EC2 Security Groups for ECS containers (see their definitions in application.yaml)
@@ -182,18 +106,6 @@ Resources:
       ToPort: 3000
       GroupId: !GetAtt EcsSecurityGroup.GroupId
       SourceSecurityGroupId: !Ref AlbSecurityGroupId
-
-  # Allow the RDS instance(s) to receive traffic from the ECS instance(s)
-  DbSecurityGroupIngressFromEcs:
-    Type: 'AWS::EC2::SecurityGroupIngress'
-    DependsOn:
-      - EcsSecurityGroup
-    Properties:
-      IpProtocol: 'tcp'
-      FromPort: 3306
-      ToPort: 3306
-      GroupId: !Ref DbSecurityGroupId
-      SourceSecurityGroupId: !GetAtt EcsSecurityGroup.GroupId
 
   # -----------------------------------------------------------
   # Elastic Container Service (ECS) - Containers that host the application
@@ -235,8 +147,8 @@ Resources:
           Interactive: true
           Memory: 2000
           Name: !Ref AppName
-          StartTimeout: 60
-          StopTimeout: 60
+          StartTimeout: 30
+          StopTimeout: 30
           # TODO: Figure out what container health check should be run (e.g. memory usage)
           # HealthCheck:
           #   Command:  ["CMD-SHELL", "echo hello"]
@@ -255,38 +167,13 @@ Resources:
             - ContainerPort: 25
               Protocol: 'tcp'
             # ALB port
-            - ContainerPort: 3000
-              Protocol: 'tcp'
-            # RDS port
-            - ContainerPort: 3306
+            - ContainerPort: 4000
               Protocol: 'tcp'
           Environment:
-            - Name: 'PORT'
-              Value: '3000'
-            - Name: 'AWS_REGION'
-              Value: !Ref AWS::Region
-            - Name: 'RAILS_ENV'
-              Value: !Ref RailsEnv
-            - Name: 'RAILS_MASTER_KEY'
-              Value: !Ref RailsMasterKey
-            - Name: 'DOI_SHOULDER'
-              Value: !Ref DoiShoulder
-            - Name: 'DOI_BASE_URL'
-              Value: !Ref DoiBaseUrl
+            - Name: 'DMSP_TABLE'
+              Value: !Ref DynamoTableName
             - Name: 'HELPDESK_EMAIL'
               Value: !Ref HelpdeskEmail
-            - Name: 'RAILS_LOG_LEVEL'
-              Value: !Ref RailsLogLevel
-            - Name: 'RAILS_HOST'
-              Value: !Sub 'api.${DomainName}'
-            - Name: 'NOSQL_TABLE'
-              Value: !Ref DynamoTableName
-            - Name: 'NOSQL_POOL_SIZE'
-              Value: !Ref DynamoPoolSize
-            - Name: 'NOSQL_TIMEOUT'
-              Value: !Ref DynamoTimeout
-            - Name: 'DO_NOT_REPLY_EMAIL'
-              Value: !Ref DoNotReplyEmail
 
   # Container Service definition
   EcsService:
@@ -313,14 +200,13 @@ Resources:
           - 'CODE_DEPLOY'
       LoadBalancers:
         - TargetGroupArn: !Ref AlbTargetGroupArn
-          ContainerPort: 3000
+          ContainerPort: 4000
           ContainerName: !Ref AppName
       NetworkConfiguration:
         AwsvpcConfiguration:
           SecurityGroups:
             - !GetAtt EcsSecurityGroup.GroupId
             - !Ref AlbSecurityGroupId
-            - !Ref DbSecurityGroupId
           AssignPublicIp: 'ENABLED'
           Subnets: !Ref Subnets
       PlatformVersion: 'LATEST'
