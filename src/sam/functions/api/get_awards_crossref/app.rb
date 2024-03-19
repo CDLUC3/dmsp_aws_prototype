@@ -42,7 +42,7 @@ module Functions
 
       params = event.fetch('queryStringParameters', {})
       pi_names = params.fetch('pi_names', '')
-      project_num = params.fetch('project', '')
+      project_num = URI.encode_www_form_component(params.fetch('project', ''))
       title = params.fetch('keywords', '')
       years = params.fetch('years', (Date.today.year..Date.today.year - 3).to_a.join(','))
       years = years.split(',').map(&:to_i)
@@ -52,7 +52,7 @@ module Functions
                                                                       (years.nil? || years.empty?)
 
       url = "/#{project_num}" unless project_num.nil? || project_num.empty?
-      url = "?#{_prepare_query_string2(funder:, pi_names:, title:, years:)}" if url.nil?
+      url = "?#{_prepare_query_string(funder:, pi_names:, title:, years:)}" if url.nil?
       url = "#{API_BASE_URL}#{url}"
       logger.debug(message: "Calling Crossref Award API: #{url}") if logger.respond_to?(:debug)
 
@@ -135,14 +135,14 @@ module Functions
           end: "#{years.last}-12-31"
         }
         qs += _sanitize_params(str: ',from-awarded-date::start,until-awarded-date::end', params: filter_params)
-        qs += "&mailto:#{ENV.fetch('ADMIN_EMAIL', 'dmptool@ucop.edu')}"
+        qs += "&mailto=#{ENV.fetch('ADMIN_EMAIL', 'dmptool@ucop.edu')}"
         qs
       end
       # rubocop:enable Metrics/AbcSize
 
       # Convert the PI info from the response into "Last, First"
       # rubocop:disable Metrics/AbcSize
-      def _pi_from_response(pi_hash:)
+      def _pi_from_response(pi_hash:, contact: false)
         pi = { name: [pi_hash['family'], pi_hash['given']].compact.join(', ') }
         affiliation = pi_hash.fetch('affiliation', []).first
         return pi if affiliation.nil?
@@ -155,6 +155,10 @@ module Functions
         affil = { name: affiliation['name'] }
         affil['affiliation_id'] = affiliation_id unless affiliation_id.nil?
         pi[:dmproadmap_affiliation] = affil
+        orcid = pi_hash['ORCID']
+        pi[:contact_id] = { type: 'orcid', identifier: orcid } if contact && !orcid.nil?
+        pi[:contributor_id] = { type: 'orcid', identifier: orcid } if !contact && !orcid.nil?
+        pi[:role] = ['http://credit.niso.org/contributor-roles/investigation']
         pi
       end
       # rubocop:enable Metrics/AbcSize
@@ -255,8 +259,8 @@ module Functions
 
           {
             project: {
-              title: project.fetch('project-title', []).first['title'],
-              description: item.fetch('abstract', project['project-description']&.first),
+              title: project.fetch('project-title', [{}]).first['title'],
+              description: project.fetch('project-description', [{}]).first['description'],
               start: award_start,
               end: award_end,
               funding: [
@@ -268,7 +272,7 @@ module Functions
                 }
               ]
             },
-            contact: _pi_from_response(pi_hash: project['lead-investigator'].first),
+            contact: _pi_from_response(pi_hash: project['lead-investigator'].first, contact: true),
             contributor: project.fetch('investigator', []).map { |contrib| _pi_from_response(pi_hash: contrib) }
           }
         end

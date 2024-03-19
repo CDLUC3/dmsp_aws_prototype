@@ -329,7 +329,7 @@ Resources:
       CodeUri: 'functions/api/get_awards_crossref/'
       Handler: 'app.Functions::GetAwardsCrossref.process'
       Runtime: 'ruby3.2'
-      Timeout: 5
+      Timeout: 30
       Architectures:
         - 'x86_64'
       Layers:
@@ -1118,7 +1118,7 @@ Resources:
   LambdaDmpWarmerRule:
     Type: 'AWS::Events::Rule'
     Properties:
-      ScheduleExpression: 'rate(20 minutes)'
+      ScheduleExpression: 'rate(10 minutes)'
       Targets:
         - Id: !Ref DeleteDmpFunction
           Arn: !GetAtt DeleteDmpFunction.Arn
@@ -1176,7 +1176,7 @@ Resources:
   LambdaAwardWarmerRule:
     Type: 'AWS::Events::Rule'
     Properties:
-      ScheduleExpression: 'rate(20 minutes)'
+      ScheduleExpression: 'rate(10 minutes)'
       Targets:
         - Id: !Ref GetAwardsCrossrefApiFunction
           Arn: !GetAtt GetAwardsCrossrefApiFunction.Arn
