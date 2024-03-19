@@ -45,6 +45,15 @@ In the event that you need to manually insert an entry into the DynamoTable, you
 This script will seed the DynamoTable with the initial Provenance and Augmenter records. It is triggered by the Sceptre dynamo config as a hook. You must include 3 arguments, the environment, the name of your UI system that will be the primary source of your DMP-IDs and that system's URL. For example:
 `> ./seed_dynamo.sh dev MySystem my-system.org`
 
+## OpenSearch management
+
+The DMSP system uses OpenSearch to index Dynamo table records to facilitate searching.
+
+### recreate_dmp_index.rb
+
+This Ruby script will update the OpenSearch index for each DMP-ID. It does this by selecting all of the unique DMP-IDs in the specified DynamoTable and then updating a field called `dmphub_forced_index_recreation_date` on each of those records. The Dynamo update forces the DynamoStream to update the OpenSearch index. You can run it as folows:
+`> ruby recreate_dmp_index.rb dev uc3-dmp-hub-dev-regional-dynamo-DynamoTable-1234567890`
+
 ## EZID management
 
 ### ezid_download.sh

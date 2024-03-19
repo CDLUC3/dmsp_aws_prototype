@@ -17,18 +17,3 @@ parameters:
   DynamoBillingMode: 'PAY_PER_REQUEST'
   DynamoReadCapacityUnits: '16'
   DynamoWriteCapacityUnits: '60'
-
-hooks:
-  after_create:
-    # Add Provenance items to the Dynamo Table
-    - !cmd './seed_dynamo.sh prd DMPTool dmptool.org'
-    - !cmd './seed_dynamo.sh prd DMPHub dmphub.uc3prd.cdlib.net'
-
-    # Once the Dynamo table has been created, we can deploy our Lambdas and
-    # the API Gateway which are managed by AWS SAM.
-    #     Args are: environment, domain, build the Lambda layer (boolean)
-    - !cmd 'cd ./src/sam && ruby sam_build_deploy.rb prd true true info'
-
-    # Build and deploy the React based DMP ID Landing Page to the CloudFront S3 bucket
-    # Args are: environment
-    - !cmd 'cd ./src/landing_page && ruby build_deply.rb prd'

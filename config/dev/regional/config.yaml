@@ -11,6 +11,11 @@ sceptre_user_data:
     - !stack_output_external cdl-uc3-dev-defaultsubnet-stack::defaultsubnet2b
     - !stack_output_external cdl-uc3-dev-defaultsubnet-stack::defaultsubnet2c
 
+  # We sometimes need to access the subnets individually
+  public_subnet_a: !stack_output_external cdl-uc3-dev-defaultsubnet-stack::defaultsubnet2a
+  public_subnet_b: !stack_output_external cdl-uc3-dev-defaultsubnet-stack::defaultsubnet2b
+  public_subnet_c: !stack_output_external cdl-uc3-dev-defaultsubnet-stack::defaultsubnet2c
+
   # hosted_zone_id: !stack_output_external uc3-ops-dmphub-dev-route53::HostedZoneId
   hosted_zone_id: !ssm_parameter /uc3/dmp/hub/dev/HostedZoneId
 

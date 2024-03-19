@@ -28,6 +28,7 @@ DEFAULT_REGION = 'us-west-2'
 def fetch_ssm_parameter(key:)
   return nil if key.nil?
 
+  key = key.gsub("#{@env}-", '')
   name = key.start_with?(@ssm_key_prefix) ? key : "#{@ssm_key_prefix}#{key}"
   @ssm_client.get_parameter(name: name, with_decryption: true)&.parameter&.value
 rescue Aws::SSM::Errors::ParameterNotFound => e
@@ -168,15 +169,13 @@ if ARGV.length >= 3
       { template_param_name: 'DomainName', lookup_name: "#{@cf_export_prefix}DomainName" },
       { template_param_name: 'DynamoTableArn', lookup_name: "#{@cf_export_prefix}DynamoTableArn" },
       { template_param_name: 'DynamoTableName', lookup_name: "#{@cf_export_prefix}DynamoTableName" },
-      # { template_param_name: 'DynamoTableStreamArn', lookup_name: "#{@cf_export_prefix}DynamoTableStreamArn" },
       # { template_param_name: 'ResourcesDynamoTableArn', lookup_name: "#{@cf_export_prefix}ResourcesDynamoTableArn" },
       # { template_param_name: 'ResourcesDynamoTableName', lookup_name: "#{@cf_export_prefix}ResourcesDynamoTableName" },
       { template_param_name: 'EventBusArn', lookup_name: "#{@cf_export_prefix}EventBusArn" },
       { template_param_name: 'HostedZoneId', lookup_name: "#{@cf_export_prefix}HostedZoneId" },
       { template_param_name: 'S3PrivateBucketId', lookup_name: "#{@cf_export_prefix}S3PrivateBucketId" },
       { template_param_name: 'S3CloudFrontBucketArn', lookup_name: "#{@cf_export_prefix}S3CloudFrontBucketArn" },
-      { template_param_name: 'SnsEmailTopicArn', lookup_name: "#{@cf_export_prefix}SnsTopicEmailArn" } #,
-      # { template_param_name: 'OpenSearchDomain', lookup_name: "OpenSearchDomain" }
+      { template_param_name: 'SnsEmailTopicArn', lookup_name: "#{@cf_export_prefix}SnsTopicEmailArn" }
     ]
   end
 

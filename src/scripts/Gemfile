@@ -6,3 +6,4 @@ ruby '>= 3.2'
 
 gem 'httparty'
 
+gem 'aws-sdk-dynamodb'

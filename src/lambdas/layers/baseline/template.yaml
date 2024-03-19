@@ -1,0 +1,34 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+
+Description: 'Baseline LambdaLayer'
+
+Parameters:
+  Env:
+    Type: 'String'
+    Default: 'dev'
+
+Resources:
+  # ----------------------------------------------------
+  # Lambda Layers
+  #   See: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-resource-layerversion.html
+  # ----------------------------------------------------
+  BaselineLayerVersion:
+    Type: 'AWS::Serverless::LayerVersion'
+    Properties:
+      LayerName: !Sub '${AWS::StackName}-baseline-layer'
+      Description: !Sub 'Core Lambda Layer for ${Env}'
+      ContentUri: !Sub './'
+      CompatibleRuntimes:
+        - 'ruby2.7'
+        - 'ruby3.2'
+      RetentionPolicy: 'Delete'
+    Metadata:
+      BuildMethod: 'makefile'
+      BuildArchitecture: 'x86_64'
+
+Outputs:
+  BaselineLayerId:
+    Value: !Ref BaselineLayerVersion
+    Export:
+      Name: !Sub '${Env}-BaselineLayerId'

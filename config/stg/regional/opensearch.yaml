@@ -1,0 +1,18 @@
+template:
+  path: opensearch.yaml
+  type: file
+
+parameters:
+  VpcId: !stack_attr sceptre_user_data.vpc_id
+
+  SubnetA: !stack_attr sceptre_user_data.public_subnet_a
+  SubnetB: !stack_attr sceptre_user_data.public_subnet_b
+  SubnetC: !stack_attr sceptre_user_data.public_subnet_c
+
+  DomainName: !stack_attr sceptre_user_data.domain
+
+  Env: !stack_attr sceptre_user_data.env
+
+  SsmPath: !stack_attr sceptre_user_data.ssm_path
+
+  LogRetentionDays: '14'

@@ -301,23 +301,26 @@ module Functions
       end
 
       # Search the Pid graph by Funder Id
-      def _graphql_funder(fundref:, year:)
+      def _graphql_funder(fundref:, range:)
         {
           variables: { fundref: fundref, year: year },
           operationName: 'funderQuery',
           query: <<~TEXT
-            query funderQuery ($fundref: ID!, $year: String)
+            query funderQuery ($fundref: ID!, $range: [String])
             {
               funder(id: $fundref) {
                 id
                 name
                 alternateName
-                publications(published: $year) { nodes #{_related_work_fragment} }
-                datasets(published: $year) { nodes #{_related_work_fragment} }
-                softwares(published: $year) { nodes #{_related_work_fragment} }
+                publications(created: $range) { nodes #{_related_work_fragment } }
+                datasets(created: $range) { nodes #{_related_work_fragment } }
+                softwares(created: $range) { nodes #{_related_work_fragment } }
               }
             }
           TEXT
+          # publications(published: $year) { nodes #{_related_work_fragment} }
+          # datasets(published: $year) { nodes #{_related_work_fragment} }
+          # softwares(published: $year) { nodes #{_related_work_fragment} }
         }.to_json
       end
 

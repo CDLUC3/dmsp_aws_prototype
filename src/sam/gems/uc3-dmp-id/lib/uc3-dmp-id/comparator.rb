@@ -9,203 +9,107 @@ module Uc3DmpId
   # Class that compares incoming data from an external source to the DMP
   # It determines if they are likely related and applies a confidence rating
   class Comparator
-    MSG_MISSING_DMP = 'No DMP or the DMP did not contain enough information to use.'
+    MSG_MISSING_DMPS = 'No DMPs were defined. Expected an Array of OpenSearch documents!'
 
     STOP_WORDS = %w[a an and if of or the then they].freeze
 
     # See the bottom of this file for a hard-coded crosswalk between Crossref funder ids and ROR ids
     # Some APIs do not support ROR fully for funder ids, so we need to be able to reference both
 
-    attr_accessor :dmp, :details_hash, :logger
+    attr_accessor :dmps, :logger
 
+    # Expecting an Array of OpenSearch documents as :dmps in the :args
     def initialize(**args)
       @logger = args[:logger]
       @details_hash = {}
 
-      @dmp = args.fetch(:dmp, {})['dmp'].nil? ? args[:dmp] : args.fetch(:dmp, {})['dmp']
-      _extract_dmp_details(dmp:)
-      raise ComparatorError, MSG_MISSING_DMP if @details_hash.empty?
+      @dmps = args.fetch(:dmps, [])
+      raise ComparatorError, MSG_MISSING_DMPS if @dmps.empty?
     end
 
     # Compare the incoming hash with the DMP details that were gathered during initialization.
     #
-    # The Hash should contain:
-    #  {
-    #    title: "Example research project",
-    #    abstract: "Lorem ipsum psuedo abstract",
-    #    keywords: ["foo", "bar"],z
-    #    people: [
-    #      {
-    #        id: "https://orcid.org/blah",
-    #        last_name: "doe",
-    #        affiliation: { id: "https://ror.org/blah", name: "Foo" }
-    #      }
-    #    ],
-    #    fundings: [
-    #      { id: "https://doi.org/crossref123", name: "Bar", grant: ["1234", "http://foo.bar/543"] }
-    #    ],
-    #    repositories: [
-    #      { id: ["http://some.repo.org", "https://doi.org/re3data123"], name: "Repo" }
-    #    ]
-    #  }
+    # The incoming Hash should match the documents found in OpenSearch. For example:
+    # {
+    #   "people": ["john doe", "jdoe@example.com"],
+    #   "people_ids": ["https://orcid.org/0000-0000-0000-ZZZZ"],
+    #   "affiliations": ["example college"],
+    #   "affiliation_ids": ["https://ror.org/00000zzzz"],
+    #   "funder_ids": ["https://doi.org/10.13039/00000000000"],
+    #   "funders": ["example funder (example.gov)"],
+    #   "funder_opportunity_ids": ["485yt8325ty"],
+    #   "grant_ids": [],
+    #   "funding_status": "planned",
+    #   "dmp_id": "doi.org/11.22222/A1B2c3po",
+    #   "title": "example data management plan",
+    #   "visibility": "private",
+    #   "featured": 0,
+    #   "description": "the example project abstract",
+    #   "project_start": "2022-01-03",
+    #   "project_end": "2024-12-23",
+    #   "created": "2023-08-07",
+    #   "modified": "2023-08-07",
+    #   "registered": "2023-08-07"
+    # }
     # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
     def compare(hash:)
-      response = { confidence: 'None', score: 0, notes: [] }
-      return response unless hash.is_a?(Hash) && !hash['title'].nil?
+      scoring = []
+      return scoring unless hash.is_a?(Hash) && !hash['title'].nil?
 
-      # Compare the grant ids. If we have a match return the response immediately since that is
-      # a very positive match!
-      response = _grants_match?(array: hash['fundings'], response:)
-      return response if response[:confidence] != 'None'
+      @dmps.each do |entry|
+        dmp = entry.fetch('_source', {})
 
-      response = _opportunities_match?(array: hash['fundings'], response:)
-      response = _orcids_match?(array: hash['people'], response:)
-      response = _last_name_and_affiliation_match?(array: hash['people'], response:)
+        # Compare the grant ids. If we have a match return the response immediately since that is
+        # a very positive match!
+        response = { confidence: 'None', score: 0, notes: [] }
+        response = _grants_match?(array: hash.fetch('grant_ids', []), dmp:, response:)
+        scoring << respoonse if response[:confidence] != 'None'
+        next if response[:confidence] != 'None'
 
-      # Only process the following if we had some matching contributors, affiliations or opportuniy nbrs
-      response = _repository_match?(array: hash['repositories'], response:) if response[:score].positive?
-      response = _keyword_match?(array: hash['keywords'], response:) if response[:score].positive?
-      response = _text_match?(type: 'title', text: hash['title'], response:) if response[:score].positive?
-      response = _text_match?(type: 'abstract', text: hash['abstract'], response:) if response[:score].positive?
-      # If the score is less than 3 then we have no confidence that it is a match
-      return response if response[:score] <= 2
+        # Compare the people involved, their affiliations and any funding opportunity numbers
+        response = _opportunities_match?(array: hash.fetch('funder_opportunity_ids', []), dmp:, response:)
+        response = _orcids_match?(array: hash.fetch('people_ids', []), dmp:, response:)
+        response = _last_name_and_affiliation_match?(hash:, dmp:, response:)
 
-      # Set the confidence level based on the score
-      response[:confidence] = if response[:score] > 10
-                                'High'
-                              else
-                                (response[:score] > 5 ? 'Medium' : 'Low')
-                              end
-      response
+        # Only process the following if we had some matching people, affiliations or opportunity nbrs
+        response = _repository_match?(hash:, dmp:, response:) if response[:score].positive?
+        response = _text_match?(type: 'title', text: hash['title'], dmp:, response:) if response[:score].positive?
+        response = _text_match?(type: 'abstract', text: hash['description'], dmp:, response:) if response[:score].positive?
+        # If the score is less than 3 then we have no confidence that it is a match
+        next if response[:score] <= 2
+
+        # Set the confidence level based on the score
+        response[:dmp_id] = entry['_id']
+        response[:confidence] = if response[:score] > 10
+                                  'High'
+                                else
+                                  (response[:score] > 5 ? 'Medium' : 'Low')
+                                end
+        @logger&.debug(message: "Found a match!", details: { dmp: dmp, analysis: response })
+        scoring << response
+      end
+
+      # TODO: introduce a tie-breaker here (maybe the closes to the project_end date)
+      scoring.compact.sort { |a, b| b[:score] <=> a[:score] }&.first
     end
     # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
     private
-
-    # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
-    # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
-    def _extract_dmp_details(dmp:)
-      return nil unless dmp.is_a?(Hash) && !dmp['title'].nil? && !dmp['contact'].nil?
-
-      projects = dmp.fetch('project', [{}])
-      fundings = projects.map { |proj| proj.fetch('funding', []) }.flatten.compact.uniq
-      hosts = dmp.fetch('dataset', []).map { |dset| dset.fetch('distribution', []).map { |d| d['host'] } }
-      people = [dmp['contact']]
-      people << dmp.fetch('contributor', [])
-
-      # Extract all of the important bits about the DMP
-      @details_hash = {
-        created: dmp.fetch('created', Time.now.iso8601),
-        title: _cleanse_text(text: projects&.first&.fetch('title', dmp['title'])),
-        abstract: _cleanse_text(text: projects&.first&.fetch('description', dmp['description'])),
-        keywords: dmp.fetch('dataset', []).map { |ds| ds.fetch('keyword', []) }.flatten.compact.uniq,
-        identifiers: [dmp.fetch('dmp_id', {})['identifier']],
-        last_names: [],
-        orcids: [],
-        affiliation_ids: [],
-        affiliations: [],
-        funder_names: [],
-        funder_ids: [],
-        opportunity_ids: [],
-        grant_ids: [],
-        repositories: []
-      }
-      _extract_people(array: people&.flatten&.compact&.uniq)
-      _extract_funding(array: fundings)
-      _extract_repositories(repos: hosts.flatten.compact.uniq)
-
-      # Clean up the results by flattening and removing duplicates from the Arrays
-      @details_hash.each_key do |key|
-        @details_hash[key] = @details_hash[key].flatten.compact.uniq if @details_hash[key].is_a?(Array)
-      end
-      @logger&.debug(message: 'Extracted the following from the DMP', details: @details_hash)
-    end
-    # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
-    # rubocop:enable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
-
-    # Extract all of the funding information
-    # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
-    def _extract_funding(array:)
-      return [] unless array.is_a?(Array)
-
-      array.each do |funding|
-        next unless funding.is_a?(Hash)
-
-        funder_id = funding.fetch('funder_id', {})
-        ror = funder_id['identifier'] if funder_id['type']&.downcase&.strip == 'ror'
-        fundref = ror.nil? ? funder_id['identifier']&.downcase&.strip : ROR_FUNDREF_ID_CROSSWALK[:"#{ror}"]
-        opportunity = funding.fetch('dmproadmap_funding_opportunity_id', {})['identifier']
-        grant = funding.fetch('grant_id', {})['identifier']
-
-        @details_hash[:identifiers] << ror&.downcase&.strip
-        @details_hash[:identifiers] << fundref&.downcase&.strip
-        @details_hash[:identifiers] << grant&.downcase&.strip
-        @details_hash[:identifiers] << grant&.split('/')&.last&.downcase&.strip
-        @details_hash[:identifiers] << opportunity&.downcase&.strip
-
-        @details_hash[:funder_names] << funding['name']&.downcase&.split(' (').first&.strip
-        @details_hash[:funder_ids] << fundref
-        @details_hash[:opportunity_ids] << opportunity&.downcase&.strip
-        @details_hash[:grant_ids] << [grant&.downcase&.strip, grant&.split('/')&.last&.downcase&.strip]
-      end
-      array
-    end
-    # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
-
-    # Extract all of the ORCIDs, last names, and affiliation ids and names
-    # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
-    def _extract_people(array:)
-      return [] unless array.is_a?(Array)
-
-      array.each do |entry|
-        next unless entry.is_a?(Hash)
-
-        id = entry.fetch('contributor_id', entry.fetch('contact_id', {}))['identifier']&.downcase&.strip
-        affil = entry.fetch('dmproadmap_affiliation', {})
-        ror = affil.fetch('affiliation_id', {})['identifier']&.downcase&.strip
-        name = entry.fetch('name', '')&.downcase&.strip
-        last_name = name.include?(', ') ? name.split(', ').first : name.split.last
-
-        @details_hash[:orcids] << id unless id.nil?
-        @details_hash[:identifiers] << [id, ror&.downcase&.strip]
-        @details_hash[:last_names] << last_name
-        @details_hash[:affiliation_ids] << ror
-        @details_hash[:affiliations] << affil.fetch('name', '')&.split(' (')&.first&.downcase&.strip
-      end
-      array
-    end
-    # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
-
-    # Extract all of the re3data ids, URLs and names
-    # rubocop:disable Metrics/AbcSize
-    def _extract_repositories(repos:)
-      return [] unless repos.is_a?(Array)
-
-      repos.each do |repo|
-        next unless repo.is_a?(Hash)
-
-        @details_hash[:identifiers] << [
-          repo['url']&.downcase&.strip, repo.fetch('dmproadmap_host_id', {})['identifier']&.downcase&.strip
-        ]
-        @details_hash[:repositories] << repo.fetch('name', '')&.downcase&.strip
-      end
-      repos
-    end
-    # rubocop:enable Metrics/AbcSize
 
     # Returns whether or not the incoming grant id(s) match the DMPs grant id. Expecting:
     #    [
     #      { id: "https://doi.org/crossref123", name: "Bar", grant: ["1234", "http://foo.bar/543"] }
     #    ]
     # rubocop:disable Metrics/AbcSize
-    def _grants_match?(array:, response:)
-      return response unless array.is_a?(Array) && response.is_a?(Hash)
+    def _grants_match?(array:, dmp:, response:)
+      return response unless array.is_a?(Array) && dmp.is_a?(Hash) && response.is_a?(Hash)
+      return response unless dmp['grant_ids'].is_a?(Array) && !dmp['grant_ids'].empty?
 
       ids = array.select { |funding| funding.is_a?(Hash) && funding['grant'].is_a?(Array) }
                  .map { |funding| funding['grant'].map { |id| id&.downcase&.strip } }
                  .flatten.compact.uniq
 
-      matched = _compare_arrays(array_a: @details_hash.fetch(:grant_ids, []), array_b: ids)
+      matched = _compare_arrays(array_a: dmp['grant_ids'], array_b: ids)
       return response if matched <= 0
 
       response[:confidence] = 'Absolute'
@@ -220,14 +124,15 @@ module Uc3DmpId
     #      { id: "https://doi.org/crossref123", name: "Bar", grant: ["1234", "http://foo.bar/543"] }
     #    ]
     # rubocop:disable Metrics/AbcSize
-    def _opportunities_match?(array:, response:)
-      return response unless array.is_a?(Array) && response.is_a?(Hash)
+    def _opportunities_match?(array:, dmp:, response:)
+      return response unless array.is_a?(Array) && dmp.is_a?(Hash) && response.is_a?(Hash)
+      return response unless dmp['funder_opportunity_ids'].is_a?(Array) && !dmp['funder_opportunity_ids'].empty?
 
       ids = array.select { |funding| funding.is_a?(Hash) && funding['grant'].is_a?(Array) }
                  .map { |funding| funding['grant'].map { |id| id&.downcase&.strip } }
                  .flatten.compact.uniq
 
-      matched = _compare_arrays(array_a: @details_hash.fetch(:opportunity_ids, []), array_b: ids)
+      matched = _compare_arrays(array_a: dmp['funder_opportunity_ids'], array_b: ids)
       return response if matched <= 0
 
       response[:score] += 5
@@ -245,14 +150,15 @@ module Uc3DmpId
     #      }
     #    ]
     # rubocop:disable Metrics/AbcSize
-    def _orcids_match?(array:, response:)
-      return response unless array.is_a?(Array) && response.is_a?(Hash)
+    def _orcids_match?(array:, dmp:, response:)
+      return response unless array.is_a?(Array) && dmp.is_a?(Hash) && response.is_a?(Hash)
+      return response unless dmp['people_ids'].is_a?(Array) && !dmp['people_ids'].empty?
 
       ids = array.select { |repo| repo.is_a?(Hash) }
                  .map { |person| person['id']&.downcase&.strip }
                  .flatten.compact.uniq
 
-      matched = _compare_arrays(array_a: @details_hash.fetch(:identifiers, []), array_b: ids)
+      matched = _compare_arrays(array_a: dmp['people_ids'], array_b: ids)
       return response if matched <= 0
 
       response[:score] += (matched * 2)
@@ -262,28 +168,21 @@ module Uc3DmpId
     # rubocop:enable Metrics/AbcSize
 
     # Returns whether or not the inciming list of creators/contributors match those on the DMP. Expecting:
-    #   [
-    #      {
-    #        id: "https://orcid.org/blah",
-    #        last_name: "doe",
-    #        affiliation: { id: "https://ror.org/blah", name: "Foo" }
-    #      }
-    #    ]
+    #   {
+    #     people: ["john doe", "jdoe@example.com"],
+    #     affiliations: ["example college"],
+    #     affiliation_ids: ["https://ror.org/blah"]
+    #   }
     # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
-    def _last_name_and_affiliation_match?(array:, response:)
-      return response unless array.is_a?(Array) && response.is_a?(Hash)
-
-      array = array.select { |repo| repo.is_a?(Hash) }
-      affiliations = array.map { |person| person['affiliation'] }&.flatten&.compact&.uniq
-      last_names = array.map { |person| person['last_name']&.downcase&.strip }&.flatten&.compact&.uniq
-      rors = affiliations.map { |affil| affil['id']&.downcase&.strip }&.flatten&.compact&.uniq
-      affil_names = affiliations.map { |affil| affil['name']&.downcase&.strip }&.flatten&.compact&.uniq
+    def _last_name_and_affiliation_match?(hash:, dmp:, response:)
+      return response unless hash.is_a?(Hash) && dmp.is_a?(Hash) && response.is_a?(Hash)
+      return response unless hash['people'].is_a?(Array)
 
       # Check the person last names and affiliation name and RORs
-      last_names_matched = _compare_arrays(array_a: @details_hash.fetch(:last_names, []), array_b: last_names)
-      rors_matched = _compare_arrays(array_a: @details_hash.fetch(:affiliation_ids, []), array_b: rors)
-      affil_names_matched = _compare_arrays(array_a: @details_hash.fetch(:affiliations, []), array_b: affil_names)
-      return response if last_names_matched <= 0
+      last_names_matched = _compare_arrays(array_a: dmp['people'], array_b: hash['people'])
+      rors_matched = _compare_arrays(array_a: dmp.fetch('affiliation_ids', []), array_b: hash['affiliation_ids'])
+      affil_names_matched = _compare_arrays(array_a: dmp.fetch('affiliations', []), array_b: hash['affiliations'])
+      return response if last_names_matched <= 0 && rors_matched <= 0 && affil_names_matched <= 0
 
       response[:score] += last_names_matched + rors_matched + affil_names_matched
       response[:notes] << 'contributor names and affiliations matched'
@@ -292,19 +191,16 @@ module Uc3DmpId
     # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
     # Returns whether or not the incoming list of repositories match those defined in the DMP. Expecting:
-    #    [
-    #      { id: ["http://some.repo.org", "https://doi.org/re3data123"], name: "Repo" }
-    #    ]
+    #    {
+    #      repo_ids: ["http://some.repo.org", "https://doi.org/re3data123"],
+    #      repos: ["repo"]
+    #    }
     # rubocop:disable Metrics/AbcSize
-    def _repository_match?(array:, response:)
-      return response unless array.is_a?(Array) && response.is_a?(Hash)
+    def _repository_match?(hash:, dmp:, response:)
+      return response unless hash.is_a?(Hash) && dmp.is_a?(Hash) && response.is_a?(Hash)
+      return response unless hash['repo_ids'].is_a?(Array)
 
-      # We only care about repositories with ids/urls
-      ids = array.select { |repo| repo.is_a?(Hash) }
-                 .map { |repo| repo['id'].map { |id| id&.downcase&.strip } }
-                 .flatten.compact.uniq
-
-      matched = _compare_arrays(array_a: @details_hash.fetch(:identifiers, []), array_b: ids)
+      matched = _compare_arrays(array_a: dmp['repo_ids'], array_b: hash['repo_ids'])
       return response if matched <= 0
 
       response[:score] += matched
@@ -313,35 +209,21 @@ module Uc3DmpId
     end
     # rubocop:enable Metrics/AbcSize
 
-    # Returns whether or not the list of keywords exist in the DMP. Expecting:
-    #     keywords: ["foo", "bar"]
-    def _keyword_match?(array:, response:)
-      return response unless array.is_a?(Array) && response.is_a?(Hash)
-
-      keywords = array.map { |word| word&.downcase&.strip }&.flatten&.compact&.uniq
-      matched = _compare_arrays(array_a: @details_hash.fetch(:keywords, []), array_b: keywords)
-      return response if matched <= 0
-
-      response[:score] += 1
-      response[:notes] << 'keywords matched'
-      response
-    end
-
     # Uses an NLP library to determine if the :text matches the DMP/Project :title or :description
     # rubocop:disable Metrics/AbcSize
-    def _text_match?(text:, response:, type: 'title')
-      return response unless response.is_a?(Hash) && text.is_a?(String) && !text.strip.empty? &&
-                             !@details_hash[type.to_sym].nil?
+    def _text_match?(text:, dmp:, response:, type: 'title')
+      return response unless response.is_a?(Hash) && text.is_a?(String) && !text.strip.empty? && dmp.is_a?(Hash)
 
       nlp_processor = Text::WhiteSimilarity.new
       cleansed = _cleanse_text(text:)
 
+      dmp_val = type == 'title' ? dmp['title'] : dmp['description']
       details = {
-        "dmp_#{type}": @details_hash[type.to_sym],
+        "dmp_#{type}": dmp_val,
         "incoming_#{type}": cleansed,
-        nlp_score: nlp_processor.similarity(@details_hash[type.to_sym], cleansed)
+        nlp_score: nlp_processor.similarity(dmp_val, cleansed)
       }
-      @logger&.debug(message: 'Text::WhiteSimilarity score', details:)
+      # @logger&.debug(message: 'Text::WhiteSimilarity score', details:)
       return response if details[:nlp_score] < 0.5
 
       response[:score] += details[:nlp_score] >= 0.75 ? 5 : 2
