@@ -1,9 +1,9 @@
 template:
-  path: 'ecs.yaml'
+  path: 'ecs-backend.yaml'
   type: 'file'
 
 dependencies:
-  - dev/global/dmsp-rails-route53.yaml
+  - dev/global/dmsp-backend-route53.yaml
 
 parameters:
   VpcId: !stack_attr sceptre_user_data.vpc_id
@@ -13,6 +13,8 @@ parameters:
   Env: !stack_attr sceptre_user_data.env
 
   AppName: 'DMSP-backend-dev'
+
+  SessionSecret: !ssm_parameter /uc3/dmp/prototype/dev/SessionSecret
 
   EcrRepositoryUri: !stack_output dev/regional/ecr.yaml::EcrRepositoryUri
 

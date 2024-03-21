@@ -17,6 +17,9 @@ Parameters:
   AppName:
     Type: 'String'
 
+  SessionSecret:
+    Type: 'String'
+
   EcsDesiredServiceCount:
     Type: 'Number'
     Default: 1
@@ -102,8 +105,8 @@ Resources:
       - EcsSecurityGroup
     Properties:
       IpProtocol: 'tcp'
-      FromPort: 3000
-      ToPort: 3000
+      FromPort: 4000
+      ToPort: 4000
       GroupId: !GetAtt EcsSecurityGroup.GroupId
       SourceSecurityGroupId: !Ref AlbSecurityGroupId
 
@@ -141,11 +144,11 @@ Resources:
       ContainerDefinitions:
         -
           Image: !Ref EcrRepositoryUri
-          Cpu: 2
+          # Cpu: 2
           DisableNetworking: false
           Essential: true
           Interactive: true
-          Memory: 2000
+          # Memory: 2000
           Name: !Ref AppName
           StartTimeout: 30
           StopTimeout: 30
@@ -170,6 +173,8 @@ Resources:
             - ContainerPort: 4000
               Protocol: 'tcp'
           Environment:
+            - Name: 'SESSION_SECRET'
+              Value: !Ref SessionSecret
             - Name: 'DMSP_TABLE'
               Value: !Ref DynamoTableName
             - Name: 'HELPDESK_EMAIL'
@@ -184,10 +189,13 @@ Resources:
       Cluster: !Ref EcsCluster
       DesiredCount: !Ref EcsDesiredServiceCount
       EnableECSManagedTags: true
-      HealthCheckGracePeriodSeconds: 180
+      HealthCheckGracePeriodSeconds: 30 # 180
       LaunchType: 'FARGATE'
       DeploymentConfiguration:
-        MinimumHealthPercent: 100
+        MinimumHealthPercent: !If
+          - IsDev
+          - !Ref AWS::NoValue
+          - 100
         MaximumPercent: 200
         DeploymentCircuitBreaker:
           Enable: true
