@@ -46,7 +46,7 @@ module Functions
                                                                       (pi_names.nil? || pi_names.empty?) &&
                                                                       (years.nil? || years.empty?)
 
-      url = API_BASE_URL.gsub('.json', "/#{project_num}.json") unless project_num.nil? || project_num.empty?
+      url = API_BASE_URL.gsub('.json', "/#{project_num}.json?#{_print_fields}") unless project_num.nil? || project_num.empty?
       url = "#{API_BASE_URL}?#{_prepare_query_string(pi_names:, title:, years:)}" if url.nil?
 
       logger.info(message: "Calling NSF Api: #{url}") if logger.respond_to?(:debug)
@@ -104,10 +104,14 @@ module Functions
         end_date = "12/31/#{years.last}"
         qs << _sanitize_params(str: 'dateStart=:start', params: { start: start_date }) unless years.first.nil?
         qs << _sanitize_params(str: 'dateEnd=:end', params: { end: end_date }) unless years.last.nil?
-        qs << 'printFields=id,pdPIName,piEmail,title,awardee,ueiNumber,startDate,expDate,abstractText,fundsObligatedAmt'
+        qs << _print_fields
         qs.join('&')
       end
       # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+
+      def _print_fields
+        'printFields=id,pdPIName,piEmail,title,awardee,ueiNumber,startDate,expDate,abstractText,fundsObligatedAmt'
+      end
 
       # Transform the NSF API results into our common funder API response
       #
