@@ -145,9 +145,6 @@ if ARGV.length >= 3
 
   @stack_exports = fetch_cf_stack_exports
 
-pp @stack_exports
-
-
   if @run_build || @run_deploy
     @ssm_client = Aws::SSM::Client.new(region: DEFAULT_REGION)
 
