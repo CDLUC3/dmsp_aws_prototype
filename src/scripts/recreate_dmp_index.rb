@@ -47,7 +47,7 @@ if ARGV.length >= 2
     # Update an internal field that will trigger the dynamo stream update without altering any of the
     # true DMP-ID fields
     dmp['dmphub_forced_index_recreation_date'] = Time.now.strftime('%Y-%m-%dT%H:%M')
-    # dmp['registered'] = dmp['created']
+    dmp['registered'] = dmp['created']
     dynamo.put_item({
       table_name: table,
       item: dmp

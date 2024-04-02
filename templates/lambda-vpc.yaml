@@ -6,6 +6,8 @@ Description: 'VPC Security Group resources used by the Lambdas managed via AWS S
 #       these ENIs is slow (in excess of 45 minutes), so be patient when trying to delete the this stack or any
 #       of the associated Lambda's stacks! See: https://stackoverflow.com/questions/47957820/lambda-in-vpc-deletion-takes-more-time
 
+# This only needs to be run ONCE per account, so in the stg/prd environment only run it for stg!
+
 Parameters:
   Env:
     Type: 'String'
@@ -59,14 +61,14 @@ Outputs:
   LambdaSecurityGroupId:
     Value: !GetAtt LambdaSecurityGroup.GroupId
     Export:
-      Name: !Sub '${Env}-LambdaSecurityGroupId'
+      Name: !Sub 'LambdaSecurityGroupId'
 
   EventBridgeVpcEndpointSecurityGroupId:
     Value: !GetAtt EventBridgeVpcEndpointSecurityGroup.GroupId
     Export:
-      Name: !Sub '${Env}-EventBridgeVpcEndpointSecurityGroupId'
+      Name: !Sub 'EventBridgeVpcEndpointSecurityGroupId'
 
   EventBridgeVpcEndpointId:
     Value: !Ref EventBridgeVpcEndpoint
     Export:
-      Name: !Sub '${Env}-EventBridgeVpcEndpointId'
+      Name: !Sub 'EventBridgeVpcEndpointId'

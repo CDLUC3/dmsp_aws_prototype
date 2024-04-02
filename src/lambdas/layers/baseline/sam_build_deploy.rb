@@ -59,8 +59,9 @@ if ARGV.length >= 3
 
   # List any Lambdas that use this Layer so they are auto rebuilt/deployed or deleted after this Lambda is
   @dependent_lambdas = [
+    '../../harvesters/harvestable_dmps',
     '../../harvesters/datacite',
-    '../../harvesters/ror',
+    # '../../harvesters/ror',
     '../../indexers/dmp' #,
     # '../../indexers/typeahead',
     # '../../../sam'

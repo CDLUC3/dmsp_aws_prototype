@@ -91,8 +91,9 @@ if ARGV.length >= 3
   # Search the stack outputs for the name
   def fetch_cf_output(name:)
     vals = @stack_exports.select do |exp|
-      (exp.exporting_stack_id.include?(@prefix) || exp.exporting_stack_id.include?("#{@program}-#{@env}") ) &&
-      exp.name.downcase.strip == "#{@env}-#{name&.downcase&.strip}"
+      (name&.downcase&.strip == 'lambdasecuritygroupid' && exp.name.downcase.strip == 'lambdasecuritygroupid') ||
+      ((exp.exporting_stack_id.include?(@prefix) || exp.exporting_stack_id.include?("#{@program}-#{@env}") ) &&
+        "#{@env}-#{name&.downcase&.strip}" == exp.name.downcase.strip)
     end
     vals&.first&.value
   end
@@ -143,6 +144,9 @@ if ARGV.length >= 3
   @stack_name = "#{@prefix}-#{@function_name}"
 
   @stack_exports = fetch_cf_stack_exports
+
+pp @stack_exports
+
 
   if @run_build || @run_deploy
     @ssm_client = Aws::SSM::Client.new(region: DEFAULT_REGION)
