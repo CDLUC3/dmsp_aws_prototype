@@ -8,6 +8,11 @@ sceptre_user_data:
     - !stack_output_external cdl-uc3-prd-defaultsubnet-stack::defaultsubnet2b
     - !stack_output_external cdl-uc3-prd-defaultsubnet-stack::defaultsubnet2c
 
+  # We sometimes need to access the subnets individually
+  public_subnet_a: !stack_output_external cdl-uc3-prd-defaultsubnet-stack::defaultsubnet2a
+  public_subnet_b: !stack_output_external cdl-uc3-prd-defaultsubnet-stack::defaultsubnet2b
+  public_subnet_c: !stack_output_external cdl-uc3-prd-defaultsubnet-stack::defaultsubnet2c
+
   hosted_zone: !stack_output_external uc3-ops-aws-prd-route53::HostedZoneIdUc3StgCdlibNet
 
   env: 'stg'

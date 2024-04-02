@@ -19,3 +19,6 @@ src/sam/gems/**/.rspec_status
 # Ignore downloaded content from the scripts folder
 src/scripts/*.gz
 src/scripts/*.csv
+
+# Ignore AWS SAM build artifacts
+src/lambdas/**/.aws-sam/

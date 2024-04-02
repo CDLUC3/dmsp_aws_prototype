@@ -206,6 +206,7 @@ module Uc3DmpId
         annotated['dmphub_modification_day'] = Time.now.utc.strftime('%Y-%m-%d')
         annotated['dmphub_owner_id'] = owner_id unless owner_id.nil?
         annotated['dmphub_owner_org'] = owner_org unless owner_org.nil?
+        annotated['registered'] = annotated['modified'] if annotated['registered'].nil?
         return annotated unless json['dmphub_provenance_id'].nil?
 
         annotated['dmphub_provenance_id'] = provenance.fetch('PK', '')
