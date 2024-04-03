@@ -190,39 +190,6 @@ Resources:
       UserPoolId: !Ref UserPool
 
   # --------------------------------------------------------------
-  # Cognito Identity Pool
-  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-cognito-identitypool.html#aws-resource-cognito-identitypool
-  # --------------------------------------------------------------
-  IdentityPool:
-    Type: 'AWS::Cognito::IdentityPool'
-    DeletionPolicy: 'Retain'
-    Properties:
-      IdentityPoolName: !Sub "${AWS::StackName}-identity-pool"
-      AllowUnauthenticatedIdentities: true
-
-  # --------------------------------------------------------------
-  # IAM Roles for Cognito Identities
-  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-iam-role.html
-  # --------------------------------------------------------------
-  # Role given to OpenSearch so that it can access Cognito
-  OpenSearchCognitoRole:
-    Type: 'AWS::IAM::Role'
-    Properties:
-      RoleName: !Sub 'DmpHub${Env}CognitoAccessForOpenSearch'
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: 'Allow'
-            Principal:
-              Service:
-                - 'es.amazonaws.com'
-            Action:
-              - 'sts:AssumeRole'
-      Path: '/'
-      ManagedPolicyArns:
-        - 'arn:aws:iam::aws:policy/AmazonOpenSearchServiceCognitoAccess'
-
-  # --------------------------------------------------------------
   # Cognito UserPool application clients
   #   See:
   # --------------------------------------------------------------
@@ -361,6 +328,7 @@ Outputs:
     Value: !GetAtt UserPool.Arn
     Export:
       Name: !Sub '${Env}-CognitoUserPoolArn'
+<<<<<<< HEAD
 
   DmspUserPoolClientId:
     Value: !Ref DmspUserPoolClient
@@ -370,3 +338,5 @@ Outputs:
 
   # DmspUserPoolclientUrl:
   #   Value: !Sub 'https://${Subdomain}.${Domain}.${AWS::Region}.amazoncognito.com/login?response_type=code&client_id=${DmspUserPoolClient}&redirect_uri=${DmspUiRedirectUrl}'
+=======
+>>>>>>> main

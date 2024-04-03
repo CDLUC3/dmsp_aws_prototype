@@ -22,3 +22,6 @@ src/lambdas/layers/**/ruby
 # Ignore downloaded content from the scripts folder
 src/scripts/*.gz
 src/scripts/*.csv
+
+# Ignore AWS SAM build artifacts
+src/lambdas/**/.aws-sam/

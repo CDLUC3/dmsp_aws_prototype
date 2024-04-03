@@ -12,16 +12,3 @@ parameters:
   DmpTableArn: !stack_output dev/regional/dynamo.yaml::DynamoTableArn
 
   TypeaheadTableArn: !stack_output dev/regional/dynamo.yaml::TypeaheadTableArn
-
-hooks:
-  after_create:
-    # Create the dependent Lambdas (note the Layer script will also create dependent Lambdas)
-    - !cmd 'cd ./src/lambdas/layers/baseline && ruby sam_build_deploy.rb dev true true debug'
-
-  after_update:
-    # Update the dependent Lambdas (note the Layer script will also rebuild dependent Lambdas)
-    - !cmd 'cd ./src/lambdas/layers/baseline && ruby sam_build_deploy.rb dev true true debug'
-
-  before_delete:
-    # Delete any dependent Lambdas (note the Layer script will also delete dependent Lambdas)
-    - !cmd 'cd ./src/lambdas/layers/baseline && ruby sam_build_deploy.rb dev false false'

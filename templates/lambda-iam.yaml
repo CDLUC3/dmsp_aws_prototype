@@ -155,6 +155,7 @@ Resources:
         - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
         - !Ref DynamoStreamPolicy
         - !Ref OpenSearchPolicy
+        - !Ref EventBusPutEventPolicy
         - !Ref VpcPolicy
 
   RdsUpdaterRole:

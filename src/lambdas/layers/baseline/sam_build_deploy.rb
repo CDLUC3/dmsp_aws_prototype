@@ -58,7 +58,14 @@ if ARGV.length >= 3
   @ssm_params = %w[]
 
   # List any Lambdas that use this Layer so they are auto rebuilt/deployed or deleted after this Lambda is
-  @dependent_lambdas = ['../../harvesters/ror', '../../indexers/dmp', '../../indexers/typeahead', '../../../sam']
+  @dependent_lambdas = [
+    '../../harvesters/harvestable_dmps',
+    '../../harvesters/datacite',
+    # '../../harvesters/ror',
+    '../../indexers/dmp' #,
+    # '../../indexers/typeahead',
+    # '../../../sam'
+  ]
   #
   # DON'T FORGET TO: Add an entry to the Sceptre config for lambda-iam.yaml and lambda-vpc.yaml for this Layer!
   # ----------------
@@ -176,7 +183,11 @@ if ARGV.length >= 3
 
       # Add the CF Role if this is not development
       if @env != 'dev'
+<<<<<<< HEAD
         cf_roles = stack_exports.select do |export|
+=======
+        cf_roles = @stack_exports.select do |export|
+>>>>>>> main
           export.exporting_stack_id.include?('uc3-ops-aws-prd-iam') && export.name == 'uc3-prd-ops-cfn-service-role'
         end
         args << "--role-arn #{cf_roles.first&.value}"

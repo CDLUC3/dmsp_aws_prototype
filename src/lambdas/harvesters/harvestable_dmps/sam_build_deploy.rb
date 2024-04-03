@@ -36,7 +36,7 @@ if ARGV.length >= 3
   # UPDATE ME!
   #
   # IF YOU ARE COPY/PASTING this script into a new folder you will likely only need to update this section
-  @function_name = 'DmpIndexer'
+  @function_name = 'HarvestableDmps'
 
   # If :use_docker is true, your AWS SAM template must have a `Metadata` section and the dir should have a
   # Dockerfile. This will cause SAM to build and deploy the image to our ECR. If set to false, the directory
@@ -51,7 +51,7 @@ if ARGV.length >= 3
   # outputs. The env prefix will be appended to each name your provide.
   #    For example if the name of the parameter is 'DomainName' this script will look for 'dev-DomainName'
   @cf_params = %w[IndexerRoleArn S3PrivateBucketId LambdaSecurityGroupId OpenSearchSecurityGroupId
-                  OpenSearchDomainEndpoint BaselineLayerId DynamoTableStreamArn DeadLetterQueueArn]
+                  OpenSearchDomainEndpoint BaselineLayerId EventBusArn DeadLetterQueueArn]
 
   # List the names of all other parameters whose values should be available as SSM parameters. The name must
   # match the final part of the SSM key name. This script will append the prefix automatically.
@@ -91,14 +91,9 @@ if ARGV.length >= 3
   # Search the stack outputs for the name
   def fetch_cf_output(name:)
     vals = @stack_exports.select do |exp|
-<<<<<<< HEAD
-      (exp.exporting_stack_id.include?(@prefix) || exp.exporting_stack_id.include?("#{@program}-#{@env}") ) &&
-      exp.name.downcase.strip == "#{@env}-#{name&.downcase&.strip}"
-=======
       (name&.downcase&.strip == 'lambdasecuritygroupid' && exp.name.downcase.strip == 'lambdasecuritygroupid') ||
       ((exp.exporting_stack_id.include?(@prefix) || exp.exporting_stack_id.include?("#{@program}-#{@env}") ) &&
         "#{@env}-#{name&.downcase&.strip}" == exp.name.downcase.strip)
->>>>>>> main
     end
     vals&.first&.value
   end
@@ -150,12 +145,14 @@ if ARGV.length >= 3
 
   @stack_exports = fetch_cf_stack_exports
 
-<<<<<<< HEAD
-=======
-pp @stack_exports
+  # Add the CF Role if this is not development
+  if @env != 'dev'
+    cf_roles = @stack_exports.select do |export|
+      export.exporting_stack_id.include?('uc3-ops-aws-prd-iam') && export.name == 'uc3-prd-ops-cfn-service-role'
+    end
+    @assumed_role = "--role-arn #{cf_roles.first&.value}"
+  end
 
-
->>>>>>> main
   if @run_build || @run_deploy
     @ssm_client = Aws::SSM::Client.new(region: DEFAULT_REGION)
 
@@ -184,18 +181,7 @@ pp @stack_exports
         '--disable-rollback false',
         "--tags #{sam_tags}"
       ]
-
-      # Add the CF Role if this is not development
-      if @env != 'dev'
-<<<<<<< HEAD
-        cf_roles = stack_exports.select do |export|
-=======
-        cf_roles = @stack_exports.select do |export|
->>>>>>> main
-          export.exporting_stack_id.include?('uc3-ops-aws-prd-iam') && export.name == 'uc3-prd-ops-cfn-service-role'
-        end
-        args << "--role-arn #{cf_roles.first&.value}"
-      end
+      args << @assumed_role unless @assumed_role.nil?
 
       # Add the S3 or ECR details depending on what we're working with
       if @use_docker
@@ -217,6 +203,7 @@ pp @stack_exports
 
   else
     args = ["--stack-name #{@stack_name}"]
+    args << '--profile prd-cfn-role' unless @assumed_role.nil?
 
     puts "NOTE: This Lambda is deployed within the VPC. It can take in excess of 45 minutes for the associated ENIs to be deleted!"
     puts "Deleting SAM CloudFormation stack #{@stack_name} ..."

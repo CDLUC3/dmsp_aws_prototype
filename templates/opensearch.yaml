@@ -36,12 +36,6 @@ Parameters:
   SsmPath:
     Type: 'String'
 
-  OSLogsDomainId:
-    Type: 'String'
-
-  OSLogsDomainEndpoint:
-    Type: 'String'
-
   LogRetentionDays:
     Type: 'Number'
     Default: 14
@@ -53,25 +47,11 @@ Conditions:
 Resources:
   # ----------------------------------------------
   # SSM Parameter Store
+  #
+  # Adding a few here so that they can be pulled in to SAM build/deploy
+  #
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-ssm-parameter.html
   # ----------------------------------------------
-  OSLogsDomainIdParameter:
-    Type: 'AWS::SSM::Parameter'
-    Properties:
-      Description: !Sub "${AWS::StackName} OpenSearch Domain Id"
-      Name: !Sub "${SsmPath}OSLogsDomainId"
-      Type: 'String'
-      Value: !Sub "https://${OSLogsDomainId}"
-
-  OSLogsDomainEndpointParameter:
-    Type: 'AWS::SSM::Parameter'
-    Properties:
-      Description: !Sub "${AWS::StackName} OpenSearch Domain URL"
-      Name: !Sub "${SsmPath}OSLogsDomainEndpoint"
-      Type: 'String'
-      Value: !Sub "https://${OSLogsDomainEndpoint}"
-
-  # Adding a few here so that they can be pulled in to SAM build/deploy
   DomainNameParameter:
     Type: 'AWS::SSM::Parameter'
     Properties:

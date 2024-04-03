@@ -106,9 +106,14 @@ module Functions
 
         logger&.info(message: "Processed #{record_count} records.")
         "Processed #{record_count} records."
+      rescue Net::OpenTimeout => e
+        puts "ERROR: Unable to establish a connection to OpenSearch! #{e.message}"
+        Uc3DmpApiCore::Notifier.notify_administrator(source: SOURCE, details: { message: e.message }, event:)
       rescue StandardError => e
         puts "ERROR: Updating OpenSearch index: #{e.message}"
         puts e.backtrace
+        details = { message: e.message, backtrace: e.backtrace }
+        Uc3DmpApiCore::Notifier.notify_administrator(source: SOURCE, details:, event:)
       end
 
       private
@@ -137,102 +142,71 @@ module Functions
         puts e.backtrace
       end
 
-      # Convert the incoming DynamoStream payload to the OpenSearch index format
-      # Incoming:
-      #   {
-      #     "contact": {
-      #       "M": {
-      #         "name": { "S": "Riley, Brian" },
-      #         "contact_id": {
-      #           "M": {
-      #             "identifier": { "S": "https://orcid.org/0000-0001-0001-0001" },
-      #             "type": { "S": "orcid" }
-      #           }
-      #         }
-      #       }
-      #     },
-      #     "SK": { "S": "VERSION#latest" },
-      #     "description": { "S": "Update 4" },
-      #     "PK": { "S": "DMP#stream_test_1" },
-      #     "title": { "S": "Stream test 1" }
-      #   }
-      #
-      # Index Doc:
-      #   {
-      #     "dmp_id": "stream_test_1",
-      #     "title": "Stream test 1",
-      #     "description": "Update 4",
-      #     "contact_id": "https://orcid.org/0000-0001-0001-0001"
-      #     "contact_name": "Riley"
-      #   }
-      def dmp_to_os_doc(hash:)
-        parts = { people: [], people_ids: [], affiliations: [], affiliation_ids: [] }
-        parts = parts_from_dmp(parts_hash: parts, hash:)
-        parts.merge({
-          dmp_id: Uc3DmpId::Helper.pk_to_dmp_id(p_key: hash.fetch('PK', {})['S'])['identifier'],
-          title: hash.fetch('title', {})['S']&.downcase,
-          description: hash.fetch('description', {})['S']&.downcase
-        })
-      end
-
-      # Convert the contact section of the Dynamo record to an OpenSearch Document
-      def parts_from_dmp(parts_hash:, hash:)
-        contributors = hash.fetch('contributor', []).map { |c| c.fetch('M', {})}
-
-        # Process the contact
-        parts_hash = parts_from_person(parts_hash:, hash: hash.fetch('contact', {}).fetch('M', {}))
-        # Process each contributor
-        hash.fetch('contributor', []).map { |c| c.fetch('M', {})}.each do |contributor|
-          parts_hash = parts_from_person(parts_hash:, hash: contributor)
-        end
-
-        # Deduplicate and remove nils and convert to lower case
-        parts_hash&.each_key { |key| parts_hash[key] = parts_hash[key].compact.uniq.map(&:downcase) }
-        parts_hash
-      end
-
-      # Convert the person metadata for OpenSearch
-      def parts_from_person(parts_hash:, hash:)
-        return parts_hash unless hash.is_a?(Hash) && hash.keys.any?
-
-        id = hash.fetch('contact_id', hash.fetch('contributor_id', {}))['M']
-        a_id = hash.fetch('dmproadmap_affiliation', {})['M']
-
-        parts_hash[:people] << hash.fetch('name', {})['S']
-        parts_hash[:people] << hash.fetch('mbox', {})['S']
-        parts_hash[:affiliations] << affil.fetch('name', {})['S']
-
-        parts_hash[:people_ids] << id.fetch('identifier', {})['S']
-        parts_hash[:affiliation_ids] << a_id.fetch('affiliation_id', {}).fetch('M', {}).fetch('identifier', {})['S']
-        parts_hash
-      end
-
       # Extract all of the important information from the DMP to create our OpenSearch Doc
       def _dmp_to_os_doc(hash:, logger:)
         people = _extract_people(hash:, logger:)
         pk = Uc3DmpId::Helper.remove_pk_prefix(p_key: hash.fetch('PK', {})['S'])
         visibility = hash.fetch('dmproadmap_privacy', {})['S']&.downcase&.strip == 'public' ? 'public' : 'private'
 
-        doc = people.merge({
-          dmp_id: Uc3DmpId::Helper.format_dmp_id(value: pk, with_protocol: true),
+        project = hash.fetch('project', {}).fetch('L', [{}]).first
+        project = {} if project.nil?
+        # Set the project start date equal to the date specified or the DMP creation date
+        proj_start = project.fetch('start', hash.fetch('created', {}))['S']
+        # Set the project end date equal to the specified end OR 5 years after the start
+        proj_end = project.fetch('end', {})['S']
+        proj_end = (Date.parse(proj_start.to_s) + 1825).to_s if proj_end.nil? && !proj_start.nil?
+
+        funding = project.fetch('funding', {}).fetch('L', [{}]).first.fetch('M', {})
+        doc = people.merge(_extract_funding(hash: funding, logger:))
+        doc = doc.merge(_repos_to_os_doc_parts(datasets: hash.fetch('dataset', {}).fetch('L', [])))
+        doc = doc.merge({
+          dmp_id: Uc3DmpId::Helper.remove_pk_prefix(p_key: pk),
           title: hash.fetch('title', {})['S']&.downcase,
           visibility: visibility,
           featured: hash.fetch('dmproadmap_featured', {})['S']&.downcase&.strip == '1' ? 1 : 0,
-          description: hash.fetch('description', {})['S']&.downcase
+          description: hash.fetch('description', {})['S']&.downcase,
+          project_start: proj_start&.to_s&.split('T')&.first,
+          project_end: proj_end&.to_s&.split('T')&.first,
+          created: hash.fetch('created', {})['S']&.to_s&.split('T')&.first,
+          modified: hash.fetch('modified', {})['S']&.to_s&.split('T')&.first,
+          registered: hash.fetch('registered', {})['S']&.to_s&.split('T')&.first
         })
         logger.debug(message: 'New OpenSearch Document', details: { document: doc }) unless visibility == 'public'
         return doc unless visibility == 'public'
 
         # Attach the narrative PDF if the plan is public
-        pdfs = hash.fetch('dmproadmap_related_identifiers', {}).fetch('L', []).select do |related|
-          related.fetch('M', {}).fetch('descriptor', {})['S']&.downcase&.strip == 'is_metadata_for' &&
-            related.fetch('M', {}).fetch('work_type', {})['S']&.downcase&.strip == 'output_management_plan'
-        end
-        pdf = pdfs.is_a?(Array) ? pdfs.last : pdfs
-
-        doc[:narrative_url] = pdfs.last.fetch('M', {}).fetch('identifier', {})['S'] unless pdf.nil?
+        works = hash.fetch('dmproadmap_related_identifiers', hash.fetch('dmproadmap_related_identifier', {})).fetch('L', [])
+        doc[:narrative_url] = _extract_narrative(works:, logger:)
         logger.debug(message: 'New OpenSearch Document', details: { document: doc })
         doc
+      end
+
+      # Extract the important funding info
+      def _extract_funding(hash:, logger:)
+        return {} unless hash.is_a?(Hash)
+
+        id = hash.fetch('funder_id', {}).fetch('M', {}).fetch('identifier', {})['S']
+        {
+          funder_ids: [id].compact.uniq,
+          funders: [hash.fetch('name', {})['S']&.downcase&.strip].compact.uniq,
+          funder_opportunity_ids: [
+            hash.fetch('dmproadmap_funding_opportunity_id', {})['S']&.downcase&.strip,
+            hash.fetch('dmproadmap_project_number', {})['S']&.downcase&.strip
+          ].compact.uniq,
+          grant_ids: [hash.fetch('grant_id', {}).fetch('M', {}).fetch('identifier', {})['S']].compact.uniq,
+          funding_status: hash.fetch('funding_status', {}).fetch('S', 'planned')
+        }
+      end
+
+      # Extarct the latest link to the narrative PDF
+      def _extract_narrative(works:, logger:)
+        pdfs = works.map { |entry| entry.fetch('M', {}) }.select do |work|
+          work.fetch('descriptor', {})['S'] == 'is_metadata_for' &&
+            work.fetch('work_type', {})['S'] == 'output_management_plan'
+        end
+        return nil if pdfs.empty? || pdfs.first.nil?
+
+        pdfs.last.fetch('identifier', {})['S']
       end
 
       # Extract the important information from each contact and contributor
@@ -264,6 +238,30 @@ module Functions
           parts[:affiliations] << person[:affiliation] unless person[:affiliation].nil?
           parts[:affiliation_ids] << person[:affiliation_id] unless person[:affiliation_id].nil?
         end
+        parts
+      end
+
+      # Retreive all of the repositories defined for the research outputs
+      def _repos_to_os_doc_parts(datasets:)
+        parts = { repos: [], repo_ids: [] }
+        return parts unless datasets.is_a?(Array) && datasets.any?
+
+        outputs = datasets.map { |dataset| dataset.fetch('M', {}) }
+
+        outputs.each do |output|
+          hosts = output.fetch('distribution', {}).fetch('L', []).map { |d| d.fetch('M', {}).fetch('host', {})['M'] }
+          next unless hosts.is_a?(Array) && hosts.any?
+
+          hosts.each do |host|
+            next if host.nil?
+
+            parts[:repos] << host.fetch('title', {})['S']
+            parts[:repo_ids] << host.fetch('url', {})['S']
+            parts[:repo_ids] << host.fetch('dmproadmap_host_id', {}).fetch('M', {}).fetch('identifier', {})['S']
+          end
+        end
+        parts[:repo_ids] = parts[:repo_ids].compact.uniq
+        parts[:repos] = parts[:repos].compact.uniq
         parts
       end
 

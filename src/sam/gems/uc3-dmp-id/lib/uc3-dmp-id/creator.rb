@@ -49,6 +49,9 @@ module Uc3DmpId
         annotated['created'] = now unless seeding
         annotated['modified'] = now unless seeding
 
+        # Make sure we set the registration date. This will change in the new system
+        annotated['registered'] = annotated['created'] if annotated['registered'].nil?
+
         # Create the item
         resp = client.put_item(json: annotated, logger:)
         raise CreatorError, Helper::MSG_DMP_NO_DMP_ID if resp.nil?

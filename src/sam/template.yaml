@@ -20,9 +20,6 @@ Parameters:
     Type: 'String'
     Default: 'dev'
 
-  SsmPath:
-    Type: 'String'
-
   DebugLevel:
     Type: 'String'
     Default: 'error'
@@ -51,6 +48,12 @@ Parameters:
 
   DynamoTableStreamArn:
     Type: 'String'
+
+  # ResourcesDynamoTableArn:
+  #   Type: 'String'
+
+  # ResourcesDynamoTableName:
+  #   Type: 'String'
 
   S3CloudFrontBucketArn:
     Type: 'String'
