@@ -15,12 +15,6 @@ Parameters:
     Type: 'String'
     Default: 'dev'
 
-  CognitoClientId:
-    Type: 'String'
-
-  CognitoClientSecret:
-    Type: 'String'
-
   DbSnapshot:
     Type: 'String'
     Default: 'none'
@@ -102,7 +96,7 @@ Resources:
         !Ref Subnets
 
   # -----------------------------------------------------------
-  # Relational Database Service (RDS) - DB for the Rails application
+  # Relational Database Service (RDS) - DB for the DMPTool Rebuild
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_RDS.html
   # -----------------------------------------------------------
   Database:
@@ -141,24 +135,22 @@ Resources:
   # Secrets Manager
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_SecretsManager.html
   # ----------------------------------------------------------
-  # Rails application (Pulled into the Rails app by an initializer)
-  AppCredentials:
-    Type: 'AWS::SecretsManager::Secret'
-    Properties:
-      Name: !Sub 'dmp-hub-${Env}-rails-app'
-      Description: !Sub '${AWS::StackName} Rails application credentials'
-      GenerateSecretString:
-        ExcludeCharacters: '/@\`|:;"'
-        GenerateStringKey: 'password'
-        SecretStringTemplate: !Sub >
-          {
-            "host": "${Database.Endpoint.Address}",
-            "port": "${Database.Endpoint.Port}",
-            "dbname": "${DbName}",
-            "username": "rails-app",
-            "cognito_client_id": "${CognitoClientId}",
-            "cognito_client_secret": "${CognitoClientSecret}"
-          }
+  # Rails application (Pulled into the Apollo Server app during the CodeBuild step)
+  # AppCredentials:
+  #   Type: 'AWS::SecretsManager::Secret'
+  #   Properties:
+  #     Name: !Sub 'dmp-hub-${Env}-apollo-server-app'
+  #     Description: !Sub '${AWS::StackName} Apollo server application credentials'
+  #     GenerateSecretString:
+  #       ExcludeCharacters: '/@\`|:;"'
+  #       GenerateStringKey: 'password'
+  #       SecretStringTemplate: !Sub >
+  #         {
+  #           "host": "${Database.Endpoint.Address}",
+  #           "port": "${Database.Endpoint.Port}",
+  #           "dbname": "${DbName}",
+  #           "username": "apollo-server-app"
+  #         }
 
   # AppCredentialsRotationSchedule:
   #   Type: 'AWS::SecretsManager::RotationSchedule'
@@ -172,7 +164,7 @@ Resources:
           #   "host": "${Database.Endpoint.Address}",
           #   "port": "${Database.Endpoint.Port}",
           #   "dbname": "${DbName}",
-          #   "username": "rails-app"
+          #   "username": "apollo-server-app"
           # }
   #       VpcSecurityGroupIds:
   #         - !Ref DbSecurityGroup
