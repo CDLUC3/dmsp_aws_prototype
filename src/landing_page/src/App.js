@@ -11,6 +11,11 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/dmps/*" element={<Landing />}/>
+          <Route path="/unauthorized" element={<Unauthorized/>} />
+          <Route path="/authenticate" element={<Authenticate/>} />
+          <Route path="/logout" element={<Logout/>} />
+          <Route path="/" element={<Home/>} />
+          <Route path="/dashboard" element={<Dashboard/>} />
           <Route path="*" element={<PageNotFound/>} />
         </Routes>
       </BrowserRouter>

@@ -1,6 +1,10 @@
 AWSTemplateFormatVersion: '2010-09-09'
 
-Description: 'Code build and pipeline for the Rails application hosted on ECS'
+Description: 'CodePipeline for the DMPSP Apollo server backend application'
+
+# TODO: We may be able to consolidate this if the templates for the Apollo Server backend and the nextJS frontend
+#       are very similar. Chances are that the only diff might be with the ENV variables, which we can update
+#       here to to be passed in as a List<String>
 
 Parameters:
   CodeStarConnectionArn:
@@ -89,6 +93,7 @@ Resources:
                 BranchName: !Ref BranchToMonitor
               OutputArtifacts:
                 - Name: 'SourceArtifact'
+
         - Name: 'Build'
           Actions:
             - Name: 'Build'
@@ -103,6 +108,9 @@ Resources:
                 ProjectName: !Ref CodeBuildProjectName
               OutputArtifacts:
                 - Name: 'BuildArtifact'
+
+        # Enable this and setup CodeDeploy if just pushing a new image to the ECR does not auto-trigger Fargate
+
         # - Name: 'Deploy'
         #   Actions:
         #     - Name: 'Deploy'

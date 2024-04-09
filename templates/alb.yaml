@@ -85,11 +85,11 @@ Resources:
     Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
     Properties:
       HealthCheckEnabled: true
-      HealthCheckIntervalSeconds: 60 # 300 # 5 minutes
+      HealthCheckIntervalSeconds: 120 # 300 # 5 minutes
       HealthCheckPath: '/up'
       HealthCheckPort: 'traffic-port'
       HealthCheckProtocol: 'HTTP'
-      HealthCheckTimeoutSeconds: 10 # 30
+      HealthCheckTimeoutSeconds: 60
       UnhealthyThresholdCount: 3
       Matcher:
         # TODO: For some reason the Healthcheck is returning a 301 instead of 200
@@ -97,15 +97,15 @@ Resources:
         #       browser or curl though it returns a 200
         HttpCode: '200-399'
       VpcId: !Ref VpcId
-      Port: 3000
+      Port: 4000
       Protocol: 'HTTP'
-      TargetGroupAttributes:
-        - Key: 'stickiness.enabled'
-          Value: true
-        - Key: 'stickiness.type'
-          Value: 'lb_cookie'
-        - Key: 'stickiness.lb_cookie.duration_seconds'
-          Value: 300 # 900 # 15 minutes
+      # TargetGroupAttributes:
+      #   - Key: 'stickiness.enabled'
+      #     Value: true
+      #   - Key: 'stickiness.type'
+      #     Value: 'lb_cookie'
+      #   - Key: 'stickiness.lb_cookie.duration_seconds'
+      #     Value: 300 # 900 # 15 minutes
       TargetType: 'ip'
 
   # The Application Load Balancer
