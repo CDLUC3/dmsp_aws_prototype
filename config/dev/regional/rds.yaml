@@ -14,13 +14,19 @@ parameters:
 
   DbInstanceType: 'db.t3.micro'
   DbSizeGb: '20'
+  StorageType: 'gp3'
 
   # Valid options are based on the DB engine.
   # Use this to see what versions are availanle: `aws rds describe-db-engine-versions --default-only --engine mysql`
-  DbEngine: 'mysql'
-  DbEngineVersion: '8.0.33'
+  DbEngine: 'postgres' # 'mysql'
+  DbEngineVersion: '16.1' # '8.0.33'
+  LicenseModel: 'postgresql-license'
 
-  DbBackupRetentionDays: '7'
+  DbBackupRetentionDays: '35'
+  PreferredMaintenanceWindow: 'sat:08:00-sat:08:30'
+  PreferredBackupWindow: '07:00-07:30'
+
+  MultiAz: 'true'
 
   DbName: 'dmsp'
   DbMasterUsername: 'root'

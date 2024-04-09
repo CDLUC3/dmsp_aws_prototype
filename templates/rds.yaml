@@ -27,6 +27,14 @@ Parameters:
     Type: 'Number'
     Default: 20
 
+  StorageType:
+    Type: 'String'
+    Default: 'io1'
+
+  StorageEncrypted:
+    Type: 'String'
+    Default: 'false'
+
   DbEngine:
     Type: 'String'
     Default: 'postgres'
@@ -34,6 +42,14 @@ Parameters:
   DbEngineVersion:
     Type: 'String'
     Default: '15.4'
+
+  LicenseModel:
+    Type: 'String'
+    Default: 'postgresql-license'
+
+  MultiAz:
+    Type: 'String'
+    Default: 'false'
 
   DbName:
     Type: 'String'
@@ -45,6 +61,14 @@ Parameters:
   DbBackupRetentionDays:
     Type: 'Number'
     Default: 7
+
+  PreferredMaintenanceWindow:
+    Type: 'String'
+    Default: 'sat:08:00-sat:08:30'
+
+  PreferredBackupWindow:
+    Type: 'String'
+    Default: '07:00-07:30'
 
   DbMasterUsername:
     Type: 'String'
@@ -109,20 +133,27 @@ Resources:
       VPCSecurityGroups:
         - !Ref DbSecurityGroup
       DBSubnetGroupName: !Ref DbSubnetGroup
+      MultiAZ: !Ref MultiAz
       # If an RDS Snapshot was defined, then instruct CF to restore it
       DBSnapshotIdentifier: !If
         - InitializeDb
         - !Ref DbSnapshot
         - !Ref AWS::NoValue
       PubliclyAccessible: false
+      PreferredMaintenanceWindow: !Ref PreferredMaintenanceWindow
       AllowMajorVersionUpgrade: true
       AutoMinorVersionUpgrade: true
+      PreferredBackupWindow: !Ref PreferredBackupWindow
       BackupRetentionPeriod: !Ref DbBackupRetentionDays
       CopyTagsToSnapshot: true
+      DBInstanceClass: 'db.t3.small'
       AllocatedStorage: !Ref DbSizeGb
+      StorageType: !Ref StorageType
+      StorageEncrypted: !Ref StorageEncrypted
       Port: !Ref DbPort
       Engine: !Ref DbEngine
       EngineVersion: !Ref DbEngineVersion
+      LicenseModel: !Ref LicenseModel
       MonitoringInterval: '60'
       MonitoringRoleArn: !GetAtt DbMonitoringRole.Arn
       DBName: !Ref DbName
@@ -136,21 +167,21 @@ Resources:
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_SecretsManager.html
   # ----------------------------------------------------------
   # Rails application (Pulled into the Apollo Server app during the CodeBuild step)
-  # AppCredentials:
-  #   Type: 'AWS::SecretsManager::Secret'
-  #   Properties:
-  #     Name: !Sub 'dmp-hub-${Env}-apollo-server-app'
-  #     Description: !Sub '${AWS::StackName} Apollo server application credentials'
-  #     GenerateSecretString:
-  #       ExcludeCharacters: '/@\`|:;"'
-  #       GenerateStringKey: 'password'
-  #       SecretStringTemplate: !Sub >
-  #         {
-  #           "host": "${Database.Endpoint.Address}",
-  #           "port": "${Database.Endpoint.Port}",
-  #           "dbname": "${DbName}",
-  #           "username": "apollo-server-app"
-  #         }
+  AppCredentials:
+    Type: 'AWS::SecretsManager::Secret'
+    Properties:
+      Name: !Sub 'dmp-hub-${Env}-apollo-server-app'
+      Description: !Sub '${AWS::StackName} Apollo server application credentials'
+      GenerateSecretString:
+        ExcludeCharacters: '/@\`|:;"'
+        GenerateStringKey: 'password'
+        SecretStringTemplate: !Sub >
+          {
+            "host": "${Database.Endpoint.Address}",
+            "port": "${Database.Endpoint.Port}",
+            "dbname": "${DbName}",
+            "username": "apollo-server-app"
+          }
 
   # AppCredentialsRotationSchedule:
   #   Type: 'AWS::SecretsManager::RotationSchedule'
