@@ -33,6 +33,18 @@ Parameters:
   AlbSecurityGroupId:
     Type: 'String'
 
+  DBSecurityGroupID:
+    Type: 'String'
+
+  DbHost:
+    Type: 'String'
+
+  DbPort:
+    Type: 'String'
+
+  AppCredentialsArn:
+    Type: 'String'
+
   DynamoTableName:
     Type: 'String'
 
@@ -65,6 +77,7 @@ Resources:
         - 'arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy'
         - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
         - 'arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonRDSDataFullAccess'
         - 'arn:aws:iam::aws:policy/AmazonSESFullAccess'
         - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
 
@@ -109,6 +122,18 @@ Resources:
       ToPort: 4000
       GroupId: !GetAtt EcsSecurityGroup.GroupId
       SourceSecurityGroupId: !Ref AlbSecurityGroupId
+
+  # Allow the RDS instance(s) to receive traffic from the ECS instance(s)
+  EcsSecurityGroupIngressFromRds:
+    Type: AWS::EC2::SecurityGroupIngress
+    DependsOn:
+      - ECSSecurityGroup
+    Properties:
+      IpProtocol: 'tcp'
+      FromPort: !Ref DbPort
+      ToPort: !Ref DbPort
+      GroupId: !Ref DBSecurityGroupID
+      SourceSecurityGroupId: !GetAtt ECSSecurityGroup.GroupId
 
   # -----------------------------------------------------------
   # Elastic Container Service (ECS) - Containers that host the application
@@ -172,9 +197,18 @@ Resources:
             # ALB port
             - ContainerPort: 4000
               Protocol: 'tcp'
+            # RDS port
+            - ContainerPort: !Ref DbPort
+              Protocol: 'tcp'
           Environment:
             - Name: 'SESSION_SECRET'
               Value: !Ref SessionSecret
+            - Name: 'SECRETS_MANAGER_ARN'
+              Value: !Ref AppCredentialsArn
+            - Name: 'RDS_HOST'
+              Value: !Ref DbHost
+            - Name: 'RDS_PORT'
+              Value: !Ref DbPort
             - Name: 'DMSP_TABLE'
               Value: !Ref DynamoTableName
             - Name: 'HELPDESK_EMAIL'

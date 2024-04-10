@@ -22,6 +22,14 @@ parameters:
 
   AlbSecurityGroupId: !stack_output dev/regional/alb.yaml::AlbSecurityGroupId
 
+  DbSecurityGroupId: !stack_output dev/regional/rds.yaml::DbSecurityGroupId
+
+  DbHost: !stack_output dev/regional/rds.yaml::DbAddress
+
+  DbPort: !stack_output dev/regional/rds.yaml::DbPort
+
+  AppCredentialsArn: !stack_output dev/regional/rds.yaml::AppCredentialsArn
+
   DynamoTableName: !stack_output dev/regional/dynamo.yaml::DynamoTableName
 
   HelpdeskEmail: !ssm_parameter /uc3/dmsp/prototype/dev/HelpdeskEmail

@@ -15,6 +15,9 @@ Parameters:
     Type: 'String'
     Default: 'dev'
 
+  SsmPath:
+    Type: 'String'
+
   DbSnapshot:
     Type: 'String'
     Default: 'none'
@@ -73,6 +76,9 @@ Parameters:
   DbMasterUsername:
     Type: 'String'
 
+  DbMasterPassword:
+    Type: 'String'
+
 Conditions:
   InitializeDb:
     !Not [!Equals [!Ref DbSnapshot, 'none']]
@@ -129,6 +135,7 @@ Resources:
     DependsOn:
       - DbSubnetGroup
       - DbSecurityGroup
+      # - AppCredentials
     Properties:
       VPCSecurityGroups:
         - !Ref DbSecurityGroup
@@ -159,29 +166,77 @@ Resources:
       DBName: !Ref DbName
       DBInstanceClass: !Ref DbInstanceType
       # The default rotation schedule for the RDS instance's master credentials is 7 days
-      ManageMasterUserPassword: true
+      # ManageMasterUserPassword: true
       MasterUsername: !Ref DbMasterUsername
+      MasterUserPassword: !Ref DbMasterPassword
+      # MasterUserSecret:
+      #   SecretArn: !Ref AppCredentials
+
+  # ----------------------------------------------
+  # SSM Parameter Store (for some reason SecureString is not supported!)
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-ssm-parameter.html
+  # ----------------------------------------------
+  DbHostUrlParameter:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: !Sub "${AWS::StackName} RDS hostname"
+      Name: !Sub "${SsmPath}DbHost"
+      Type: 'String'
+      Value: !GetAtt Database.Endpoint.Address
+
+  DbPortUrlParameter:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: !Sub "${AWS::StackName} RDS port"
+      Name: !Sub "${SsmPath}DbPort"
+      Type: 'String'
+      Value: !GetAtt Database.Endpoint.Port
+
+  DbNameUrlParameter:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: !Sub "${AWS::StackName} RDS database name"
+      Name: !Sub "${SsmPath}DbName"
+      Type: 'String'
+      Value: !Ref DbName
+
+  DbUsernameUrlParameter:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: !Sub "${AWS::StackName} RDS username"
+      Name: !Sub "${SsmPath}DbUsername"
+      Type: 'String'
+      Value: !Ref DbMasterUsername
+
+  DbPasswordUrlParameter:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: !Sub "${AWS::StackName} RDS password"
+      Name: !Sub "${SsmPath}DbPassword"
+      Type: 'String'
+      Value: !Ref DbMasterPassword
+
 
   # ----------------------------------------------------------
   # Secrets Manager
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_SecretsManager.html
   # ----------------------------------------------------------
-  # Rails application (Pulled into the Apollo Server app during the CodeBuild step)
-  AppCredentials:
-    Type: 'AWS::SecretsManager::Secret'
-    Properties:
-      Name: !Sub 'dmp-hub-${Env}-apollo-server-app'
-      Description: !Sub '${AWS::StackName} Apollo server application credentials'
-      GenerateSecretString:
-        ExcludeCharacters: '/@\`|:;"'
-        GenerateStringKey: 'password'
-        SecretStringTemplate: !Sub >
-          {
-            "host": "${Database.Endpoint.Address}",
-            "port": "${Database.Endpoint.Port}",
-            "dbname": "${DbName}",
-            "username": "apollo-server-app"
-          }
+  # Application credentials (Pulled into the Apollo Server app during the CodeBuild step)
+  # AppCredentials:
+  #   Type: 'AWS::SecretsManager::Secret'
+  #   Properties:
+  #     Name: !Sub 'dmp-hub-${Env}-apollo-server-app'
+  #     Description: !Sub '${AWS::StackName} Apollo server application credentials'
+  #     GenerateSecretString:
+  #       # ExcludeCharacters: '/@\`|:;"'
+  #       ExcludePunctuation: true
+  #       IncludeSpace: false
+  #       GenerateStringKey: 'password'
+  #       SecretStringTemplate: !Sub >
+  #         {
+  #           "dbname": "${DbName}",
+  #           "username": "${DbMasterUsername}"
+  #         }
 
   # AppCredentialsRotationSchedule:
   #   Type: 'AWS::SecretsManager::RotationSchedule'
@@ -235,14 +290,14 @@ Outputs:
   DbName:
     Value: !Ref DbName
 
-  DbaCredentialsArn:
-    Value: !GetAtt Database.MasterUserSecret.SecretArn
+  # DbaCredentialsArn:
+  #   Value: !GetAtt Database.MasterUserSecret.SecretArn
 
-  AppCredentialsArn:
-    Value: !Ref AppCredentials
+  # AppCredentialsArn:
+  #   Value: !Ref AppCredentials
 
-  AppCredentialsId:
-    Value: !GetAtt AppCredentials.Id
+  # AppCredentialsId:
+  #  Value: !GetAtt AppCredentials.Id
 
   # AppCredentialsRotationScheduleArn:
   #   Value: !Ref AppCredentialsRotationSchedule

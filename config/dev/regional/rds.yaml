@@ -8,6 +8,8 @@ parameters:
 
   Env: !stack_attr sceptre_user_data.env
 
+  SsmPath: !stack_attr sceptre_user_data.ssm_path
+
   # If you have an existing RDS snapshot of your DB, you can include it here and CF will
   # restore that snapshot. If not, just leave this commented out and Docker will initialize the DB
   # DBSnapshot: 'Snapshot ARN'
@@ -30,4 +32,5 @@ parameters:
 
   DbName: 'dmsp'
   DbMasterUsername: 'root'
-  DbPort: '3306'
+  DbMasterPassword: !password_generator 12 true
+  DbPort: '5432'

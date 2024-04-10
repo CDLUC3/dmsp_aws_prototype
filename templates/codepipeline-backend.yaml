@@ -80,6 +80,7 @@ Resources:
         - Name: 'Source'
           Actions:
             - Name: 'Source'
+              RunOrder: 1
               ActionTypeId:
                 Category: 'Source'
                 Owner: 'AWS'
@@ -91,12 +92,14 @@ Resources:
                 ConnectionArn: !Ref CodeStarConnectionArn
                 FullRepositoryId: !Ref RepositoryName
                 BranchName: !Ref BranchToMonitor
+                OutputArtifactFormat: 'CODEBUILD_CLONE_REF'
               OutputArtifacts:
                 - Name: 'SourceArtifact'
 
         - Name: 'Build'
           Actions:
             - Name: 'Build'
+              RunOrder: 2
               InputArtifacts:
                 - Name: 'SourceArtifact'
               ActionTypeId:

@@ -7,6 +7,24 @@ Description: 'CodeBuild for the DMPSP Apollo server backend application'
 #       here to to be passed in as a List<String>
 
 Parameters:
+  VpcId:
+    Type: 'AWS::EC2::VPC::Id'
+
+  Program:
+    Type: 'String'
+
+  Service:
+    Type: 'String'
+
+  Subservice:
+    Type: 'String'
+
+  CodeRepo:
+    Type: 'String'
+
+  Contact:
+    Type: 'String'
+
   Env:
     Type: 'String'
     Default: 'dev'
@@ -31,6 +49,16 @@ Parameters:
 
   S3ArtifactBucketArn:
     Type: 'String'
+
+  CodeStarConnectionArn:
+    Type: 'String'
+
+  DbSecurityGroupId:
+    Type: 'String'
+
+  DbPort:
+    Type: 'Number'
+    Default: 5432
 
   CodeBuildEnvironmentType:
     Type: 'String'
@@ -71,6 +99,7 @@ Resources:
               - 'sts:AssumeRole'
       ManagedPolicyArns:
         - 'arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPowerUser'
+        - 'arn:aws:iam::aws:policy/AmazonRDSDataFullAccess'
       Policies:
         - PolicyName: !Sub '${AWS::StackName}-build-policy'
           PolicyDocument: !Sub >
@@ -136,7 +165,10 @@ Resources:
                 },
                 {
                   "Effect": "Allow",
-                  "Action": ["ssm:GetParameters"],
+                  "Action": [
+                    "ssm:GetParameters",
+                    "ssm:GetParameter"
+                  ],
                   "Resource": ["*"]
                 },
                 {
@@ -148,9 +180,68 @@ Resources:
                   "Effect": "Allow",
                   "Action": ["ecr:*"],
                   "Resource": ["${EcrRepositoryArn}"]
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": ["codestar-connections:UseConnection"],
+                  "Resource": "${CodeStarConnectionArn}"
                 }
               ]
             }
+
+  # ---------------------------------------------------------------------------------
+  # EC2 Security Groups to let CodeBuild run DB migrations
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-security-group.html
+  # ---------------------------------------------------------------------------------
+  CodeBuildSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: !Sub '${AWS::StackName} CodeBuild Security Group'
+      GroupName: !Sub '${AWS::StackName}-sec-grp'
+      VpcId: !Ref VpcId
+      # Setting our own tags here because we need to include the `ConfigExclude` for this resource
+      Tags:
+        - Key: 'Program'
+          Value: !Ref Program
+        - Key: 'Service'
+          Value: !Ref Service
+        - Key: 'Subservice'
+          Value: !Ref Subservice
+        - Key: 'Environment'
+          Value: !Ref Env
+        - Key: 'CodeRepo'
+          Value: !Ref CodeRepo
+        - Key: 'Contact'
+          Value: !Ref Contact
+        - Key: 'ConfigExclude'
+          Value: 'Security-group-attached-to-ENI'
+
+  # CodeBuildSecurityGroupIngressFromRds:
+  #   Type: 'AWS::EC2::SecurityGroupIngress'
+  #   Properties:
+  #     IpProtocol: 'tcp'
+  #     FromPort: !Ref DbPort
+  #     ToPort: !Ref DbPort
+  #     GroupId: !GetAtt CodeBuildSecurityGroup.GroupId
+  #     SourceSecurityGroupId: !Ref DbSecurityGroupId
+
+  RdsSecurityGroupIngressFromCodeBuild:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      IpProtocol: 'tcp'
+      FromPort: !Ref DbPort
+      ToPort: !Ref DbPort
+      GroupId: !Ref DbSecurityGroupId
+      SourceSecurityGroupId: !GetAtt CodeBuildSecurityGroup.GroupId
+
+  CodeBuildSecurityGroupEgressFromRds:
+    Type: 'AWS::EC2::SecurityGroupEgress'
+    Properties:
+      IpProtocol: 'tcp'
+      FromPort: !Ref DbPort
+      ToPort: !Ref DbPort
+      GroupId: !GetAtt CodeBuildSecurityGroup.GroupId
+      DestinationSecurityGroupId: !Ref DbSecurityGroupId
 
   # -----------------------------------------------------------
   # CodeBuild
@@ -174,6 +265,8 @@ Resources:
         PrivilegedMode: true
         Type: !Ref CodeBuildEnvironmentType
         EnvironmentVariables:
+          - Name: 'BUILD_ENV'
+            Value: !Ref Env
           - Name: 'ECR_REPOSITORY_URI'
             Value: !Ref EcrRepositoryUri
           - Name: 'ECR_REPOSITORY_NAME'
