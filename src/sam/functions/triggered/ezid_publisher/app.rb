@@ -300,7 +300,8 @@ module Functions
             #{tabs}#{TAB}<contributorName nameType="#{name_type}">#{percent_encode(val: name)}</contributorName>
           XML
 
-          xml += identifier_to_xml(json: identifier, type: 'name', tab_count: tab_count + 1) unless identifier.nil?
+          xml += identifier_to_xml(json: identifier, type: 'name', tab_count: tab_count + 1) unless identifier.nil? ||
+                                                                                                    identifier.fetch('identifier', '').include?('@')
           unless json['dmproadmap_affiliation'].nil?
             xml += affiliation_to_xml(json: json['dmproadmap_affiliation'], tab_count: tab_count + 1)
           end
@@ -314,7 +315,8 @@ module Functions
             #{tabs}#{TAB}<creatorName nameType="#{name_type}">#{percent_encode(val: name)}</creatorName>
           XML
 
-          xml += identifier_to_xml(json: identifier, type: 'name', tab_count: tab_count + 1) unless identifier.nil?
+          xml += identifier_to_xml(json: identifier, type: 'name', tab_count: tab_count + 1) unless identifier.nil? ||
+                                                                                                    identifier.fetch('identifier', '').include?('@')
           unless json['dmproadmap_affiliation'].nil?
             xml += affiliation_to_xml(json: json['dmproadmap_affiliation'], tab_count: tab_count + 1)
           end
