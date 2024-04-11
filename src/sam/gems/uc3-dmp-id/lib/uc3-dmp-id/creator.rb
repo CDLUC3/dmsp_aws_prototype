@@ -79,7 +79,7 @@ module Uc3DmpId
         dmp_id = ''
         counter = 0
         while dmp_id == '' && counter <= 10
-          prefix = "#{ENV.fetch('DMP_ID_SHOULDER', nil)}#{SecureRandom.hex(2).upcase}#{SecureRandom.hex(2)}"
+          prefix = "#{ENV.fetch('DMP_ID_SHOULDER', nil)}#{SecureRandom.hex(2).upcase}#{SecureRandom.hex(2).upcase}"
           dmp_id = prefix unless Finder.exists?(client:, p_key: prefix)
           counter += 1
         end
