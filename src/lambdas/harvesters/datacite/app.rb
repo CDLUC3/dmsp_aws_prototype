@@ -245,6 +245,8 @@ module Functions
           # Skip if it already has the DOI OR the DMP already knows about it
           next unless mods_rec.fetch('related_works', {})[:"#{work_id}"].nil? &&
                       dmp.fetch('dmproadmap_related_identifiers', []).select { |ri| ri['identifier'] == work_id }.empty?
+          # Skip if the entry is for the current DMP!
+          next if work_id.gsub('DMP#', '').gsub('https://', '').downcase == match[:dmp_id].gsub('DMP#', '').gsub('https://', '').downcase
 
           tstamp = mods_rec['tstamp']
           # Prepare the related works (skip if they are already on the full DMP record)

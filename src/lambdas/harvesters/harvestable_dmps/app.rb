@@ -89,8 +89,8 @@ module Functions
             bool: {
               filter: [
                 { exists: { field: 'registered' } },
-                { exists: { field: 'funder_ids' } },
-                { term: { funding_status: 'granted' } }
+                { exists: { field: 'funder_ids' } } #,
+                # { term: { funding_status: 'granted' } }
                 # TODO: We will eventually want to timebox this as the size of our dataset grows.
                 #       We don't want to search Datacite endlessly for a given DMP ID. This may
                 #       involve recording the DOIs of those DMPs somewhere

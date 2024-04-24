@@ -246,6 +246,7 @@ module Uc3DmpId
 
           # Change the name of the `logic` array to `notes`
           rec['notes'] = rec['logic']
+          rec['score'] = rec['score'].to_s
           # For `work-type` that equal `outputmanagementplan`, change it to `output_management_plan`
           rec['work_type'] = 'output_management_plan' if rec['work_type'] == 'outputmanagementplan'
 
