@@ -297,7 +297,6 @@ module Functions
           logic: match[:notes],
           discovered_at: Time.now.utc.iso8601,
           status: 'pending',
-
           type: 'doi',
           identifier: work['id'],
           descriptor: 'references',

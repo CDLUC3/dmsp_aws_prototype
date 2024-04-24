@@ -258,7 +258,7 @@ module Uc3DmpId
               id: "#{Time.now.utc.strftime('%Y-%m-%d')}-#{SecureRandom.hex(4)}",
               provenance: rec['provenance'],
               augmenter_run_id: SecureRandom.hex(8),
-              timestamp: Time.now.utc.iso8601,
+              timestamp: rec['discovered_at'].nil? ? Time.now.utc.iso8601 : rec['discovered_at'],
               dmproadmap_related_identifiers: [rec],
               funding: []
             }
