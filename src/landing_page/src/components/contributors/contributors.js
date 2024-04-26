@@ -37,7 +37,9 @@ function OrgLink(props) {
         <Link href={org.affiliation_id?.identifier} label={org.name.replace(nameUrlRegex, '')} remote='true' index={idx + 'aid'} />
       );
     } else {
-      return org.name;
+      return (
+        <>{' '}{org.name}</>
+      )
     }
   }
 }
