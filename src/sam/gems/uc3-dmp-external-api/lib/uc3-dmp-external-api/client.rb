@@ -18,11 +18,11 @@ module Uc3DmpExternalApi
     class << self
       # Call the specified URL using the specified HTTP method, body and headers
       # rubocop:disable Metrics/AbcSize, Metrics/ParameterLists
-      def call(url:, method: :get, body: '', basic_auth: {}, additional_headers: {}, logger: nil)
+      def call(url:, method: :get, body: '', basic_auth: {}, additional_headers: {}, timeout: 10, logger: nil)
         uri = URI(url)
         # Skip the body if we are doing a get
         body = nil if method.to_sym == :get
-        opts = _options(body:, basic_auth:, additional_headers:, logger:)
+        opts = _options(body:, basic_auth:, additional_headers:, timeout:, logger:)
         resp = HTTParty.send(method.to_sym, uri, opts)
 
         unless [200, 201].include?(resp.code)
@@ -64,11 +64,12 @@ module Uc3DmpExternalApi
       end
 
       # Prepare the HTTParty gem options
-      def _options(body:, basic_auth: nil, additional_headers: {}, logger: nil)
+      def _options(body:, basic_auth: nil, additional_headers: {}, timeout: 10, logger: nil)
         hdrs = _headers(additional_headers:)
         opts = {
           headers: hdrs,
           follow_redirects: true,
+          timeout:,
           limit: 6
         }
         opts[:basic_auth] = basic_auth if basic_auth.is_a?(Hash) && basic_auth.keys.any?

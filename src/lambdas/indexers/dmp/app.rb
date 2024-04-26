@@ -149,7 +149,7 @@ module Functions
         visibility = hash.fetch('dmproadmap_privacy', {})['S']&.downcase&.strip == 'public' ? 'public' : 'private'
 
         project = hash.fetch('project', {}).fetch('L', [{}]).first
-        project = {} if project.nil?
+        project = project.nil? ? {} : project.fetch('M', {})
         # Set the project start date equal to the date specified or the DMP creation date
         proj_start = project.fetch('start', hash.fetch('created', {}))['S']
         # Set the project end date equal to the specified end OR 5 years after the start

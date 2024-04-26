@@ -37,14 +37,18 @@ module Functions
         rors = docs.map { |doc| doc.fetch('_source', {}).fetch('affiliation_ids', []) }.flatten.compact.uniq
 
         # Kick off harvesters for each unique ROR id
+        publisher = Uc3DmpEventBridge::Publisher.new
         rors.each do |ror|
-          detail = {
-            ror: ror,
-            dmps: docs.select { |doc| doc.fetch('_source', {}).fetch('affiliation_ids', []).include?(ror) }
-          }
-          # Publish the change to the EventBridge
-          publisher = Uc3DmpEventBridge::Publisher.new
-          publisher.publish(source: 'HarvestableDmps', event_type: 'Harvest', dmp: {}, detail:, logger:)
+          dmps = docs.select { |doc| doc.fetch('_source', {}).fetch('affiliation_ids', []).include?(ror) }
+
+          # limit the number of DMPs we send at one time because SNS has a size limit
+          dmps.each_slice(50) do |dmp_entries|
+            _kick_off_harvester(ror:, dmps: dmp_entries, publisher:, logger:)
+          end
+
+          # Pause for a second. Publishing these messages kicks off multiple Lambda harvesters and we
+          # do not want to inundate the external APIs with hundreds of queries at once
+          sleep(1)
         end
         true
       rescue StandardError => e
@@ -75,35 +79,88 @@ module Functions
         puts e.backtrace
       end
 
+      def _kick_off_harvester(ror:, dmps:, publisher: nil, logger: nil)
+        # Publish the change to the EventBridge
+        publisher = Uc3DmpEventBridge::Publisher.new if publisher.nil?
+        publisher.publish(source: 'HarvestableDmps', event_type: 'Harvest', dmp: {}, detail: { ror:, dmps: }, logger:)
+      end
+
       # Fetch any DMPs that should be processed:
       #    - must have been registered
       #    - Those that were funded and have a `project: :end` within the next year
       #    - Those that were funded and have no `project: :end` BUT that were `:created` over a year ago
       #    - NOT those whose `project: :end` or `:created` dates are more than 3 years old!
       def _fetch_relevant_dmps(client:, index:, logger:)
-        # three_years_ago = (Date.today - 1095).to_s
-        # next_year = (Date.today + 365).to_s
+        three_years_ago = (Date.today - 1095).to_s
+        next_year = (Date.today + 365).to_s
 
         query = {
           query: {
             bool: {
               filter: [
                 { exists: { field: 'registered' } },
-                { exists: { field: 'funder_ids' } } #,
+                { exists: { field: 'funder_ids' } },
                 # { term: { funding_status: 'granted' } }
                 # TODO: We will eventually want to timebox this as the size of our dataset grows.
                 #       We don't want to search Datacite endlessly for a given DMP ID. This may
                 #       involve recording the DOIs of those DMPs somewhere
-                #{ range: { project_end: { gte: three_years_ago, lte: next_year } } }
+                { range: { project_end: { gte: three_years_ago, lte: next_year } } }
               ]
             }
           }
         }
-        resp = client.search(index:, body: query)
 
-        # TODO: Handle pagination/scroll
+        # # Pilot partner specific tests for historical DMPs
+        # query = {
+        #   query: {
+        #     ids: {
+        #       values: [
+        #         # Northwestern University
+        #         'DMP#doi.org/10.48321/D10B3E54E4',
+        #         'DMP#doi.org/10.48321/D1944C8215',
+        #         'DMP#doi.org/10.48321/D139D84658',
 
-        resp.fetch('hits', {}).fetch('hits', [])
+        #         # University of Colorado Boulder
+        #         'DMP#doi.org/10.48321/D14F38aa13',
+
+        #         # University of California, Santa Barbara
+        #         'DMP#doi.org/10.48321/D1BAD5B94D',
+        #         'DMP#doi.org/10.48321/D1FFE5D7FD',
+        #         'DMP#doi.org/10.48321/D1A90CCC2B',
+
+        #         # University of California, Berkeley
+        #         'DMP#doi.org/10.48321/D114471AC3',
+        #         'DMP#doi.org/10.48321/D1DF9DDDAF',
+        #         'DMP#doi.org/10.48321/D18F9B93B8',
+        #         'DMP#doi.org/10.48321/D1BA48FBC9',
+        #         'DMP#doi.org/10.48321/D1CE350633',
+
+        #         # University of California, Riverside
+        #         'DMP#doi.org/10.48321/D14406894e',
+        #         'DMP#doi.org/10.48321/D145457051',
+        #         'DMP#doi.org/10.48321/D1FFBFF8FE',
+        #         'DMP#doi.org/10.48321/D1FCB77AF0',
+
+        #         # Boston University
+        #         'DMP#doi.org/10.48321/D1A04A9B1D'
+        #       ]
+        #     }
+        #   }
+        # }
+
+        resp = client.search(index:, body: query, scroll: '2m', size: 25)
+        recs = []
+        counter = 0
+        # Paginate through the search results
+        while resp['hits']['hits'].size.positive?
+          scroll_id = resp['_scroll_id']
+          recs << resp.fetch('hits', {}).fetch('hits', [])
+          resp = client.scroll(scroll: '1m', body: { scroll_id: scroll_id })
+          logger.debug(message: "OpenSearch scroller - COUNTER: #{counter}, TOTAL_RECS: #{recs.length}")
+          counter += 1
+        end
+
+        recs.flatten.uniq
       end
     end
   end

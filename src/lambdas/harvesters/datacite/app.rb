@@ -152,6 +152,8 @@ module Functions
       def _query_datacite(query:, logger:)
         logger&.debug(message: "GraphQL query used", details: query)
         resp = _call_datacite(body: query, logger:)
+        return [] if resp.nil?
+
         data = resp.is_a?(Hash) ? resp['data'] : JSON.parse(resp)
         logger&.debug(message: "Raw results from DataCite.", details: data)
         data
@@ -191,7 +193,7 @@ module Functions
         cntr = 0
         while cntr <= 2
           begin
-            resp = Uc3DmpExternalApi::Client.call(url: GRAPHQL_ENDPOINT, method: :post, body: body, logger:)
+            resp = Uc3DmpExternalApi::Client.call(url: GRAPHQL_ENDPOINT, method: :post, body: body, timeout: 120, logger:)
 
             logger&.info(message: MSG_EMPTY_RESPONSE, details: resp) if resp.nil? || resp.to_s.strip.empty?
             payload = resp unless resp.nil? || resp.to_s.strip.empty?

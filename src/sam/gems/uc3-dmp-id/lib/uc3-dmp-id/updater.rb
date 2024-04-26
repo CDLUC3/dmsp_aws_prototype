@@ -204,6 +204,7 @@ module Uc3DmpId
             mods['related_works'][related.identifier]['status'] = related['status']
           end
         end
+
         client.put_item(json: mods, logger:)
         json.delete('dmphub_modifications')
         json
