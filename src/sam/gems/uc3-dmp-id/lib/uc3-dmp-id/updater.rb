@@ -43,6 +43,9 @@ module Uc3DmpId
         # Bail if the system trying to make the update is not the creator of the DMP ID
         raise UpdaterError, Helper::MSG_DMP_FORBIDDEN if owner != updater
 
+        # Handle any changes to the dmphub_modifications section
+        version = _process_harvester_mods(client:, p_key:, json: version, logger:)
+
         # Remove the version info because we don't want to save it on the record
         version.delete('dmphub_versions')
 
@@ -177,6 +180,35 @@ module Uc3DmpId
       end
       # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
       # rubocop:enable Metrics/PerceivedComplexity, Metrics/CyclomaticComplexity
+
+      # Fetch any Harvester modifications to the JSON
+      def _process_harvester_mods(client:, p_key:, json:, logger: nil)
+        return json if json.fetch('dmphub_modifications', []).empty?
+
+        # Fetch the `"SK": "HARVESTER_MODS"` record
+        client = Uc3DmpDynamo::Client.new if client.nil?
+        resp = client.get_item(
+          key: { PK: Helper.append_pk_prefix(p_key:), SK: Helper::SK_HARVESTER_MODS }, logger:
+        )
+        return json unless resp.is_a?(Hash) && resp['related_works'].is_a?(Hash)
+
+        # The `dmphub_modifications` array will ONLY ever have things the harvester mods know about
+        # so just find them and update the status accordingly
+        mods = resp.dup
+        json['dmphub_modifications'].each do |entry|
+          next if entry.fetch('dmproadmap_related_identifiers', []).empty?
+
+          entry['dmproadmap_related_identifiers'].each do |related|
+            next if mods['related_works'][related.identifier].nil?
+
+            mods['related_works'][related.identifier]['status'] = related['status']
+          end
+        end
+
+        client.put_item(json: mods, logger:)
+        json.delete('dmphub_modifications')
+        json
+      end
     end
   end
 end

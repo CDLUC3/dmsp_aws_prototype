@@ -110,8 +110,22 @@ module Functions
         end_at = Date.today.to_s
         range = "#{start_at} TO #{end_at}"
 
-        # Query DataCite
-        query = _graphql_affiliation(ror:, range:)
+        # Query DataCite to determine the size of the potential output
+        query = _graphql_page_info_query(ror:, range:)
+        logger&.debug(message: 'Querying DataCite:', details: query)
+        datacite_recs = _query_datacite(query:, logger:)
+        return true unless datacite_recs.is_a?(Hash)
+
+        # Fetch the start cursor and the total work count from the response
+        # Unfortunately DataCite throws an error if we try to fetch the current cursor from `edges { cursor }`
+        # so we will instead pass the startCursor to the real query and either the full item count of 1000
+        meta = datacite_recs.fetch('organization', {}).fetch('works', {})
+        start_cursor = meta.fetch('pageInfo', {})['startCursor']
+        work_count = meta.fetch('totalCount', '0').to_i
+        work_count = 1000 if workCount > 1000
+
+        # Query DataCite for the list of works
+        query = _graphql_affiliation(ror:, range:, start_cursor:, work_count:)
         logger&.debug(message: 'Querying DataCite:', details: query)
         datacite_recs = _query_datacite(query:, logger:)
 
@@ -152,13 +166,17 @@ module Functions
       def _query_datacite(query:, logger:)
         logger&.debug(message: "GraphQL query used", details: query)
         resp = _call_datacite(body: query, logger:)
+        return [] if resp.nil?
+
         data = resp.is_a?(Hash) ? resp['data'] : JSON.parse(resp)
         logger&.debug(message: "Raw results from DataCite.", details: data)
         data
       end
 
-      # Search the Pid Graph by Affiliation ROR
-      def _graphql_affiliation(ror:, range:)
+      # First hot Datacite to determine the starting cursor and the total number of records.
+      # Unfortunately DataCite throws an error if we try to fetch the current cursor from `edges { cursor }`
+      # so we will instead pass the startCursor to the real query and either the full item count of 1000
+      def _graphql_page_info_query(ror:, range:)
         {
           variables: { ror: ror },
           operationName: 'affiliationQuery',
@@ -169,7 +187,35 @@ module Functions
                 id
                 name
                 alternateName
-                works(query: "created: [#{range}]") { nodes #{_related_work_fragment } }
+                works(query: "created: [#{range}]") {
+                  totalCount
+                  pageInfo {
+                    startCursor
+                    endCursor
+                    hasNextPage
+                  }
+                }
+              }
+            }
+          TEXT
+        }.to_json
+      end
+
+      # Search the Pid Graph by Affiliation ROR
+      def _graphql_affiliation(ror:, range:, start_cursor:, work_count:)
+        {
+          variables: { ror: ror },
+          operationName: 'affiliationQuery',
+          query: <<~TEXT
+            query affiliationQuery ($ror: ID!)
+            {
+              organization(id: $ror) {
+                id
+                name
+                alternateName
+                works(query: "created: [#{range}]", first: #{work_count}, after: "#{start_cursor}") {
+                  nodes #{_related_work_fragment }
+                }
               }
             }
           TEXT
@@ -191,7 +237,7 @@ module Functions
         cntr = 0
         while cntr <= 2
           begin
-            resp = Uc3DmpExternalApi::Client.call(url: GRAPHQL_ENDPOINT, method: :post, body: body, logger:)
+            resp = Uc3DmpExternalApi::Client.call(url: GRAPHQL_ENDPOINT, method: :post, body: body, timeout: 120, logger:)
 
             logger&.info(message: MSG_EMPTY_RESPONSE, details: resp) if resp.nil? || resp.to_s.strip.empty?
             payload = resp unless resp.nil? || resp.to_s.strip.empty?
@@ -245,6 +291,8 @@ module Functions
           # Skip if it already has the DOI OR the DMP already knows about it
           next unless mods_rec.fetch('related_works', {})[:"#{work_id}"].nil? &&
                       dmp.fetch('dmproadmap_related_identifiers', []).select { |ri| ri['identifier'] == work_id }.empty?
+          # Skip if the entry is for the current DMP!
+          next if work_id.gsub('DMP#', '').gsub('https://', '').downcase == match[:dmp_id].gsub('DMP#', '').gsub('https://', '').downcase
 
           tstamp = mods_rec['tstamp']
           # Prepare the related works (skip if they are already on the full DMP record)
@@ -297,7 +345,6 @@ module Functions
           logic: match[:notes],
           discovered_at: Time.now.utc.iso8601,
           status: 'pending',
-
           type: 'doi',
           identifier: work['id'],
           descriptor: 'references',
