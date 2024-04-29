@@ -71,7 +71,12 @@ module Functions
         )
 
         logger.debug(message: "Establishing connection to #{ENV['OPEN_SEARCH_DOMAIN']}")
-        client = OpenSearch::Aws::Sigv4Client.new({ host: ENV['OPEN_SEARCH_DOMAIN'], log: true }, signer)
+        client = OpenSearch::Aws::Sigv4Client.new({
+          host: ENV['OPEN_SEARCH_DOMAIN'],
+          retry_on_failure: 5,
+          request_timeout: 120,
+          log: true
+        }, signer)
         logger&.debug(message: client&.info)
         client
       rescue StandardError => e
@@ -147,6 +152,24 @@ module Functions
         #     }
         #   }
         # }
+
+        # Known DMP IDs with related works
+        query = {
+          query: {
+            ids: {
+              values: [
+                'DMP#doi.org/10.48321/D1MK72',
+                'DMP#doi.org/10.48321/D17598',
+                'DMP#doi.org/10.48321/D17P5X',
+                'DMP#doi.org/10.48321/D1F88S',
+                'DMP#doi.org/10.48321/D1Z60Q',
+                'DMP#doi.org/10.48321/D18S8D',
+                'DMP#doi.org/10.48321/D12K5B',
+                'DMP#doi.org/10.48321/D1BAD5B94D'
+              ]
+            }
+          }
+        }
 
         resp = client.search(index:, body: query, scroll: '2m', size: 25)
         recs = []

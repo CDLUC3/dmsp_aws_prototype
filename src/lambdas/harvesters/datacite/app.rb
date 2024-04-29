@@ -110,8 +110,22 @@ module Functions
         end_at = Date.today.to_s
         range = "#{start_at} TO #{end_at}"
 
-        # Query DataCite
-        query = _graphql_affiliation(ror:, range:)
+        # Query DataCite to determine the size of the potential output
+        query = _graphql_page_info_query(ror:, range:)
+        logger&.debug(message: 'Querying DataCite:', details: query)
+        datacite_recs = _query_datacite(query:, logger:)
+        return true unless datacite_recs.is_a?(Hash)
+
+        # Fetch the start cursor and the total work count from the response
+        # Unfortunately DataCite throws an error if we try to fetch the current cursor from `edges { cursor }`
+        # so we will instead pass the startCursor to the real query and either the full item count of 1000
+        meta = datacite_recs.fetch('organization', {}).fetch('works', {})
+        start_cursor = meta.fetch('pageInfo', {})['startCursor']
+        work_count = meta.fetch('totalCount', '0').to_i
+        work_count = 1000 if workCount > 1000
+
+        # Query DataCite for the list of works
+        query = _graphql_affiliation(ror:, range:, start_cursor:, work_count:)
         logger&.debug(message: 'Querying DataCite:', details: query)
         datacite_recs = _query_datacite(query:, logger:)
 
@@ -159,8 +173,10 @@ module Functions
         data
       end
 
-      # Search the Pid Graph by Affiliation ROR
-      def _graphql_affiliation(ror:, range:)
+      # First hot Datacite to determine the starting cursor and the total number of records.
+      # Unfortunately DataCite throws an error if we try to fetch the current cursor from `edges { cursor }`
+      # so we will instead pass the startCursor to the real query and either the full item count of 1000
+      def _graphql_page_info_query(ror:, range:)
         {
           variables: { ror: ror },
           operationName: 'affiliationQuery',
@@ -171,7 +187,35 @@ module Functions
                 id
                 name
                 alternateName
-                works(query: "created: [#{range}]") { nodes #{_related_work_fragment } }
+                works(query: "created: [#{range}]") {
+                  totalCount
+                  pageInfo {
+                    startCursor
+                    endCursor
+                    hasNextPage
+                  }
+                }
+              }
+            }
+          TEXT
+        }.to_json
+      end
+
+      # Search the Pid Graph by Affiliation ROR
+      def _graphql_affiliation(ror:, range:, start_cursor:, work_count:)
+        {
+          variables: { ror: ror },
+          operationName: 'affiliationQuery',
+          query: <<~TEXT
+            query affiliationQuery ($ror: ID!)
+            {
+              organization(id: $ror) {
+                id
+                name
+                alternateName
+                works(query: "created: [#{range}]", first: #{work_count}, after: "#{start_cursor}") {
+                  nodes #{_related_work_fragment }
+                }
               }
             }
           TEXT
