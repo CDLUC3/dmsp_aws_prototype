@@ -24,6 +24,8 @@ module Uc3DmpId
       @details_hash = {}
 
       @dmps = args.fetch(:dmps, [])
+
+      @logger&.debug(message: 'Comparator DMPs', details: @dmps)
       raise ComparatorError, MSG_MISSING_DMPS if @dmps.empty?
     end
 
@@ -56,20 +58,20 @@ module Uc3DmpId
       scoring = []
       return scoring unless hash.is_a?(Hash) && !hash['title'].nil?
 
-      @dmps.each do |entry|
-        dmp = entry.fetch('_source', {})
-
+      @dmps.each do |dmp|
+        @logger&.debug(message: 'Incoming external work', details: hash)
         # Compare the grant ids. If we have a match return the response immediately since that is
         # a very positive match!
         response = { confidence: 'None', score: 0, notes: [] }
         response = _grants_match?(array: hash.fetch('grant_ids', []), dmp:, response:)
-        scoring << respoonse if response[:confidence] != 'None'
+        scoring << response if response[:confidence] != 'None'
         next if response[:confidence] != 'None'
 
         # Compare the people involved, their affiliations and any funding opportunity numbers
         response = _opportunities_match?(array: hash.fetch('funder_opportunity_ids', []), dmp:, response:)
         response = _orcids_match?(array: hash.fetch('people_ids', []), dmp:, response:)
-        response = _last_name_and_affiliation_match?(hash:, dmp:, response:)
+        response = _last_name_match?(hash:, dmp:, response:)
+        response = _affiliation_match?(hash:, dmp:, response:)
 
         # Only process the following if we had some matching people, affiliations or opportunity nbrs
         response = _repository_match?(hash:, dmp:, response:) if response[:score].positive?
@@ -79,7 +81,7 @@ module Uc3DmpId
         next if response[:score] <= 2
 
         # Set the confidence level based on the score
-        response[:dmp_id] = entry['_id']
+        response[:dmp_id] = "DMP##{dmp['dmp_id']}"
         response[:confidence] = if response[:score] > 10
                                   'High'
                                 else
@@ -112,6 +114,7 @@ module Uc3DmpId
       matched = _compare_arrays(array_a: dmp['grant_ids'], array_b: ids)
       return response if matched <= 0
 
+      @logger&.debug(message: 'Grant ID match!', details: { dmp: dmp['grant_ids'], work: ids })
       response[:confidence] = 'Absolute'
       response[:score] = 100
       response[:notes] << 'the grant ID matched'
@@ -135,6 +138,7 @@ module Uc3DmpId
       matched = _compare_arrays(array_a: dmp['funder_opportunity_ids'], array_b: ids)
       return response if matched <= 0
 
+      @logger&.debug(message: 'Opportunities match!', details: { dmp: dmp['funder_opportunity_ids'], work: ids })
       response[:score] += 5
       response[:notes] << 'the funding opportunity number matched'
       response
@@ -161,6 +165,7 @@ module Uc3DmpId
       matched = _compare_arrays(array_a: dmp['people_ids'], array_b: ids)
       return response if matched <= 0
 
+      @logger&.debug(message: 'ORCID match!', details: { dmp: dmp['people_ids'], work: ids })
       response[:score] += (matched * 2)
       response[:notes] << 'contributor ORCIDs matched'
       response
@@ -174,21 +179,46 @@ module Uc3DmpId
     #     affiliation_ids: ["https://ror.org/blah"]
     #   }
     # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
-    def _last_name_and_affiliation_match?(hash:, dmp:, response:)
+    def _last_name_match?(hash:, dmp:, response:)
       return response unless hash.is_a?(Hash) && dmp.is_a?(Hash) && response.is_a?(Hash)
       return response unless hash['people'].is_a?(Array)
 
       # Check the person last names and affiliation name and RORs
       last_names_matched = _compare_arrays(array_a: dmp['people'], array_b: hash['people'])
-      rors_matched = _compare_arrays(array_a: dmp.fetch('affiliation_ids', []), array_b: hash['affiliation_ids'])
-      affil_names_matched = _compare_arrays(array_a: dmp.fetch('affiliations', []), array_b: hash['affiliations'])
-      return response if last_names_matched <= 0 && rors_matched <= 0 && affil_names_matched <= 0
+      return response if last_names_matched <= 0
 
-      response[:score] += last_names_matched + rors_matched + affil_names_matched
-      response[:notes] << 'contributor names and affiliations matched'
+      @logger&.debug(
+        message: 'Contributor name match',
+        details: {
+          people: { dmp: dmp['people'], work: hash['people'] }
+        }
+      )
+      response[:score] += last_names_matched * 2
+      response[:notes] << 'contributor names matched'
       response
     end
     # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+
+    def _affiliation_match?(hash:, dmp:, response:)
+      return response unless hash.is_a?(Hash) && dmp.is_a?(Hash) && response.is_a?(Hash)
+      return response unless hash['affiliations'].is_a?(Array) || hash['affiliation_ids'].is_a?(Array)
+
+      # Check the affiliation names and RORs
+      rors_matched = _compare_arrays(array_a: dmp.fetch('affiliation_ids', []), array_b: hash['affiliation_ids'])
+      affil_names_matched = _compare_arrays(array_a: dmp.fetch('affiliations', []), array_b: hash['affiliations'])
+      return response if rors_matched <= 0 && affil_names_matched <= 0
+
+      @logger&.debug(
+        message: 'Affiliation name match',
+        details: {
+          rors: { dmp: dmp['affiliation_ids'], work: hash['affiliation_ids'] },
+          places: { dmp: dmp['affiliations'], work: hash['affiliations'] }
+        }
+      )
+      response[:score] += rors_matched + affil_names_matched
+      response[:notes] << 'affiliations matched'
+      response
+    end
 
     # Returns whether or not the incoming list of repositories match those defined in the DMP. Expecting:
     #    {
@@ -203,6 +233,7 @@ module Uc3DmpId
       matched = _compare_arrays(array_a: dmp['repo_ids'], array_b: hash['repo_ids'])
       return response if matched <= 0
 
+      @logger&.debug(message: 'Repos match!', details: { dmp: dmp['repo_ids'], work: hash['repo_ids'] })
       response[:score] += matched
       response[:notes] << 'repositories matched'
       response
@@ -226,6 +257,8 @@ module Uc3DmpId
       # @logger&.debug(message: 'Text::WhiteSimilarity score', details:)
       return response if details[:nlp_score] < 0.5
 
+      @logger&.debug(message: 'Titles match', details: { dmp: dmp['title'], work: text }) if type == 'title'
+      @logger&.debug(message: 'Abstracts match', details: { dmp: dmp['description'], work: text }) unless type == 'title'
       response[:score] += details[:nlp_score] >= 0.75 ? 5 : 2
       response[:notes] << "#{type}s are similar"
       response

@@ -7,7 +7,10 @@ my_gem_path = Dir['/opt/ruby/gems/**/lib/']
 $LOAD_PATH.unshift(*my_gem_path)
 
 require 'date'
+require 'httparty'
+require 'json'
 require 'text'
+require 'uri'
 
 require 'uc3-dmp-api-core'
 require 'uc3-dmp-cloudwatch'
@@ -103,10 +106,17 @@ module Functions
         # Establish the OpenSearch and Dynamo clients
         dynamo_client = Aws::DynamoDB::Client.new(region: ENV.fetch('AWS_REGION', 'us-west-2'))
         table = ENV['DYNAMO_TABLE']
+        index_table = ENV['DYNAMO_INDEX_TABLE']
+        logger.debug(message: 'Incoming details from event', details: details) if logger.respond_to?(:debug)
 
         ror = details['ror']
+
+        # Fetch all of the individual DMP's metadata
+        dmps = _fetch_dmp_metadata(client: dynamo_client, table: index_table, dmps:  details['dmps'],
+                                  logger:)
+
         # Find the start and end dates for our DataCite search
-        start_at = _find_start_date(entries: details['dmps'])
+        start_at = _find_start_date(entries: dmps)
         end_at = Date.today.to_s
         range = "#{start_at} TO #{end_at}"
 
@@ -116,21 +126,21 @@ module Functions
         datacite_recs = _query_datacite(query:, logger:)
         return true unless datacite_recs.is_a?(Hash)
 
-        # Fetch the start cursor and the total work count from the response
-        # Unfortunately DataCite throws an error if we try to fetch the current cursor from `edges { cursor }`
-        # so we will instead pass the startCursor to the real query and either the full item count of 1000
+        # Fetch the totalCount and then use it to determine the max records we will request from DataCite
         meta = datacite_recs.fetch('organization', {}).fetch('works', {})
-        start_cursor = meta.fetch('pageInfo', {})['startCursor']
-        work_count = meta.fetch('totalCount', '0').to_i
-        work_count = 1000 if workCount > 1000
+        work_count = meta.fetch('totalCount', 0)
+        logger&.debug(message: 'No works found.', details: datacite_recs) unless work_count > 0
+        return true unless work_count > 0
 
         # Query DataCite for the list of works
-        query = _graphql_affiliation(ror:, range:, start_cursor:, work_count:)
+        work_count = 1000 if work_count > 1000
+        query = _graphql_affiliation(ror:, range:, work_count:)
         logger&.debug(message: 'Querying DataCite:', details: query)
         datacite_recs = _query_datacite(query:, logger:)
+        return true if datacite_recs.nil?
 
         # See if the returned DataCite info has any matches to our DMSPs
-        matches = _select_relevant_content(datacite_recs:, dmps: details['dmps'], logger:)
+        matches = _select_relevant_content(datacite_recs:, dmps:, logger:)
         return true unless matches.is_a?(Array) && matches.any?
 
         # Update the relevant DMSPs
@@ -153,7 +163,7 @@ module Functions
       # Extract the earliest :project_end date and then subtract 2 years from that
       # OR return the :project_start plus one year (if no :project_end was found)
       def _find_start_date(entries:)
-        start_dates = entries.map { |e| e['_source'] }.map do |dmp|
+        start_dates = entries.map do |dmp|
           return (Date.parse(dmp['project_end']) - 730).to_s unless dmp['project_end'].nil?
 
           # Or 1 year after the project start if no project end date was defined
@@ -189,11 +199,6 @@ module Functions
                 alternateName
                 works(query: "created: [#{range}]") {
                   totalCount
-                  pageInfo {
-                    startCursor
-                    endCursor
-                    hasNextPage
-                  }
                 }
               }
             }
@@ -202,7 +207,7 @@ module Functions
       end
 
       # Search the Pid Graph by Affiliation ROR
-      def _graphql_affiliation(ror:, range:, start_cursor:, work_count:)
+      def _graphql_affiliation(ror:, range:, work_count:)
         {
           variables: { ror: ror },
           operationName: 'affiliationQuery',
@@ -213,7 +218,7 @@ module Functions
                 id
                 name
                 alternateName
-                works(query: "created: [#{range}]", first: #{work_count}, after: "#{start_cursor}") {
+                works(query: "created: [#{range}]", first: #{work_count + 1}) {
                   nodes #{_related_work_fragment }
                 }
               }
@@ -233,11 +238,11 @@ module Functions
 
       # Call DataCite
       def _call_datacite(body:, logger:)
-        payload = nil
         cntr = 0
         while cntr <= 2
           begin
-            resp = Uc3DmpExternalApi::Client.call(url: GRAPHQL_ENDPOINT, method: :post, body: body, timeout: 120, logger:)
+            resp = Uc3DmpExternalApi::Client.call(url: GRAPHQL_ENDPOINT, method: :post, body: body,
+                                                  timeout: 300, logger:)
 
             logger&.info(message: MSG_EMPTY_RESPONSE, details: resp) if resp.nil? || resp.to_s.strip.empty?
             payload = resp unless resp.nil? || resp.to_s.strip.empty?
@@ -245,6 +250,9 @@ module Functions
           rescue Net::ReadTimeout
             logger&.info(message: 'Httparty timeout', details: body)
             sleep(3)
+          rescue StandardError => e
+            logger&.error(message: "Failure calling DataCite #{e.message}")
+            cntr = 3
           end
 
           cntr += 1
@@ -261,10 +269,13 @@ module Functions
         comparator = Uc3DmpId::Comparator.new(dmps:, logger:)
 
         works.each do |work|
+          # Skip DMPs
+          next if work['type'] == 'OutputManagementPlan'
+
           comprable = _extract_comparable(hash: work)
           next unless comprable.is_a?(Hash) && !comprable['title'].nil?
 
-          logger&.debug(message: 'DataCite record reduced to it\'s comprable parts:', details: comprable)
+          # logger&.debug(message: 'DataCite record reduced to it\'s comprable parts:', details: comprable)
           result = comparator.compare(hash: comprable)
           next unless result.is_a?(Hash) && result[:score] >= 3
 
@@ -275,6 +286,20 @@ module Functions
           relevant << result
         end
         relevant
+      end
+
+      # Fetch the Metadata entry for each of the DMP PKs
+      def _fetch_dmp_metadata(client:, table:, dmps:, logger: nil)
+        dmps.map do |hash|
+          resp = client.get_item({
+            table_name: table,
+            key: { PK: hash['PK'], SK: 'METADATA' },
+            consistent_read: false,
+            return_consumed_capacity: logger&.level == 'debug' ? 'TOTAL' : 'NONE'
+          })
+
+          resp[:item].is_a?(Array) ? resp[:item].first : resp[:item]
+        end
       end
 
       # Add the relevant matches from DataCite to the DMP-IDs HARVESTER_MODS doc
@@ -305,9 +330,6 @@ module Functions
 
           mods_rec['related_works'] = {} if mods_rec['related_works'].nil?
           mods_rec['related_works'][:"#{work_id}"] = related_work_mod
-
-          puts related_work_mod
-          puts mods_rec
 
           # Update the DMP mods record
           dynamo_client.put_item(item: mods_rec, table_name: table)

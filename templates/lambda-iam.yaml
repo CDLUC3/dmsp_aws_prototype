@@ -7,13 +7,22 @@ Parameters:
     Type: 'String'
     Default: 'dev'
 
-  OpenSearchDomainArn:
+  SsmPath:
     Type: 'String'
+
+  Domain:
+    Type: 'String'
+
+  # OpenSearchDomainArn:
+  #   Type: 'String'
 
   EventBusArn:
     Type: 'String'
 
   DmpTableArn:
+    Type: 'String'
+
+  IndexTableArn:
     Type: 'String'
 
 Resources:
@@ -44,6 +53,8 @@ Resources:
           Resource:
             - !Ref DmpTableArn
             - !Sub '${DmpTableArn}/index/*'
+            - !Ref IndexTableArn
+            - !Sub '${IndexTableArn}/index/*'
 
   DynamoStreamPolicy:
     Type: 'AWS::IAM::ManagedPolicy'
@@ -75,20 +86,20 @@ Resources:
             - 'events:PutEvents'
           Resource: !Ref EventBusArn
 
-  OpenSearchPolicy:
-    Type: 'AWS::IAM::ManagedPolicy'
-    Properties:
-      Description: !Sub '${AWS::StackName} - Permissions to read/write to OpenSearch'
-      ManagedPolicyName: !Sub '${Env}LambdaOpenSearchPolicy'
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          Effect: 'Allow'
-          Action:
-            - 'es:*'
-          Resource:
-            - !Ref OpenSearchDomainArn
-            - !Sub '${OpenSearchDomainArn}/*'
+  # OpenSearchPolicy:
+  #   Type: 'AWS::IAM::ManagedPolicy'
+  #   Properties:
+  #     Description: !Sub '${AWS::StackName} - Permissions to read/write to OpenSearch'
+  #     ManagedPolicyName: !Sub '${Env}LambdaOpenSearchPolicy'
+  #     PolicyDocument:
+  #       Version: '2012-10-17'
+  #       Statement:
+  #         Effect: 'Allow'
+  #         Action:
+  #           - 'es:*'
+  #         Resource:
+  #           - !Ref OpenSearchDomainArn
+  #           - !Sub '${OpenSearchDomainArn}/*'
 
   VpcPolicy:
     Type: 'AWS::IAM::ManagedPolicy'
@@ -149,9 +160,20 @@ Resources:
         - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
         - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
         - !Ref DynamoStreamPolicy
-        - !Ref OpenSearchPolicy
+        # - !Ref OpenSearchPolicy
+        - !Ref DynamoPolicy
         - !Ref EventBusPutEventPolicy
         - !Ref VpcPolicy
+
+
+  # Adding the DomainName to the SSM Parameter store here so that it's available in us-west-2 for our Lambdas
+  DomainNameParameter:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: !Sub "${AWS::StackName} root Domain Name"
+      Name: !Sub "${SsmPath}DomainName"
+      Type: 'String'
+      Value: !Ref Domain
 
 Outputs:
   DynamoPolicyArn:
@@ -164,10 +186,10 @@ Outputs:
     Export:
       Name: !Sub '${Env}-DynamoStreamPolicyArn'
 
-  OpenSearchPolicyArn:
-    Value: !Ref OpenSearchPolicy
-    Export:
-      Name: !Sub '${Env}-OpenSearchPolicyArn'
+  # OpenSearchPolicyArn:
+  #   Value: !Ref OpenSearchPolicy
+  #   Export:
+  #     Name: !Sub '${Env}-OpenSearchPolicyArn'
 
   VpcPolicyArn:
     Value: !Ref VpcPolicy

@@ -28,6 +28,9 @@ Parameters:
   DynamoTableName:
     Type: 'String'
 
+  DynamoIndexTableName:
+    Type: 'String'
+
   EventBusArn:
     Type: 'String'
 
@@ -46,6 +49,7 @@ Resources:
       Handler: 'app.Functions::DataCiteHarvester.process'
       Runtime: 'ruby3.2'
       Timeout: 600
+      MemorySize: 256
       Architectures:
         - 'x86_64'
       Layers:
@@ -56,6 +60,7 @@ Resources:
           LAMBDA_ENV: !Ref Env
           LOG_LEVEL: !Ref DebugLevel # 'debug'
           DYNAMO_TABLE: !Ref DynamoTableName
+          DYNAMO_INDEX_TABLE: !Ref DynamoIndexTableName
           SNS_FATAL_ERROR_TOPIC: !Ref SnsTopicEmailArn
       Events:
         DataCiteHarvesting:
