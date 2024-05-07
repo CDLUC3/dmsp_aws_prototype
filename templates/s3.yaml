@@ -55,6 +55,8 @@ Resources:
       - 'Delete'
     Properties:
       AccessControl: 'Private'
+      VersioningConfiguration:
+        Status: 'Enabled'
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true

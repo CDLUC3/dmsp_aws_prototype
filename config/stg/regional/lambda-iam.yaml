@@ -5,8 +5,13 @@ template:
 parameters:
   Env: !stack_attr sceptre_user_data.env
 
-  OpenSearchDomainArn: !stack_output stg/regional/opensearch.yaml::OpenSearchDomainArn
+  SsmPath: !stack_attr sceptre_user_data.ssm_path
+  Domain: !stack_attr sceptre_user_data.domain
+
+  # OpenSearchDomainArn: !stack_output stg/regional/opensearch.yaml::OpenSearchDomainArn
 
   EventBusArn: !stack_output stg/regional/eventbridge.yaml::EventBusArn
 
   DmpTableArn: !stack_output stg/regional/dynamo.yaml::DynamoTableArn
+
+  IndexTableArn: !stack_output stg/regional/dynamo-index-table.yaml::DynamoIndexTableArn

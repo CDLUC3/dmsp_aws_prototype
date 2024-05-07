@@ -1,0 +1,126 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: 'DynamoDB that acts as an index for our DMP ID Dynamo (temp replacement until we get OpenSearch working)'
+
+Parameters:
+  Env:
+    Type: 'String'
+    Default: 'dev'
+
+  Domain:
+    Type: 'String'
+
+  SsmPath:
+    Type: 'String'
+
+  DynamoTableClass:
+    Type: 'String'
+    Default: 'STANDARD'
+    AllowedValues:
+      - 'STANDARD'
+      - 'STANDARD_INFREQUENT_ACCESS'
+
+  DynamoEnableContributorInsights:
+    Type: 'String'
+    Default: 'false'
+    AllowedValues:
+      - 'true'
+      - 'false'
+  DynamoEnablePointInTimeRecovery:
+    Type: 'String'
+    Default: 'false'
+    AllowedValues:
+      - 'true'
+      - 'false'
+  DynamoBillingMode:
+    Type: 'String'
+    Default: 'PROVISIONED'
+    AllowedValues:
+      - 'PROVISIONED'
+      - 'PAY_PER_REQUEST'
+  DynamoReadCapacityUnits:
+    Type: 'Number'
+    Default: 10
+  DynamoWriteCapacityUnits:
+    Type: 'Number'
+    Default: 10
+
+  RdsSnapshot:
+    Type: 'String'
+    Default: 'none'
+
+Conditions:
+  PreventDelete:
+    !Equals [!Ref Env, 'prd']
+
+  ProvisionedCapacity:
+    !Not [!Equals [!Ref DynamoBillingMode, 'PAY_PER_REQUEST']]
+
+Resources:
+  # ----------------------------------------------
+  # DynamoDB polymorphic table for DMPs
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html
+  # ----------------------------------------------
+  Table:
+    Type: 'AWS::DynamoDB::Table'
+    DeletionPolicy: !If
+      - PreventDelete
+      - 'Retain'
+      - 'Delete'
+    Properties:
+      # This table stores information to make search easier. Records are added to this table via the
+      # DmpIndexerLambda which is triggered when a chnage is made to a DMP ID record in that Dynamo table.
+      # The current record types are:
+      #
+      # All of the searchable/filterable bits from the DMP ID (e.g. people_ids, funder_ids, title, etc.)
+      # PK: [DMP PK from the core Dynamo table], SK: 'METADATA'
+      #
+      # Search facility for a specific affiliation ROR: record contains the list of DMP PKs
+      # PK: 'AFFILIATION_INDEX', SK: [ROR ID]
+      #
+      # Search facility for a specific funder ROR: record contains the list of DMP PKs
+      # PK: 'FUNDER_INDEX', SK: [ROR ID]
+      #
+      # Search facility for a specific ORCID: record contains the list of DMP PKs
+      # PK: 'ORCID_INDEX', SK: [ROR ID]
+
+      KeySchema:
+        - AttributeName: 'PK'
+          KeyType: 'HASH'
+        - AttributeName: 'SK'
+          KeyType: 'RANGE'
+
+      AttributeDefinitions:
+        # DMPHub attribute that stores the provenance/DMP id (see above)
+        - AttributeName: 'PK'
+          AttributeType: 'S'
+        # DMPHub attribute that stores the provenance profile or the DMP version (see above)
+        - AttributeName: 'SK'
+          AttributeType: 'S'
+
+      BillingMode: !Ref DynamoBillingMode
+      TableClass: !Ref DynamoTableClass
+      ProvisionedThroughput: !If
+        - ProvisionedCapacity
+        - ReadCapacityUnits: !Ref DynamoReadCapacityUnits
+          WriteCapacityUnits: !Ref DynamoWriteCapacityUnits
+        - !Ref AWS::NoValue
+      ContributorInsightsSpecification:
+        Enabled: !Ref DynamoEnableContributorInsights
+      # Determine cost before enabling
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: !Ref DynamoEnablePointInTimeRecovery
+
+Outputs:
+  DynamoIndexTableName:
+    Value: !Select [1, !Split ['/', !GetAtt Table.Arn]]
+    Export:
+      Name: !Sub '${Env}-DynamoIndexTableName'
+
+  DynamoIndexTableId:
+    Value: !Ref Table
+
+  DynamoIndexTableArn:
+    Value: !GetAtt Table.Arn
+    Export:
+      Name: !Sub '${Env}-DynamoIndexTableArn'
