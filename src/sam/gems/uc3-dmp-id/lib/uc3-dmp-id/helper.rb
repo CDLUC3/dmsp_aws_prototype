@@ -12,6 +12,8 @@ module Uc3DmpId
     SK_DMP_PREFIX = 'VERSION#'
     SK_DMP_REGEX = /VERSION#\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\+\d{2}:\d{2}/
 
+    SK_HARVESTER_MODS = "HARVESTER_MODS"
+
     # TODO: Verify the assumed structure of the DOI is valid
     DOI_REGEX = %r{[0-9]{2}\.[0-9]{4,}/[a-zA-Z0-9/_.-]+}
     URL_REGEX = %r{(https?://)?([a-zA-Z0-9\-_]\.)+[a-zA-Z0-9\-_]{2,3}(:[0-9]+)?/?}

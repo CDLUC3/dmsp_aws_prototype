@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: 'AWS::Serverless-2016-10-31'
 
-Description: 'DMP-ID DynamoTable Stream function that updates OpenSearch'
+Description: 'DMP-ID DynamoTable Stream function that updates the Dynamo INdexing table'
 
 Parameters:
   Env:
@@ -16,25 +16,28 @@ Parameters:
     Type: 'Number'
     Default: 14
 
-  SubnetA:
-    Type: 'AWS::EC2::Subnet::Id'
+  # SubnetA:
+  #   Type: 'AWS::EC2::Subnet::Id'
 
-  SubnetB:
-    Type: 'AWS::EC2::Subnet::Id'
+  # SubnetB:
+  #   Type: 'AWS::EC2::Subnet::Id'
 
-  SubnetC:
-    Type: 'AWS::EC2::Subnet::Id'
+  # SubnetC:
+  #   Type: 'AWS::EC2::Subnet::Id'
 
   IndexerRoleArn:
     Type: 'String'
 
-  LambdaSecurityGroupId:
-    Type: 'String'
+  # LambdaSecurityGroupId:
+  #   Type: 'String'
 
-  OpenSearchSecurityGroupId:
-    Type: 'String'
+  # OpenSearchSecurityGroupId:
+  #   Type: 'String'
 
-  OpenSearchDomainEndpoint:
+  # OpenSearchDomainEndpoint:
+  #   Type: 'String'
+
+  DynamoIndexTableName:
     Type: 'String'
 
   BaselineLayerId:
@@ -47,7 +50,7 @@ Parameters:
     Type: 'String'
 
 Resources:
-  # Lambda that converts DynamoDB Stream events into OpenSearch records
+  # Lambda that converts DynamoDB Stream events into Index records
   Function:
     Type: 'AWS::Serverless::Function'
     Properties:
@@ -64,18 +67,19 @@ Resources:
         Variables:
           LAMBDA_ENV: !Ref Env
           LOG_LEVEL: !Ref DebugLevel # 'debug'
-          OPEN_SEARCH_DOMAIN: !Sub 'https://${OpenSearchDomainEndpoint}'
-          OPEN_SEARCH_INDEX: !Sub '${Env}-dmp-id-search'
-      VpcConfig:
-        SecurityGroupIds:
-          - !Ref LambdaSecurityGroupId
-          - !Ref OpenSearchSecurityGroupId
-        SubnetIds:
-          - !Ref SubnetA
-          - !Ref SubnetB
-          - !Ref SubnetC
+          DYNAMO_INDEX_TABLE: !Ref DynamoIndexTableName
+          # OPEN_SEARCH_DOMAIN: !Sub 'https://${OpenSearchDomainEndpoint}'
+          # OPEN_SEARCH_INDEX: !Sub '${Env}-dmp-id-search'
+      # VpcConfig:
+      #   SecurityGroupIds:
+      #     - !Ref LambdaSecurityGroupId
+      #     - !Ref OpenSearchSecurityGroupId
+      #   SubnetIds:
+      #     - !Ref SubnetA
+      #     - !Ref SubnetB
+      #     - !Ref SubnetC
       Events:
-        DynamoDbOpenSearchEvent:
+        DynamoDbIndexingEvent:
           # See: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-property-function-dynamodb.html
           Type: 'DynamoDB'
           Properties:
@@ -87,7 +91,7 @@ Resources:
               OnFailure:
                 Destination: !Ref DeadLetterQueueArn
 
-  OpenSearchPermission:
+  LambdaPermission:
     Type: 'AWS::Lambda::Permission'
     Properties:
       FunctionName: !Ref Function

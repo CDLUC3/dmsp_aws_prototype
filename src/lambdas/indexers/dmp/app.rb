@@ -11,12 +11,14 @@ require 'aws-sigv4'
 
 require 'uc3-dmp-api-core'
 require 'uc3-dmp-cloudwatch'
+require 'uc3-dmp-dynamo'
 require 'uc3-dmp-id'
 
 module Functions
   # A service that indexes DMP-IDs into OpenSearch
   class DmpIndexer
-    SOURCE = 'DMP-ID Dynamo Table Stream to OpenSearch'
+    # SOURCE = 'DMP-ID Dynamo Table Stream to OpenSearch'
+    SOURCE = 'DMP-ID Dynamo Table Stream to Dynamo Index'
 
     # Parameters
     # ----------
@@ -69,7 +71,10 @@ module Functions
         req_id = context.is_a?(LambdaContext) ? context.aws_request_id : event['id']
         logger = Uc3DmpCloudwatch::Logger.new(source: SOURCE, request_id: req_id, event:, level: log_level)
 
-        client = _open_search_connect(logger:) if records.any?
+        # TODO: Eventually reenable this once we have OpenSearch in a stable situation
+        # client = _open_search_connect(logger:) if records.any?
+        client = Aws::DynamoDB::Client.new(region: ENV.fetch('AWS_REGION', 'us-west-2'))
+        table = ENV['DYNAMO_INDEX_TABLE']
         record_count = 0
 
         records.each do |record|
@@ -85,20 +90,22 @@ module Functions
             logger&.info(message: "Removing OpenSearch record")
           when 'MODIFY'
             logger&.info(message: "Updating OpenSearch record")
-            client.index(
-              index: ENV['OPEN_SEARCH_INDEX'],
-              body: _dmp_to_os_doc(hash: payload, logger:),
-              id: pk,
-              refresh: true
-            )
+            doc = _dmp_to_dynamo_index(client:, table:, hash: payload, logger:)
+            # client.index(
+            #   index: ENV['OPEN_SEARCH_INDEX'],
+            #   body: _dmp_to_os_doc(hash: payload, logger:),
+            #   id: pk,
+            #   refresh: true
+            # )
           else
             logger&.info(message: "Creating OpenSearch record")
-            client.index(
-              index: ENV['OPEN_SEARCH_INDEX'],
-              body: _dmp_to_os_doc(hash: payload, logger:),
-              id: pk,
-              refresh: true
-            )
+            doc = _dmp_to_dynamo_index(lient:, table:, hash: payload, logger:)
+            # client.index(
+            #   index: ENV['OPEN_SEARCH_INDEX'],
+            #   body: _dmp_to_os_doc(hash: payload, logger:),
+            #   id: pk,
+            #   refresh: true
+            # )
           end
 
           record_count += 1
@@ -142,13 +149,130 @@ module Functions
         puts e.backtrace
       end
 
+      # Update the indices
+      def _dmp_to_dynamo_index(client:, table:, hash:, logger:)
+        pk = hash.fetch('PK', {})['S']
+        sk = 'METADATA'
+
+        # Fetch the existing Indexed metadata
+        resp = client.get_item({
+          table_name: table,
+          key: { PK: pk, SK: sk },
+          consistent_read: false,
+          return_consumed_capacity: logger&.level == 'debug' ? 'TOTAL' : 'NONE'
+        })
+        original = resp[:item].is_a?(Array) ? resp[:item].first : resp[:item]
+
+        # Generate the new Indexed metadata
+        idx_rec = { PK: pk, SK: sk }.merge(_dmp_to_os_doc(hash:, logger:))
+
+        # Update/Add the metadata for the DMP
+        client.put_item(item: idx_rec, table_name: table)
+
+        # Update each AFFILIATION ROR index with the Partition Key
+        new_ids = idx_rec.fetch(:affiliation_ids, [])
+        original_ids = original.nil? ? [] : original.fetch(:affiliation_ids, [])
+        _sync_affiliation_index(client:, table:, dmp_pk: pk, original_ids:, new_ids:) if new_ids.any? || original_ids.any?
+
+        # Update each ORCID index with the Partition Key
+        new_ids = idx_rec.fetch(:people_ids, [])
+        original_ids = original.nil? ? [] : original.fetch(:affiliation_ids, [])
+        _sync_orcid_index(client:, table:, dmp_pk: pk, original_ids:, new_ids:) if new_ids.any? || original_ids.any?
+
+        # Update each FUNDER ROR index with the Partition Key
+        new_ids = idx_rec.fetch(:funder_ids, [])
+        original_ids = original.nil? ? [] : original.fetch(:affiliation_ids, [])
+        _sync_funder_index(client:, table:, dmp_pk: pk, original_ids:, new_ids:) if new_ids.any? || original_ids.any?
+      end
+
+      def _sync_affiliation_index(client:, table:, dmp_pk:, original_ids:, new_ids:, logger: nil)
+        # Add the DMP ID to new RORs
+        new_ids.difference(original_ids).each do |ror|
+          item = _dynamo_index_get(client:, table:, key: { PK: 'AFFILIATION_INDEX', SK: ror }, logger:)
+          item['dmps'] = [] if item['dmps'].nil?
+          item['dmps'] << dmp_pk
+          _dynamo_index_put(client:, table:, item:, logger:)
+        end
+
+        # Remove it from any RORs if necessary
+        original_ids.difference(new_ids).each do |ror|
+          item = _dynamo_index_get(client:, table:, key: { PK: 'AFFILIATION_INDEX', SK: ror }, logger:)
+          next if item.fetch('dmps', []).empty?
+
+          item['dmps'] = item['dmps'].reject { |dmp_id| dmp_id == dmp_pk }
+          _dynamo_index_put(client:, table:, item:, logger:)
+        end
+      end
+
+      def _sync_funder_index(client:, table:, dmp_pk:, original_ids:, new_ids:, logger: nil)
+        # Add the DMP ID to new RORs
+        new_ids.difference(original_ids).each do |ror|
+          item = _dynamo_index_get(client:, table:, key: { PK: 'FUNDER_INDEX', SK: ror }, logger:)
+          item['dmps'] = [] if item['dmps'].nil?
+          item['dmps'] << dmp_pk
+          _dynamo_index_put(client:, table:, item:, logger:)
+        end
+
+        # Remove it from any RORs if necessary
+        original_ids.difference(new_ids).each do |ror|
+          item = _dynamo_index_get(client:, table:, key: { PK: 'FUNDER_INDEX', SK: ror }, logger:)
+          next if item.fetch('dmps', []).empty?
+
+          item['dmps'] = item['dmps'].reject { |dmp_id| dmp_id == dmp_pk }
+          _dynamo_index_put(client:, table:, item:, logger:)
+        end
+      end
+
+      def _sync_orcid_index(client:, table:, dmp_pk:, original_ids:, new_ids:, logger: nil)
+        # Add the DMP ID to new RORs
+        new_ids.difference(original_ids).each do |orcid|
+          item = _dynamo_index_get(client:, table:, key: { PK: 'ORCID_INDEX', SK: orcid }, logger:)
+          item['dmps'] = [] if item['dmps'].nil?
+          item['dmps'] << dmp_pk
+          _dynamo_index_put(client:, table:, item:, logger:)
+        end
+
+        # Remove it from any RORs if necessary
+        original_ids.difference(new_ids).each do |orcid|
+          item = _dynamo_index_get(client:, table:, key: { PK: 'ORCID_INDEX', SK: orcid }, logger:)
+          next if item.fetch('dmps', []).empty?
+
+          item['dmps'] = item['dmps'].reject { |dmp_id| dmp_id == dmp_pk }
+          _dynamo_index_put(client:, table:, item:, logger:)
+        end
+      end
+
+      # Fetch the index record from the DB
+      def _dynamo_index_get(client:, table:, key:, logger: nil)
+        resp = client.get_item({
+          table_name: table,
+          key:,
+          consistent_read: false,
+          return_consumed_capacity: logger&.level == 'debug' ? 'TOTAL' : 'NONE'
+        })
+
+        logger.debug(message: "#{SOURCE} fetched INDEX ID: #{key}") if logger.respond_to?(:debug)
+        item = resp[:item].is_a?(Array) ? resp[:item].first : resp[:item]
+        item.nil? ? JSON.parse(key.to_json) : item
+      end
+
+      # Add/update an index record
+      def _dynamo_index_put(client:, table:, item:, logger: nil)
+        resp = client.put_item({
+          table_name: table,
+          item:,
+          return_consumed_capacity: logger&.level == 'debug' ? 'TOTAL' : 'NONE'
+        })
+        resp
+      end
+
       # Extract all of the important information from the DMP to create our OpenSearch Doc
       def _dmp_to_os_doc(hash:, logger:)
         people = _extract_people(hash:, logger:)
         pk = Uc3DmpId::Helper.remove_pk_prefix(p_key: hash.fetch('PK', {})['S'])
         visibility = hash.fetch('dmproadmap_privacy', {})['S']&.downcase&.strip == 'public' ? 'public' : 'private'
 
-        project = hash.fetch('project', {}).fetch('L', [{}]).first
+        project = hash.fetch('project', {}).fetch('L', [{}]).first['M']
         project = {} if project.nil?
         # Set the project start date equal to the date specified or the DMP creation date
         proj_start = project.fetch('start', hash.fetch('created', {}))['S']

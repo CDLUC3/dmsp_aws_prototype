@@ -31,13 +31,15 @@ function OrgLink(props) {
   let idx = props?.key || "";
   let nameUrlRegex = /\s+\(.*\)\s?/i;
 
-  if (org !== undefined) {
-    if (org.affiliation_id !== '') {
+  if (org !== null) {
+    if (org.affiliation_id) {
       return (
-        <Link href={org.affiliation_id?.identifier} label={org.name.replace(nameUrlRegex, '')} remote='true' index={idx + 'aid'}/>
+        <Link href={org.affiliation_id?.identifier} label={org.name.replace(nameUrlRegex, '')} remote='true' index={idx + 'aid'} />
       );
     } else {
-      return org.name;
+      return (
+        <>{' '}{org.name}</>
+      )
     }
   }
 }
@@ -50,7 +52,7 @@ function OrcidLink(props) {
       if ('identifier' in orcid) {
         return (
           <Link href={orcid.identifier} label={orcid.identifier.replace(/https?:\/\/orcid.org\//i, '')}
-                remote='true' index={idx + 'oid'} className="c-orcid"/>
+            remote='true' index={idx + 'oid'} className="c-orcid" />
         );
       }
     }
@@ -60,12 +62,12 @@ function RoleLink(props) {
   let role = props?.role;
   let idx = props?.index;
 
-  if (role !== undefined && idx !== undefined){
+  if (role !== undefined && idx !== undefined) {
     let displayRole = role.toString().replace(ROLE_PREFIX_REGEX, '');
     if (displayRole.length > 0) {
       displayRole = displayRole.replace('-', ' ').charAt(0).toUpperCase() + displayRole.slice(1);
       return (
-        <Link href={role} label={displayRole} remote='true' index={'a' + idx}/>
+        <Link href={role} label={displayRole} remote='true' index={'a' + idx} />
       );
     }
   }
@@ -79,7 +81,7 @@ function RoleLinks(props) {
       let roles = removeDuplicateRoles(person.role); // [...new Set(contributor.role)];
 
       return roles.map((role, idx) => (
-        <RoleLink role={role} index={index} key={index + 'role' + idx}/>
+        <RoleLink role={role} index={index} key={index + 'role' + idx} />
       ));
     }
   }
@@ -92,9 +94,9 @@ function Contributor(props) {
       return (
         <li className="comma-separated" key={'li' + idx}>
           <strong key={'strong' + idx}>{person.name}:</strong>
-          <RoleLinks person={person} index={'rl' + idx}/>
-          <OrgLink org={person.dmproadmap_affiliation} index={'org' + idx}/>
-          <OrcidLink person={person} index={'orcid' + idx}/>
+          <RoleLinks person={person} index={'rl' + idx} />
+          <OrgLink org={person.dmproadmap_affiliation} index={'org' + idx} />
+          <OrcidLink person={person} index={'orcid' + idx} />
         </li>
       );
     }
@@ -113,7 +115,7 @@ function Contributors(props) {
 
         <ul className="landing-list">
           {persons.map((person, idx) => (
-            <Contributor person={person} index={'contrib' + idx} key={idx}/>
+            <Contributor person={person} index={'contrib' + idx} key={idx} />
           ))}
         </ul>
       </div>

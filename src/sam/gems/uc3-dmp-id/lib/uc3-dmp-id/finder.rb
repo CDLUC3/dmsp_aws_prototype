@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'uc3-dmp-dynamo'
+require 'securerandom'
 
 module Uc3DmpId
   class FinderError < StandardError; end
@@ -74,6 +75,9 @@ module Uc3DmpId
 
         dmp = resp['dmp'].nil? ? JSON.parse({ dmp: resp }.to_json) : resp
         return nil if dmp['dmp']['PK'].nil?
+
+        # Attach any harvester mods to the JSON
+        dmp['dmp'] = _attach_harvester_mods(client:, p_key:, json: dmp['dmp'], logger:)
 
         dmp = Versioner.append_versions(p_key: dmp['dmp']['PK'], dmp:, client:, logger:) if cleanse
         dmp = _remove_narrative_if_private(json: dmp)
@@ -222,6 +226,47 @@ module Uc3DmpId
         json['dmp']['dmproadmap_related_identifiers'] = json['dmp']['dmproadmap_related_identifiers'].reject do |id|
           id['descriptor'] == 'is_metadata_for' && id['work_type'] == 'output_management_plan'
         end
+        json
+      end
+
+      # Fetch any Harvester modifications and attach them to the JSON in the way the DMPTool expects
+      # TODO: eventually just update the rebuilt DMPTool to work with the HARVESTER_MODS records as-is
+      def _attach_harvester_mods(client:, p_key:, json:, logger: nil)
+        # Fetch the `"SK": "HARVESTER_MODS"` record
+        client = Uc3DmpDynamo::Client.new if client.nil?
+        resp = client.get_item(
+          key: { PK: Helper.append_pk_prefix(p_key:), SK: Helper::SK_HARVESTER_MODS }, logger:
+        )
+        return json unless resp.is_a?(Hash)
+
+        mods = []
+        resp.fetch('related_works', {}).each do |key, val|
+          rec = val.dup
+          next if rec['provenance'].nil?
+
+          # Change the name of the `logic` array to `notes`
+          rec['notes'] = rec['logic']
+          rec['score'] = rec['score'].to_s
+          # For `work-type` that equal `outputmanagementplan`, change it to `output_management_plan`
+          rec['work_type'] = 'output_management_plan' if rec['work_type'] == 'outputmanagementplan'
+
+          # The old `dmphub_modifications` array was grouped by provenance
+          prov_array = mods.select { |entry| entry['provenance'] == rec['provenance'] }
+          if prov_array.any?
+            prov_array << rec
+          else
+            mods << {
+              id: "#{Time.now.utc.strftime('%Y-%m-%d')}-#{SecureRandom.hex(4)}",
+              provenance: rec['provenance'],
+              augmenter_run_id: SecureRandom.hex(8),
+              timestamp: rec['discovered_at'].nil? ? Time.now.utc.iso8601 : rec['discovered_at'],
+              dmproadmap_related_identifiers: [rec],
+              funding: []
+            }
+          end
+        end
+        # Add a `dmphub_modifications` array to the JSON
+        json['dmphub_modifications'] = JSON.parse(mods.to_json)
         json
       end
     end

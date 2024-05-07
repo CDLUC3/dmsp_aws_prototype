@@ -1,3 +1,6 @@
+
+
+
 # frozen_string_literal: true
 
 # ------------------------------------------------------------------------------------------------------------
@@ -50,13 +53,15 @@ if ARGV.length >= 3
   # List the names of all other parameters whose values should be available as exported CloudFormation stack
   # outputs. The env prefix will be appended to each name your provide.
   #    For example if the name of the parameter is 'DomainName' this script will look for 'dev-DomainName'
-  @cf_params = %w[IndexerRoleArn S3PrivateBucketId LambdaSecurityGroupId OpenSearchSecurityGroupId
-                  OpenSearchDomainEndpoint BaselineLayerId DynamoTableStreamArn DeadLetterQueueArn]
+  @cf_params = %w[IndexerRoleArn S3PrivateBucketId BaselineLayerId DynamoIndexTableName DynamoTableStreamArn DeadLetterQueueArn]
+  # @cf_params = %w[IndexerRoleArn S3PrivateBucketId LambdaSecurityGroupId OpenSearchSecurityGroupId
+  #                 OpenSearchDomainEndpoint BaselineLayerId DynamoTableStreamArn DeadLetterQueueArn]
 
   # List the names of all other parameters whose values should be available as SSM parameters. The name must
   # match the final part of the SSM key name. This script will append the prefix automatically.
   #    For example if the parameter is 'DomainName' this script will look for '/uc3/dmp/hub/dev/DomainName'
-  @ssm_params = %w[SubnetA SubnetB SubnetC DomainName]
+  # @ssm_params = %w[SubnetA SubnetB SubnetC DomainName]
+  @ssm_params = %w[DomainName]
   #
   #
   # DON'T FORGET TO: Add an entry to the Sceptre config for lambda-iam.yaml and lambda-vpc.yaml for this Lambda!
@@ -91,14 +96,9 @@ if ARGV.length >= 3
   # Search the stack outputs for the name
   def fetch_cf_output(name:)
     vals = @stack_exports.select do |exp|
-<<<<<<< HEAD
-      (exp.exporting_stack_id.include?(@prefix) || exp.exporting_stack_id.include?("#{@program}-#{@env}") ) &&
-      exp.name.downcase.strip == "#{@env}-#{name&.downcase&.strip}"
-=======
       (name&.downcase&.strip == 'lambdasecuritygroupid' && exp.name.downcase.strip == 'lambdasecuritygroupid') ||
       ((exp.exporting_stack_id.include?(@prefix) || exp.exporting_stack_id.include?("#{@program}-#{@env}") ) &&
         "#{@env}-#{name&.downcase&.strip}" == exp.name.downcase.strip)
->>>>>>> main
     end
     vals&.first&.value
   end
@@ -151,10 +151,13 @@ if ARGV.length >= 3
   @stack_exports = fetch_cf_stack_exports
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 pp @stack_exports
 
 
+>>>>>>> main
+=======
 >>>>>>> main
   if @run_build || @run_deploy
     @ssm_client = Aws::SSM::Client.new(region: DEFAULT_REGION)

@@ -1,0 +1,19 @@
+template:
+  path: dynamo-index-table.yaml
+  type: file
+
+parameters:
+  Env: !stack_attr sceptre_user_data.env
+
+  Domain: !stack_attr sceptre_user_data.domain
+
+  SsmPath: !stack_attr sceptre_user_data.ssm_path
+
+  # Dynamo settings
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html
+  DynamoTableClass: 'STANDARD'
+  DynamoEnableContributorInsights: 'true'
+  DynamoEnablePointInTimeRecovery: 'true'
+  DynamoBillingMode: 'PAY_PER_REQUEST'
+  DynamoReadCapacityUnits: '8'
+  DynamoWriteCapacityUnits: '30'
