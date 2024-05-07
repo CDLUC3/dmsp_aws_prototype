@@ -19,16 +19,16 @@ require 'uc3-dmp-external-api'
 require 'uc3-dmp-id'
 
 module Functions
-  # A service that queries DataCite GraphQL API
+  # A service that queries DataCite REST API
   class DataCiteHarvester
     SOURCE = 'DataCite Harvester'
 
     DMP_HARVESTER_MODS_SK = 'HARVESTER_MODS'
 
-    GRAPHQL_ENDPOINT = 'https://api.datacite.org/graphql'
-    GRAPHQL_TIMEOUT_SECONDS = 120
+    REST_ENDPOINT = 'https://api.datacite.org/dois?affiliation=true&publisher=true&query='
+    REST_TIMEOUT_SECONDS = 120
 
-    MSG_GRAPHQL_FAILURE = 'Unable to query the DataCite GraphQL API at this time.'
+    MSG_REST_FAILURE = 'Unable to query the DataCite REST API at this time.'
     MSG_EMPTY_RESPONSE = 'DataCite did not return any results.'
 
     # Parameters
@@ -114,36 +114,31 @@ module Functions
         # Fetch all of the individual DMP's metadata
         dmps = _fetch_dmp_metadata(client: dynamo_client, table: index_table, dmps:  details['dmps'],
                                   logger:)
+        logger&.debug(message: 'Full DMP metadata', details: dmps)
+        # Find the start and end years for our DataCite search
+        range = _find_date_range(entries: dmps)
+        return true if dmps.empty? || range.empty?
 
-        # Find the start and end dates for our DataCite search
-        start_at = _find_start_date(entries: dmps)
-        end_at = Date.today.to_s
-        range = "#{start_at} TO #{end_at}"
-
-        # Query DataCite to determine the size of the potential output
-        query = _graphql_page_info_query(ror:, range:)
-        logger&.debug(message: 'Querying DataCite:', details: query)
-        datacite_recs = _query_datacite(query:, logger:)
-        return true unless datacite_recs.is_a?(Hash)
-
-        # Fetch the totalCount and then use it to determine the max records we will request from DataCite
-        meta = datacite_recs.fetch('organization', {}).fetch('works', {})
-        work_count = meta.fetch('totalCount', 0)
-        logger&.debug(message: 'No works found.', details: datacite_recs) unless work_count > 0
-        return true unless work_count > 0
-
-        # Query DataCite for the list of works
-        work_count = 1000 if work_count > 1000
-        query = _graphql_affiliation(ror:, range:, work_count:)
-        logger&.debug(message: 'Querying DataCite:', details: query)
-        datacite_recs = _query_datacite(query:, logger:)
-        return true if datacite_recs.nil?
+        # Query DataCite for the list of works for each unique person
+        people = dmps.map { |dmp| dmp['people'] }.flatten.reject { |p| p.nil? || p.include?('@') }
+        people = people.compact.uniq
+        years = "(#{range.join('+OR+')})"
+        datacite_recs = []
+        logger&.debug(message: 'Query criteria:', details: { people:, years: })
+        people.each do |person|
+          query = "creators.name:#{person.gsub(/\s/, '+')}+AND+publicationYear:#{years}"
+          logger&.debug(message: 'Querying DataCite:', details: query)
+          datacite_recs << _query_datacite(query:, logger:)
+        end
+        return true if datacite_recs.nil? || datacite_recs.empty?
 
         # See if the returned DataCite info has any matches to our DMSPs
+        datacite_recs = datacite_recs.flatten.uniq.compact.map { |hash| hash['attributes'] }
         matches = _select_relevant_content(datacite_recs:, dmps:, logger:)
         return true unless matches.is_a?(Array) && matches.any?
 
         # Update the relevant DMSPs
+        logger&.debug(message: 'Relevant content found:', details: matches)
         _process_matches(dynamo_client:, table:, matches:, logger:)
 
         # Send log to admins
@@ -162,20 +157,34 @@ module Functions
 
       # Extract the earliest :project_end date and then subtract 2 years from that
       # OR return the :project_start plus one year (if no :project_end was found)
-      def _find_start_date(entries:)
-        start_dates = entries.map do |dmp|
-          return (Date.parse(dmp['project_end']) - 730).to_s unless dmp['project_end'].nil?
-
-          # Or 1 year after the project start if no project end date was defined
-          proj_start = (Date.parse(dmp.fetch('project_start', dmp['registered'])) + 365).to_s
+      def _find_date_range(entries:)
+        years = []
+        entries.each do |dmp|
+          if dmp['project_end'].nil? && (!dmp['project_start'].nil? || !dmp['registered'].nil?)
+            # No specified project end date, so set the range to 1 to 10 years after the start
+            date = Date.parse(dmp.fetch('project_start', dmp['registered']))
+            years << (date + 365).year
+            years << (date + 1826).year
+          else
+            # Otherwise use 2 years before and after the specified project end date
+            years << (Date.parse(dmp['project_end']) - 730).year
+            years << (Date.parse(dmp['project_end']) + 730).year
+          end
         end
-        start_dates.sort.last
+        current_year = Date.today.year
+        # Create a range of years for our DataCite query. Cut it off at the current year
+        years = years.uniq.sort.reject { |year| year > current_year }
+        start_year = years.first
+        gap = years.last - years.first
+        years = [years.first]
+        gap.times { |i| years << start_year + (i + 1) }
+        years
       end
 
       # Search DataCite using the supplied query and then process the response
       def _query_datacite(query:, logger:)
-        logger&.debug(message: "GraphQL query used", details: query)
-        resp = _call_datacite(body: query, logger:)
+        logger&.debug(message: "REST query used", details: query)
+        resp = _call_datacite(query:, logger:)
         return [] if resp.nil?
 
         data = resp.is_a?(Hash) ? resp['data'] : JSON.parse(resp)
@@ -183,72 +192,19 @@ module Functions
         data
       end
 
-      # First hot Datacite to determine the starting cursor and the total number of records.
-      # Unfortunately DataCite throws an error if we try to fetch the current cursor from `edges { cursor }`
-      # so we will instead pass the startCursor to the real query and either the full item count of 1000
-      def _graphql_page_info_query(ror:, range:)
-        {
-          variables: { ror: ror },
-          operationName: 'affiliationQuery',
-          query: <<~TEXT
-            query affiliationQuery ($ror: ID!)
-            {
-              organization(id: $ror) {
-                id
-                name
-                alternateName
-                works(query: "created: [#{range}]") {
-                  totalCount
-                }
-              }
-            }
-          TEXT
-        }.to_json
-      end
-
-      # Search the Pid Graph by Affiliation ROR
-      def _graphql_affiliation(ror:, range:, work_count:)
-        {
-          variables: { ror: ror },
-          operationName: 'affiliationQuery',
-          query: <<~TEXT
-            query affiliationQuery ($ror: ID!)
-            {
-              organization(id: $ror) {
-                id
-                name
-                alternateName
-                works(query: "created: [#{range}]", first: #{work_count + 1}) {
-                  nodes #{_related_work_fragment }
-                }
-              }
-            }
-          TEXT
-        }.to_json
-      end
-
-      # Search DataCite using the supplied query and then process the response
-      def _fetch_and_process_works(query:, comparator:, logger:)
-        logger&.debug(message: "GraphQL query used", details: query)
-        resp = _call_datacite(body: query, logger:)
-        data = resp.is_a?(Hash) ? resp['data'] : JSON.parse(resp)
-        logger&.debug(message: "Raw results from DataCite.", details: data)
-        data
-      end
-
       # Call DataCite
-      def _call_datacite(body:, logger:)
+      def _call_datacite(query:, logger:)
         cntr = 0
         while cntr <= 2
           begin
-            resp = Uc3DmpExternalApi::Client.call(url: GRAPHQL_ENDPOINT, method: :post, body: body,
-                                                  timeout: 300, logger:)
+            url = "#{REST_ENDPOINT}#{query}"
+            resp = Uc3DmpExternalApi::Client.call(url:, method: :get, timeout: 300, logger:)
 
             logger&.info(message: MSG_EMPTY_RESPONSE, details: resp) if resp.nil? || resp.to_s.strip.empty?
             payload = resp unless resp.nil? || resp.to_s.strip.empty?
             cntr = 3 unless payload.nil?
           rescue Net::ReadTimeout
-            logger&.info(message: 'Httparty timeout', details: body)
+            logger&.info(message: 'Httparty timeout', details: query)
             sleep(3)
           rescue StandardError => e
             logger&.error(message: "Failure calling DataCite #{e.message}")
@@ -263,23 +219,22 @@ module Functions
       # Compare the related works from DataCite with the things we know about the DMP
       def _select_relevant_content(datacite_recs:, dmps:, logger:)
         relevant = []
-        return relevant unless datacite_recs.is_a?(Hash) && dmps.is_a?(Array)
+        return relevant unless datacite_recs.is_a?(Array) && dmps.is_a?(Array)
 
-        works = datacite_recs.fetch('organization', {}).fetch('works', {}).fetch('nodes', [])
         comparator = Uc3DmpId::Comparator.new(dmps:, logger:)
-
-        works.each do |work|
+        datacite_recs.each do |work|
+          logger&.debug(message: 'DataCite work:', details: work)
           # Skip DMPs
-          next if work['type'] == 'OutputManagementPlan'
+          next if work.fetch('types', {})['resourceType'] == 'OutputManagementPlan'
 
           comprable = _extract_comparable(hash: work)
           next unless comprable.is_a?(Hash) && !comprable['title'].nil?
 
-          # logger&.debug(message: 'DataCite record reduced to it\'s comprable parts:', details: comprable)
           result = comparator.compare(hash: comprable)
-          next unless result.is_a?(Hash) && result[:score] >= 3
+          logger&.debug(message: 'Comparison result:', details: result)
+          next unless result.is_a?(Hash) && result[:score] >= 2
 
-          src = work.fetch('publisher', work.fetch('member', {}))&.fetch('name', nil)
+          src = work.fetch('publisher', {}).fetch('name', nil)
           result[:source] = ['Datacite', src].compact.join(' via ')
           result = result.merge({ work: })
           logger&.info(message: 'Uc3DmpId::Comparator potential match:', details: result)
@@ -305,9 +260,10 @@ module Functions
       # Add the relevant matches from DataCite to the DMP-IDs HARVESTER_MODS doc
       def _process_matches(dynamo_client:, table:, matches:, logger:)
         matches.each do |match|
-          next unless match[:work].is_a?(Hash) && match[:work]['id']
+          next unless match[:work].is_a?(Hash) && match[:work]['doi']
 
-          work_id = match[:work]['id']
+          work_id = match[:work]['doi']
+          work_id = "https://doi.org/#{work_id}" unless work_id.start_with?('http')
           # Fetch existing HARVESTER_MODS record (or initialize it)
           mods_rec = _get_mods_record(client: dynamo_client, table:, dmp_id: match[:dmp_id], logger:)
           mods_rec = JSON.parse({ PK: match[:dmp_id], SK: 'HARVESTER_MODS', tstamp: Time.now.utc.iso8601 }.to_json)
@@ -347,8 +303,15 @@ module Functions
 
       def _prepare_related_work_mod(match:, logger:)
         work = match[:work]
-        typ = work.fetch('type', 'dataset')&.downcase&.strip
-        citation = Uc3DmpCitation::Citer.bibtex_to_citation(uri: work['id'], bibtex_as_string: work['bibtex'])
+        typs = work.fetch('types', {})
+        typ = typs['resourceTypeGeneral'].nil? ? typs.fetch('resourceType', 'dataset') : typs['resourceTypeGeneral']
+        typ = typ&.downcase&.strip
+        # citation = Uc3DmpCitation::Citer.bibtex_to_citation(uri:, bibtex_as_string: work['bibtex'])
+        begin
+          citation = Uc3DmpCitation::Citer.fetch_citation(doi: work['doi'], work_type: typ, logger:)
+        rescue StandardError => e
+          logger&.error(message: "Failed to fetch citation for #{work['doi']} - #{e.message}", details: e.backtrace)
+        end
         secondary_works = []
         work.fetch('relatedIdentifiers', []).each do |related|
           next if related['relatedIdentifier'].nil? || related['relationType'] == 'IsCitedBy'
@@ -368,11 +331,10 @@ module Functions
           discovered_at: Time.now.utc.iso8601,
           status: 'pending',
           type: 'doi',
-          identifier: work['id'],
+          identifier: work['doi'],
           descriptor: 'references',
           work_type: typ == 'journalarticle' ? 'article' : typ,
           citation:,
-
           secondary_works: secondary_works&.flatten&.compact&.uniq
         }
       end
@@ -416,7 +378,7 @@ module Functions
 
         people_parts = { people: [], people_ids: [], affiliations: [], affiliation_ids: [] }
         people.each do |person|
-          people_parts[:people] << person[:name] unless person[:name].nil?
+          people_parts[:people] << person[:name].flatten.compact.uniq if person[:name].is_a?(Array)
           people_parts[:people_ids] << person[:id] unless person[:id].nil?
           people_parts[:affiliations] << person[:affiliations] unless person[:affiliations].nil?
           people_parts[:affiliation_ids] << person[:affiliation_ids] unless person[:affiliation_ids].nil?
@@ -435,7 +397,7 @@ module Functions
         JSON.parse({
           title: hash.fetch('titles', []).map { |entry| entry['title'] }.join(' '),
           abstract: hash.fetch('descriptions', []).map { |entry| entry['description'] }.join(' '),
-          people: people_parts[:people].compact.uniq,
+          people: people_parts[:people].flatten.compact.uniq,
           people_ids: people_parts[:people_ids].compact.uniq,
           affiliations: people_parts[:affiliations].flatten.compact.uniq,
           affiliation_ids: people_parts[:affiliation_ids].flatten.compact.uniq,
@@ -452,10 +414,10 @@ module Functions
         # Names come through as `last, first` so reverse that so it's `first last`
         name = hash['name']&.downcase&.strip&.split(', ')&.reverse&.join(' ')
         name = [hash['givenName'], hash['familyName']].compact.map { |i| i.downcase.strip }.join(' ') if name.nil?
-        affil = hash.fetch('affiliation', {})
+        affil = hash.fetch('affiliation', [])
         {
           id: hash['id'],
-          name: name,
+          name: [hash['name']&.downcase&.strip, name],
           affiliations: affil.map { |entry| entry['name']&.downcase&.strip },
           affiliation_ids: affil.map { |entry| entry['id']&.downcase&.strip }
         }
@@ -469,168 +431,6 @@ module Functions
           name: hash['funderName']&.downcase&.strip,
           grant: grants&.flatten&.compact&.uniq
         }
-      end
-
-      # Search the Pid graph by Funder Id
-      def _graphql_funder(fundref:, year:)
-        {
-          variables: { fundref: fundref, year: year },
-          operationName: 'funderQuery',
-          query: <<~TEXT
-            query funderQuery ($fundref: ID!, $year: String)
-            {
-              funder(id: $fundref) {
-                id
-                name
-                alternateName
-                publications(published: $year) { nodes #{_related_work_fragment} }
-                datasets(published: $year) { nodes #{_related_work_fragment} }
-                softwares(published: $year) { nodes #{_related_work_fragment} }
-              }
-            }
-          TEXT
-        }.to_json
-      end
-
-      # Search the Pid Graph by Researcher ORCID
-      def _graphql_researcher(orcid:, year:)
-        {
-          variables: { orcidId: orcid, year: year },
-          operationName: 'researcherQuery',
-          query: <<~TEXT
-            query researcherQuery ($orcidId: ID!, $year: String)
-            {
-              person(id: $orcidId) {
-                id
-                name
-                publications(published: $year) { nodes #{_related_work_fragment} }
-                datasets(published: $year) { nodes #{_related_work_fragment} }
-                softwares(published: $year) { nodes #{_related_work_fragment} }
-              }
-            }
-          TEXT
-          }.to_json
-      end
-
-      def _related_work_fragment
-        <<~TEXT
-        {
-          id
-          doi
-          type
-          titles {
-            title
-          }
-          descriptions {
-            description
-          }
-          creators #{_creator_fragment}
-          contributors #{_contributor_fragment}
-          fundingReferences #{_funding_fragment}
-          publisher {
-            name
-            publisherIdentifier
-            publisherIdentifierScheme
-          }
-          member {
-            name
-            rorId
-          }
-          repository #{_repository_fragment}
-          fieldsOfScience #{_basic_fragment}
-          subjects {
-            subject
-          }
-          publicationYear
-          dates #{_date_fragment}
-          registered
-          registrationAgency #{_basic_fragment}
-          relatedIdentifiers #{_related_identifier_fragment}
-          bibtex
-        }
-        TEXT
-      end
-
-      def _creator_fragment
-        <<~TEXT
-        {
-          id
-          name
-          familyName
-          givenName
-          affiliation #{_basic_fragment}
-        }
-        TEXT
-      end
-
-      def _contributor_fragment
-        <<~TEXT
-        {
-          id
-          contributorType
-          name
-          familyName
-          givenName
-          affiliation #{_basic_fragment}
-        }
-        TEXT
-      end
-
-      def _funding_fragment
-        <<~TEXT
-        {
-          funderIdentifier
-          funderName
-          awardUri
-          awardTitle
-          awardNumber
-        }
-        TEXT
-      end
-
-      def _repository_fragment
-        <<~TEXT
-        {
-          uid
-          name
-          url
-          description
-          re3dataUrl
-          re3dataDoi
-        }
-        TEXT
-      end
-
-      def _related_identifier_fragment
-        <<~TEXT
-        {
-          relationType
-          resourceTypeGeneral
-          relatedIdentifierType
-          relatedIdentifier
-          relatedMetadataScheme
-          schemeType
-          schemeUri
-        }
-        TEXT
-      end
-
-      def _date_fragment
-        <<~TEXT
-        {
-          dateType
-          date
-        }
-        TEXT
-      end
-
-      def _basic_fragment
-        <<~TEXT
-        {
-          id
-          name
-        }
-        TEXT
       end
     end
   end

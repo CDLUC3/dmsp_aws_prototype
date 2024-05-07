@@ -78,7 +78,7 @@ module Uc3DmpId
         response = _text_match?(type: 'title', text: hash['title'], dmp:, response:) if response[:score].positive?
         response = _text_match?(type: 'abstract', text: hash['description'], dmp:, response:) if response[:score].positive?
         # If the score is less than 3 then we have no confidence that it is a match
-        next if response[:score] <= 2
+        # next if response[:score] <= 2
 
         # Set the confidence level based on the score
         response[:dmp_id] = "DMP##{dmp['dmp_id']}"

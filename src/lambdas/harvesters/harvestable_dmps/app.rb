@@ -21,6 +21,39 @@ module Functions
   class HarvestableDmps
     SOURCE = 'Harvestable DMPs'
 
+    PILOT_DMPS = [
+      # Northwestern University
+      'doi.org/10.48321/D10B3E54E4',
+      'doi.org/10.48321/D1143FD15F',
+      'doi.org/10.48321/D139D84658',
+      'doi.org/10.48321/D1944C8215',
+      'doi.org/10.48321/D1A04A9B1D',
+
+      # University of California, Berkeley
+      'doi.org/10.48321/D114471AC3',
+      'doi.org/10.48321/D18F9B93B8',
+      'doi.org/10.48321/D1BA48FBC9',
+      'doi.org/10.48321/D1CE350633',
+      'doi.org/10.48321/D1DF9DDDAF',
+
+      # University of California, Riverside
+      'doi.org/10.48321/D13BEA529C',
+      'doi.org/10.48321/D14406894e',
+      'doi.org/10.48321/D145457051',
+      'doi.org/10.48321/D1FCB77AF0',
+      'doi.org/10.48321/D1FFBFF8FE',
+
+      # University of California, Santa Barbara
+      'doi.org/10.48321/D154FA23E9',
+      'doi.org/10.48321/D1A90CCC2B',
+      'doi.org/10.48321/D1BAD5B94D',
+      'doi.org/10.48321/D1FFE5D7FD',
+
+      # University of Colorado Boulder
+      'doi.org/10.48321/D14F38aa13',
+      'doi.org/10.48321/D1B581751F'
+    ]
+
     class << self
       def process(event:, context:)
         # No need to validate the source and detail-type because that is done by the EventRule
@@ -41,16 +74,18 @@ module Functions
         docs = _fetch_relevant_dmps_from_dynamo(client: dynamo_client, table:, logger:)
         logger.debug(message: 'Relevant DMP search results: ', details: docs) if logger.respond_to?(:debug)
 
-        rors = docs.map { |doc| doc.fetch('affiliation_ids', []) }.flatten.compact.uniq
+        # rors = docs.map { |doc| doc.fetch('affiliation_ids', []) }.flatten.compact.uniq
+        affils = docs.map { |doc| doc.fetch('affiliations', []) }.flatten.compact.uniq
 
         # Kick off harvesters for each unique ROR id
         publisher = Uc3DmpEventBridge::Publisher.new
-        rors.each do |ror|
-          dmps = docs.select { |doc| doc.fetch('affiliation_ids', []).include?(ror) }
+        affils.each do |affil|
+          # dmps = docs.select { |doc| doc.fetch('affiliation_ids', []).include?(ror) }
+          dmps = docs.select { |doc| doc.fetch('affiliations', []).include?(affil) }
 
           # limit the number of DMPs we send at one time because SNS has a size limit
           dmps.each_slice(50) do |dmp_entries|
-            _kick_off_harvester(ror:, dmps: dmp_entries, publisher:, logger:)
+            _kick_off_harvester(affil:, dmps: dmp_entries, publisher:, logger:)
           end
 
           # Pause for a second. Publishing these messages kicks off multiple Lambda harvesters and we
@@ -91,10 +126,10 @@ module Functions
         puts e.backtrace
       end
 
-      def _kick_off_harvester(ror:, dmps:, publisher: nil, logger: nil)
+      def _kick_off_harvester(affil:, dmps:, publisher: nil, logger: nil)
         # Publish the change to the EventBridge
         publisher = Uc3DmpEventBridge::Publisher.new if publisher.nil?
-        publisher.publish(source: 'HarvestableDmps', event_type: 'Harvest', dmp: {}, detail: { ror:, dmps: }, logger:)
+        publisher.publish(source: 'HarvestableDmps', event_type: 'Harvest', dmp: {}, detail: { ror: affil, dmps: }, logger:)
       end
 
       # Instead of OpenSearch (for now) grab the relevant DMPs from our Dynamo INdex table
@@ -116,7 +151,7 @@ module Functions
         args = {
           table_name: table,
           consistent_read: false,
-          projection_expression: 'PK, affiliation_ids',
+          projection_expression: 'PK, affiliations',
           # expression_attribute_values: {
           #   ':sk': 'METADATA',
           #   ':not_empty': '',
@@ -127,42 +162,7 @@ module Functions
           # filter_expression: expr.join(' AND ')
 
           expression_attribute_values: {
-            ':dmp_pks': [
-=begin
-              # Northwestern University
-              'doi.org/10.48321/D10B3E54E4',
-              'doi.org/10.48321/D1944C8215',
-              'doi.org/10.48321/D139D84658',
-              'doi.org/10.48321/D1A04A9B1D',
-
-              # University of Colorado Boulder
-              'doi.org/10.48321/D14F38aa13',
-              'doi.org/10.48321/D1B581751F',
-
-              # University of California, Santa Barbara
-              'doi.org/10.48321/D1BAD5B94D',
-              'doi.org/10.48321/D1FFE5D7FD',
-              'doi.org/10.48321/D1A90CCC2B',
-              'doi.org/10.48321/D154FA23E9',
-=end
-              # University of California, Berkeley
-              'doi.org/10.48321/D114471AC3',
-              'doi.org/10.48321/D1DF9DDDAF',
-              'doi.org/10.48321/D18F9B93B8',
-              'doi.org/10.48321/D1BA48FBC9',
-              'doi.org/10.48321/D1CE350633',
-=begin
-              # University of California, Riverside
-              'doi.org/10.48321/D14406894e',
-              'doi.org/10.48321/D145457051',
-              'doi.org/10.48321/D1FFBFF8FE',
-              'doi.org/10.48321/D1FCB77AF0',
-              'doi.org/10.48321/D13BEA529C',
-
-              # Boston University
-              'doi.org/10.48321/D1A04A9B1D'
-=end
-            ]
+            ':dmp_pks': PILOT_DMPS
           },
           filter_expression: 'contains(:dmp_pks, dmp_id)'
         }

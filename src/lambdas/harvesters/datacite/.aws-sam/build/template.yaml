@@ -55,7 +55,7 @@ Resources:
           SNS_FATAL_ERROR_TOPIC:
             Ref: SnsTopicEmailArn
       Events:
-        DataCiteHarvesting:
+        DataCiteHarvester:
           Type: EventBridgeRule
           Properties:
             DeadLetterConfig:
