@@ -174,6 +174,10 @@ module Functions
         current_year = Date.today.year
         # Create a range of years for our DataCite query. Cut it off at the current year
         years = years.uniq.sort.reject { |year| year > current_year }
+        # If there is only one year return it
+        return years if years.length <= 1
+
+        # Determine all of the years between the start and end and return them and sort
         start_year = years.first
         gap = years.last - years.first
         years = [years.first]

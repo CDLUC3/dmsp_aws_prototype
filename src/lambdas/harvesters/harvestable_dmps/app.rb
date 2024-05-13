@@ -37,6 +37,7 @@ module Functions
       'doi.org/10.48321/D1DF9DDDAF',
 
       # University of California, Riverside
+      'doi.org/10.48321/D106FD79D7',
       'doi.org/10.48321/D13BEA529C',
       'doi.org/10.48321/D14406894e',
       'doi.org/10.48321/D145457051',
