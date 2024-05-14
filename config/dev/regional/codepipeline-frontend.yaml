@@ -1,0 +1,14 @@
+template:
+  path: 'codepipeline-frontend.yaml'
+  type: 'file'
+
+parameters:
+  CodeStarConnectionArn: !ssm_parameter /uc3/CodeStarConnectionArn
+
+  S3ArtifactBucketId: !stack_output dev/regional/s3.yaml::S3PrivateBucketId
+
+  CodeBuildProjectName: !stack_output dev/regional/codebuild-backend.yaml::CodeBuildProjectId
+
+  RepositoryName: 'CDLUC3/dmsp_frontend_prototype'
+  BranchToMonitor: 'development'
+  SourceOutputArtifactFormat: 'CODEBUILD_CLONE_REF'

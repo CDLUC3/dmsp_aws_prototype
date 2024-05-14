@@ -1,0 +1,35 @@
+template:
+  path: 'codebuild-frontend.yaml'
+  type: 'file'
+
+parameters:
+  VpcId: !stack_attr sceptre_user_data.vpc_id
+
+  Program: !stack_attr stack_tags.Program
+  Service: !stack_attr stack_tags.Service
+  Subservice: !stack_attr stack_tags.Subservice
+  CodeRepo: !stack_attr stack_tags.CodeRepo
+  Contact: !stack_attr stack_tags.Contact
+
+  Env: !stack_attr sceptre_user_data.env
+
+  EcrRepositoryArn: !stack_output dev/regional/ecr.yaml::EcrRepositoryArn
+  EcrRepositoryUri: !stack_output dev/regional/ecr.yaml::EcrRepositoryUri
+  EcrRepositoryName: !stack_output dev/regional/ecr.yaml::EcrRepositoryName
+
+  S3ArtifactBucketArn: !stack_output dev/regional/s3.yaml::S3PrivateBucketArn
+  S3ArtifactBucketId: !stack_output dev/regional/s3.yaml::S3PrivateBucketId
+
+  CodeStarConnectionArn: !ssm_parameter /uc3/CodeStarConnectionArn
+
+  DbSecurityGroupId: !stack_output dev/regional/rds.yaml::DbSecurityGroupId
+  DbPort: !stack_output dev/regional/rds.yaml::DbPort
+  
+  CodePipelineLogGroupArn: !stack_output dev/regional/cloudwatch.yaml::CodePipelineLogGroupArn
+  CodePipelineLogGroupName: !stack_output dev/regional/cloudwatch.yaml::CodePipelineLogGroupName
+
+  CodeBuildEnvironmentType: 'LINUX_CONTAINER'
+  CodeBuildEnvironmentComputeType: 'BUILD_GENERAL1_SMALL'
+  # This is AL2023
+  CodeBuildEnvironmentImage: 'aws/codebuild/amazonlinux2-x86_64-standard:5.0'
+  CodeBuildTimeout: '15'
