@@ -32,5 +32,5 @@ parameters:
 
   DbName: 'dmsp'
   DbMasterUsername: 'root'
-  DbMasterPassword: !password_generator 12 true
+  DbMasterPassword: !ssm_parameter /uc3/dmp/hub/dev/DbPassword
   DbPort: '5432'

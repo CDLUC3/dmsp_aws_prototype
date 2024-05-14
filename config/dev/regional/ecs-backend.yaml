@@ -6,30 +6,44 @@ dependencies:
   - dev/global/dmsp-backend-route53.yaml
 
 parameters:
-  VpcId: !stack_attr sceptre_user_data.vpc_id
-
   Subnets: !stack_attr sceptre_user_data.public_subnets
 
   Env: !stack_attr sceptre_user_data.env
 
-  AppName: 'DMSP-backend-dev'
+  AppName: 'uc3-dmp-dev-apollo'
 
-  SessionSecret: !ssm_parameter /uc3/dmp/prototype/dev/SessionSecret
+  EcsDesiredServiceCount: '1'
+
+  AppPort: '4000'
 
   EcrRepositoryUri: !stack_output dev/regional/ecr.yaml::EcrRepositoryUri
 
-  AlbTargetGroupArn: !stack_output dev/regional/alb.yaml::AlbTargetGroupArn
+  EcsTaskExecutionRoleId: !stack_output dev/regional/ecs-cluster.yaml::EcsFargateExecutionRoleId
 
-  AlbSecurityGroupId: !stack_output dev/regional/alb.yaml::AlbSecurityGroupId
+  EcsSecGrpId: !stack_output dev/regional/ecs-cluster.yaml::EcsSecGrpId
 
-  DbSecurityGroupId: !stack_output dev/regional/rds.yaml::DbSecurityGroupId
+  AlbTargetGroupArn: !stack_output dev/regional/alb.yaml::AlbSecurityGroupId
 
+  AlbSecGrpId: !stack_output dev/regional/alb.yaml::AlbSecurityGroupId
+
+  CpuSize: '2048'
+  MemorySize: '4096'
+
+  StartTimeout: '30'
+  HealthCheckGracePeriod: '30'
+  MinimumHealthyContainerPercentage: '100'
+  MaximumHealthyContainerPercentage: '200'
+  StopTimeout: '30'
+
+  LogLevel: 'debug'
+  CognitoClientId: !stack_output dev/regional/cognito.yaml::DmspUserPoolClientId
+  CognitoClientSecret: !stack_output dev/regional/cognito.yaml::DmspUserPoolClientSecret
+
+  DbConnectionLimit: '5'
   DbHost: !stack_output dev/regional/rds.yaml::DbAddress
-
   DbPort: !stack_output dev/regional/rds.yaml::DbPort
-
-  AppCredentialsArn: !stack_output dev/regional/rds.yaml::AppCredentialsArn
-
-  DynamoTableName: !stack_output dev/regional/dynamo.yaml::DynamoTableName
+  DbName: !stack_output dev/regional/rds.yaml::DbName
+  DbUsername: !ssm_parameter /uc3/dmp/hub/dev/DbUsername
+  DbPassword: !ssm_parameter /uc3/dmp/hub/dev/DbPassword
 
   HelpdeskEmail: !ssm_parameter /uc3/dmsp/prototype/dev/HelpdeskEmail

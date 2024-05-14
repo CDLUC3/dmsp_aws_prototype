@@ -328,7 +328,6 @@ Outputs:
     Value: !GetAtt UserPool.Arn
     Export:
       Name: !Sub '${Env}-CognitoUserPoolArn'
-<<<<<<< HEAD
 
   DmspUserPoolClientId:
     Value: !Ref DmspUserPoolClient
@@ -338,5 +337,3 @@ Outputs:
 
   # DmspUserPoolclientUrl:
   #   Value: !Sub 'https://${Subdomain}.${Domain}.${AWS::Region}.amazoncognito.com/login?response_type=code&client_id=${DmspUserPoolClient}&redirect_uri=${DmspUiRedirectUrl}'
-=======
->>>>>>> main

@@ -1,14 +1,20 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: 'AWS::Serverless-2016-10-31'
 
-Description: 'Serverless architecture for the DMPTool system'
+Description: 'Serverless architecture for the Apollo server system'
 
 Parameters:
-  VpcId:
-    Type: 'AWS::EC2::VPC::Id'
-
   Subnets:
     Type: 'List<AWS::EC2::Subnet::Id>'
+
+  EcsTaskExecutionRoleId:
+    Type: 'String'
+
+  EcsSecGrpId:
+    Type: 'String'
+
+  AlbSecGrpId:
+    Type: 'String'
 
   Env:
     Type: 'String'
@@ -17,8 +23,8 @@ Parameters:
   AppName:
     Type: 'String'
 
-  SessionSecret:
-    Type: 'String'
+  AppPort:
+    Type: 'Number'
 
   EcsDesiredServiceCount:
     Type: 'Number'
@@ -30,22 +36,68 @@ Parameters:
   AlbTargetGroupArn:
     Type: 'String'
 
-  AlbSecurityGroupId:
+  CpuSize:
+    Type: 'String'
+    Default: '2048' # 2 vCPU
+
+  MemorySize:
+    Type: 'String'
+    Default: '4096' # 4GB
+
+  StartTimeout:
+    Type: 'Number'
+    Default: 30 # seconds
+
+  HealthCheckGracePeriod:
+    Type: 'Number'
+    Default: 180 # seconds
+
+  MinimumHealthyContainerPercentage:
+    Type: 'Number'
+    Default: 50
+
+  MaximumHealthyContainerPercentage:
+    Type: 'Number'
+    Default: 150
+
+  StopTimeout:
+    Type: 'Number'
+    Default: 30 # seconds
+
+  LogLevel:
+    Type: 'String'
+    Default: 'warn'
+    AllowedValues:
+      - 'debug'
+      - 'info'
+      - 'warn'
+      - 'error'
+
+  CognitoClientId:
     Type: 'String'
 
-  DBSecurityGroupID:
+  CognitoClientSecret:
     Type: 'String'
+
+  DbConnectionLimit:
+    Type: 'Number'
+    Default: 5
 
   DbHost:
     Type: 'String'
 
   DbPort:
     Type: 'String'
+    Default: '3306'
 
-  AppCredentialsArn:
+  DbName:
+    Type: 'String'
+    Default: 'dmsp'
+
+  DbUsername:
     Type: 'String'
 
-  DynamoTableName:
+  DbPassword:
     Type: 'String'
 
   HelpdeskEmail:
@@ -60,28 +112,7 @@ Resources:
   # Identitity and Access Management (IAM)
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_IAM.html
   # -----------------------------------------------------------
-  # Role that grants the ECS container agent permission to make AWS API calls
-  EcsTaskExecutionRole:
-    Type: 'AWS::IAM::Role'
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: 'Allow'
-            Principal:
-              Service:
-                - 'ecs-tasks.amazonaws.com'
-            Action:
-              - 'sts:AssumeRole'
-      ManagedPolicyArns:
-        - 'arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy'
-        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
-        - 'arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess'
-        - 'arn:aws:iam::aws:policy/AmazonRDSDataFullAccess'
-        - 'arn:aws:iam::aws:policy/AmazonSESFullAccess'
-        - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
-
-  # Role that grants containers in the task permission to call AWS APIs on your behalf
+  # Role that grants our containers in the task permission to call AWS APIs
   EcsTaskRole:
     Type: 'AWS::IAM::Role'
     Properties:
@@ -97,67 +128,22 @@ Resources:
       ManagedPolicyArns:
         - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
         - 'arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonRDSDataFullAccess'
         - 'arn:aws:iam::aws:policy/AmazonSESFullAccess'
         - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
-
-  # -----------------------------------------------------------
-  # EC2 Security Groups for ECS containers (see their definitions in application.yaml)
-  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-security-group.html
-  # -----------------------------------------------------------
-  EcsSecurityGroup:
-    Type: 'AWS::EC2::SecurityGroup'
-    Properties:
-      GroupDescription: !Sub 'Fargate security group for ${AWS::StackName}'
-      GroupName: !Sub '${AWS::StackName}-ecs-sec'
-      VpcId: !Ref VpcId
-
-  # Allow traffic to the ECS instances from the ALB
-  EcsSecurityGroupIngressFromAlb:
-    Type: 'AWS::EC2::SecurityGroupIngress'
-    DependsOn:
-      - EcsSecurityGroup
-    Properties:
-      IpProtocol: 'tcp'
-      FromPort: 4000
-      ToPort: 4000
-      GroupId: !GetAtt EcsSecurityGroup.GroupId
-      SourceSecurityGroupId: !Ref AlbSecurityGroupId
-
-  # Allow the RDS instance(s) to receive traffic from the ECS instance(s)
-  EcsSecurityGroupIngressFromRds:
-    Type: AWS::EC2::SecurityGroupIngress
-    DependsOn:
-      - ECSSecurityGroup
-    Properties:
-      IpProtocol: 'tcp'
-      FromPort: !Ref DbPort
-      ToPort: !Ref DbPort
-      GroupId: !Ref DBSecurityGroupID
-      SourceSecurityGroupId: !GetAtt ECSSecurityGroup.GroupId
 
   # -----------------------------------------------------------
   # Elastic Container Service (ECS) - Containers that host the application
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_ECS.html
   # -----------------------------------------------------------
-  EcsCluster:
-    Type: 'AWS::ECS::Cluster'
-    Properties:
-      ClusterName: !Sub '${AWS::StackName}-fargate-clst'
-      CapacityProviders:
-        - 'FARGATE'
-      DefaultCapacityProviderStrategy:
-        - CapacityProvider: 'FARGATE'
-
-  # The Application/Task definition
   EcsTaskDefinition:
     Type: 'AWS::ECS::TaskDefinition'
     DependsOn:
-      - EcsTaskExecutionRole
       - EcsTaskRole
     Properties:
-      Cpu: '2048' # 2 vCPU
-      Memory: '4096' # 4GB
-      ExecutionRoleArn: !GetAtt EcsTaskExecutionRole.Arn
+      Cpu: !Ref CpuSize
+      Memory: !Ref MemorySize
+      ExecutionRoleArn: !Ref EcsTaskExecutionRoleId
       TaskRoleArn: !GetAtt EcsTaskRole.Arn
       Family: !Sub '${AWS::StackName}-fargate'
       NetworkMode: 'awsvpc' # Required for Fargate!
@@ -167,16 +153,13 @@ Resources:
       RequiresCompatibilities:
         - 'FARGATE'
       ContainerDefinitions:
-        -
-          Image: !Ref EcrRepositoryUri
-          # Cpu: 2
+        - Image: !Ref EcrRepositoryUri
           DisableNetworking: false
           Essential: true
           Interactive: true
-          # Memory: 2000
           Name: !Ref AppName
-          StartTimeout: 30
-          StopTimeout: 30
+          StartTimeout: !Ref StartTimeout
+          StopTimeout: !Ref StopTimeout
           # TODO: Figure out what container health check should be run (e.g. memory usage)
           # HealthCheck:
           #   Command:  ["CMD-SHELL", "echo hello"]
@@ -191,26 +174,44 @@ Resources:
               awslogs-group: !Ref AWS::StackName
               awslogs-stream-prefix: !Ref AppName
           PortMappings:
-            # SES port
+            # SES port (Email)
             - ContainerPort: 25
               Protocol: 'tcp'
-            # ALB port
-            - ContainerPort: 4000
+            # ALB port (The port we are listening on)
+            - ContainerPort: !Ref AppPort
               Protocol: 'tcp'
-            # RDS port
+            # RDS port (The MySQL DB port)
             - ContainerPort: !Ref DbPort
               Protocol: 'tcp'
           Environment:
-            - Name: 'SESSION_SECRET'
-              Value: !Ref SessionSecret
-            - Name: 'SECRETS_MANAGER_ARN'
-              Value: !Ref AppCredentialsArn
-            - Name: 'RDS_HOST'
+            - Name: 'LOG_LEVEL'
+              Value: !Ref LogLevel
+            - Name: 'USE_MOCK_DATA'
+              Value: false
+
+            # DMPHub API connection
+            - Name: 'DMPHUB_AUTH_URL'
+              Value: !Sub "https://auth.dmphub.uc3${Env}.cdlib.net"
+            - Name: 'DMPHUB_API_BASE_URL'
+              Value: !Sub "https://api.dmphub.uc3${Env}.cdlib.net"
+            - Name: 'DMPHUB_API_CLIENT_ID'
+              Value: !Ref CognitoClientId
+            - Name: 'DMPHUB_API_CLIENT_SECRET'
+              Value: !Ref CognitoClientSecret
+
+            # AWS RDS MySQL database
+            - Name: 'MYSQL_CONNECTION_LIMIT'
+              Value: !Ref DbConnectionLimit
+            - Name: 'MYSQL_HOST'
               Value: !Ref DbHost
-            - Name: 'RDS_PORT'
+            - Name: 'MYSQL_PORT'
               Value: !Ref DbPort
-            - Name: 'DMSP_TABLE'
-              Value: !Ref DynamoTableName
+            - Name: 'MYSQL_DATABASE'
+              Value: !Ref DbName
+            - Name: 'MYSQL_USER'
+              Value: !Ref DbUsername
+            - Name: 'MYSQL_PASSWORD'
+              Value: !Ref DbPassword
             - Name: 'HELPDESK_EMAIL'
               Value: !Ref HelpdeskEmail
 
@@ -223,14 +224,14 @@ Resources:
       Cluster: !Ref EcsCluster
       DesiredCount: !Ref EcsDesiredServiceCount
       EnableECSManagedTags: true
-      HealthCheckGracePeriodSeconds: 30 # 180
+      HealthCheckGracePeriodSeconds: !Ref HealthCheckGracePeriod
       LaunchType: 'FARGATE'
       DeploymentConfiguration:
         MinimumHealthPercent: !If
           - IsDev
           - !Ref AWS::NoValue
-          - 100
-        MaximumPercent: 200
+          - !Ref MinimumHealthyContainerPercentage
+        MaximumPercent: !Ref MaximumHealthyContainerPercentage
         DeploymentCircuitBreaker:
           Enable: true
           Rollback: true
@@ -242,13 +243,13 @@ Resources:
           - 'CODE_DEPLOY'
       LoadBalancers:
         - TargetGroupArn: !Ref AlbTargetGroupArn
-          ContainerPort: 4000
+          ContainerPort: !Ref AppPort
           ContainerName: !Ref AppName
       NetworkConfiguration:
         AwsvpcConfiguration:
           SecurityGroups:
-            - !GetAtt EcsSecurityGroup.GroupId
-            - !Ref AlbSecurityGroupId
+            - !Ref EcsSecGrpId
+            - !Ref AlbSecGrpId
           AssignPublicIp: 'ENABLED'
           Subnets: !Ref Subnets
       PlatformVersion: 'LATEST'
@@ -257,12 +258,6 @@ Resources:
       TaskDefinition: !Ref EcsTaskDefinition
 
 Outputs:
-  EcsFargateClusterId:
-    Value: !Ref EcsCluster
-
-  EcsFargateClusterArn:
-    Value: !GetAtt EcsCluster.Arn
-
   EcsServiceArn:
     Value: !Ref EcsService
 

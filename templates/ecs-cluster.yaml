@@ -1,0 +1,108 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+
+Description: 'Serverless architecture for the DMPTool system'
+
+Parameters:
+  VpcId:
+    Type: 'AWS::EC2::VPC::Id'
+
+  AlbSecurityGroupId:
+    Type: 'String'
+
+  DbSecurityGroupId:
+    Type: 'String'
+
+  DbHost:
+    Type: 'String'
+
+  DbPort:
+    Type: 'String'
+
+Resources:
+  # -----------------------------------------------------------
+  # Identitity and Access Management (IAM)
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_IAM.html
+  # -----------------------------------------------------------
+  # Role that grants the ECS container agent permission to make AWS API calls
+  EcsTaskExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service:
+                - 'ecs-tasks.amazonaws.com'
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy'
+        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSESFullAccess'
+        - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
+
+  # -----------------------------------------------------------
+  # EC2 Security Groups for ECS containers (see their definitions in application.yaml)
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-security-group.html
+  # -----------------------------------------------------------
+  EcsSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: !Sub 'Fargate security group for ${AWS::StackName}'
+      GroupName: !Sub '${AWS::StackName}-ecs-sec'
+      VpcId: !Ref VpcId
+
+  # Allow traffic to the ECS instances from the ALB
+  EcsSecurityGroupIngressFromAlb:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    DependsOn:
+      - EcsSecurityGroup
+    Properties:
+      IpProtocol: 'tcp'
+      FromPort: 4000
+      ToPort: 4000
+      GroupId: !GetAtt EcsSecurityGroup.GroupId
+      SourceSecurityGroupId: !Ref AlbSecurityGroupId
+
+  # Allow the RDS instance(s) to receive traffic from the ECS instance(s)
+  EcsSecurityGroupIngressFromRds:
+    Type: AWS::EC2::SecurityGroupIngress
+    DependsOn:
+      - EcsSecurityGroup
+    Properties:
+      IpProtocol: 'tcp'
+      FromPort: !Ref DbPort
+      ToPort: !Ref DbPort
+      GroupId: !Ref DbSecurityGroupId
+      SourceSecurityGroupId: !GetAtt EcsSecurityGroup.GroupId
+
+  # -----------------------------------------------------------
+  # Elastic Container Service (ECS) - Containers that host the application
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_ECS.html
+  # -----------------------------------------------------------
+  EcsCluster:
+    Type: 'AWS::ECS::Cluster'
+    Properties:
+      ClusterName: !Sub '${AWS::StackName}-fargate-clst'
+      CapacityProviders:
+        - 'FARGATE'
+      DefaultCapacityProviderStrategy:
+        - CapacityProvider: 'FARGATE'
+
+Outputs:
+  EcsFargateClusterId:
+    Value: !Ref EcsCluster
+
+  EcsFargateClusterArn:
+    Value: !GetAtt EcsCluster.Arn
+
+  EcsFargateSecGrp:
+    Value: !GetAtt EcsSecurityGroup.GroupId
+
+  EcsFargateExecutionRoleId:
+    Value: !Ref EcsTaskExecutionRole
+
+  EcsFargateExecutionRoleArn:
+    Value: !GetAtt EcsTaskExecutionRole.Arn
