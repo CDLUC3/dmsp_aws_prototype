@@ -1,0 +1,47 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Creates an AWS Backup "vault"'
+
+Parameters:
+  Env:
+    Type: 'String'
+
+Resources:
+  BackupVault:
+    Type: 'AWS::Backup::BackupVault'
+    Properties:
+      BackupVaultName: !Sub "S3BackupVault${Env}"
+      # EncryptionKeyArn: arn:aws:kms:us-west-2:834750697783:key/3c264ad4-af2e-4fec-acc7-c0e81dc77d95
+      AccessPolicy:
+        Version: '2012-10-17'
+        Statement:
+        - Sid: 'AllowCopyToDisasterRecoveryAcct'
+          Effect: 'Allow'
+          Principal:
+            # AWS: arn:aws:iam::262565401712:root
+            AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
+          Action: 'backup:CopyIntoBackupVault'
+          Resource: '*'
+
+  BackupRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service: 'backup.amazonaws.com'
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWSBackupServiceRolePolicyForBackup'
+        - 'arn:aws:iam::aws:policy/AWSBackupServiceRolePolicyForS3Backup'
+
+Outputs:
+  BackupRoleArn:
+    Value: !GetAtt BackupRole.Arn
+
+  BackupVaultName:
+    Value: !GetAtt BackupVault.BackupVaultName
+
+  BackupVaultArn:
+    Value: !GetAtt BackupVault.BackupVaultArn
