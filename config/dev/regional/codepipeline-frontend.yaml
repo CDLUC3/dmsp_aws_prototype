@@ -7,7 +7,7 @@ parameters:
 
   S3ArtifactBucketId: !stack_output dev/regional/s3.yaml::S3PrivateBucketId
 
-  CodeBuildProjectName: !stack_output dev/regional/codebuild-backend.yaml::CodeBuildProjectId
+  CodeBuildProjectName: !stack_output dev/regional/codebuild-frontend.yaml::CodeBuildProjectId
 
   RepositoryName: 'CDLUC3/dmsp_frontend_prototype'
   BranchToMonitor: 'development'
