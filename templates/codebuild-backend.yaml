@@ -56,9 +56,22 @@ Parameters:
   DbSecurityGroupId:
     Type: 'String'
 
+  DbHost:
+    Type: 'String'
+
   DbPort:
     Type: 'Number'
-    Default: 5432
+    Default: 3306
+
+  DbName:
+    Type: 'String'
+    Default: 'dmsp'
+
+  DbUsername:
+    Type: 'String'
+
+  DbPassword:
+    Type: 'String'
 
   CodeBuildEnvironmentType:
     Type: 'String'
@@ -216,15 +229,6 @@ Resources:
         - Key: 'ConfigExclude'
           Value: 'Security-group-attached-to-ENI'
 
-  # CodeBuildSecurityGroupIngressFromRds:
-  #   Type: 'AWS::EC2::SecurityGroupIngress'
-  #   Properties:
-  #     IpProtocol: 'tcp'
-  #     FromPort: !Ref DbPort
-  #     ToPort: !Ref DbPort
-  #     GroupId: !GetAtt CodeBuildSecurityGroup.GroupId
-  #     SourceSecurityGroupId: !Ref DbSecurityGroupId
-
   RdsSecurityGroupIngressFromCodeBuild:
     Type: 'AWS::EC2::SecurityGroupIngress'
     Properties:
@@ -234,7 +238,7 @@ Resources:
       GroupId: !Ref DbSecurityGroupId
       SourceSecurityGroupId: !GetAtt CodeBuildSecurityGroup.GroupId
 
-  CodeBuildSecurityGroupEgressFromRds:
+  CodeBuildSecurityGroupEgressToRds:
     Type: 'AWS::EC2::SecurityGroupEgress'
     Properties:
       IpProtocol: 'tcp'
@@ -242,6 +246,15 @@ Resources:
       ToPort: !Ref DbPort
       GroupId: !GetAtt CodeBuildSecurityGroup.GroupId
       DestinationSecurityGroupId: !Ref DbSecurityGroupId
+
+  CodeBuildSecurityGroupIngressFromRds:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      IpProtocol: 'tcp'
+      FromPort: !Ref DbPort
+      ToPort: !Ref DbPort
+      GroupId: !GetAtt CodeBuildSecurityGroup.GroupId
+      SourceSecurityGroupId: !Ref DbSecurityGroupId
 
   # -----------------------------------------------------------
   # CodeBuild
@@ -271,6 +284,17 @@ Resources:
             Value: !Ref EcrRepositoryUri
           - Name: 'ECR_REPOSITORY_NAME'
             Value: !Ref EcrRepositoryName
+          # RDS credentials so that CodeBuild can run pending migrations
+          - Name: 'MYSQL_HOST'
+            Value: !Ref DbHost
+          - Name: 'MYSQL_PORT'
+            Value: !Ref DbPort
+          - Name: 'MYSQL_DATABASE'
+            Value: !Ref DbName
+          - Name: 'MYSQL_USER'
+            Value: !Ref DbUsername
+          - Name: 'MYSQL_PASSWORD'
+            Value: !Ref DbPassword
       LogsConfig:
         CloudWatchLogs:
           GroupName: !Ref CodePipelineLogGroupName

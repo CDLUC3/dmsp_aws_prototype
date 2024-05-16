@@ -28,6 +28,12 @@ parameters:
   CodePipelineLogGroupArn: !stack_output dev/regional/cloudwatch.yaml::CodePipelineLogGroupArn
   CodePipelineLogGroupName: !stack_output dev/regional/cloudwatch.yaml::CodePipelineLogGroupName
 
+  DbHost: !stack_output dev/regional/rds.yaml::DbAddress
+  DbPort: !stack_output dev/regional/rds.yaml::DbPort
+  DbName: !stack_output dev/regional/rds.yaml::DbName
+  DbUsername: !ssm_parameter /uc3/dmp/hub/dev/DbUsername
+  DbPassword: !ssm_parameter /uc3/dmp/hub/dev/DbPassword
+
   CodeBuildEnvironmentType: 'LINUX_CONTAINER'
   CodeBuildEnvironmentComputeType: 'BUILD_GENERAL1_SMALL'
   # This is AL2023
