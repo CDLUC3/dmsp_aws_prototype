@@ -19,6 +19,9 @@ Parameters:
   MainAccountId:
     Type: 'String'
 
+  MainAccountBackupVaultArn:
+    Type: 'String'
+
 Resources:
   BackupRole:
     Type: 'AWS::IAM::Role'
@@ -68,7 +71,7 @@ Resources:
             Lifecycle:
               DeleteAfterDays: 7
             CopyActions:
-              - DestinationBackupVaultArn: !GetAtt BackupVault.BackupVaultArn
+              - DestinationBackupVaultArn: !Ref MainAccountBackupVaultArn
                 Lifecycle:
                   DeleteAfterDays: 14
 
