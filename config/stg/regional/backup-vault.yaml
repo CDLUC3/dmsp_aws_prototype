@@ -1,0 +1,12 @@
+template:
+  path: backup-vault.yaml
+
+parameters:
+  Program: !stack_attr stack_tags.Program
+  Service: !stack_attr stack_tags.Service
+  Subservice: !stack_attr stack_tags.Subservice
+
+  Env: !stack_attr sceptre_user_data.env
+
+  MainAccountId: !ssm_parameter /uc3/MainAccountId
+  MainAccountBackupVaultArn: !ssm_parameter /uc3/MainAccountBackupVault

@@ -16,6 +16,12 @@ Parameters:
   Env:
     Type: 'String'
 
+  MainAccountId:
+    Type: 'String'
+
+  MainAccountBackupVaultArn:
+    Type: 'String'
+
 Resources:
   BackupRole:
     Type: 'AWS::IAM::Role'
@@ -41,7 +47,7 @@ Resources:
         - Sid: 'AllowCopyToDisasterRecoveryAcct'
           Effect: 'Allow'
           Principal:
-            AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
+            AWS: !Sub "arn:aws:iam::${MainAccountId}:root"
           Action: 'backup:CopyIntoBackupVault'
           Resource: '*'
 
@@ -65,7 +71,7 @@ Resources:
             Lifecycle:
               DeleteAfterDays: 7
             CopyActions:
-              - DestinationBackupVaultArn: !GetAtt BackupVault.BackupVaultArn
+              - DestinationBackupVaultArn: !Ref MainAccountBackupVaultArn
                 Lifecycle:
                   DeleteAfterDays: 14
 
