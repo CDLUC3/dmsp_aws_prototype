@@ -4,6 +4,7 @@ template:
 
 parameters:
   VpcId: !stack_attr sceptre_user_data.vpc_id
+  Subnets: !stack_attr sceptre_user_data.public_subnets
 
   Program: !stack_attr stack_tags.Program
   Service: !stack_attr stack_tags.Service
@@ -17,8 +18,8 @@ parameters:
   EcrRepositoryUri: !stack_output dev/regional/ecr.yaml::EcrRepositoryUri
   EcrRepositoryName: !stack_output dev/regional/ecr.yaml::EcrRepositoryName
 
-  S3ArtifactBucketArn: !stack_output dev/regional/s3.yaml::S3PrivateBucketArn
-  S3ArtifactBucketId: !stack_output dev/regional/s3.yaml::S3PrivateBucketId
+  S3ArtifactBucketArn: !stack_output dev/regional/s3.yaml::S3PipelineArtifactAccessPointArn
+  S3ArtifactBucketId: !stack_output dev/regional/s3.yaml::S3PipelineArtifactAccessPointId
 
   CodeStarConnectionArn: !ssm_parameter /uc3/CodeStarConnectionArn
 

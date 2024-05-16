@@ -112,6 +112,8 @@ Resources:
               OutputArtifacts:
                 - Name: 'BuildArtifact'
 
+        # TODO: Add a Trivy test
+
         # Enable this and setup CodeDeploy if just pushing a new image to the ECR does not auto-trigger Fargate
 
         # - Name: 'Deploy'

@@ -208,14 +208,6 @@ Resources:
       Type: 'String'
       Value: !Ref DbMasterUsername
 
-  DbPasswordUrlParameter:
-    Type: 'AWS::SSM::Parameter'
-    Properties:
-      Description: !Sub "${AWS::StackName} RDS password"
-      Name: !Sub "${SsmPath}DbPassword"
-      Type: 'String'
-      Value: !Ref DbMasterPassword
-
 
   # ----------------------------------------------------------
   # Secrets Manager
