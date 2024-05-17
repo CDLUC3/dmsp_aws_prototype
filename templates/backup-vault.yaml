@@ -1,0 +1,120 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >
+    Creates an AWS Backup "vault" and a backup "plan" that backs up an S3 bucket,
+    with automatic copying to the CDL Disaster Recovery (DR) account.
+
+Parameters:
+  Program:
+    Type: 'String'
+
+  Service:
+    Type: 'String'
+
+  Subservice:
+    Type: 'String'
+
+  Env:
+    Type: 'String'
+
+  MainAccountId:
+    Type: 'String'
+
+  MainAccountBackupVaultArn:
+    Type: 'String'
+
+Resources:
+  BackupRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service: 'backup.amazonaws.com'
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWSBackupServiceRolePolicyForBackup'
+        - 'arn:aws:iam::aws:policy/AWSBackupServiceRolePolicyForS3Backup'
+
+  BackupVault:
+    Type: 'AWS::Backup::BackupVault'
+    Properties:
+      BackupVaultName: !Sub "S3BackupVault${Env}"
+      AccessPolicy:
+        Version: '2012-10-17'
+        Statement:
+        - Sid: 'AllowCopyToDisasterRecoveryAcct'
+          Effect: 'Allow'
+          Principal:
+            AWS: !Sub "arn:aws:iam::${MainAccountId}:root"
+          Action: 'backup:CopyIntoBackupVault'
+          Resource: '*'
+
+  BackupPlan:
+    Type: 'AWS::Backup::BackupPlan'
+    Properties:
+      BackupPlan:
+        BackupPlanName: !Sub "uc3-s3-${Env}-backup-plan"
+        BackupPlanRule:
+          - RuleName: !Sub "backup-dmphub-${Env}-daily"
+            TargetBackupVault: !GetAtt BackupVault.BackupVaultName
+            # Daily... 9:00 pm UTC == 2:00 pm pacific
+            ScheduleExpression: 'cron(0 21 ? * * *)'
+            StartWindowMinutes: 60
+            CompletionWindowMinutes: 120
+            RecoveryPointTags:
+              Program: !Ref Program
+              Service: !Ref Service
+              Subservice: !Ref Subservice
+              Environment: !Ref Env
+            Lifecycle:
+              DeleteAfterDays: 7
+            CopyActions:
+              - DestinationBackupVaultArn: !Ref MainAccountBackupVaultArn
+                Lifecycle:
+                  DeleteAfterDays: 14
+
+  BackupSelection:
+    Type: 'AWS::Backup::BackupSelection'
+    Properties:
+      BackupPlanId: !Ref BackupPlan
+      BackupSelection:
+        SelectionName: !Sub "dmp-hub-${Env}-s3-cloudfront-buckets"
+        IamRoleArn: !GetAtt BackupRole.Arn
+        Resources:
+          - 'arn:aws:s3:::*'
+        Conditions:
+          StringEquals:
+            - ConditionKey: 'aws:ResourceTag/Program'
+              ConditionValue: !Ref Program
+            - ConditionKey: 'aws:ResourceTag/Service'
+              ConditionValue: !Ref Service
+            - ConditionKey: 'aws:ResourceTag/Subservice'
+              ConditionValue: !Ref Subservice
+            - ConditionKey: 'aws:ResourceTag/Environment'
+              ConditionValue: !Ref Env
+            - ConditionKey: 'aws:ResourceTag/aws:cloudformation:logical-id'
+              ConditionValue: S3CloudFrontBucket
+
+Outputs:
+  BackupRoleArn:
+    Value: !GetAtt BackupRole.Arn
+
+  BackupVaultName:
+    Value: !GetAtt BackupVault.BackupVaultName
+
+  BackupVaultArn:
+    Value: !GetAtt BackupVault.BackupVaultArn
+
+  BackupPlanId:
+    Value: !Ref BackupPlan
+
+  BackupPlanArn:
+    Value: !GetAtt BackupPlan.BackupPlanArn
+
+  BackupPlanVersionIs:
+    Value: !GetAtt BackupPlan.VersionId
+
+  BackupSelectionId:
+    Value: !Ref BackupSelection
