@@ -7,6 +7,9 @@ Parameters:
   Subnets:
     Type: 'List<AWS::EC2::Subnet::Id>'
 
+  EcsClusterId:
+    Type: 'String'
+
   EcsTaskExecutionRoleId:
     Type: 'String'
 
@@ -31,6 +34,9 @@ Parameters:
     Default: 1
 
   EcrRepositoryUri:
+    Type: 'String'
+
+  EcrImageTag:
     Type: 'String'
 
   AlbTargetGroupArn:
@@ -128,9 +134,14 @@ Resources:
       ManagedPolicyArns:
         - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
         - 'arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonS3FullAccess'
         - 'arn:aws:iam::aws:policy/AmazonRDSDataFullAccess'
         - 'arn:aws:iam::aws:policy/AmazonSESFullAccess'
         - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
+
+
+        # - 'arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceRole'
+        # - 'arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role'
 
   # -----------------------------------------------------------
   # Elastic Container Service (ECS) - Containers that host the application
@@ -145,7 +156,7 @@ Resources:
       Memory: !Ref MemorySize
       ExecutionRoleArn: !Ref EcsTaskExecutionRoleId
       TaskRoleArn: !GetAtt EcsTaskRole.Arn
-      Family: !Sub '${AWS::StackName}-fargate'
+      Family: !Sub '${AWS::StackName}-apollo-server'
       NetworkMode: 'awsvpc' # Required for Fargate!
       RuntimePlatform:
         CpuArchitecture: 'X86_64'
@@ -153,7 +164,7 @@ Resources:
       RequiresCompatibilities:
         - 'FARGATE'
       ContainerDefinitions:
-        - Image: !Ref EcrRepositoryUri
+        - Image: !Sub "${EcrRepositoryUri}:${EcrImageTag}"
           DisableNetworking: false
           Essential: true
           Interactive: true
@@ -221,7 +232,7 @@ Resources:
     DependsOn:
       - EcsTaskDefinition
     Properties:
-      Cluster: !Ref EcsCluster
+      Cluster: !Ref EcsClusterId
       DesiredCount: !Ref EcsDesiredServiceCount
       EnableECSManagedTags: true
       HealthCheckGracePeriodSeconds: !Ref HealthCheckGracePeriod

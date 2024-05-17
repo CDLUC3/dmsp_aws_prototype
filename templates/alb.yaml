@@ -81,7 +81,7 @@ Resources:
   # Elastic Load Balancer (ELB) - Handles which container receives traffic
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_ElasticLoadBalancingV2.html
   # -----------------------------------------------------------
-  AlbTargetGroup:
+  ApolloServerTargetGroup:
     Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
     Properties:
       HealthCheckEnabled: true
@@ -98,6 +98,33 @@ Resources:
         HttpCode: '200-399'
       VpcId: !Ref VpcId
       Port: 4000
+      Protocol: 'HTTP'
+      # TargetGroupAttributes:
+      #   - Key: 'stickiness.enabled'
+      #     Value: true
+      #   - Key: 'stickiness.type'
+      #     Value: 'lb_cookie'
+      #   - Key: 'stickiness.lb_cookie.duration_seconds'
+      #     Value: 300 # 900 # 15 minutes
+      TargetType: 'ip'
+
+  NextJsServerTargetGroup:
+    Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
+    Properties:
+      HealthCheckEnabled: true
+      HealthCheckIntervalSeconds: 120 # 300 # 5 minutes
+      HealthCheckPath: '/'
+      HealthCheckPort: 'traffic-port'
+      HealthCheckProtocol: 'HTTP'
+      HealthCheckTimeoutSeconds: 60
+      UnhealthyThresholdCount: 3
+      Matcher:
+        # TODO: For some reason the Healthcheck is returning a 301 instead of 200
+        #       so expanding this to allow for that. When you hit the path from a
+        #       browser or curl though it returns a 200
+        HttpCode: '200-399'
+      VpcId: !Ref VpcId
+      Port: 3000
       Protocol: 'HTTP'
       # TargetGroupAttributes:
       #   - Key: 'stickiness.enabled'
@@ -171,8 +198,9 @@ Resources:
       Certificates:
         - CertificateArn: !Ref CertificateArn
       DefaultActions:
+        # TODO: Switch this to the NextJS server when it is defined!
         - Type: 'forward'
-          TargetGroupArn: !Ref AlbTargetGroup
+          TargetGroupArn: !Ref ApolloServerTargetGroup
 
   AlbWafAssocation:
     Type: 'AWS::WAFv2::WebACLAssociation'
@@ -183,11 +211,11 @@ Resources:
       ResourceArn: !Ref Alb
 
 Outputs:
-  AlbTargetGroupArn:
-    Value: !Ref AlbTargetGroup
+  ApolloServerTargetGroupArn:
+    Value: !Ref ApolloServerTargetGroup
 
-  AlbTargetGroupFullName:
-    Value: !GetAtt AlbTargetGroup.TargetGroupFullName
+  ApolloServerTargetGroupFullName:
+    Value: !GetAtt ApolloServerTargetGroup.TargetGroupFullName
 
   AlbArn:
     Value: !Ref Alb

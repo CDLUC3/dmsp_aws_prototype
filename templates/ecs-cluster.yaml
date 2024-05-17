@@ -39,9 +39,25 @@ Resources:
               - 'sts:AssumeRole'
       ManagedPolicyArns:
         - 'arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy'
-        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
-        - 'arn:aws:iam::aws:policy/AmazonSESFullAccess'
-        - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
+
+        # - 'arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceRole'
+        # - 'arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role'
+        # - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
+        # - 'arn:aws:iam::aws:policy/AmazonSESFullAccess'
+        # - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
+
+  EcsAutoScalingRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service: 'ecs-tasks.amazonaws.com'
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceAutoscaleRole'
 
   # -----------------------------------------------------------
   # EC2 Security Groups for ECS containers (see their definitions in application.yaml)
@@ -106,3 +122,9 @@ Outputs:
 
   EcsFargateExecutionRoleArn:
     Value: !GetAtt EcsTaskExecutionRole.Arn
+
+  EcsFargateAutoScalingRoleId:
+    Value: !Ref EcsAutoScalingRole
+
+  EcsFargateAutoScalingRoleArn:
+    Value: !GetAtt EcsAutoScalingRole.Arn

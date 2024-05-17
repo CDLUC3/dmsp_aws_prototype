@@ -90,17 +90,17 @@ Resources:
         LogFilePrefix: 's3-access'
 
   # Support for accessing the artifact S3 bucket from within the VPC
-  S3PipelineArtifactAccessPoint:
-    Type: 'AWS::S3::AccessPoint'
-    Properties:
-      Bucket: !Ref S3PrivateBucket
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        BlockPublicPolicy: true
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true
-      VpcConfiguration:
-        VpcId: !Ref VpcId
+  # S3PipelineArtifactAccessPoint:
+  #   Type: 'AWS::S3::AccessPoint'
+  #   Properties:
+  #     Bucket: !Ref S3PrivateBucket
+  #     PublicAccessBlockConfiguration:
+  #       BlockPublicAcls: true
+  #       BlockPublicPolicy: true
+  #       IgnorePublicAcls: true
+  #       RestrictPublicBuckets: true
+  #     VpcConfiguration:
+  #       VpcId: !Ref VpcId
 
   # ----------------------------------------------
   # SSM Parameter Store
@@ -146,11 +146,11 @@ Outputs:
     Export:
       Name: !Sub '${Env}-S3PrivateBucketArn'
 
-  S3PipelineArtifactAccessPointId:
-    Value: !Ref S3PipelineArtifactAccessPoint
+  # S3PipelineArtifactAccessPointId:
+  #   Value: !Ref S3PipelineArtifactAccessPoint
 
-  S3PipelineArtifactAccessPointArn:
-    Value: !GetAtt S3PipelineArtifactAccessPoint.Arn
+  # S3PipelineArtifactAccessPointArn:
+  #   Value: !GetAtt S3PipelineArtifactAccessPoint.Arn
 
-  S3PipelineArtifactAccessPointAlias:
-    Value: !GetAtt S3PipelineArtifactAccessPoint.Alias
+  # S3PipelineArtifactAccessPointAlias:
+  #   Value: !GetAtt S3PipelineArtifactAccessPoint.Alias

@@ -10,8 +10,11 @@ Parameters:
   VpcId:
     Type: 'AWS::EC2::VPC::Id'
 
-  Subnets:
-    Type: 'List<AWS::EC2::Subnet::Id>'
+  # RouteTableId:
+  #   Type: 'String'
+
+  # Subnets:
+  #   Type: 'List<AWS::EC2::Subnet::Id>'
 
   Program:
     Type: 'String'
@@ -32,6 +35,10 @@ Parameters:
     Type: 'String'
     Default: 'dev'
 
+  NodeEnv:
+    Type: 'String'
+    Default: 'production'
+
   CodePipelineLogGroupArn:
     Type: 'String'
 
@@ -50,14 +57,17 @@ Parameters:
   S3ArtifactBucketArn:
     Type: 'String'
 
-  S3ArtifactBucketAlias:
+  S3ArtifactBucketId:
     Type: 'String'
+
+  # S3ArtifactBucketAlias:
+  #   Type: 'String'
 
   CodeStarConnectionArn:
     Type: 'String'
 
-  DbSecurityGroupId:
-    Type: 'String'
+  # DbSecurityGroupId:
+  #   Type: 'String'
 
   DbHost:
     Type: 'String'
@@ -115,7 +125,7 @@ Resources:
               - 'sts:AssumeRole'
       ManagedPolicyArns:
         - 'arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPowerUser'
-        - 'arn:aws:iam::aws:policy/AmazonRDSDataFullAccess'
+        #  - 'arn:aws:iam::aws:policy/AmazonRDSDataFullAccess'
       Policies:
         - PolicyName: !Sub '${AWS::StackName}-build-policy'
           PolicyDocument: !Sub >
@@ -189,11 +199,6 @@ Resources:
                 },
                 {
                   "Effect": "Allow",
-                  "Action": ["secretsmanager:GetSecretValue"],
-                  "Resource": ["*"]
-                },
-                {
-                  "Effect": "Allow",
                   "Action": ["ecr:*"],
                   "Resource": ["${EcrRepositoryArn}"]
                 },
@@ -232,32 +237,60 @@ Resources:
         - Key: 'ConfigExclude'
           Value: 'Security-group-attached-to-ENI'
 
-  RdsSecurityGroupIngressFromCodeBuild:
-    Type: 'AWS::EC2::SecurityGroupIngress'
-    Properties:
-      IpProtocol: 'tcp'
-      FromPort: !Ref DbPort
-      ToPort: !Ref DbPort
-      GroupId: !Ref DbSecurityGroupId
-      SourceSecurityGroupId: !GetAtt CodeBuildSecurityGroup.GroupId
+  # Allow RDS to receive traffic from this CodeBuild
+  # RdsSecurityGroupIngressFromCodeBuild:
+  #   Type: 'AWS::EC2::SecurityGroupIngress'
+  #   Properties:
+  #     IpProtocol: 'tcp'
+  #     FromPort: !Ref DbPort
+  #     ToPort: !Ref DbPort
+  #     GroupId: !Ref DbSecurityGroupId
+  #     SourceSecurityGroupId: !GetAtt CodeBuildSecurityGroup.GroupId
 
-  CodeBuildSecurityGroupEgressToRds:
-    Type: 'AWS::EC2::SecurityGroupEgress'
-    Properties:
-      IpProtocol: 'tcp'
-      FromPort: !Ref DbPort
-      ToPort: !Ref DbPort
-      GroupId: !GetAtt CodeBuildSecurityGroup.GroupId
-      DestinationSecurityGroupId: !Ref DbSecurityGroupId
+  # Allow this CodeBuild to call RDS
+  # CodeBuildSecurityGroupEgressToRds:
+  #   Type: 'AWS::EC2::SecurityGroupEgress'
+  #   Properties:
+  #     IpProtocol: 'tcp'
+  #     FromPort: !Ref DbPort
+  #     ToPort: !Ref DbPort
+  #     GroupId: !GetAtt CodeBuildSecurityGroup.GroupId
+  #     DestinationSecurityGroupId: !Ref DbSecurityGroupId
 
-  CodeBuildSecurityGroupIngressFromRds:
-    Type: 'AWS::EC2::SecurityGroupIngress'
-    Properties:
-      IpProtocol: 'tcp'
-      FromPort: !Ref DbPort
-      ToPort: !Ref DbPort
-      GroupId: !GetAtt CodeBuildSecurityGroup.GroupId
-      SourceSecurityGroupId: !Ref DbSecurityGroupId
+  # Allow this CodeBuild to receive from RDS
+  # CodeBuildSecurityGroupIngressFromRds:
+  #   Type: 'AWS::EC2::SecurityGroupIngress'
+  #   Properties:
+  #     IpProtocol: 'tcp'
+  #     FromPort: !Ref DbPort
+  #     ToPort: !Ref DbPort
+  #     GroupId: !GetAtt CodeBuildSecurityGroup.GroupId
+  #     SourceSecurityGroupId: !Ref DbSecurityGroupId
+
+  # VPC Gateway Endpoint to allow our CodeBuild to access the CodePipeline's S3 bucket
+  # S3VpcGatewayEndpoint:
+  #   Type: 'AWS::EC2::VPCEndpoint'
+  #   Properties:
+  #     VpcEndpointType: 'Gateway'
+  #     VpcId: !Ref VpcId
+  #     ServiceName: !Sub "com.amazonaws.${AWS::Region}.s3"
+  #     PolicyDocument:
+  #       Version: '2012-10-17'
+  #       Statement:
+  #         - Effect: 'Allow'
+  #           Principal: '*'
+  #           Action:
+  #             - 's3:GetObject'
+  #             - 's3:PutObject'
+  #             - 's3:GetObjectVersion'
+  #             - 's3:GetBucketAcl'
+  #             - 's3:GetBucketLocation'
+  #           Resource:
+  #             - !Ref S3ArtifactBucketArn
+  #             - !Sub "${S3ArtifactBucketArn}/*"
+  #     RouteTableIds:
+  #       - !Ref RouteTableId
+
 
   # -----------------------------------------------------------
   # CodeBuild
@@ -273,12 +306,12 @@ Resources:
       ConcurrentBuildLimit: 1
       Cache:
         Type: 'S3'
-        Location: !Sub "${S3ArtifactBucketAlias}/apollo/build-cache"
-      VpcConfig:
-        VpcId: !Ref VpcId
-        Subnets: !Ref Subnets
-        SecurityGroupIds:
-          - !Ref CodeBuildSecurityGroup
+        Location: !Sub "${S3ArtifactBucketId}/apollo/build-cache"
+      # VpcConfig:
+      #   VpcId: !Ref VpcId
+      #   Subnets: !Ref Subnets
+      #   SecurityGroupIds:
+      #     - !Ref CodeBuildSecurityGroup
       Environment:
         ComputeType: !Ref CodeBuildEnvironmentComputeType
         Image: !Ref CodeBuildEnvironmentImage
@@ -286,8 +319,8 @@ Resources:
         PrivilegedMode: true
         Type: !Ref CodeBuildEnvironmentType
         EnvironmentVariables:
-          - Name: 'BUILD_ENV'
-            Value: !Ref Env
+          - Name: 'NODE_ENV'
+            Value: !Ref NodeEnv
           - Name: 'ECR_REPOSITORY_URI'
             Value: !Ref EcrRepositoryUri
           - Name: 'ECR_REPOSITORY_NAME'

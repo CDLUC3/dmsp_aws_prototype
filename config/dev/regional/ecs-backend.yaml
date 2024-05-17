@@ -18,11 +18,13 @@ parameters:
 
   EcrRepositoryUri: !stack_output dev/regional/ecr.yaml::EcrRepositoryUri
 
+  EcrImageTag: 'apollo-latest'
+
+  EcsClusterId: !stack_output dev/regional/ecs-cluster.yaml::EcsFargateClusterId
   EcsTaskExecutionRoleId: !stack_output dev/regional/ecs-cluster.yaml::EcsFargateExecutionRoleId
+  EcsSecGrpId: !stack_output dev/regional/ecs-cluster.yaml::EcsFargateSecGrp
 
-  EcsSecGrpId: !stack_output dev/regional/ecs-cluster.yaml::EcsSecGrpId
-
-  AlbTargetGroupArn: !stack_output dev/regional/alb.yaml::AlbSecurityGroupId
+  AlbTargetGroupArn: !stack_output dev/regional/alb.yaml::ApolloServerTargetGroupArn
 
   AlbSecGrpId: !stack_output dev/regional/alb.yaml::AlbSecurityGroupId
 
