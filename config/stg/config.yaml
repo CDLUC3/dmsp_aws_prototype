@@ -10,7 +10,7 @@ stack_tags:
   Service: 'dmp'
   Subservice: 'hub'
   Environment: 'stg'
-  CodeRepo: 'https://github.com/CDLUC3/dmp-hub-cfn'
+  CodeRepo: 'https://github.com/CDLUC3/dmsp_aws_prototype'
   Contact: 'briley'
 
 # In the cdl-uc3-prd account devs must call cloudformation using a service role
