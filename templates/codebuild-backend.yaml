@@ -47,10 +47,10 @@ Parameters:
   EcrRepositoryName:
     Type: 'String'
 
-  S3ArtifactBucketId:
+  S3ArtifactBucketArn:
     Type: 'String'
 
-  S3ArtifactBucketArn:
+  S3ArtifactBucketAlias:
     Type: 'String'
 
   CodeStarConnectionArn:
@@ -273,7 +273,7 @@ Resources:
       ConcurrentBuildLimit: 1
       Cache:
         Type: 'S3'
-        Location: !Sub '${S3ArtifactBucketId}/apollo/build-cache'
+        Location: !Sub "${S3ArtifactBucketAlias}/apollo/build-cache"
       VpcConfig:
         VpcId: !Ref VpcId
         Subnets: !Ref Subnets

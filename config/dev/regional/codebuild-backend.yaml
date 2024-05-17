@@ -18,8 +18,8 @@ parameters:
   EcrRepositoryUri: !stack_output dev/regional/ecr.yaml::EcrRepositoryUri
   EcrRepositoryName: !stack_output dev/regional/ecr.yaml::EcrRepositoryName
 
+  S3ArtifactBucketAlias: !stack_output dev/regional/s3.yaml::S3PipelineArtifactAccessPointAlias
   S3ArtifactBucketArn: !stack_output dev/regional/s3.yaml::S3PipelineArtifactAccessPointArn
-  S3ArtifactBucketId: !stack_output dev/regional/s3.yaml::S3PipelineArtifactAccessPointId
 
   CodeStarConnectionArn: !ssm_parameter /uc3/CodeStarConnectionArn
 
