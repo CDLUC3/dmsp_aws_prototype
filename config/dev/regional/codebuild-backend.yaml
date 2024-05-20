@@ -36,6 +36,8 @@ parameters:
   DbUsername: !ssm_parameter /uc3/dmp/hub/dev/DbUsername
   DbPassword: !ssm_parameter /uc3/dmp/hub/dev/DbPassword
 
+  AppName: !stack_attr sceptre_user_data.backend_server_container_name
+
   # We want Apollo server to run in development mode in this env so that the Explorer works
   NodeEnv: 'development'
 

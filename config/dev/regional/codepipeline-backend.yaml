@@ -13,5 +13,5 @@ parameters:
   BranchToMonitor: 'development'
   SourceOutputArtifactFormat: 'CODEBUILD_CLONE_REF'
 
-  # EcsCluster: !stack_output dev/regional/ecs.yaml::EcsFargateClusterId
-  # EcsServiceName: !stack_output dev/regional/ecs.yaml::EcsServiceName
+  EcsCluster: !stack_output dev/regional/ecs-cluster.yaml::EcsFargateClusterId
+  EcsServiceName: !stack_output dev/regional/ecs-backend.yaml::EcsServiceName

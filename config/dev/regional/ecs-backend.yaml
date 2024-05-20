@@ -10,7 +10,7 @@ parameters:
 
   Env: !stack_attr sceptre_user_data.env
 
-  AppName: 'uc3-dmp-dev-apollo'
+  AppName: !stack_attr sceptre_user_data.backend_server_container_name
 
   EcsDesiredServiceCount: '1'
 
