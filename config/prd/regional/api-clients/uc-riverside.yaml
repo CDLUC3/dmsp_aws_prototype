@@ -1,0 +1,24 @@
+template:
+  path: 'cognito-app-client.yaml'
+  type: 'file'
+
+parameters:
+  UserPoolId: !stack_output prd/regional/cognito.yaml::UserPoolId
+
+  Domain: !stack_attr sceptre_user_data.domain
+  Subdomain: 'auth'
+  Env: !stack_attr sceptre_user_data.env
+
+  ClientName: 'uc-riverside'
+
+  ClientCallbackUri: 'https://localhost:3000/callback'
+
+  OnlyAllowAdminsToCreateUsers: 'false'
+  UnusedAccountValidityDays: '14'
+  MinimumPasswordLength: '8'
+
+  TokenValidityUnits: 'minutes'
+  AccessTokenValidity: '10'
+  AuthSessionValidatyMinutes: '3'
+  IdTokenValidity: '7'
+  RefreshTokenValidity: '10080'
