@@ -121,6 +121,8 @@ Resources:
           Value: !Ref CodeRepo
         - Key: 'Contact'
           Value: !Ref Contact
+        - Key: 'ConfigExclude'
+          Value: 'Security-group-attached-to-ENI'
 
 Outputs:
   BastionId:
