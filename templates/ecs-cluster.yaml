@@ -39,12 +39,7 @@ Resources:
               - 'sts:AssumeRole'
       ManagedPolicyArns:
         - 'arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy'
-
-        # - 'arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceRole'
-        # - 'arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role'
-        # - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
-        # - 'arn:aws:iam::aws:policy/AmazonSESFullAccess'
-        # - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
+        - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
 
   EcsAutoScalingRole:
     Type: 'AWS::IAM::Role'
@@ -77,13 +72,14 @@ Resources:
       - EcsSecurityGroup
     Properties:
       IpProtocol: 'tcp'
-      FromPort: 4000
+      # TODO: Update this to allow traffic to Shib
+      FromPort: 3000
       ToPort: 4000
       GroupId: !GetAtt EcsSecurityGroup.GroupId
       SourceSecurityGroupId: !Ref AlbSecurityGroupId
 
   # Allow the RDS instance(s) to receive traffic from the ECS instance(s)
-  EcsSecurityGroupIngressFromRds:
+  RdsSecurityGroupIngressFromEcs:
     Type: AWS::EC2::SecurityGroupIngress
     DependsOn:
       - EcsSecurityGroup
@@ -93,6 +89,18 @@ Resources:
       ToPort: !Ref DbPort
       GroupId: !Ref DbSecurityGroupId
       SourceSecurityGroupId: !GetAtt EcsSecurityGroup.GroupId
+
+  # Allow the RDS instance(s) to receive traffic from the ECS instance(s)
+  EcsSecurityGroupEgressToRds:
+    Type: AWS::EC2::SecurityGroupEgress
+    DependsOn:
+      - EcsSecurityGroup
+    Properties:
+      IpProtocol: 'tcp'
+      FromPort: !Ref DbPort
+      ToPort: !Ref DbPort
+      GroupId: !GetAtt EcsSecurityGroup.GroupId
+      DestinationSecurityGroupId: !Ref DbSecurityGroupId
 
   # -----------------------------------------------------------
   # Elastic Container Service (ECS) - Containers that host the application

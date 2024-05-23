@@ -1,5 +1,5 @@
 template:
-  path: 'codepipeline-frontend.yaml'
+  path: 'codepipeline.yaml'
   type: 'file'
 
 parameters:
@@ -12,3 +12,8 @@ parameters:
   RepositoryName: 'CDLUC3/dmsp_frontend_prototype'
   BranchToMonitor: 'development'
   SourceOutputArtifactFormat: 'CODEBUILD_CLONE_REF'
+
+  # Comment these 2 ECS parameters out the first time you build the environment. The ECS services
+  # require an image already be in the ECR, but this Pipeline builds those images!
+  EcsCluster: !stack_output dev/regional/ecs-cluster.yaml::EcsFargateClusterId
+  EcsServiceName: !stack_output dev/regional/ecs-frontend.yaml::EcsServiceName

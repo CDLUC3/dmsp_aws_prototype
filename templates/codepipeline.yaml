@@ -7,6 +7,14 @@ Description: 'CodePipeline for the DMPSP Apollo server backend application'
 #       here to to be passed in as a List<String>
 
 Parameters:
+  # Comment these 2 ECS parameters out the first time you build the environment. The ECS services
+  # require an image already be in the ECR, but this Pipeline builds those images!
+  EcsCluster:
+    Type: 'String'
+
+  EcsServiceName:
+    Type: 'String'
+
   CodeStarConnectionArn:
     Type: 'String'
 
@@ -14,12 +22,6 @@ Parameters:
     Type: 'String'
 
   CodeBuildProjectName:
-    Type: 'String'
-
-  EcsCluster:
-    Type: 'String'
-
-  EcsServiceName:
     Type: 'String'
 
   RepositoryName:
@@ -120,6 +122,8 @@ Resources:
 
         # TODO: Add a Trivy test
 
+        # Comment out this Deploy stage the first time you build the environment. The ECS services
+        # require an image already be in the ECR, but this Pipeline builds those images!
         - Name: 'Deploy'
           Actions:
             - Name: 'Deploy'

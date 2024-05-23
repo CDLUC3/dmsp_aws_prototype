@@ -5,7 +5,7 @@ template:
 parameters:
   HostedZoneId: !ssm_parameter /uc3/dmp/hub/dev/HostedZoneId
 
-  Domain: 'graphql.dmphub.uc3dev.cdlib.net'
+  Domain: 'ui.dmphub.uc3dev.cdlib.net'
   RecordType: 'A'
 
   TargetName: !stack_output dev/regional/alb.yaml::AlbDnsName

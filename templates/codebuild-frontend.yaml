@@ -25,6 +25,13 @@ Parameters:
     Type: 'String'
     Default: 'dev'
 
+  NodeEnv:
+    Type: 'String'
+    Default: 'production'
+
+  AppName:
+    Type: 'String'
+
   CodePipelineLogGroupArn:
     Type: 'String'
 
@@ -225,7 +232,7 @@ Resources:
       ConcurrentBuildLimit: 1
       Cache:
         Type: 'S3'
-        Location: !Sub '${S3ArtifactBucketId}/rails/build-cache'
+        Location: !Sub '${S3ArtifactBucketId}/nextJS/build-cache'
       Environment:
         ComputeType: !Ref CodeBuildEnvironmentComputeType
         Image: !Ref CodeBuildEnvironmentImage
@@ -233,8 +240,10 @@ Resources:
         PrivilegedMode: true
         Type: !Ref CodeBuildEnvironmentType
         EnvironmentVariables:
-          - Name: 'BUILD_ENV'
-            Value: !Ref Env
+          - Name: 'NODE_ENV'
+            Value: !Ref NodeEnv
+          - Name: 'TASK_DEFINITION_CONTAINER_NAME'
+            Value: !Ref AppName
           - Name: 'ECR_REPOSITORY_URI'
             Value: !Ref EcrRepositoryUri
           - Name: 'ECR_REPOSITORY_NAME'

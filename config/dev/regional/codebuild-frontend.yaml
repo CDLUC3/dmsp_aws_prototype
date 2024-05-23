@@ -12,6 +12,8 @@ parameters:
   Contact: !stack_attr stack_tags.Contact
 
   Env: !stack_attr sceptre_user_data.env
+  NodeEnv: 'development'
+  AppName: !stack_attr sceptre_user_data.frontend_server_container_name
 
   EcrRepositoryArn: !stack_output dev/regional/ecr.yaml::EcrRepositoryArn
   EcrRepositoryUri: !stack_output dev/regional/ecr.yaml::EcrRepositoryUri
@@ -24,7 +26,7 @@ parameters:
 
   DbSecurityGroupId: !stack_output dev/regional/rds.yaml::DbSecurityGroupId
   DbPort: !stack_output dev/regional/rds.yaml::DbPort
-  
+
   CodePipelineLogGroupArn: !stack_output dev/regional/cloudwatch.yaml::CodePipelineLogGroupArn
   CodePipelineLogGroupName: !stack_output dev/regional/cloudwatch.yaml::CodePipelineLogGroupName
 

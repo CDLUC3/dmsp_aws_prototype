@@ -113,11 +113,11 @@ Resources:
     Properties:
       HealthCheckEnabled: true
       HealthCheckIntervalSeconds: 120 # 300 # 5 minutes
-      HealthCheckPath: '/'
+      HealthCheckPath: '/healthcheck'
       HealthCheckPort: 'traffic-port'
       HealthCheckProtocol: 'HTTP'
       HealthCheckTimeoutSeconds: 60
-      UnhealthyThresholdCount: 3
+      UnhealthyThresholdCount: 2 # 3
       Matcher:
         # TODO: For some reason the Healthcheck is returning a 301 instead of 200
         #       so expanding this to allow for that. When you hit the path from a
@@ -188,7 +188,7 @@ Resources:
             Query: '#{query}'
             StatusCode: 'HTTP_301'
 
-  # HTTPS Listener that sends traffic to the ALB
+  # HTTPS Listener that sends traffic to the nextJS frontend by default
   AlbListenerHttps:
     Type: 'AWS::ElasticLoadBalancingV2::Listener'
     Properties:
@@ -198,9 +198,44 @@ Resources:
       Certificates:
         - CertificateArn: !Ref CertificateArn
       DefaultActions:
-        # TODO: Switch this to the NextJS server when it is defined!
+        - Type: 'forward'
+          TargetGroupArn: !Ref NextJsServerTargetGroup
+          Order: 3
+
+  # Listener rule to send traffic to certain paths to the Apollo server backend
+  ApolloServerListenerRule:
+    Type: 'AWS::ElasticLoadBalancingV2::ListenerRule'
+    Properties:
+      Actions:
         - Type: 'forward'
           TargetGroupArn: !Ref ApolloServerTargetGroup
+      Conditions:
+        - Field: 'path-pattern'
+          PathPatternConfig:
+            Values:
+              - '/graphql'
+              - '/auth'
+              - '/token'
+              - '/up'
+      ListenerArn: !GetAtt AlbListenerHttps.ListenerArn
+      Priority: 1
+
+  # Listener rule to send traffic to certain paths to the Apollo server backend
+  NextJsServerListenerRule:
+    Type: 'AWS::ElasticLoadBalancingV2::ListenerRule'
+    Properties:
+      Actions:
+        - Type: 'forward'
+          TargetGroupArn: !Ref NextJsServerTargetGroup
+      Conditions:
+        - Field: 'path-pattern'
+          PathPatternConfig:
+            Values:
+              - '/healthcheck'
+      ListenerArn: !GetAtt AlbListenerHttps.ListenerArn
+      Priority: 2
+
+  # TODO: Add the listener rule to send traffic to Shibboleth
 
   AlbWafAssocation:
     Type: 'AWS::WAFv2::WebACLAssociation'
@@ -216,6 +251,12 @@ Outputs:
 
   ApolloServerTargetGroupFullName:
     Value: !GetAtt ApolloServerTargetGroup.TargetGroupFullName
+
+  NextJsServerTargetGroupArn:
+    Value: !Ref NextJsServerTargetGroup
+
+  NextJsServerTargetGroupFullName:
+    Value: !GetAtt NextJsServerTargetGroup.TargetGroupFullName
 
   AlbArn:
     Value: !Ref Alb

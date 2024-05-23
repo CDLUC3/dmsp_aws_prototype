@@ -330,6 +330,7 @@ Resources:
             Value: !Ref EcrRepositoryUri
           - Name: 'ECR_REPOSITORY_NAME'
             Value: !Ref EcrRepositoryName
+
           # RDS credentials so that CodeBuild can run pending migrations
           - Name: 'MYSQL_HOST'
             Value: !Ref DbHost

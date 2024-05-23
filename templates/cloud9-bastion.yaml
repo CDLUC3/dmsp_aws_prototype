@@ -1,0 +1,133 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: 'Cloud9 Bastion/Jump box used to access RDS and run DB migrations'
+
+Parameters:
+  SubnetId:
+    Type: 'AWS::EC2::Subnet::Id'
+
+  VpcId:
+    Type: 'AWS::EC2::VPC::Id'
+
+  DbSecurityGroupId:
+    Type: 'String'
+
+  DbPort:
+    Type: 'Number'
+    Default: 3306
+
+  IdleTimeoutMinutes:
+    Type: 'Number'
+    Default: 15
+
+  ImageId:
+    Type: 'String'
+    Default: 'amazonlinux-2023-x86_64'
+
+  InstanceType:
+    Type: 'String'
+    Default: 't2.micro'
+
+  Program:
+    Type: 'String'
+
+  Service:
+    Type: 'String'
+
+  Subservice:
+    Type: 'String'
+
+  Environment:
+    Type: 'String'
+
+  CodeRepo:
+    Type: 'String'
+
+  Contact:
+    Type: 'String'
+
+Resources:
+  # -----------------------------------------------------------
+  # EC2 Security Groups for ECS containers
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-security-group.html
+  # -----------------------------------------------------------
+  BastionSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: !Sub '${AWS::StackName} Bastion security group'
+      GroupName: !Sub '${AWS::StackName}-secgrp'
+      VpcId: !Ref VpcId
+
+  # Allow the RDS instance(s) to receive traffic from the Bastion instance(s)
+  RdsSecurityGroupIngressFromBastion:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    DependsOn:
+      - BastionSecurityGroup
+    Properties:
+      IpProtocol: 'tcp'
+      FromPort: !Ref DbPort
+      ToPort: !Ref DbPort
+      GroupId: !Ref DbSecurityGroupId
+      SourceSecurityGroupId: !GetAtt BastionSecurityGroup.GroupId
+
+  # Allow the RDS instance(s) to receive traffic from the ECS instance(s)
+  BastionSecurityGroupIngressFromRds:
+    Type: AWS::EC2::SecurityGroupIngress
+    DependsOn:
+      - BastionSecurityGroup
+    Properties:
+      IpProtocol: 'tcp'
+      FromPort: !Ref DbPort
+      ToPort: !Ref DbPort
+      GroupId: !GetAtt BastionSecurityGroup.GroupId
+      SourceSecurityGroupId: !Ref DbSecurityGroupId
+
+  # Allow the RDS instance(s) to receive traffic from the ECS instance(s)
+  BastionSecurityGroupEgressToRds:
+    Type: AWS::EC2::SecurityGroupEgress
+    DependsOn:
+      - BastionSecurityGroup
+    Properties:
+      IpProtocol: 'tcp'
+      FromPort: !Ref DbPort
+      ToPort: !Ref DbPort
+      GroupId: !GetAtt BastionSecurityGroup.GroupId
+      DestinationSecurityGroupId: !Ref DbSecurityGroupId
+
+  # -----------------------------------------------------------
+  # Cloud9
+  #  See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-cloud9-environmentec2.html
+  # -----------------------------------------------------------
+  Bastion:
+    Type: 'AWS::Cloud9::EnvironmentEC2'
+    Properties:
+      AutomaticStopTimeMinutes: !Ref IdleTimeoutMinutes
+      ConnectionType: 'CONNECT_SSM'
+      Description: !Sub "${AWS::StackName} Bastion to provide access to RDS"
+      ImageId: !Ref ImageId
+      InstanceType: !Ref InstanceType
+      # Name: !Sub "${Program}-${Service}-${Subservice}-${Environment}-bastion"
+      SubnetId: !Ref SubnetId
+      Tags:
+        - Key: 'Program'
+          Value: !Ref Program
+        - Key: 'Service'
+          Value: !Ref Service
+        - Key: 'Subservice'
+          Value: !Ref Subservice
+        - Key: 'Environment'
+          Value: !Ref Environment
+        - Key: 'CodeRepo'
+          Value: !Ref CodeRepo
+        - Key: 'Contact'
+          Value: !Ref Contact
+
+Outputs:
+  BastionId:
+    Value: !Ref Bastion
+
+  BastionArn:
+    Value: !GetAtt Bastion.Arn
+
+  BastionName:
+    Value: !GetAtt Bastion.Name

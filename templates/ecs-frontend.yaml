@@ -1,0 +1,222 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+
+Description: 'Serverless architecture for the nextJS server'
+
+Parameters:
+  Subnets:
+    Type: 'List<AWS::EC2::Subnet::Id>'
+
+  EcsClusterId:
+    Type: 'String'
+
+  EcsTaskExecutionRoleId:
+    Type: 'String'
+
+  EcsSecGrpId:
+    Type: 'String'
+
+  AlbSecGrpId:
+    Type: 'String'
+
+  Env:
+    Type: 'String'
+    Default: 'dev'
+
+  AppName:
+    Type: 'String'
+
+  AppPort:
+    Type: 'Number'
+
+  ApolloPort:
+    Type: 'Number'
+    Default: 4000
+
+  EcsDesiredServiceCount:
+    Type: 'Number'
+    Default: 1
+
+  EcrRepositoryUri:
+    Type: 'String'
+
+  EcrImageTag:
+    Type: 'String'
+
+  AlbTargetGroupArn:
+    Type: 'String'
+
+  CpuSize:
+    Type: 'String'
+    Default: '2048' # 2 vCPU
+
+  MemorySize:
+    Type: 'String'
+    Default: '4096' # 4GB
+
+  StartTimeout:
+    Type: 'Number'
+    Default: 30 # seconds
+
+  HealthCheckGracePeriod:
+    Type: 'Number'
+    Default: 180 # seconds
+
+  MinimumHealthyContainerPercentage:
+    Type: 'Number'
+    Default: 50
+
+  MaximumHealthyContainerPercentage:
+    Type: 'Number'
+    Default: 150
+
+  StopTimeout:
+    Type: 'Number'
+    Default: 30 # seconds
+
+  LogLevel:
+    Type: 'String'
+    Default: 'warn'
+    AllowedValues:
+      - 'debug'
+      - 'info'
+      - 'warn'
+      - 'error'
+
+  HelpdeskEmail:
+    Type: 'String'
+
+Conditions:
+  IsDev:
+    !Equals [!Ref Env, 'dev']
+
+Resources:
+  # -----------------------------------------------------------
+  # Identitity and Access Management (IAM)
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_IAM.html
+  # -----------------------------------------------------------
+  # Role that grants our containers in the task permission to call AWS APIs
+  EcsTaskRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service:
+                - 'ecs-tasks.amazonaws.com'
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonS3FullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSESFullAccess'
+        - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
+
+  # -----------------------------------------------------------
+  # Elastic Container Service (ECS) - Containers that host the application
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_ECS.html
+  # -----------------------------------------------------------
+  EcsTaskDefinition:
+    Type: 'AWS::ECS::TaskDefinition'
+    DependsOn:
+      - EcsTaskRole
+    Properties:
+      Cpu: !Ref CpuSize
+      Memory: !Ref MemorySize
+      ExecutionRoleArn: !Ref EcsTaskExecutionRoleId
+      TaskRoleArn: !GetAtt EcsTaskRole.Arn
+      Family: !Sub '${AWS::StackName}-nextJS-server'
+      NetworkMode: 'awsvpc' # Required for Fargate!
+      RuntimePlatform:
+        CpuArchitecture: 'X86_64'
+        OperatingSystemFamily: 'LINUX'
+      RequiresCompatibilities:
+        - 'FARGATE'
+      ContainerDefinitions:
+        - Image: !Sub "${EcrRepositoryUri}:${EcrImageTag}"
+          DisableNetworking: false
+          Essential: true
+          Interactive: true
+          Name: !Ref AppName
+          StartTimeout: !Ref StartTimeout
+          StopTimeout: !Ref StopTimeout
+          # TODO: Figure out what container health check should be run (e.g. memory usage)
+          # HealthCheck:
+          #   Command:  ["CMD-SHELL", "echo hello"]
+          #   Interval: 5
+          #   Retries: 2
+          #   Timeout: 3
+          LogConfiguration:
+            LogDriver: 'awslogs'
+            Options:
+              awslogs-region: !Ref AWS::Region
+              awslogs-create-group: true
+              awslogs-group: !Ref AWS::StackName
+              awslogs-stream-prefix: !Ref AppName
+          PortMappings:
+            # SES port (Email)
+            - ContainerPort: 25
+              Protocol: 'tcp'
+            # ALB port (The port we are listening on)
+            - ContainerPort: !Ref AppPort
+              Protocol: 'tcp'
+            # Apollo server port
+            - ContainerPort: !Ref ApolloPort
+              Protocol: 'tcp'
+          Environment:
+            - Name: 'LOG_LEVEL'
+              Value: !Ref LogLevel
+
+  # Container Service definition
+  EcsService:
+    Type: 'AWS::ECS::Service'
+    DependsOn:
+      - EcsTaskDefinition
+    Properties:
+      Cluster: !Ref EcsClusterId
+      DesiredCount: !Ref EcsDesiredServiceCount
+      EnableECSManagedTags: true
+      HealthCheckGracePeriodSeconds: !Ref HealthCheckGracePeriod
+      LaunchType: 'FARGATE'
+      DeploymentConfiguration:
+        MinimumHealthPercent: !If
+          - IsDev
+          - !Ref AWS::NoValue
+          - !Ref MinimumHealthyContainerPercentage
+        MaximumPercent: !Ref MaximumHealthyContainerPercentage
+        DeploymentCircuitBreaker:
+          Enable: true
+          Rollback: true
+      DeploymentController:
+        # If this is dev then just do a rolling deploy, otherwise use the blue/green strategy
+        Type: !If
+          - IsDev
+          - 'ECS'
+          - 'CODE_DEPLOY'
+      LoadBalancers:
+        - TargetGroupArn: !Ref AlbTargetGroupArn
+          ContainerPort: !Ref AppPort
+          ContainerName: !Ref AppName
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          SecurityGroups:
+            - !Ref EcsSecGrpId
+            - !Ref AlbSecGrpId
+          AssignPublicIp: 'ENABLED'
+          Subnets: !Ref Subnets
+      PlatformVersion: 'LATEST'
+      PropagateTags: 'TASK_DEFINITION'
+      SchedulingStrategy: 'REPLICA'
+      TaskDefinition: !Ref EcsTaskDefinition
+
+Outputs:
+  EcsServiceArn:
+    Value: !Ref EcsService
+
+  EcsServiceName:
+    Value: !GetAtt EcsService.Name
+
+  EcsTaskId:
+    Value: !Ref EcsTaskDefinition

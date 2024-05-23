@@ -1,5 +1,5 @@
 template:
-  path: 'codepipeline-backend.yaml'
+  path: 'codepipeline.yaml'
   type: 'file'
 
 parameters:
