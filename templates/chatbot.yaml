@@ -4,9 +4,6 @@ Description: CloudFormation template to configure AWS Chatbot Slack Channel
 
 Parameters:
 
-  ConfigurationNameParameter:
-    Type: String
-
   SlackCodestarConnectionArnParameter:
     Type: 'String'
 
@@ -56,7 +53,7 @@ Resources:
   ChatbotSnsTopic:
     Type: 'AWS::SNS::Topic'
     Properties:
-      DisplayName: "slack-topic"
+      DisplayName: !Sub "${AWS::StackName}-sns-topic"
   
   ChatbotSlackSnsSubscription:
     Type: 'AWS::SNS::Subscription'
@@ -82,7 +79,7 @@ Resources:
   SlackChannelConfiguration:
     Type: 'AWS::Chatbot::SlackChannelConfiguration'
     Properties:
-      ConfigurationName: !Ref ConfigurationNameParameter
+      ConfigurationName: !Sub "${AWS::StackName}-slack-config"
       IamRoleArn: !GetAtt SlackChannelWriterRole.Arn
       SnsTopicArns: 
         - !GetAtt ChatbotSnsTopic.TopicArn

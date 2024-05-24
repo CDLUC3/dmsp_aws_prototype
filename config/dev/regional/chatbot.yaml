@@ -3,7 +3,6 @@ template:
   type: 'file'
 
 parameters:
-  ConfigurationNameParameter: 'my-slack-config'
   SlackCodestarConnectionArnParameter: !ssm_parameter '/uc3/dmp/hub/dev/SlackCodestarConnection'
   LoggingLevelParameter: 'ERROR'
   SlackChannelIdParameter: C074WLW59EF
