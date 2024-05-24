@@ -24,6 +24,7 @@ module Functions
     PILOT_DMPS = [
       # Northwestern University
       'doi.org/10.48321/D10B3E54E4',
+      'doi.org/10.48321/D10CA0DB07',
       'doi.org/10.48321/D1143FD15F',
       'doi.org/10.48321/D139D84658',
       'doi.org/10.48321/D1944C8215',
@@ -38,9 +39,11 @@ module Functions
 
       # University of California, Riverside
       'doi.org/10.48321/D106FD79D7',
+      'doi.org/10.48321/D11E48BC8B',
       'doi.org/10.48321/D13BEA529C',
       'doi.org/10.48321/D14406894e',
       'doi.org/10.48321/D145457051',
+      'doi.org/10.48321/D184612CA9',
       'doi.org/10.48321/D1FCB77AF0',
       'doi.org/10.48321/D1FFBFF8FE',
 
