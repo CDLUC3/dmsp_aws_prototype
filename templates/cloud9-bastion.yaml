@@ -48,53 +48,6 @@ Parameters:
 
 Resources:
   # -----------------------------------------------------------
-  # EC2 Security Groups for ECS containers
-  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-security-group.html
-  # -----------------------------------------------------------
-  BastionSecurityGroup:
-    Type: 'AWS::EC2::SecurityGroup'
-    Properties:
-      GroupDescription: !Sub '${AWS::StackName} Bastion security group'
-      GroupName: !Sub '${AWS::StackName}-secgrp'
-      VpcId: !Ref VpcId
-
-  # Allow the RDS instance(s) to receive traffic from the Bastion instance(s)
-  RdsSecurityGroupIngressFromBastion:
-    Type: 'AWS::EC2::SecurityGroupIngress'
-    DependsOn:
-      - BastionSecurityGroup
-    Properties:
-      IpProtocol: 'tcp'
-      FromPort: !Ref DbPort
-      ToPort: !Ref DbPort
-      GroupId: !Ref DbSecurityGroupId
-      SourceSecurityGroupId: !GetAtt BastionSecurityGroup.GroupId
-
-  # Allow the RDS instance(s) to receive traffic from the ECS instance(s)
-  BastionSecurityGroupIngressFromRds:
-    Type: AWS::EC2::SecurityGroupIngress
-    DependsOn:
-      - BastionSecurityGroup
-    Properties:
-      IpProtocol: 'tcp'
-      FromPort: !Ref DbPort
-      ToPort: !Ref DbPort
-      GroupId: !GetAtt BastionSecurityGroup.GroupId
-      SourceSecurityGroupId: !Ref DbSecurityGroupId
-
-  # Allow the RDS instance(s) to receive traffic from the ECS instance(s)
-  BastionSecurityGroupEgressToRds:
-    Type: AWS::EC2::SecurityGroupEgress
-    DependsOn:
-      - BastionSecurityGroup
-    Properties:
-      IpProtocol: 'tcp'
-      FromPort: !Ref DbPort
-      ToPort: !Ref DbPort
-      GroupId: !GetAtt BastionSecurityGroup.GroupId
-      DestinationSecurityGroupId: !Ref DbSecurityGroupId
-
-  # -----------------------------------------------------------
   # Cloud9
   #  See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-cloud9-environmentec2.html
   # -----------------------------------------------------------
