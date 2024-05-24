@@ -94,6 +94,15 @@ Conditions:
     !Equals [!Ref Env, 'dev']
 
 Resources:
+
+  GraphQLEndpointParameter:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Name: '/myapp/graphql_endpoint'
+      Type: 'String'
+      Value: !Ref Domain
+      Description: 'GraphQL endpoint for my NextJS app'
+
   # -----------------------------------------------------------
   # Identitity and Access Management (IAM)
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_IAM.html
