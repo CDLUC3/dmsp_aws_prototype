@@ -1,0 +1,10 @@
+template:
+  path: 'chatbot.yaml'
+  type: 'file'
+
+parameters:
+  ConfigurationNameParameter: my-slack-config
+  IamRoleArnParameter: arn:aws:iam::671846987296:role/service-role/slack-channel-role
+  SlackChannelIdParameter: C074WLW59EF
+  SlackWorkspaceIdParameter: T02AJMWEJ
+  SnsTopicArnsParameter: arn:aws:sns:us-west-2:671846987296:slack-topic

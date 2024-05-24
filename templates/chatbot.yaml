@@ -1,0 +1,51 @@
+AWSTemplateFormatVersion: '2010-09-09'AWSTemplateFormatVersion: '2010-09-09'
+Description: CloudFormation template to configure AWS Chatbot Slack Channel
+
+Parameters:
+  ConfigurationNameParameter:
+    Type: String
+    Description: The name of the configuration
+  IamRoleArnParameter:
+    Type: String
+    Description: The ARN of the IAM role
+  SlackChannelIdParameter:
+    Type: String
+    Description: The ID of the Slack channel
+  SlackWorkspaceIdParameter:
+    Type: String
+    Description: The ID of the Slack workspace
+  SnsTopicArnsParameter:
+    Type: CommaDelimitedList
+    Description: The ARNs of the SNS topics
+
+Resources:
+  ChatbotRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: MyChatbotRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: 'chatbot.amazonaws.com'
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSChatbotServiceRolePolicy
+        
+  SlackChannelConfiguration:
+    Type: 'AWS::Chatbot::SlackChannelConfiguration'
+    Properties:
+      ConfigurationName: !Ref ConfigurationNameParameter
+      GuardrailPolicies: !Ref GuardrailPoliciesParameter
+      IamRoleArn: !Ref IamRoleArnParameter
+      LoggingLevel: !Ref LoggingLevelParameter
+      SlackChannelId: !Ref SlackChannelIdParameter
+      SlackWorkspaceId: !Ref SlackWorkspaceIdParameter
+      SnsTopicArns: !Ref SnsTopicArnsParameter
+      UserRoleRequired: !Ref UserRoleRequiredParameter
+
+Outputs:
+  SlackChannelConfigurationArn:
+    Description: The ARN of the Slack Channel Configuration
+    Value: !GetAtt SlackChannelConfiguration.Arn

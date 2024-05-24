@@ -41,3 +41,5 @@ parameters:
   LogLevel: 'debug'
 
   HelpdeskEmail: !ssm_parameter /uc3/dmsp/prototype/dev/HelpdeskEmail
+
+  Domain: !stack_ouput dev/global/dmsp-frontend-route53.yaml::Domain
