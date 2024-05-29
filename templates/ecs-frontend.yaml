@@ -83,9 +83,6 @@ Parameters:
       - 'warn'
       - 'error'
 
-  Domain:
-    Type: 'String'
-
   HelpdeskEmail:
     Type: 'String'
 
@@ -172,8 +169,6 @@ Resources:
           Environment:
             - Name: 'LOG_LEVEL'
               Value: !Ref LogLevel
-            - Name: 'GRAPHQL_ENDPOINT'
-              Value: !Ref Domain
 
   # Container Service definition
   EcsService:
