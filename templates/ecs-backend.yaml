@@ -85,6 +85,12 @@ Parameters:
   CognitoClientSecret:
     Type: 'String'
 
+  DmpIdBaseUrl:
+    Type: 'String'
+
+  DmpIdShoulder:
+    Type: 'String'
+
   DbConnectionLimit:
     Type: 'Number'
     Default: 5
@@ -199,6 +205,11 @@ Resources:
               Value: !Ref LogLevel
             - Name: 'USE_MOCK_DATA'
               Value: false
+
+            - Name: 'DMP_ID_BASE_URL'
+              Value: !Ref DmpIdBaseUrl
+            - Name: 'DMP_ID_SHOULDER'
+              Value: !Ref DmpIdShoulder
 
             # DMPHub API connection
             - Name: 'DMPHUB_AUTH_URL'
