@@ -38,6 +38,9 @@ parameters:
   CognitoClientId: !stack_output dev/regional/cognito.yaml::DmspUserPoolClientId
   CognitoClientSecret: !stack_output dev/regional/cognito.yaml::DmspUserPoolClientSecret
 
+  DmpIdBaseUrl: !ssm_parameter /uc3/dmp/hub/dev/EzidBaseUrl
+  DmpIdShoulder: !ssm_parameter /uc3/dmp/hub/dev/EzidShoulder
+
   DbConnectionLimit: '5'
   DbHost: !stack_output dev/regional/rds.yaml::DbAddress
   DbPort: !stack_output dev/regional/rds.yaml::DbPort
