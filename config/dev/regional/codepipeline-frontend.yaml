@@ -17,3 +17,5 @@ parameters:
   # require an image already be in the ECR, but this Pipeline builds those images!
   EcsCluster: !stack_output dev/regional/ecs-cluster.yaml::EcsFargateClusterId
   EcsServiceName: !stack_output dev/regional/ecs-frontend.yaml::EcsServiceName
+
+  ChatbotArn: !stack_output dev/regional/chatbot.yaml::SlackChannelConfigurationArn

@@ -21,6 +21,9 @@ Parameters:
   S3ArtifactBucketId:
     Type: 'String'
 
+  ChatbotArn:
+    Type: 'String'
+
   CodeBuildProjectName:
     Type: 'String'
 
@@ -139,6 +142,25 @@ Resources:
                 ServiceName: !Ref EcsServiceName
                 DeploymentTimeout: '15'
 
+  # -----------------------------------------------------------
+  # CodeStar Notification Rule for AWS Chatbot to send updates to Slack
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-codestarnotifications-notificationrule.html
+  # -----------------------------------------------------------
+  CodePipelineChatbotNotification:
+    Type: 'AWS::CodeStarNotifications::NotificationRule'
+    Properties:
+      Name: !Sub "${AWS::StackName}-alerts"
+      Status: 'ENABLED'
+      DetailType: 'FULL'
+      Resource: !GetAtt CodePipelineRole.Arn
+      EventTypeIds:
+        - 'codepipeline-pipeline-action-execution-started'
+        - 'codepipeline-pipeline-action-execution-failed'
+        - 'codepipeline-pipeline-action-execution-succeeded'
+      Targets:
+        - TargetType: 'AWSChatbotSlack'
+          TargetAddress: !Ref ChatbotArn
+
 Outputs:
   CodePipelineRoleArn:
     Value: !GetAtt CodePipelineRole.Arn
@@ -148,3 +170,6 @@ Outputs:
 
   CodePipelineVersion:
     Value: !GetAtt CodePipeline.Version
+
+  CodePipelineChatbotNotificationArn:
+    Value: !Ref CodePipelineChatbotNotification

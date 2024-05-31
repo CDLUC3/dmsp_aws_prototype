@@ -49,12 +49,12 @@ Resources:
       ManagedPolicyArns:
         - 'arn:aws:iam::671846987296:policy/service-role/AWS-Chatbot-NotificationsOnly-Policy-e4eede0e-fd4e-4b5e-a4af-16300f0aeb92'
 
-  # SNS 
+  # SNS
   ChatbotSnsTopic:
     Type: 'AWS::SNS::Topic'
     Properties:
       DisplayName: !Sub "${AWS::StackName}-sns-topic"
-  
+
   ChatbotSlackSnsSubscription:
     Type: 'AWS::SNS::Subscription'
     Properties:
@@ -74,14 +74,14 @@ Resources:
             "headerContentType": "text/plain; charset=UTF-8"
           }
         }
-  
+
   # Chatbot Slack Channel
   SlackChannelConfiguration:
     Type: 'AWS::Chatbot::SlackChannelConfiguration'
     Properties:
       ConfigurationName: !Sub "${AWS::StackName}-slack-config"
       IamRoleArn: !GetAtt SlackChannelWriterRole.Arn
-      SnsTopicArns: 
+      SnsTopicArns:
         - !GetAtt ChatbotSnsTopic.TopicArn
         - !Ref SlackCodestarConnectionArnParameter
       LoggingLevel: !Ref LoggingLevelParameter
