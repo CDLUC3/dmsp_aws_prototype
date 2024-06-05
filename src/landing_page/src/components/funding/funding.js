@@ -3,14 +3,15 @@ import { Link } from '../../components/link/link';
 function Funding(props) {
   let FunderLink = props?.funder_link;
   let award_id = props?.award_id;
-  let opportunity_number = props.opportunity_number;
+  let opportunity_number = props?.opportunity_number;
+  let funding_status = props?.funding_status;
 
   return (
     <div className="t-step__content">
       <h2>Funding status and sources for this project</h2>
 
       <ul className="landing-list">
-        <li><strong>Status:</strong> {award_id === '' ? 'Planned' : 'Approved'}</li>
+        <li><strong>Status:</strong> {funding_status === 'funded' ? 'Awarded' : (funding_status === 'denied' ? 'Denied' : 'Planned')}</li>
         <li><strong>Funder:</strong> <FunderLink/></li>
         {opportunity_number !== undefined &&
           <li>
