@@ -49,3 +49,5 @@ parameters:
   DbPassword: !ssm_parameter /uc3/dmp/hub/dev/DbPassword
 
   HelpdeskEmail: !ssm_parameter /uc3/dmsp/prototype/dev/HelpdeskEmail
+
+  UseMockData: 'true'

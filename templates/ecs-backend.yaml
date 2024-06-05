@@ -115,6 +115,13 @@ Parameters:
   HelpdeskEmail:
     Type: 'String'
 
+  UseMockData:
+    Type: 'String'
+    Default: 'false'
+    AllowedValues:
+      - 'true'
+      - 'false'
+
 Conditions:
   IsDev:
     !Equals [!Ref Env, 'dev']
@@ -204,7 +211,7 @@ Resources:
             - Name: 'LOG_LEVEL'
               Value: !Ref LogLevel
             - Name: 'USE_MOCK_DATA'
-              Value: false
+              Value: !Ref UseMockData
 
             - Name: 'DMP_ID_BASE_URL'
               Value: !Ref DmpIdBaseUrl
