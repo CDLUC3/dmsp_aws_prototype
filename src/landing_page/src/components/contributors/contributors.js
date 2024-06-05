@@ -50,10 +50,17 @@ function OrcidLink(props) {
     if ('contributor_id' in person || 'contact_id' in person) {
       let orcid = 'contributor_id' in person ? person.contributor_id : person.contact_id
       if ('identifier' in orcid) {
-        return (
-          <Link href={orcid.identifier} label={orcid.identifier.replace(/https?:\/\/orcid.org\//i, '')}
-            remote='true' index={idx + 'oid'} className="c-orcid" />
-        );
+        if (orcid.identifier?.startsWith('http')) {
+          return (
+            <Link href={orcid.identifier} label={orcid.identifier.replace(/https?:\/\/orcid.org\//i, '')}
+                  remote='true' index={idx + 'oid'} className="c-orcid" />
+          );
+        } else {
+          return (
+            <Link href={`https://orcid.org/${orcid.identifier}`} label={orcid.identifier.replace(/https?:\/\/orcid.org\//i, '')}
+                    remote='true' index={idx + 'oid'} className="c-orcid" />
+          );
+        }
       }
     }
   }
@@ -66,9 +73,14 @@ function RoleLink(props) {
     let displayRole = role.toString().replace(ROLE_PREFIX_REGEX, '');
     if (displayRole.length > 0) {
       displayRole = displayRole.replace('-', ' ').charAt(0).toUpperCase() + displayRole.slice(1);
-      return (
-        <Link href={role} label={displayRole} remote='true' index={'a' + idx} />
-      );
+
+      if (role.startsWith('http')) {
+        return (
+          <Link href={role} label={displayRole} remote='true' index={'a' + idx} />
+        );
+      } else {
+        return `${displayRole}, `;
+      }
     }
   }
 }

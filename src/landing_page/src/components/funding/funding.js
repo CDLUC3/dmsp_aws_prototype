@@ -11,7 +11,7 @@ function Funding(props) {
       <h2>Funding status and sources for this project</h2>
 
       <ul className="landing-list">
-        <li><strong>Status:</strong> {funding_status === 'funded' ? 'Awarded' : (funding_status === 'denied' ? 'Denied' : 'Planned')}</li>
+        <li><strong>Status:</strong> {funding_status === 'funded' ? 'Awarded' : (funding_status === 'rejected' ? 'Denied' : 'Planned')}</li>
         <li><strong>Funder:</strong> <FunderLink/></li>
         {opportunity_number !== undefined &&
           <li>
@@ -25,7 +25,15 @@ function Funding(props) {
           </li>
         }
         {award_id !== '' &&
-          <li><strong>Grant:</strong> {award_id} <Link href={award_id} remote='true'/></li>
+          <li>
+            <strong>Grant:</strong>
+            {award_id.startsWith('http') &&
+              <Link href={award_id} remote='true' />
+            }
+            {!award_id.startsWith('http') &&
+              award_id
+            }
+          </li>
         }
       </ul>
     </div>
