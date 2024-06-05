@@ -63,6 +63,9 @@ module Functions
       Uc3DmpApiCore::Notifier.notify_administrator(source: SOURCE, details: deets, event:)
       _respond(status: 500, errors: [Uc3DmpApiCore::MSG_SERVER_ERROR], event:)
     rescue Uc3DmpId::UpdaterError => e
+      logger.error(message: e.message, details: e.backtrace)
+      deets = { message: e.message, dmp_id: params[:dmp_id], params: }
+      Uc3DmpApiCore::Notifier.notify_administrator(source: SOURCE, details: deets, event:)
       _respond(status: 400, errors: [e.message], event:)
     rescue StandardError => e
       # Just do a print here (ends up in CloudWatch) in case it was the Uc3DmpApiCore::Responder.rb that failed

@@ -82,23 +82,32 @@ module Uc3DmpId
 
         # fetch the existing latest version of the DMP ID
         client = Uc3DmpDynamo::Client.new(logger:)
-        dmp = Finder.by_pk(p_key:, client:, logger:, cleanse: false)
+        # dmp = Finder.by_pk(p_key:, client:, logger:, cleanse: false)
+        resp = client.get_item(
+          key: { PK: Helper.append_pk_prefix(p_key:), SK: Helper::DMP_LATEST_VERSION },
+          logger:
+        )
+        raise UpdaterError, Helper::MSG_DMP_INVALID_DMP_ID unless resp.is_a?(Hash)
+
+        dmp = resp['dmp'].nil? ? resp : resp['dmp']
         logger.info(message: 'Existing latest record', details: dmp) if logger.respond_to?(:debug)
         raise UpdaterError, Helper::MSG_DMP_FORBIDDEN unless provenance.is_a?(Hash) && !provenance['PK'].nil? &&
-                                                             provenance['PK'] == dmp['dmp']['dmphub_provenance_id']
+                                                             provenance['PK'] == dmp['dmphub_provenance_id']
+
+        logger&.debug(message: "DMP Prior to narrative attachment", details: dmp)
 
         # Add the download URl for the PDF as a related identifier on the DMP ID record
-        annotated = Helper.annotate_dmp_json(provenance:, p_key:, json: dmp['dmp'])
-        annotated['dmproadmap_related_identifiers'] = [] if annotated['dmproadmap_related_identifiers'].nil?
-        annotated['dmproadmap_related_identifiers'] << JSON.parse({
+        dmp['dmproadmap_related_identifiers'] = [] if dmp['dmproadmap_related_identifiers'].nil?
+        dmp['dmproadmap_related_identifiers'] << JSON.parse({
           descriptor: 'is_metadata_for', work_type: 'output_management_plan', type: 'url', identifier: url
         }.to_json)
 
         # Save the changes without creating a new version!
-        resp = client.put_item(json: annotated, logger:)
+        logger&.debug(message: "DMP After narrative attachment", details: dmp)
+        resp = client.put_item(json: dmp, logger:)
         raise UpdaterError, Helper::MSG_DMP_UNABLE_TO_VERSION if resp.nil?
 
-        logger.info(message: "Added DMP ID narrative for PK: #{p_key}, Narrative: #{url}") if logger.respond_to?(:debug)
+        logger&.debug(message: "Added DMP ID narrative for PK: #{p_key}, Narrative: #{url}")
         true
       end
       # rubocop:enable Metrics/AbcSize
@@ -129,7 +138,7 @@ module Uc3DmpId
         logger.debug(message: 'Modifications before merge.', details: mods) if logger.respond_to?(:debug)
         keys_to_retain = version.keys.select do |key|
           (key.start_with?('dmphub_') && !%w[dmphub_modifications dmphub_versions].include?(key)) ||
-            key.start_with?('PK') || key.start_with?('SK')
+            key.start_with?('PK') || key.start_with?('SK') || key.start_with?('dmproadmap_related_identifiers')
         end
         keys_to_retain.each do |key|
           mods[key] = version[key]
