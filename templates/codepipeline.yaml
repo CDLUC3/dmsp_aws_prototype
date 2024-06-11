@@ -21,7 +21,7 @@ Parameters:
   S3ArtifactBucketId:
     Type: 'String'
 
-  ChatbotArn:
+  ChatbotTopicArn:
     Type: 'String'
 
   CodeBuildProjectName:
@@ -151,15 +151,19 @@ Resources:
     Properties:
       Name: !Sub "${AWS::StackName}-alerts"
       Status: 'ENABLED'
-      DetailType: 'FULL'
+      DetailType: 'BASIC'
       Resource: !GetAtt CodePipelineRole.Arn
       EventTypeIds:
         - 'codepipeline-pipeline-action-execution-started'
         - 'codepipeline-pipeline-action-execution-failed'
+        - 'codepipeline-pipeline-pipeline-execution-canceled'
         - 'codepipeline-pipeline-action-execution-succeeded'
+        - 'codepipeline-pipeline-manual-approval-needed'
+        - 'codepipeline-pipeline-manual-approval-failed'
+        - 'codepipeline-pipeline-manual-approval-succeeded'
       Targets:
         - TargetType: 'AWSChatbotSlack'
-          TargetAddress: !Ref ChatbotArn
+          TargetAddress: !Ref ChatbotTopicArn
 
 Outputs:
   CodePipelineRoleArn:

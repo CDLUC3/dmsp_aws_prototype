@@ -16,4 +16,4 @@ parameters:
   EcsCluster: !stack_output dev/regional/ecs-cluster.yaml::EcsFargateClusterId
   EcsServiceName: !stack_output dev/regional/ecs-backend.yaml::EcsServiceName
 
-  ChatbotArn: !stack_output dev/regional/chatbot.yaml::SlackChannelConfigurationArn
+  ChatbotTopicArn: !stack_output dev/regional/chatbot.yaml::ChatbotSnsTopicArn #SlackChannelConfigurationArn
