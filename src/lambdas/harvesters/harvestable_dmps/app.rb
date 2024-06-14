@@ -47,6 +47,7 @@ module Functions
       'doi.org/10.48321/D13BEA529C',
       'doi.org/10.48321/D14406894e',
       'doi.org/10.48321/D145457051',
+      'doi.org/10.48321/D1781C1ACE',
       'doi.org/10.48321/D184612CA9',
       'doi.org/10.48321/D1FCB77AF0',
       'doi.org/10.48321/D1FFBFF8FE',
@@ -58,6 +59,7 @@ module Functions
       'doi.org/10.48321/D1FFE5D7FD',
 
       # University of Colorado Boulder
+      'doi.org/10.48321/D12D3B625A',
       'doi.org/10.48321/D14F38aa13',
       'doi.org/10.48321/D1B581751F'
     ]
