@@ -62,6 +62,17 @@ Parameters:
     Type: 'Number'
     Default: 10080 # 7 days
 
+  AllowWrite:
+    Type: 'String'
+    Default: 'no'
+    AllowedValues:
+      - 'yes'
+      - 'no'
+
+Conditions:
+  WriteAllowed:
+    !Equals [!Ref AllowWrite, 'yes']
+
 Resources:
   # --------------------------------------------------------------
   # Cognito UserPool application clients
@@ -81,9 +92,13 @@ Resources:
       AllowedOAuthFlowsUserPoolClient: true
       AllowedOAuthFlows:
         - 'client_credentials'
-      AllowedOAuthScopes:
-        - !Sub 'https://${Subdomain}.${Domain}/${Env}.read'
-        # - !Sub 'https://${Subdomain}.${Domain}/${Env}.write'
+      AllowedOAuthScopes: !If
+        - WriteAllowed
+        # Allow both read and write
+        - - !Sub 'https://${Subdomain}.${Domain}/${Env}.read'
+          - !Sub 'https://${Subdomain}.${Domain}/${Env}.write'
+        # Only allow read
+        - - !Sub 'https://${Subdomain}.${Domain}/${Env}.read'
       EnableTokenRevocation: true
       PreventUserExistenceErrors: 'ENABLED'
       GenerateSecret: true
@@ -91,7 +106,6 @@ Resources:
         - 'COGNITO'
       # The CF docs indicate that this is not required but I am unable to get a token from Cognito without it
       CallbackURLs:
-        # - 'http://localhost:3000/callback'
         - !Ref ClientCallbackUri
       TokenValidityUnits:
         AccessToken: !Ref TokenValidityUnits
