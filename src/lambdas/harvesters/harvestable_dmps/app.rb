@@ -22,6 +22,9 @@ module Functions
     SOURCE = 'Harvestable DMPs'
 
     PILOT_DMPS = [
+      # Arizona State University
+      'doi.org/10.48321/D190AA982F',
+
       # Northwestern University
       'doi.org/10.48321/D10B3E54E4',
       'doi.org/10.48321/D10CA0DB07',
@@ -33,8 +36,11 @@ module Functions
 
       # University of California, Berkeley
       'doi.org/10.48321/D114471AC3',
+      'doi.org/10.48321/D11FB0F3A2',
       'doi.org/10.48321/D1425BBD9F',
+      'doi.org/10.48321/D16BBE57E6',
       'doi.org/10.48321/D18F9B93B8',
+      'doi.org/10.48321/D19D861916',
       'doi.org/10.48321/D1AED95FF4',
       'doi.org/10.48321/D1BA48FBC9',
       'doi.org/10.48321/D1CE350633',
@@ -45,10 +51,13 @@ module Functions
       'doi.org/10.48321/D117F9DC89',
       'doi.org/10.48321/D11E48BC8B',
       'doi.org/10.48321/D13BEA529C',
+      'doi.org/10.48321/D13BEA529C',
       'doi.org/10.48321/D14406894e',
       'doi.org/10.48321/D145457051',
       'doi.org/10.48321/D1781C1ACE',
       'doi.org/10.48321/D184612CA9',
+      'doi.org/10.48321/D1AD94C04A',
+      'doi.org/10.48321/D1C7466457',
       'doi.org/10.48321/D1FCB77AF0',
       'doi.org/10.48321/D1FFBFF8FE',
 
