@@ -72,7 +72,11 @@ function Output(props) {
   let standards = output?.metadata || [];
   let distributions = props?.output?.distribution || [];
   let hosts = Array.isArray(distributions) && distributions.length > 0 ? distributions.map((obj) => { return obj?.host }) : [];
-  let licenses = Array.isArray(distributions) && distributions.length > 0 ? distributions.map((obj) => { return obj?.license }) : [];
+  let licenses = Array.isArray(distributions) && distributions.length > 0
+    ? distributions
+      .map((obj) => { return obj?.license })
+      .filter(license => license !== undefined)
+    : null;
   let byteSize = calculateSize(distributions);
 
   if (output !== undefined) {
@@ -111,7 +115,7 @@ function Output(props) {
               <HostLink hosts={hosts} index={idx + 'attr-host-a'} />
             </li>
           }
-          {Array.isArray(licenses) && licenses.length > 0 && (licenses[0] !== undefined) &&
+          {Array.isArray(licenses) && licenses.length > 0 &&
             <li key={idx + 'attr-license'}>
               <strong key={idx + 'attr-license-b'}>License for reuse:</strong>
               <LicenseLink licenses={licenses.flat()} index={idx + 'attr-license-a'} />
