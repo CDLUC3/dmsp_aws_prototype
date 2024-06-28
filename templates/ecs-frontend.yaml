@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: 'AWS::Serverless-2016-10-31'
 
-Description: 'Serverless architecture for the Apollo server system'
+Description: 'Serverless architecture for the nextJS server'
 
 Parameters:
   Subnets:
@@ -28,6 +28,10 @@ Parameters:
 
   AppPort:
     Type: 'Number'
+
+  ApolloPort:
+    Type: 'Number'
+    Default: 4000
 
   EcsDesiredServiceCount:
     Type: 'Number'
@@ -79,54 +83,15 @@ Parameters:
       - 'warn'
       - 'error'
 
-  CognitoClientId:
-    Type: 'String'
-
-  CognitoClientSecret:
-    Type: 'String'
-
-  DmpIdBaseUrl:
-    Type: 'String'
-
-  DmpIdShoulder:
-    Type: 'String'
-
-  DbConnectionLimit:
-    Type: 'Number'
-    Default: 5
-
-  DbHost:
-    Type: 'String'
-
-  DbPort:
-    Type: 'String'
-    Default: '3306'
-
-  DbName:
-    Type: 'String'
-    Default: 'dmsp'
-
-  DbUsername:
-    Type: 'String'
-
-  DbPassword:
-    Type: 'String'
-
   HelpdeskEmail:
     Type: 'String'
-
-  UseMockData:
-    Type: 'String'
-    Default: 'false'
-    AllowedValues:
-      - 'true'
-      - 'false'
 
 Conditions:
   IsDev:
     !Equals [!Ref Env, 'dev']
 
 Resources:
+
   # -----------------------------------------------------------
   # Identitity and Access Management (IAM)
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_IAM.html
@@ -146,15 +111,9 @@ Resources:
               - 'sts:AssumeRole'
       ManagedPolicyArns:
         - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
-        - 'arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess'
         - 'arn:aws:iam::aws:policy/AmazonS3FullAccess'
-        - 'arn:aws:iam::aws:policy/AmazonRDSDataFullAccess'
         - 'arn:aws:iam::aws:policy/AmazonSESFullAccess'
         - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
-
-
-        # - 'arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceRole'
-        # - 'arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role'
 
   # -----------------------------------------------------------
   # Elastic Container Service (ECS) - Containers that host the application
@@ -169,7 +128,7 @@ Resources:
       Memory: !Ref MemorySize
       ExecutionRoleArn: !Ref EcsTaskExecutionRoleId
       TaskRoleArn: !GetAtt EcsTaskRole.Arn
-      Family: !Sub '${AWS::StackName}-apollo-server'
+      Family: !Sub '${AWS::StackName}-nextJS-server'
       NetworkMode: 'awsvpc' # Required for Fargate!
       RuntimePlatform:
         CpuArchitecture: 'X86_64'
@@ -204,45 +163,12 @@ Resources:
             # ALB port (The port we are listening on)
             - ContainerPort: !Ref AppPort
               Protocol: 'tcp'
-            # RDS port (The MySQL DB port)
-            - ContainerPort: !Ref DbPort
+            # Apollo server port
+            - ContainerPort: !Ref ApolloPort
               Protocol: 'tcp'
           Environment:
             - Name: 'LOG_LEVEL'
               Value: !Ref LogLevel
-            - Name: 'USE_MOCK_DATA'
-              Value: !Ref UseMockData
-
-            - Name: 'DMP_ID_BASE_URL'
-              Value: !Ref DmpIdBaseUrl
-            - Name: 'DMP_ID_SHOULDER'
-              Value: !Ref DmpIdShoulder
-
-            # DMPHub API connection
-            - Name: 'DMPHUB_AUTH_URL'
-              Value: !Sub "https://auth.dmphub.uc3${Env}.cdlib.net"
-            - Name: 'DMPHUB_API_BASE_URL'
-              Value: !Sub "https://api.dmphub.uc3${Env}.cdlib.net"
-            - Name: 'DMPHUB_API_CLIENT_ID'
-              Value: !Ref CognitoClientId
-            - Name: 'DMPHUB_API_CLIENT_SECRET'
-              Value: !Ref CognitoClientSecret
-
-            # AWS RDS MySQL database
-            - Name: 'MYSQL_CONNECTION_LIMIT'
-              Value: !Ref DbConnectionLimit
-            - Name: 'MYSQL_HOST'
-              Value: !Ref DbHost
-            - Name: 'MYSQL_PORT'
-              Value: !Ref DbPort
-            - Name: 'MYSQL_DATABASE'
-              Value: !Ref DbName
-            - Name: 'MYSQL_USER'
-              Value: !Ref DbUsername
-            - Name: 'MYSQL_PASSWORD'
-              Value: !Ref DbPassword
-            - Name: 'HELPDESK_EMAIL'
-              Value: !Ref HelpdeskEmail
 
   # Container Service definition
   EcsService:

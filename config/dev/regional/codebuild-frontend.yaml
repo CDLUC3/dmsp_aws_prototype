@@ -1,11 +1,9 @@
 template:
-  path: 'codebuild-backend.yaml'
+  path: 'codebuild-frontend.yaml'
   type: 'file'
 
 parameters:
   VpcId: !stack_attr sceptre_user_data.vpc_id
-  # RouteTableId: !stack_output_external cdl-uc3-dev-vpc-stack::vpcrt
-  # Subnets: !stack_attr sceptre_user_data.public_subnets
 
   Program: !stack_attr stack_tags.Program
   Service: !stack_attr stack_tags.Service
@@ -14,32 +12,23 @@ parameters:
   Contact: !stack_attr stack_tags.Contact
 
   Env: !stack_attr sceptre_user_data.env
+  NodeEnv: 'development'
+  AppName: !stack_attr sceptre_user_data.frontend_server_container_name
 
   EcrRepositoryArn: !stack_output dev/regional/ecr.yaml::EcrRepositoryArn
   EcrRepositoryUri: !stack_output dev/regional/ecr.yaml::EcrRepositoryUri
   EcrRepositoryName: !stack_output dev/regional/ecr.yaml::EcrRepositoryName
 
-  # S3ArtifactBucketAlias: !stack_output dev/regional/s3.yaml::S3PipelineArtifactAccessPointAlias
   S3ArtifactBucketArn: !stack_output dev/regional/s3.yaml::S3PrivateBucketArn
   S3ArtifactBucketId: !stack_output dev/regional/s3.yaml::S3PrivateBucketId
 
   CodeStarConnectionArn: !ssm_parameter /uc3/CodeStarConnectionArn
 
-  # DbSecurityGroupId: !stack_output dev/regional/rds.yaml::DbSecurityGroupId
+  DbSecurityGroupId: !stack_output dev/regional/rds.yaml::DbSecurityGroupId
+  DbPort: !stack_output dev/regional/rds.yaml::DbPort
 
   CodePipelineLogGroupArn: !stack_output dev/regional/cloudwatch.yaml::CodePipelineLogGroupArn
   CodePipelineLogGroupName: !stack_output dev/regional/cloudwatch.yaml::CodePipelineLogGroupName
-
-  DbHost: !stack_output dev/regional/rds.yaml::DbAddress
-  DbPort: !stack_output dev/regional/rds.yaml::DbPort
-  DbName: !stack_output dev/regional/rds.yaml::DbName
-  DbUsername: !ssm_parameter /uc3/dmp/hub/dev/DbUsername
-  DbPassword: !ssm_parameter /uc3/dmp/hub/dev/DbPassword
-
-  AppName: !stack_attr sceptre_user_data.backend_server_container_name
-
-  # We want Apollo server to run in development mode in this env so that the Explorer works
-  NodeEnv: 'development'
 
   CodeBuildEnvironmentType: 'LINUX_CONTAINER'
   CodeBuildEnvironmentComputeType: 'BUILD_GENERAL1_SMALL'

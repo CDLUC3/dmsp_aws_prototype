@@ -1,0 +1,114 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: CloudFormation template to configure AWS Chatbot Slack Channel
+
+Parameters:
+
+  SlackCodestarConnectionArnParameter:
+    Type: 'String'
+
+  LoggingLevelParameter:
+    Type: 'String'
+    Default: 'ERROR'
+
+  SlackChannelIdParameter:
+    Type: 'String'
+
+  SlackWorkspaceIdParameter:
+    Type: 'String'
+
+Resources:
+  # IAM
+  SlackChannelWriterRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service:
+                - 'chatbot.amazonaws.com'
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
+        - 'arn:aws:iam::aws:policy/AWSResourceExplorerReadOnlyAccess'
+
+  ChatbotSubscriptionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: MyChatbotRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: 'chatbot.amazonaws.com'
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::671846987296:policy/service-role/AWS-Chatbot-NotificationsOnly-Policy-e4eede0e-fd4e-4b5e-a4af-16300f0aeb92'
+
+  # SNS 
+  ChatbotSnsTopic:
+    Type: 'AWS::SNS::Topic'
+    Properties:
+      DisplayName: !Sub "${AWS::StackName}-sns-topic"
+  
+  ChatbotSlackSnsSubscription:
+    Type: 'AWS::SNS::Subscription'
+    Properties:
+      TopicArn: !GetAtt ChatbotSnsTopic.TopicArn
+      Endpoint: 'https://global.sns-api.chatbot.amazonaws.com'
+      Protocol: 'https'
+      RawMessageDelivery: false
+      DeliveryPolicy: >
+        {
+          "healthyRetryPolicy": {
+            "minDelayTarget": 20,
+            "maxDelayTarget": 20,
+            "numRetries": 3,
+            "backoffFunction": "linear"
+          },
+          "requestPolicy": {
+            "headerContentType": "text/plain; charset=UTF-8"
+          }
+        }
+  
+  # Chatbot Slack Channel
+  SlackChannelConfiguration:
+    Type: 'AWS::Chatbot::SlackChannelConfiguration'
+    Properties:
+      ConfigurationName: !Sub "${AWS::StackName}-slack-config"
+      IamRoleArn: !GetAtt SlackChannelWriterRole.Arn
+      SnsTopicArns: 
+        - !GetAtt ChatbotSnsTopic.TopicArn
+        - !Ref SlackCodestarConnectionArnParameter
+      LoggingLevel: !Ref LoggingLevelParameter
+      SlackChannelId: !Ref SlackChannelIdParameter
+      SlackWorkspaceId: !Ref SlackWorkspaceIdParameter
+
+Outputs:
+  SlackChannelWriterRoleId:
+    Value: !Ref SlackChannelWriterRole
+
+  SlackChannelWriterRoleArn:
+    Value: !GetAtt SlackChannelWriterRole.Arn
+
+  ChatbotSubscriptionRoleId:
+    Value: !Ref ChatbotSubscriptionRole
+
+  ChatbotSubscriptionRoleArn:
+    Value: !GetAtt ChatbotSubscriptionRole.Arn
+
+  ChatbotSnsTopicId:
+    Value: !Ref ChatbotSnsTopic
+
+  ChatbotSnsTopicArn:
+    Value: !GetAtt ChatbotSnsTopic.TopicArn
+
+  SlackChannelConfigurationId:
+    Value: !Ref SlackChannelConfiguration
+
+  SlackChannelConfigurationArn:
+    Value: !GetAtt SlackChannelConfiguration.Arn

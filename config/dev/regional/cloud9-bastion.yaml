@@ -1,0 +1,26 @@
+template:
+  path: cloud9-bastion.yaml
+  type: file
+
+parameters:
+  VpcId: !stack_attr sceptre_user_data.vpc_id
+
+  SubnetId: !stack_attr sceptre_user_data.public_subnet_a
+
+  DbSecurityGroupId: !stack_output dev/regional/rds.yaml::DbSecurityGroupId
+
+  DbPort: !stack_output dev/regional/rds.yaml::DbPort
+
+  IdleTimeoutMinutes: '15'
+
+  ImageId: 'amazonlinux-2023-x86_64'
+
+  InstanceType: 't2.micro'
+
+  # Annoyingly, Cloud9 doesn't get Sceptre's auto-tagging
+  Program: !stack_attr stack_tags.Program
+  Service: !stack_attr stack_tags.Service
+  Subservice: !stack_attr stack_tags.Subservice
+  Environment: !stack_attr stack_tags.Environment
+  CodeRepo: !stack_attr stack_tags.CodeRepo
+  Contact: !stack_attr stack_tags.Contact

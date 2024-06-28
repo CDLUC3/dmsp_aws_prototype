@@ -7,6 +7,14 @@ Description: 'CodePipeline for the DMPSP Apollo server backend application'
 #       here to to be passed in as a List<String>
 
 Parameters:
+  # Comment these 2 ECS parameters out the first time you build the environment. The ECS services
+  # require an image already be in the ECR, but this Pipeline builds those images!
+  EcsCluster:
+    Type: 'String'
+
+  EcsServiceName:
+    Type: 'String'
+
   CodeStarConnectionArn:
     Type: 'String'
 
@@ -112,22 +120,24 @@ Resources:
               OutputArtifacts:
                 - Name: 'BuildArtifact'
 
-        # Enable this and setup CodeDeploy if just pushing a new image to the ECR does not auto-trigger Fargate
+        # TODO: Add a Trivy test
 
-        # - Name: 'Deploy'
-        #   Actions:
-        #     - Name: 'Deploy'
-        #       InputArtifacts:
-        #         - Name: 'BuildArtifact'
-        #       ActionTypeId:
-        #         Category: Deploy
-        #         Owner: 'AWS'
-        #         Provider: 'ECS'
-        #         Version: '1'
-        #       Configuration:
-        #         ClusterName: !Ref EcsCluster
-        #         ServiceName: !Ref EcsServiceName
-        #         DeploymentTimeout: '15'
+        # Comment out this Deploy stage the first time you build the environment. The ECS services
+        # require an image already be in the ECR, but this Pipeline builds those images!
+        - Name: 'Deploy'
+          Actions:
+            - Name: 'Deploy'
+              InputArtifacts:
+                - Name: 'BuildArtifact'
+              ActionTypeId:
+                Category: 'Deploy'
+                Owner: 'AWS'
+                Provider: 'ECS'
+                Version: '1'
+              Configuration:
+                ClusterName: !Ref EcsCluster
+                ServiceName: !Ref EcsServiceName
+                DeploymentTimeout: '15'
 
 Outputs:
   CodePipelineRoleArn:

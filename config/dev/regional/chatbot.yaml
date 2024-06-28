@@ -1,0 +1,9 @@
+template:
+  path: 'chatbot.yaml'
+  type: 'file'
+
+parameters:
+  SlackCodestarConnectionArnParameter: !ssm_parameter '/uc3/dmp/hub/dev/SlackCodestarConnection'
+  LoggingLevelParameter: 'ERROR'
+  SlackChannelIdParameter: C074WLW59EF
+  SlackWorkspaceIdParameter: T02AJMWEJ

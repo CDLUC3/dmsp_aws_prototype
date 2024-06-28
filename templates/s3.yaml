@@ -3,6 +3,9 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: 'S3 buckets both public (app files) and private (CodePipeline, CodeBuild, etc.)'
 
 Parameters:
+  VpcId:
+    Type: 'AWS::EC2::VPC::Id'
+
   Env:
     Type: 'String'
     Default: 'dev'
@@ -86,6 +89,19 @@ Resources:
         DestinationBucketName: !Ref S3LogBucket
         LogFilePrefix: 's3-access'
 
+  # Support for accessing the artifact S3 bucket from within the VPC
+  # S3PipelineArtifactAccessPoint:
+  #   Type: 'AWS::S3::AccessPoint'
+  #   Properties:
+  #     Bucket: !Ref S3PrivateBucket
+  #     PublicAccessBlockConfiguration:
+  #       BlockPublicAcls: true
+  #       BlockPublicPolicy: true
+  #       IgnorePublicAcls: true
+  #       RestrictPublicBuckets: true
+  #     VpcConfiguration:
+  #       VpcId: !Ref VpcId
+
   # ----------------------------------------------
   # SSM Parameter Store
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-ssm-parameter.html
@@ -129,3 +145,12 @@ Outputs:
     Value: !GetAtt S3PrivateBucket.Arn
     Export:
       Name: !Sub '${Env}-S3PrivateBucketArn'
+
+  # S3PipelineArtifactAccessPointId:
+  #   Value: !Ref S3PipelineArtifactAccessPoint
+
+  # S3PipelineArtifactAccessPointArn:
+  #   Value: !GetAtt S3PipelineArtifactAccessPoint.Arn
+
+  # S3PipelineArtifactAccessPointAlias:
+  #   Value: !GetAtt S3PipelineArtifactAccessPoint.Alias
