@@ -1,0 +1,122 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+
+Description: 'API Endpoint for `GET /dmps`'
+
+Parameters:
+  Env:
+    Type: 'String'
+    Default: 'dev'
+
+  DebugLevel:
+    Type: 'String'
+    Default: 'debug'
+
+  DomainName:
+    Type: 'String'
+
+  CognitoUserPoolArn:
+    Type: 'String'
+
+  DmpHubRestApiId:
+    Type: 'String'
+
+  DynamoTableName:
+    Type: 'String'
+
+  DmpHubDynamoTableReadPolicyArn:
+    Type: 'String'
+
+  SnsTopicEmailArn:
+    Type: 'String'
+
+  DeadLetterQueueArn:
+    Type: 'String'
+
+Conditions:
+  IsDev:
+    !Equals [!Ref Env, 'dev']
+
+Resources:
+  # Search for DMP IDs
+  Function:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      CodeUri: './'
+      Handler: 'app.Functions::GetDmps.process'
+      Runtime: 'ruby3.2'
+      Timeout: 5
+      Architectures:
+        - 'x86_64'
+      Layers:
+        - !Ref LambdaLayer
+      Policies:
+        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonS3FullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonCognitoReadOnly'
+        - !Ref DmpHubDynamoTableReadPolicyArn
+      DeadLetterQueue:
+        Type: 'SQS'
+        TargetArn: !Ref DeadLetterQueueArn
+      Environment:
+        Variables:
+          LAMBDA_ENV: !Ref Env
+          LOG_LEVEL: !Ref DebugLevel # 'debug'
+          SNS_FATAL_ERROR_TOPIC: !Ref SnsTopicEmailArn
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolArn
+          DYNAMO_TABLE: !Ref DynamoTableName
+          CORS_ORIGIN: !If
+            - IsDev
+            - "*"
+            - !Sub "https://${DomainName}"
+      Events:
+        GetDmps:
+          Type: 'Api'
+          Properties:
+            RestApiId: !Ref DmpHubRestApiId
+            Path: '/dmps'
+            Method: 'get'
+            Auth:
+              Authorizer: 'DmpHubCognitoAuthorizer'
+              AuthorizationScopes:
+                - !Sub 'https://auth.${DomainName}/${Env}.read'
+
+  LogGroup:
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${Function}"
+      # Explicit retention time
+      RetentionInDays: !Ref LogRetentionDays
+
+
+  # Scheduled events to keep some of the API lambdas warm
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-events-rule.html#cfn-events-rule-scheduleexpression
+  # LambdaWarmerRule:
+  #   Type: 'AWS::Events::Rule'
+  #   Properties:
+  #     ScheduleExpression: 'rate(10 minutes)'
+  #     Targets:
+  #       - Id: !Ref Function
+  #         Arn: !GetAtt Function.Arn
+
+  # LambdaWarmerPermission:
+  #   Type: 'AWS::Lambda::Permission'
+  #   Properties:
+  #     FunctionName: !GetAtt Function.Arn
+  #     Action: 'lambda:InvokeFunction'
+  #     Principal: 'events.amazonaws.com'
+  #     SourceArn: !GetAtt LambdaDmpWarmerRule.Arn
+
+Outputs:
+  FunctionId:
+    Value: !Ref Function
+
+  FunctionArn:
+    Value: !GetAtt Function.Arn
+
+  LogGroupId:
+    Value: !Ref LogGroup
+
+  LogGroupArn:
+    Value: !GetAtt LogGroup.Arn

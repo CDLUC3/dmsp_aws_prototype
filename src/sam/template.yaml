@@ -594,57 +594,6 @@ Resources:
       # Explicit retention time
       RetentionInDays: !Ref LogRetentionDays
 
-  # Search for DMP IDs
-  GetDmpsFunction:
-    Type: 'AWS::Serverless::Function'
-    Properties:
-      CodeUri: 'functions/api/get_dmps/'
-      Handler: 'app.Functions::GetDmps.process'
-      Runtime: 'ruby3.2'
-      Timeout: 5
-      Architectures:
-        - 'x86_64'
-      Layers:
-        - !Ref LambdaLayer
-      Policies:
-        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
-        - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
-        - 'arn:aws:iam::aws:policy/AmazonS3FullAccess'
-        - 'arn:aws:iam::aws:policy/AmazonCognitoReadOnly'
-        - !Ref DmpHubDynamoTableReadPolicy
-      DeadLetterQueue:
-        Type: 'SQS'
-        TargetArn: !Ref DeadLetterQueueArn
-      Environment:
-        Variables:
-          LAMBDA_ENV: !Ref Env
-          LOG_LEVEL: !Ref DebugLevel # 'debug'
-          SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
-          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolArn
-          DYNAMO_TABLE: !Ref DynamoTableName
-          CORS_ORIGIN: !If
-            - IsDev
-            - "*"
-            - !Sub "https://${DomainName}"
-      Events:
-        GetDmps:
-          Type: 'Api'
-          Properties:
-            RestApiId: !Ref DmpHubRestApi
-            Path: '/dmps'
-            Method: 'get'
-            Auth:
-              Authorizer: 'DmpHubCognitoAuthorizer'
-              AuthorizationScopes:
-                - !Sub 'https://auth.${DomainName}/${Env}.read'
-
-  GetDmpsLogGroup:
-    Type: 'AWS::Logs::LogGroup'
-    Properties:
-      LogGroupName: !Sub "/aws/lambda/${GetDmpsFunction}"
-      # Explicit retention time
-      RetentionInDays: !Ref LogRetentionDays
-
   # Get Citations for the DOIs
   PostCitationsFunction:
     Type: 'AWS::Serverless::Function'
@@ -1284,14 +1233,6 @@ Resources:
       Principal: 'events.amazonaws.com'
       SourceArn: !GetAtt LambdaDmpWarmerRule.Arn
 
-  GetDmpWarmerPermission:
-    Type: 'AWS::Lambda::Permission'
-    Properties:
-      FunctionName: !GetAtt GetDmpFunction.Arn
-      Action: 'lambda:InvokeFunction'
-      Principal: 'events.amazonaws.com'
-      SourceArn: !GetAtt LambdaDmpWarmerRule.Arn
-
   PostDmpsWarmerPermission:
     Type: 'AWS::Lambda::Permission'
     Properties:
@@ -1362,6 +1303,9 @@ Outputs:
   S3BucketPolicyArn:
     Value: !Ref S3BucketPolicy
 
+  DmpHubRestApiId:
+    Value: !Ref DmpHubRestApi
+
   DeleteDmpFunctionArn:
     Value: !GetAtt DeleteDmpFunction.Arn
   GetAwardsCrossrefFunctionArn:
@@ -1370,8 +1314,6 @@ Outputs:
     Value: !GetAtt GetAwardsNihApiFunction.Arn
   GetAwardsNsfFunctionArn:
     Value: !GetAtt GetAwardsNsfApiFunction.Arn
-  GetDmpFunctionArn:
-    Value: !GetAtt GetDmpFunction.Arn
   PostDmpsFunctionArn:
     Value: !GetAtt PostDmpsFunction.Arn
   PostNarrativeFunctionArn:
