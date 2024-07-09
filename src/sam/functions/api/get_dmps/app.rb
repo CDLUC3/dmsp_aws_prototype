@@ -15,17 +15,19 @@ module Functions
   # The handler for: GET /dmps
   #
   # Search criteria expects at least one of the following in the QueryString
-  #    owner_orcid        - The :contact ORCID (e.g. `?owner_orcid=0000-0000-0000-000X`)
-  #    owner_org_ror      - The :contact :affiliation ROR (e.g. `?owner_org_ror=8737548t`)
-  #    modification_day   - The date of the modification (e.g. `?modification_day=2023-06-05`)
+  #   An owner
+  #    owner    - The :contact ORCID or email (e.g. `?owner=0000-0000-0000-000X` or `?owner=foo%40example.com`)
+  #    org      - The :contact :affiliation ROR (e.g. `?org=8737548t`)
+  #    funder   - The :project :funder_id ROR (e.g. `?funder=12345abc`)
+  #    featured - The date of the modification (e.g. `?featured=true`)
   #
   # The caller can also specify pagination params for :page and :per_page
   class GetDmps
     SOURCE = 'GET /dmps'
 
     MSG_INVALID_SEARCH = 'Invalid search criteria. Please specify at least one of the following: \
-                          [`?owner_orcid=0000-0000-0000-0000`, `?owner_org_ror=abcd1234`, \
-                           `?modification_day=2023-06-05`]'
+                          [`?owner=0000-0000-0000-0000`, `?owner=test%40example.com`, \
+                           `?org=8737548t`, `?funder=12345abc`, `featured=true`]'
 
     # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
     # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
@@ -36,19 +38,17 @@ module Functions
       logger = Uc3DmpCloudwatch::Logger.new(source: SOURCE, request_id: req_id, event:, level: log_level)
 
       params = _process_params(event:)
-      return _respond(status: 400, errors: MSG_INVALID_SEARCH, event:) if params['owner_orcid'].nil? &&
-                                                                          params['owner_org_ror'].nil? &&
-                                                                          params['modification_day'].nil?
-
       _set_env(logger:)
-      logger.info(message: "DMP ID Search Criteria: #{params}") if logger.respond_to?(:debug)
+      logger&.info(message: "DMP ID Search Criteria: #{params}")
 
       # Fail if the Provenance could not be loaded
       claim = event.fetch('requestContext', {}).fetch('authorizer', {})['claims']
       provenance = Uc3DmpProvenance::Finder.from_lambda_cotext(identity: claim, logger:)
-      return _respond(status: 403, errors: Uc3DmpId::MSG_DMP_FORBIDDEN, event:) if provenance.nil?
+      return _respond(status: 403, errors: Uc3DmpId::Helper::MSG_DMP_FORBIDDEN, event:) if provenance.nil?
 
-      resp = Uc3DmpId::Finder.search_dmps(args: params, logger:)
+      # resp = Uc3DmpId::Finder.search_dmps(args: params, logger:)
+      client = Uc3DmpDynamo::Client.new(table: ENV['DYNAMO_INDEX_TABLE'])
+      resp = _find_by_orcid(client:, owner: params['owner'], logger:)
       return _respond(status: 400, errors: Uc3DmpId::Helper::MSG_DMP_NO_DMP_ID) if resp.nil?
       return _respond(status: 404, errors: Uc3DmpId::Helper::MSG_DMP_NOT_FOUND) if resp.empty?
 
@@ -60,12 +60,43 @@ module Functions
       logger.error(message: e.message, details: e.backtrace)
       deets = { message: e.message, params: }
       Uc3DmpApiCore::Notifier.notify_administrator(source: SOURCE, details: deets, event:)
-      { statusCode: 500, body: { errors: [Uc3DmpApiCore::MSG_SERVER_ERROR] }.to_json }
+      { statusCode: 500, body: { errors: [Uc3DmpId::Helper::MSG_SERVER_ERROR] }.to_json }
     end
     # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
     # rubocop:enable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
     class << self
+
+      def _find_by_orcid(client:, owner:, logger: null)
+        orcid_regex = /^([0-9A-Z]{4}-){3}[0-9A-Z]{4}$/
+        orcid = owner.to_s.strip.downcase
+        return [] if (orcid =~ orcid_regex).nil?
+
+        client = Uc3DmpDynamo::Client.new if client.nil?
+        resp = client.get_item(
+          key: { PK: orcid, SK: 'ORCID_INDEX' },
+          logger:
+        )
+        return resp unless resp.is_a?(Hash)
+        logger&.debug(message: "DMPs for ORCID #{orcid}", details: resp)
+        resp.fetch('dmps', []).any? ? _fetch_dmps : _fetch_dmps(client:, dmps: resp['dmps'], logger:)
+      end
+
+      def _fetch_dmps(client:, dmps:, logger: null)
+        # Build the key condition expression dynamically
+        pks = dmps.map.with_index { |_, idx| ":pk#{idx}" }.join(', ')
+        key_condition_expression = "PK IN (#{pks}) AND SK = :sk"
+
+        # Build the expression attribute values dynamically
+        expression_attribute_values = {}
+        pks.each_with_index do |pk, idx|
+          expression_attribute_values[":pk#{idx}"] = pk
+        end
+        expression_attribute_values[':sk'] = 'VERSION#latest'
+        response = client.query({ key_condition_expression:, expression_attribute_values: })
+        response.respond_to?(:items) ? response.items.sort { |a, b| b['modified'] <=> a['modified'] } : response
+      end
+
       # rubocop:disable Metrics/AbcSize
       def _process_params(event:)
         params = event.fetch('queryStringParameters', {})
@@ -77,6 +108,7 @@ module Functions
         params['page'] = Uc3DmpApiCore::Paginator::DEFAULT_PAGE if params['page'].nil? ||
                                                                    (params['page'].to_s =~ numeric).nil? ||
                                                                    params['page'].to_i <= 0
+
         params['per_page'] = Uc3DmpApiCore::Paginator::DEFAULT_PER_PAGE if params['per_page'].nil? ||
                                                                            (params['per_page'].to_s =~ numeric).nil? ||
                                                                            params['per_page'].to_i <= 0 ||
