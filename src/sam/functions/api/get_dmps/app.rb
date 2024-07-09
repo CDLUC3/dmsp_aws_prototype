@@ -19,16 +19,15 @@ module Functions
   #    owner    - The :contact ORCID or email (e.g. `?owner=0000-0000-0000-000X` or `?owner=foo%40example.com`)
   #    org      - The :contact :affiliation ROR (e.g. `?org=8737548t`)
   #    funder   - The :project :funder_id ROR (e.g. `?funder=12345abc`)
-  #    featured - Return only plans marked as featured (e.g. `?featured=true`)
-  #    search   - The term/phrase to search for in the Title and Abstract (e.g. `?search=Test+Plan`)
-  #    sort     - The sort type. Options are: `modified`, `title`. Default: `modified` (e.g. `?sort=modified`)
-  #    sort_dir - The sort direction. Options are: `asc` or `desc`. Default: `desc` (e.g. `?sort_dir=desc`)
-  #    page     - The page within the resultset. Default: `1` (e.g. `?page=3`)
-  #    per_page - The number of items per page. Default: `25`, Max: `100` (e.g. `?per_page=50`)
+  #    featured - The date of the modification (e.g. `?featured=true`)
   #
   # The caller can also specify pagination params for :page and :per_page
   class GetDmps
     SOURCE = 'GET /dmps'
+
+    MSG_INVALID_SEARCH = 'Invalid search criteria. Please specify at least one of the following: \
+                          [`?owner=0000-0000-0000-0000`, `?owner=test%40example.com`, \
+                           `?org=8737548t`, `?funder=12345abc`, `featured=true`]'
 
     # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
     # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
@@ -50,44 +49,6 @@ module Functions
       # resp = Uc3DmpId::Finder.search_dmps(args: params, logger:)
       client = Uc3DmpDynamo::Client.new(table: ENV['DYNAMO_INDEX_TABLE'])
       resp = _find_by_orcid(client:, owner: params['owner'], logger:)
-
-puts resp
-
-      dmps = resp
-
-      SORT_OPTIONS = %w[title modified]
-      SORT_DIRECTIONS = %w[asc desc]
-      MAX_PAGE_SIZE = 100
-      DEFAULT_PAGE_SIZE = 25
-      DEFAULT_SORT_OPTION = 'modified'
-      DEFAULT_SORT_DIR = 'desc'
-
-      # Perfom search operations
-      term = args.fetch('search', '').to_s.strip.downcase
-      unless term.blank?
-        dmps = dmps.select do |dmp|
-          dmp['title'].include?(term) || dmp['abstract'].include?(term)
-        end
-      end
-
-      # Handle sort
-      col = args['sort'].to_s.downcase
-      dir = args['sort_dir'].to_s.downcase
-      sort = SORT_OPTIONS.include?(col) ? col : DEFAULT_SORT_OPTION
-      sort_dir = SORT_DIRECTIONS.include?(dir) ? dir : DEFAULT_SORT_DIR
-      dmps = dmps.sort do |a, b|
-        sort_dir == 'desc' ? b[sort] <=> a[sort] : a[sort] <=> b[sort]
-      end
-
-      # Handle pagination
-
-      # Fetch full DMP records for the results
-      client = Uc3DmpDynamo::Client.new(table: ENV['DYNAMO_TABLE'])
-      dmps = pks.map { |p_key| Uc3DmpId::Finder.by_pk(p_key:, client:, logger:, cleanse: true) }
-
-      puts dmps
-
-
       return _respond(status: 400, errors: Uc3DmpId::Helper::MSG_DMP_NO_DMP_ID) if resp.nil?
       return _respond(status: 404, errors: Uc3DmpId::Helper::MSG_DMP_NOT_FOUND) if resp.empty?
 
@@ -107,30 +68,33 @@ puts resp
     class << self
 
       def _find_by_orcid(client:, owner:, logger: null)
-        orcid_regex = /^([0-9a-zA-Z]{4}-){3}[0-9a-zA-Z]{4}$/
-        email_regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-        orcid = owner.to_s.strip
-        return [] if (orcid =~ orcid_regex).nil? && (orcid =~ email_regex).nil?
+        orcid_regex = /^([0-9A-Z]{4}-){3}[0-9A-Z]{4}$/
+        orcid = owner.to_s.strip.downcase
+        return [] if (orcid =~ orcid_regex).nil?
 
         client = Uc3DmpDynamo::Client.new if client.nil?
         resp = client.get_item(
-          key: { PK: 'PERSON_INDEX', SK: orcid },
+          key: { PK: orcid, SK: 'ORCID_INDEX' },
           logger:
         )
         return resp unless resp.is_a?(Hash)
         logger&.debug(message: "DMPs for ORCID #{orcid}", details: resp)
-        resp.fetch('dmps', []).any? ? _fetch_dmps(client:, dmps: resp['dmps'], logger:) : []
+        resp.fetch('dmps', []).any? ? _fetch_dmps : _fetch_dmps(client:, dmps: resp['dmps'], logger:)
       end
 
       def _fetch_dmps(client:, dmps:, logger: null)
+        # Build the key condition expression dynamically
+        pks = dmps.map.with_index { |_, idx| ":pk#{idx}" }.join(', ')
+        key_condition_expression = "PK IN (#{pks}) AND SK = :sk"
 
-        # Add modified timestamp and featured flag to DmpIndexer so we can sort
-
-        # Handle pagination here!
-        client.table = ENV['DYNAMO_TABLE']
-        resp = dmps.map { |pk| client.get_item(key: { PK: pk, SK: 'VERSION#latest' }, logger:) }
-        resp
-        # resp.respond_to?(:items) ? resp.items.sort { |a, b| b['modified'] <=> a['modified'] } : resp
+        # Build the expression attribute values dynamically
+        expression_attribute_values = {}
+        pks.each_with_index do |pk, idx|
+          expression_attribute_values[":pk#{idx}"] = pk
+        end
+        expression_attribute_values[':sk'] = 'VERSION#latest'
+        response = client.query({ key_condition_expression:, expression_attribute_values: })
+        response.respond_to?(:items) ? response.items.sort { |a, b| b['modified'] <=> a['modified'] } : response
       end
 
       # rubocop:disable Metrics/AbcSize
