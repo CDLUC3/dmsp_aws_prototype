@@ -14,7 +14,7 @@ module Uc3DmpDynamo
     attr_accessor :connection, :table
 
     def initialize(**args)
-      @table = args.fetch('table', ENV.fetch('DYNAMO_TABLE', nil))
+      @table = args.fetch(:table, ENV.fetch('DYNAMO_TABLE', nil))
       raise ClientError, MSG_MISSING_TABLE if @table.nil?
 
       @connection = Aws::DynamoDB::Client.new(region: ENV.fetch('AWS_REGION', 'us-west-2'))
