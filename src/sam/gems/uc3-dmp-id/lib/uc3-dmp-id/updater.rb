@@ -208,9 +208,11 @@ module Uc3DmpId
           next if entry.fetch('dmproadmap_related_identifiers', []).empty?
 
           entry['dmproadmap_related_identifiers'].each do |related|
-            next if mods['related_works'][related.identifier].nil?
+            related_id = mods['related_works'][related.identifier] if related.respond_to?(:identifier)
+            related_id = mods['related_works'][related['identifier']] if related_id.nil?
+            next if related_id.nil?
 
-            mods['related_works'][related.identifier]['status'] = related['status']
+            mods['related_works'][related_id]['status'] = related['status']
           end
         end
 
