@@ -123,7 +123,7 @@ function Landing() {
   }
   function narrativeUrl() {
     if (Array.isArray(formData.related_identifiers)) {
-      let id = formData.related_identifiers.find(id => id.descriptor === 'is_metadata_for' && id.work_type === 'output_management_plan');
+      let id = formData.related_identifiers.findLast(id => id.descriptor === 'is_metadata_for' && id.work_type === 'output_management_plan');
       return id?.identifier
     } else {
       return '';
