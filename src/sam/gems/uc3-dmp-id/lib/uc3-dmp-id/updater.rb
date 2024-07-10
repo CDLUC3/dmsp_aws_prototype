@@ -204,14 +204,6 @@ module Uc3DmpId
         # The `dmphub_modifications` array will ONLY ever have things the harvester mods know about
         # so just find them and update the status accordingly
         mods = resp.dup
-
-puts 'MODIFICATIONS RECORD'
-puts mods
-
-puts 'INCOMING RECORD'
-puts json['dmphub_modifications']
-
-
         json['dmphub_modifications'].each do |entry|
           next if entry.fetch('dmproadmap_related_identifiers', []).empty?
 
