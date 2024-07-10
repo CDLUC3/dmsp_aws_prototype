@@ -99,7 +99,7 @@ module Functions
             # )
           else
             logger&.info(message: "Creating OpenSearch record")
-            doc = _dmp_to_dynamo_index(lient:, table:, hash: payload, logger:)
+            doc = _dmp_to_dynamo_index(client:, table:, hash: payload, logger:)
             # client.index(
             #   index: ENV['OPEN_SEARCH_INDEX'],
             #   body: _dmp_to_os_doc(hash: payload, logger:),
@@ -169,75 +169,59 @@ module Functions
         # Update/Add the metadata for the DMP
         client.put_item(item: idx_rec, table_name: table)
 
-        # Update each AFFILIATION ROR index with the Partition Key
-        new_ids = idx_rec.fetch(:affiliation_ids, [])
-        original_ids = original.nil? ? [] : original.fetch(:affiliation_ids, [])
-        _sync_affiliation_index(client:, table:, dmp_pk: pk, original_ids:, new_ids:) if new_ids.any? || original_ids.any?
+        idx_payload = {
+          pk:,
+          modified: hash.fetch('modified', {})['S'],
+          title: hash.fetch('title', {})['S'],
+          abstract: hash.fetch('description', {})['S']
+        }
 
-        # Update each ORCID index with the Partition Key
+        # Update each AFFILIATION ROR index with the DMP sort/search criteria
+        new_ids = idx_rec.fetch(:affiliation_ids, []).flatten.uniq
+        original_ids = original.nil? ? [] : original.fetch(:affiliation_ids, [])
+        _sync_index(
+          client:, table:, idx_pk: 'AFFILIATION_INDEX', dmp: idx_payload, original_ids:, new_ids:, logger:
+        )
+
+        # Update each PERSON_INDEX ORCID/email index with the DMP sort/search criteria
         new_ids = idx_rec.fetch(:people_ids, [])
+        new_ids += idx_rec.fetch(:people, []).select { |entry| entry.include?('@') }
+        new_ids = new_ids.flatten.uniq
         original_ids = original.nil? ? [] : original.fetch(:affiliation_ids, [])
-        _sync_orcid_index(client:, table:, dmp_pk: pk, original_ids:, new_ids:) if new_ids.any? || original_ids.any?
+        _sync_index(
+          client:, table:, idx_pk: 'PERSON_INDEX', dmp: idx_payload, original_ids:, new_ids:, logger:
+        )
 
-        # Update each FUNDER ROR index with the Partition Key
-        new_ids = idx_rec.fetch(:funder_ids, [])
+        # Update each FUNDER ROR index with the DMP sort/search criteria
+        new_ids = idx_rec.fetch(:funder_ids, []).flatten.uniq
         original_ids = original.nil? ? [] : original.fetch(:affiliation_ids, [])
-        _sync_funder_index(client:, table:, dmp_pk: pk, original_ids:, new_ids:) if new_ids.any? || original_ids.any?
+        _sync_index(
+          client:, table:, idx_pk: 'FUNDER_INDEX', dmp: idx_payload, original_ids:, new_ids:, logger:
+        )
       end
 
-      def _sync_affiliation_index(client:, table:, dmp_pk:, original_ids:, new_ids:, logger: nil)
-        # Add the DMP ID to new RORs
-        new_ids.difference(original_ids).each do |ror|
-          item = _dynamo_index_get(client:, table:, key: { PK: 'AFFILIATION_INDEX', SK: ror }, logger:)
+      def _sync_index(client:, table:, idx_pk:, dmp:, original_ids:, new_ids:, logger: nil)
+        logger&.debug(message: 'Syncing indices', details: { new_ids:, original_ids:, dmp: })
+        # Loop through each of the new ids we want to index
+        new_ids.difference(original_ids).each do |id|
+          item = _dynamo_index_get(client:, table:, key: { PK: idx_pk, SK: id }, logger:)
+          logger&.debug(message: 'Adding DMP PK on index', details: item)
+
+          # Add the DMP payload to the index (removing the old entry if it exists)
           item['dmps'] = [] if item['dmps'].nil?
-          item['dmps'] << dmp_pk
+          item['dmps'].delete_if { |entry| entry.is_a?(String) || entry['pk'] == dmp[:pk] }
+          item['dmps'] << dmp
           _dynamo_index_put(client:, table:, item:, logger:)
         end
 
-        # Remove it from any RORs if necessary
-        original_ids.difference(new_ids).each do |ror|
-          item = _dynamo_index_get(client:, table:, key: { PK: 'AFFILIATION_INDEX', SK: ror }, logger:)
+        # Loop through all of the original ids that no longer appear in the new ids
+        original_ids.difference(new_ids).each do |id|
+          item = _dynamo_index_get(client:, table:, key: { PK: idx_pk, SK: id }, logger:)
           next if item.fetch('dmps', []).empty?
 
-          item['dmps'] = item['dmps'].reject { |dmp_id| dmp_id == dmp_pk }
-          _dynamo_index_put(client:, table:, item:, logger:)
-        end
-      end
-
-      def _sync_funder_index(client:, table:, dmp_pk:, original_ids:, new_ids:, logger: nil)
-        # Add the DMP ID to new RORs
-        new_ids.difference(original_ids).each do |ror|
-          item = _dynamo_index_get(client:, table:, key: { PK: 'FUNDER_INDEX', SK: ror }, logger:)
-          item['dmps'] = [] if item['dmps'].nil?
-          item['dmps'] << dmp_pk
-          _dynamo_index_put(client:, table:, item:, logger:)
-        end
-
-        # Remove it from any RORs if necessary
-        original_ids.difference(new_ids).each do |ror|
-          item = _dynamo_index_get(client:, table:, key: { PK: 'FUNDER_INDEX', SK: ror }, logger:)
-          next if item.fetch('dmps', []).empty?
-
-          item['dmps'] = item['dmps'].reject { |dmp_id| dmp_id == dmp_pk }
-          _dynamo_index_put(client:, table:, item:, logger:)
-        end
-      end
-
-      def _sync_orcid_index(client:, table:, dmp_pk:, original_ids:, new_ids:, logger: nil)
-        # Add the DMP ID to new RORs
-        new_ids.difference(original_ids).each do |orcid|
-          item = _dynamo_index_get(client:, table:, key: { PK: 'ORCID_INDEX', SK: orcid }, logger:)
-          item['dmps'] = [] if item['dmps'].nil?
-          item['dmps'] << dmp_pk
-          _dynamo_index_put(client:, table:, item:, logger:)
-        end
-
-        # Remove it from any RORs if necessary
-        original_ids.difference(new_ids).each do |orcid|
-          item = _dynamo_index_get(client:, table:, key: { PK: 'ORCID_INDEX', SK: orcid }, logger:)
-          next if item.fetch('dmps', []).empty?
-
-          item['dmps'] = item['dmps'].reject { |dmp_id| dmp_id == dmp_pk }
+          # Remove the DMP Payload from that index
+          logger&.debug(message: 'Removing DMP PK from index', details: item)
+          item['dmps'] = item['dmps'].reject { |og| og['pk'] == dmp['pk'] }
           _dynamo_index_put(client:, table:, item:, logger:)
         end
       end

@@ -14,7 +14,7 @@ module Uc3DmpDynamo
     attr_accessor :connection, :table
 
     def initialize(**args)
-      @table = args.fetch('table', ENV.fetch('DYNAMO_TABLE', nil))
+      @table = args.fetch(:table, ENV.fetch('DYNAMO_TABLE', nil))
       raise ClientError, MSG_MISSING_TABLE if @table.nil?
 
       @connection = Aws::DynamoDB::Client.new(region: ENV.fetch('AWS_REGION', 'us-west-2'))
@@ -55,14 +55,21 @@ module Uc3DmpDynamo
     # See the DynamoDB docs for examples of key_conditions and projection_expressions
     # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
     def query(args:, logger: nil)
-      raise ClientError, MSG_INVALID_KEY unless args.is_a?(Hash) && args.fetch(:key_conditions, {}).any?
+      raise ClientError, MSG_INVALID_KEY unless args.is_a?(Hash) &&
+                                                (args.fetch(:key_conditions, {}).any? ||
+                                                 args.fetch(:key_condition_expression, {}).any?)
 
       hash = {
         table_name: @table,
-        key_conditions: args[:key_conditions],
         consistent_read: false,
         return_consumed_capacity: logger&.level == 'debug' ? 'TOTAL' : 'NONE'
       }
+      if args.fetch(:key_condition_expression, {}).any?
+        hash[:key_condition_expression] = args[:key_condition_expression]
+      else
+        hash[:key_conditions] = args[:key_conditions]
+      end
+
       # Look for and add any other filtering or projection args
       %i[index_name filter_expression expression_attribute_values projection_expression
          scan_index_forward].each do |key|

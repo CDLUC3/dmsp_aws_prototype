@@ -24,12 +24,16 @@ module Uc3DmpId
       # TODO: Replace this with ElasticSearch
       def search_dmps(args:, logger: nil)
         client = Uc3DmpDynamo::Client.new(table: ENV['DYNAMO_INDEX_TABLE'])
-        return _by_owner(owner: args['owner'], client:, logger:) unless args['owner'].nil?
-        return _by_org(org: args['org'], client:, logger:) unless args['org'].nil?
-        return _by_funder(funder: args['funder'], client:, logger:) unless args['funder'].nil?
+        owner_pks = _by_owner(owner: args['owner'], client:, logger:) unless args['owner'].nil?
+        org_pks = _by_org(org: args['org'], client:, logger:) unless args['org'].nil?
+        funder_pks = _by_funder(funder: args['funder'], client:, logger:) unless args['funder'].nil?
+
         return _by_featured(client:, logger:) if args.fetch('featured', 'false').to_s.downcase == 'true'
 
         return _publicly_visible(client:, logger:)
+
+        client = Uc3DmpDynamo::Client.new(table: ENV['DYNAMO_TABLE'])
+        _fetch_dmps(client:, pks: dmps, logger:)
       end
 
       # Find a DMP based on the contents of the incoming JSON
@@ -133,30 +137,16 @@ module Uc3DmpId
 
       # Fetch the DMP IDs for the specified person's ORCID (or email)
       def _by_owner(owner:, client: nil, logger: nil)
-        orcid_regex = /^([0-9A-Z]{4}-){3}[0-9A-Z]{4}$/
-        if !(owner.to_s.strip =~ orcid_regex).nil?
-          args = {
-            filter_expression: 'contains(people_ids, :orcids) AND SK = :sk',
-            expression_attribute_values: {
-              ':sk': 'METADATA',
-              ':orcids': [
-                "http://#{ORCID_DOMAIN}/#{owner}",
-                "https://#{ORCID_DOMAIN}/#{owner}"
-              ]
-            }
-          }
-        elsif !email.nil?
-          args = {
-            filter_expression: 'contains(people, :email) AND SK = :sk',
-            expression_attribute_values: { ':sk': 'METADATA', ':email': [email.gsub('%40', '@')] }
-          }
-        else
-          # It wasn't an email or ORCID, so return an empty array
-          return []
-        end
-        logger&.debug(message: 'Fetch relevant DMPs _by_owner - scan args', details: args)
-        client = Uc3DmpDynamo::Client.new if client.nil?
-        _process_search_response(response: client.scan(args:))
+        orcid_regex = /^([0-9a-zA-Z]{4}-){3}[0-9a-zA-Z]{4}$/
+        email_regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+        orcid = owner.to_s.strip
+        return [] if (orcid =~ orcid_regex).nil? && (orcid =~ email_regex).nil?
+
+        resp = client.get_item(key: { PK: 'PERSON_INDEX', SK: orcid }, logger:)
+        return resp unless resp.is_a?(Hash)
+
+        logger&.debug(message: "DMPs for ORCID #{orcid}", details: resp)
+        resp.fetch('dmps', [])
       end
 
       # Fetch the DMP IDs for the specified organization/institution
@@ -219,6 +209,11 @@ module Uc3DmpId
         logger&.debug(message: 'Fetch relevant DMPs _publicly_visible - scan args', details: args)
         client = Uc3DmpDynamo::Client.new if client.nil?
         _process_search_response(response: client.scan(args:))
+      end
+
+      # Fetches all of the DMPs by their PKs
+      def _fetch_dmps(client:, pks:, logger: null)
+
       end
 
       # Transform the search results so that we do not include any of the DMPHub specific metadata
