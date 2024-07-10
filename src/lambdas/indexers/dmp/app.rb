@@ -162,6 +162,7 @@ module Functions
           return_consumed_capacity: logger&.level == 'debug' ? 'TOTAL' : 'NONE'
         })
         original = resp[:item].is_a?(Array) ? resp[:item].first : resp[:item]
+        logger&.debug(message: 'Original Index for DMP metadata', details: original)
 
         # Generate the new Indexed metadata
         idx_rec = { PK: pk, SK: sk }.merge(_dmp_to_os_doc(hash:, logger:))
@@ -178,7 +179,7 @@ module Functions
 
         # Update each AFFILIATION ROR index with the DMP sort/search criteria
         new_ids = idx_rec.fetch(:affiliation_ids, []).flatten.uniq
-        original_ids = original.nil? ? [] : original.fetch(:affiliation_ids, [])
+        original_ids = original.nil? ? [] : original.fetch('affiliation_ids', []).flatten.uniq
         _sync_index(
           client:, table:, idx_pk: 'AFFILIATION_INDEX', dmp: idx_payload, original_ids:, new_ids:, logger:
         )
@@ -187,14 +188,17 @@ module Functions
         new_ids = idx_rec.fetch(:people_ids, [])
         new_ids += idx_rec.fetch(:people, []).select { |entry| entry.include?('@') }
         new_ids = new_ids.flatten.uniq
-        original_ids = original.nil? ? [] : original.fetch(:affiliation_ids, [])
+
+        original_ids = original.fetch('people_ids', [])
+        original_ids += original.fetch('people', []).select { |entry| entry.include?('@') }
+        original_ids = original_ids.flatten.uniq
         _sync_index(
           client:, table:, idx_pk: 'PERSON_INDEX', dmp: idx_payload, original_ids:, new_ids:, logger:
         )
 
         # Update each FUNDER ROR index with the DMP sort/search criteria
         new_ids = idx_rec.fetch(:funder_ids, []).flatten.uniq
-        original_ids = original.nil? ? [] : original.fetch(:affiliation_ids, [])
+        original_ids = original.nil? ? [] : original.fetch('funder_ids', []).flatten.uniq
         _sync_index(
           client:, table:, idx_pk: 'FUNDER_INDEX', dmp: idx_payload, original_ids:, new_ids:, logger:
         )
@@ -221,7 +225,7 @@ module Functions
 
           # Remove the DMP Payload from that index
           logger&.debug(message: 'Removing DMP PK from index', details: item)
-          item['dmps'] = item['dmps'].reject { |og| og['pk'] == dmp['pk'] }
+          item['dmps'] = item['dmps'].reject { |og| og['pk'] == dmp[:pk] }
           _dynamo_index_put(client:, table:, item:, logger:)
         end
       end
