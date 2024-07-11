@@ -34,7 +34,7 @@ function MetadataStandardLink(props) {
     <span key={idx + 'attr-meta-s'}>
       {standards.map((standard, index) => (
         <Link href={standard?.metadata_standard_id?.identifier} label={standard?.description?.split(' - ')[0]}
-              remote='true' key={idx + 'attr-meta-s' + index}/>
+          remote='true' key={idx + 'attr-meta-s' + index} />
       ))}
     </span>
   );
@@ -47,7 +47,7 @@ function HostLink(props) {
   return (
     <span key={idx + 'attr-host-s'}>
       {hosts.map((host, index) => (
-        <Link href={host?.url} label={host?.title} remote='true' key={idx + 'attr-host-s' + index}/>
+        <Link href={host?.url} label={host?.title} remote='true' key={idx + 'attr-host-s' + index} />
       ))}
     </span>
   );
@@ -61,7 +61,7 @@ function LicenseLink(props) {
   return (
     <span key={idx + 'attr-license-s'}>
       <Link href={licenses[0]?.license_ref} label={licenses[0]?.license_ref?.split('/').at(-1).replace('.json', '')}
-            remote='true' key={idx + 'attr-license-s'}/>
+        remote='true' key={idx + 'attr-license-s'} />
     </span>
   );
 }
@@ -72,14 +72,18 @@ function Output(props) {
   let standards = output?.metadata || [];
   let distributions = props?.output?.distribution || [];
   let hosts = Array.isArray(distributions) && distributions.length > 0 ? distributions.map((obj) => { return obj?.host }) : [];
-  let licenses = Array.isArray(distributions) && distributions.length > 0 ? distributions.map((obj) => { return obj?.license }) : [];
+  let licenses = Array.isArray(distributions) && distributions.length > 0
+    ? distributions
+      .map((obj) => { return obj?.license })
+      .filter(license => license !== undefined)
+    : null;
   let byteSize = calculateSize(distributions);
 
   if (output !== undefined) {
     return (
       <li key={idx + 'li'}>
         <h3 key={idx + 'title'}>{output.title}</h3>
-        <div className="text-block" key={idx + 'descr'}><SanitizeHTML html={output.description}/></div>
+        <div className="text-block" key={idx + 'descr'}><SanitizeHTML html={output.description} /></div>
         <ul className="landing-list" key={idx + 'attrs'}>
           {output.type !== undefined &&
             <li key={idx + 'attr-type'}>
@@ -90,7 +94,7 @@ function Output(props) {
           {Array.isArray(standards) && standards.length > 0 &&
             <li key={idx + 'attr-meta'}>
               <strong key={idx + 'attr-meta-b'}>Metadata Standard(s):</strong>
-              <MetadataStandardLink standards={standards} index={idx + 'attr-meta-a'}/>
+              <MetadataStandardLink standards={standards} index={idx + 'attr-meta-a'} />
             </li>
           }
           {byteSize !== undefined &&
@@ -108,13 +112,13 @@ function Output(props) {
           {Array.isArray(hosts) && hosts.length > 0 &&
             <li key={idx + 'attr-host'}>
               <strong key={idx + 'attr-host-b'}>Intended repository:</strong>
-              <HostLink hosts={hosts} index={idx + 'attr-host-a'}/>
+              <HostLink hosts={hosts} index={idx + 'attr-host-a'} />
             </li>
           }
           {Array.isArray(licenses) && licenses.length > 0 &&
             <li key={idx + 'attr-license'}>
               <strong key={idx + 'attr-license-b'}>License for reuse:</strong>
-              <LicenseLink licenses={licenses.flat()} index={idx + 'attr-license-a'}/>
+              <LicenseLink licenses={licenses.flat()} index={idx + 'attr-license-a'} />
             </li>
           }
         </ul>
@@ -133,7 +137,7 @@ function Outputs(props) {
 
         <ul className="landing-list">
           {outputs.map((output, idx) => (
-            <Output output={output} index={'output' + idx} key={idx}/>
+            <Output output={output} index={'output' + idx} key={idx} />
           ))}
         </ul>
       </div>
