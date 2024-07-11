@@ -50,6 +50,44 @@ module Functions
       # resp = Uc3DmpId::Finder.search_dmps(args: params, logger:)
       client = Uc3DmpDynamo::Client.new(table: ENV['DYNAMO_INDEX_TABLE'])
       resp = _find_by_orcid(client:, owner: params['owner'], logger:)
+
+puts resp
+
+      dmps = resp
+
+      SORT_OPTIONS = %w[title modified]
+      SORT_DIRECTIONS = %w[asc desc]
+      MAX_PAGE_SIZE = 100
+      DEFAULT_PAGE_SIZE = 25
+      DEFAULT_SORT_OPTION = 'modified'
+      DEFAULT_SORT_DIR = 'desc'
+
+      # Perfom search operations
+      term = args.fetch('search', '').to_s.strip.downcase
+      unless term.blank?
+        dmps = dmps.select do |dmp|
+          dmp['title'].include?(term) || dmp['abstract'].include?(term)
+        end
+      end
+
+      # Handle sort
+      col = args['sort'].to_s.downcase
+      dir = args['sort_dir'].to_s.downcase
+      sort = SORT_OPTIONS.include?(col) ? col : DEFAULT_SORT_OPTION
+      sort_dir = SORT_DIRECTIONS.include?(dir) ? dir : DEFAULT_SORT_DIR
+      dmps = dmps.sort do |a, b|
+        sort_dir == 'desc' ? b[sort] <=> a[sort] : a[sort] <=> b[sort]
+      end
+
+      # Handle pagination
+
+      # Fetch full DMP records for the results
+      client = Uc3DmpDynamo::Client.new(table: ENV['DYNAMO_TABLE'])
+      dmps = pks.map { |p_key| Uc3DmpId::Finder.by_pk(p_key:, client:, logger:, cleanse: true) }
+
+      puts dmps
+
+
       return _respond(status: 400, errors: Uc3DmpId::Helper::MSG_DMP_NO_DMP_ID) if resp.nil?
       return _respond(status: 404, errors: Uc3DmpId::Helper::MSG_DMP_NOT_FOUND) if resp.empty?
 

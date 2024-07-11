@@ -17,23 +17,40 @@ module Uc3DmpId
     MSG_MISSING_PROV_ID = 'No Provenance identifier was provided. \
                            Expected: `{ "dmp_id": { "identifier": "value", "type": "value" }`'
 
-    ORCID_DOMAIN = 'orcid.org'
-    ROR_DOMAIN = 'ror.org'
+    ORCID_DOMAIN = 'https://orcid.org/'
+    ROR_DOMAIN = 'https://ror.org/'
+    SORT_OPTIONS = %w[title modified]
+    SORT_DIRECTIONS = %w[asc desc]
+    MAX_PAGE_SIZE = 100
+    DEFAULT_PAGE_SIZE = 25
+    DEFAULT_SORT_OPTION = 'modified'
+    DEFAULT_SORT_DIR = 'desc'
 
     class << self
       # TODO: Replace this with ElasticSearch
       def search_dmps(args:, logger: nil)
+        # Fetch the DMPs for each of the possible filter options
         client = Uc3DmpDynamo::Client.new(table: ENV['DYNAMO_INDEX_TABLE'])
-        owner_pks = _by_owner(owner: args['owner'], client:, logger:) unless args['owner'].nil?
-        org_pks = _by_org(org: args['org'], client:, logger:) unless args['org'].nil?
-        funder_pks = _by_funder(funder: args['funder'], client:, logger:) unless args['funder'].nil?
+        owner = args['owner']
+        org = args['org']
+        funder = args['funder']
 
-        return _by_featured(client:, logger:) if args.fetch('featured', 'false').to_s.downcase == 'true'
+        owner_pks = owner.nil? ? [] : _by_owner(owner: owner, client:, logger:)
+        org_pks = org.nil? ? [] : _by_org(org: org, client:, logger:)
+        funder_pks = funder.nil? ? [] : _by_funder(funder: funder, client:, logger:)
+        # pks = [owner_pks, org_pks, funder_pks].reject(&:empty?)
+        logger&.debug(
+          message: 'PKs found',
+          details: { owner: owner_pks, org: org_pks, funder: funder_pks }
+        )
+        # return [] if pks.nil? || pks.empty?
 
-        return _publicly_visible(client:, logger:)
+        # Only use the DMPs that fit all of the filter criteria
+        # dmps = pks.reduce(:&).flatten.uniq
+        # return [] if dmps.nil? || dmps.empty?
 
-        client = Uc3DmpDynamo::Client.new(table: ENV['DYNAMO_TABLE'])
-        _fetch_dmps(client:, pks: dmps, logger:)
+        [owner_pks, org_pks, funder_pks].flatten.uniq
+
       end
 
       # Find a DMP based on the contents of the incoming JSON
@@ -142,51 +159,36 @@ module Uc3DmpId
         orcid = owner.to_s.strip
         return [] if (orcid =~ orcid_regex).nil? && (orcid =~ email_regex).nil?
 
+        orcid = "#{ORCID_DOMAIN}#{orcid}" unless (orcid =~ orcid_regex).nil?
         resp = client.get_item(key: { PK: 'PERSON_INDEX', SK: orcid }, logger:)
-        return resp unless resp.is_a?(Hash)
+        return [] unless resp.is_a?(Hash)
 
-        logger&.debug(message: "DMPs for ORCID #{orcid}", details: resp)
+        logger&.debug(message: "DMPs for PERSON #{orcid}", details: resp)
         resp.fetch('dmps', [])
       end
 
       # Fetch the DMP IDs for the specified organization/institution
       def _by_org(org:, client: nil, logger: nil)
         regex = /^[a-zA-Z0-9]+$/
-        ror = org.strip unless (org.to_s =~ regex).nil?
+        ror = "#{ROR_DOMAIN}/#{org.strip}" unless (org.to_s =~ regex).nil?
 
-        args = {
-          filter_expression: 'contains(affiliation_ids, :rors) AND SK = :sk',
-          expression_attribute_values: {
-            ':sk': 'METADATA',
-            ':rors': [
-              "http://#{ROR_DOMAIN}/#{ror}",
-              "https://#{ROR_DOMAIN}/#{ror}"
-            ]
-          }
-        }
-        logger&.debug(message: 'Fetch relevant DMPs _by_org - scan args', details: args)
-        client = Uc3DmpDynamo::Client.new if client.nil?
-        _process_search_response(response: client.scan(args:))
+        resp = client.get_item(key: { PK: 'AFFILIATION_INDEX', SK: ror }, logger:)
+        return [] unless resp.is_a?(Hash)
+
+        logger&.debug(message: "DMPs for AFFILIATION #{ror}", details: resp)
+        resp.fetch('dmps', [])
       end
 
       # Fetch the DMP IDs for the specified funder
       def _by_funder(funder:, client: nil, logger: nil)
         regex = /^[a-zA-Z0-9]+$/
-        ror = funder.strip unless (funder.to_s =~ regex).nil?
+        ror = "#{ROR_DOMAIN}/#{funder.strip}" unless (funder.to_s =~ regex).nil?
 
-        args = {
-          filter_expression: 'contains(funder_ids, :rors) AND SK = :sk',
-          expression_attribute_values: {
-            ':sk': 'METADATA',
-            ':rors': [
-              "http://#{ROR_DOMAIN}/#{ror}",
-              "https://#{ROR_DOMAIN}/#{ror}"
-            ]
-          }
-        }
-        logger&.debug(message: 'Fetch relevant DMPs _by_funder - scan args', details: args)
-        client = Uc3DmpDynamo::Client.new if client.nil?
-        _process_search_response(response: client.scan(args:))
+        resp = client.get_item(key: { PK: 'FUNDER_INDEX', SK: ror }, logger:)
+        return [] unless resp.is_a?(Hash)
+
+        logger&.debug(message: "DMPs for FUNDER #{ror}", details: resp)
+        resp.fetch('dmps', [])
       end
 
       # Fetch the DMP IDs that are marked as featured
@@ -209,11 +211,6 @@ module Uc3DmpId
         logger&.debug(message: 'Fetch relevant DMPs _publicly_visible - scan args', details: args)
         client = Uc3DmpDynamo::Client.new if client.nil?
         _process_search_response(response: client.scan(args:))
-      end
-
-      # Fetches all of the DMPs by their PKs
-      def _fetch_dmps(client:, pks:, logger: null)
-
       end
 
       # Transform the search results so that we do not include any of the DMPHub specific metadata
