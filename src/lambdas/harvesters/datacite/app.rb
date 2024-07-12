@@ -281,7 +281,7 @@ module Functions
 
           tstamp = mods_rec['tstamp']
           # Prepare the related works (skip if they are already on the full DMP record)
-          related_work_mod = _prepare_related_work_mod(match:, logger:)
+          related_work_mod = _prepare_related_work_mod(work_id:, match:, logger:)
           logger&.debug(message: 'Related work mod found:', details: related_work_mod)
 
           # Refetch the DMP mods record to check the :tstamp and use the new one if applicable
@@ -305,7 +305,7 @@ module Functions
         str
       end
 
-      def _prepare_related_work_mod(match:, logger:)
+      def _prepare_related_work_mod(work_id:, match:, logger:)
         work = match[:work]
         typs = work.fetch('types', {})
         typ = typs['resourceTypeGeneral'].nil? ? typs.fetch('resourceType', 'dataset') : typs['resourceTypeGeneral']
@@ -327,6 +327,12 @@ module Functions
           }
         end
 
+        begin
+          uri = URI(work_id)
+        rescue StandardError => e
+          logger&.error(message: "#{work_id} is not a valid URI!")
+        end
+
         {
           provenance: match[:source],
           score: match[:score],
@@ -335,6 +341,7 @@ module Functions
           discovered_at: Time.now.utc.iso8601,
           status: 'pending',
           type: 'doi',
+          domain: "#{uri.scheme}://#{uri.host}/",
           identifier: work['doi'],
           descriptor: 'references',
           work_type: typ == 'journalarticle' ? 'article' : typ,
