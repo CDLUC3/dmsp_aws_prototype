@@ -47,6 +47,7 @@ module Uc3DmpId
         # Handle any changes to the dmphub_modifications section
         version = _process_harvester_mods(client:, p_key:, json: payload, version:, logger:)
         logger&.debug(message: 'Version after process_harvester_mods', details: version)
+        raise UpdaterError, Helper::MSG_SERVER_ERROR if version.nil?
 
         # Remove the version info any any lingering modification blocks
         version.delete('dmphub_versions')
@@ -176,14 +177,14 @@ module Uc3DmpId
       # Fetch any Harvester modifications to the JSON
       def _process_harvester_mods(client:, p_key:, json:, version:, logger: nil)
         logger&.debug(message: 'Incoming modifications', details: json)
-        return json if json.fetch('dmphub_modifications', []).empty?
+        return version if json.fetch('dmphub_modifications', []).empty?
 
         # Fetch the `"SK": "HARVESTER_MODS"` record
         client = Uc3DmpDynamo::Client.new if client.nil?
         resp = client.get_item(
           key: { PK: Helper.append_pk_prefix(p_key:), SK: Helper::SK_HARVESTER_MODS }, logger:
         )
-        return json unless resp.is_a?(Hash) && resp['related_works'].is_a?(Hash)
+        return version unless resp.is_a?(Hash) && resp['related_works'].is_a?(Hash)
 
         logger&.debug(message: 'Original HARVESTER_MODS record', details: resp)
         # The `dmphub_modifications` array will ONLY ever have things the harvester mods know about
@@ -192,7 +193,7 @@ module Uc3DmpId
         json['dmproadmap_related_identifiers'] = [] if json['dmproadmap_related_identifiers'].nil?
 
         json['dmphub_modifications'].each do |entry|
-          next if entry.fetch('dmproadmap_related_identifiers', []).empty?
+          next if entry.is_a?(Hash) && entry.fetch('dmproadmap_related_identifiers', []).empty?
 
           entry['dmproadmap_related_identifiers'].each do |related|
             # Detrmine if the HARVESTER_MODS record even knows about the mod
@@ -213,13 +214,13 @@ module Uc3DmpId
 
             # Add it if it was approved and doesn't exist in dmproadmap_related_identifiers
             if related['status'] == 'approved' && existing.empty?
-              version['dmproadmap_related_identifiers'] << {
+              version['dmproadmap_related_identifiers'] << JSON.parse({
                 identifier: key,
                 work_type: related['work_type'],
                 type: related['type'],
                 descriptor: related['descriptor'],
                 citation: related['citation']
-              }
+              }.to_json)
             elsif related['status'] == 'rejected' && existing.any?
               # otherwise remove it
               version['dmproadmap_related_identifiers'] = version['dmproadmap_related_identifiers'].reject { |ri| ri == existing.first }
