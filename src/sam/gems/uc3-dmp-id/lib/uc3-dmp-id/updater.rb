@@ -16,9 +16,9 @@ module Uc3DmpId
       def update(provenance:, p_key:, json: {}, logger: nil)
         raise UpdaterError, Helper::MSG_DMP_INVALID_DMP_ID unless p_key.is_a?(String) && !p_key.strip.empty?
 
-        mods = Helper.parse_json(json:).fetch('dmp', {})
+        payload = Helper.parse_json(json:).fetch('dmp', {})
         p_key = Helper.append_pk_prefix(p_key:)
-        logger.debug(message: "Incoming modifications for PK #{p_key}", details: mods) if logger.respond_to?(:debug)
+        logger.debug(message: "Incoming modifications for PK #{p_key}", details: payload) if logger.respond_to?(:debug)
 
         # Fetch the latest version of the DMP ID
         client = Uc3DmpDynamo::Client.new
@@ -28,29 +28,31 @@ module Uc3DmpId
 
         # Verify that the DMP ID is updateable with the info passed in
         errs = _updateable?(provenance:, p_key:, latest_version: latest_version['dmp'],
-                            mods: mods['dmp'])
+                            mods: payload['dmp'])
         logger.error(message: errs.join(', ')) if logger.respond_to?(:error) && errs.is_a?(Array) && errs.any?
         raise UpdaterError, errs if errs.is_a?(Array) && errs.any?
         # Don't continue if nothing has changed!
-        raise UpdaterError, Helper::MSG_NO_CHANGE if Helper.eql?(dmp_a: latest_version, dmp_b: mods)
+        raise UpdaterError, Helper::MSG_NO_CHANGE if Helper.eql?(dmp_a: latest_version, dmp_b: payload)
 
         # Version the DMP ID record (if applicable).
         owner = latest_version['dmphub_provenance_id']
         updater = provenance['PK']
         version = Versioner.generate_version(client:, latest_version:, owner:,
                                              updater:, logger:)
+        logger&.debug(message: 'New Version', details: version)
         raise UpdaterError, Helper::MSG_DMP_UNABLE_TO_VERSION if version.nil?
         # Bail if the system trying to make the update is not the creator of the DMP ID
         raise UpdaterError, Helper::MSG_DMP_FORBIDDEN if owner != updater
 
         # Handle any changes to the dmphub_modifications section
-        version = _process_harvester_mods(client:, p_key:, json: version, logger:)
+        version = _process_harvester_mods(client:, p_key:, json: payload, version:, logger:)
+        logger&.debug(message: 'Version after process_harvester_mods', details: version)
+        raise UpdaterError, Helper::MSG_SERVER_ERROR if version.nil?
 
-        # Remove the version info because we don't want to save it on the record
+        # Remove the version info any any lingering modification blocks
         version.delete('dmphub_versions')
+        version.delete('dmphub_modifications')
 
-        # Splice the assertions
-        version = _process_modifications(owner:, updater:, version:, mods:, logger:)
         # Set the :modified timestamps
         now = Time.now.utc
         version['modified'] = now.iso8601
@@ -67,9 +69,9 @@ module Uc3DmpId
         logger.info(message: "Updated DMP ID: #{p_key}") if logger.respond_to?(:debug)
 
         # Append the :dmphub_versions Array
-        json = JSON.parse({ dmp: version }.to_json)
-        json = Versioner.append_versions(p_key:, dmp: json, client:, logger:)
-        Helper.cleanse_dmp_json(json:)
+        out = JSON.parse({ dmp: version }.to_json)
+        out = Versioner.append_versions(p_key:, dmp: out, client:, logger:)
+        Helper.cleanse_dmp_json(json: out)
       end
       # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
       # rubocop:enable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
@@ -130,24 +132,6 @@ module Uc3DmpId
       end
       # rubocop:enable Metrics/AbcSize
 
-      # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
-      def _process_modifications(owner:, updater:, version:, mods:, logger: nil)
-        return version unless mods.is_a?(Hash) && !updater.nil?
-        return mods unless version.is_a?(Hash) && !owner.nil?
-
-        logger.debug(message: 'Modifications before merge.', details: mods) if logger.respond_to?(:debug)
-        keys_to_retain = version.keys.select do |key|
-          (key.start_with?('dmphub_') && !%w[dmphub_modifications dmphub_versions].include?(key)) ||
-            key.start_with?('PK') || key.start_with?('SK') || key.start_with?('dmproadmap_related_identifiers')
-        end
-        keys_to_retain.each do |key|
-          mods[key] = version[key]
-        end
-        logger.debug(message: 'Modifications after merge.', details: mods) if logger.respond_to?(:debug)
-        mods
-      end
-      # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
-
       # Once the DMP has been updated, we need to update it's DOI metadata
       # -------------------------------------------------------------------------
       # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
@@ -191,34 +175,65 @@ module Uc3DmpId
       # rubocop:enable Metrics/PerceivedComplexity, Metrics/CyclomaticComplexity
 
       # Fetch any Harvester modifications to the JSON
-      def _process_harvester_mods(client:, p_key:, json:, logger: nil)
-        return json if json.fetch('dmphub_modifications', []).empty?
+      def _process_harvester_mods(client:, p_key:, json:, version:, logger: nil)
+        logger&.debug(message: 'Incoming modifications', details: json)
+        return version if json.fetch('dmphub_modifications', []).empty?
 
         # Fetch the `"SK": "HARVESTER_MODS"` record
         client = Uc3DmpDynamo::Client.new if client.nil?
         resp = client.get_item(
           key: { PK: Helper.append_pk_prefix(p_key:), SK: Helper::SK_HARVESTER_MODS }, logger:
         )
-        return json unless resp.is_a?(Hash) && resp['related_works'].is_a?(Hash)
+        return version unless resp.is_a?(Hash) && resp['related_works'].is_a?(Hash)
 
+        logger&.debug(message: 'Original HARVESTER_MODS record', details: resp)
         # The `dmphub_modifications` array will ONLY ever have things the harvester mods know about
         # so just find them and update the status accordingly
-        mods = resp.dup
+        original = resp.dup
+        json['dmproadmap_related_identifiers'] = [] if json['dmproadmap_related_identifiers'].nil?
+
         json['dmphub_modifications'].each do |entry|
-          next if entry.fetch('dmproadmap_related_identifiers', []).empty?
+          next if entry.is_a?(Hash) && entry.fetch('dmproadmap_related_identifiers', []).empty?
 
           entry['dmproadmap_related_identifiers'].each do |related|
-            related_id = mods['related_works'][related.identifier] if related.respond_to?(:identifier)
-            related_id = mods['related_works'][related['identifier']] if related_id.nil?
-            next if related_id.nil?
+            # Detrmine if the HARVESTER_MODS record even knows about the mod
+            related_id = related.respond_to?(:identifier) ? related.identifier : related['identifier']
+            related_domain = related.respond_to?(:domain) ? related.domain : related['domain']
+            key = "#{related_domain.end_with?('/') ? related_domain : "#{related_domain}/"}#{related_id}"
+            key_found = original['related_works'].has_key?(key)
+            logger&.debug(message: "No matching HARVEST_MOD found for #{key}") unless key_found
+            next unless key_found
 
-            mods['related_works'][related_id]['status'] = related['status']
+            # Update the status in the HARVESTER_MODS record
+            logger&.debug(message: "Updating status for #{key} from #{original['related_works'][key]['status']} to #{related['status']}")
+            original['related_works'][key]['status'] = related['status']
+
+            existing = version['dmproadmap_related_identifiers'].select do |ri|
+              ri['identifier'] == key
+            end
+
+            # Add it if it was approved and doesn't exist in dmproadmap_related_identifiers
+            if related['status'] == 'approved' && existing.empty?
+              version['dmproadmap_related_identifiers'] << JSON.parse({
+                identifier: key,
+                work_type: related['work_type'],
+                type: related['type'],
+                descriptor: related['descriptor'],
+                citation: related['citation']
+              }.to_json)
+            elsif related['status'] == 'rejected' && existing.any?
+              # otherwise remove it
+              version['dmproadmap_related_identifiers'] = version['dmproadmap_related_identifiers'].reject { |ri| ri == existing.first }
+            end
           end
         end
 
-        client.put_item(json: mods, logger:)
-        json.delete('dmphub_modifications')
-        json
+        logger&.debug(message: 'Updating HARVESTER_MODS with:', details: original)
+        resp = client.put_item(json: original, logger:)
+        logger&.error(message: 'Unable to update HARVESTER_MODS', details: original) if resp.nil?
+
+        logger&.debug(message: 'Returning updated VERSION:', details: version)
+        version
       end
     end
   end
