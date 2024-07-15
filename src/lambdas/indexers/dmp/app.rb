@@ -99,7 +99,7 @@ module Functions
             # )
           else
             logger&.info(message: "Creating OpenSearch record")
-            doc = _dmp_to_dynamo_index(lient:, table:, hash: payload, logger:)
+            doc = _dmp_to_dynamo_index(client:, table:, hash: payload, logger:)
             # client.index(
             #   index: ENV['OPEN_SEARCH_INDEX'],
             #   body: _dmp_to_os_doc(hash: payload, logger:),
