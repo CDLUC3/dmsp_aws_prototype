@@ -26,17 +26,6 @@ aws dynamodb put-item --table-name $DYNAMO_TABLE  \
     --item \
         "{\"PK\":{\"S\":\"PROVENANCE#$KEY\"},\"SK\":{\"S\":\"PROFILE\"},\"contact\":{\"M\":{\"email\":{\"S\":\"$ADMIN_EMAIL\"},\"name\":{\"S\":\"Administrator\"}}},\"description\":{\"S\":\"The $2 $1 system\"},\"downloadUri\":{\"S\":\"https://$3/api/v2/plans/\"},\"homepage\":{\"S\":\"https://$3\"},\"name\":{\"S\":\"$2\"},\"redirectUri\":{\"S\":\"https://$3/callback\"},\"tokenUri\":{\"S\":\"https://$3/oauth/token\"},\"org_access_level\":{\"S\":\"all\"}}"
 
-# Insert the root AUGMENTERS record
-echo "Creating Augmenter records -> { \"PK\": \"AUGMENTERS\", \"SK\": \"LIST\" } and { \"PK\": \"AUGMENTERS#datacite\", \"SK\": \"PROFILE\" }"
-aws dynamodb put-item --table-name $DYNAMO_TABLE  \
-    --item \
-      "{\"PK\":{\"S\":\"AUGMENTERS\"},\"SK\":{\"S\":\"LIST\"},\"related_works\":{\"L\":[{\"M\":{\"PK\":{\"S\":\"AUGMENTERS#datacite\"}}}]}}"
-
-# Insert the DataCite Augmenter record
-aws dynamodb put-item --table-name $DYNAMO_TABLE  \
-    --item \
-      "{\"PK\":{\"S\":\"AUGMENTERS#datacite\"},\"SK\":{\"S\":\"PROFILE\"},\"frequency\":{\"S\":\"daily\"},\"last_run\":{\"S\":\"2023-11-01T00:00:34+00:00\"},\"name\":{\"S\":\"DataCite\"},\"trigger\":{\"M\":{\"detail-type\":{\"S\":\"RelatedWorkScan\"},\"resource\":{\"S\":\"event-bridge\"}}}}"
-
 echo ''
 echo 'Done.'
 echo ''
