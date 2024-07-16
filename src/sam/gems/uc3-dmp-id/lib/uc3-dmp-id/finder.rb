@@ -172,6 +172,7 @@ module Uc3DmpId
       def _by_org(org:, client: nil, logger: nil)
         regex = /^[a-zA-Z0-9]+$/
         id = "#{ROR_DOMAIN}#{org.strip}" unless (org.to_s =~ regex).nil?
+        return [] if id.nil?
 
         resp = client.get_item(key: { PK: 'AFFILIATION_INDEX', SK: id }, logger:)
         return [] unless resp.is_a?(Hash)
@@ -184,7 +185,8 @@ module Uc3DmpId
       def _by_funder(funder:, client: nil, logger: nil)
         regex = /^[a-zA-Z0-9]+$/
         id = "#{ROR_DOMAIN}/#{funder.strip}" unless (funder.to_s =~ regex).nil?
-        id = "#{DOI_DOMAIN}#{org.strip}" if id.nil? && !(org.to_s =~ Helper::DOI_REGEX).nil?
+        id = "#{DOI_DOMAIN}#{funder.strip}" if id.nil? && !(funder.to_s =~ Helper::DOI_REGEX).nil?
+        return [] if id.nil?
 
         resp = client.get_item(key: { PK: 'FUNDER_INDEX', SK: id }, logger:)
         return [] unless resp.is_a?(Hash)
