@@ -19,6 +19,7 @@ module Uc3DmpId
 
     ORCID_DOMAIN = 'https://orcid.org/'
     ROR_DOMAIN = 'https://ror.org/'
+    DOI_DOMAIN = 'https://doi.org/'
     SORT_OPTIONS = %w[title modified]
     SORT_DIRECTIONS = %w[asc desc]
     MAX_PAGE_SIZE = 100
@@ -170,24 +171,25 @@ module Uc3DmpId
       # Fetch the DMP IDs for the specified organization/institution
       def _by_org(org:, client: nil, logger: nil)
         regex = /^[a-zA-Z0-9]+$/
-        ror = "#{ROR_DOMAIN}/#{org.strip}" unless (org.to_s =~ regex).nil?
+        id = "#{ROR_DOMAIN}#{org.strip}" unless (org.to_s =~ regex).nil?
 
-        resp = client.get_item(key: { PK: 'AFFILIATION_INDEX', SK: ror }, logger:)
+        resp = client.get_item(key: { PK: 'AFFILIATION_INDEX', SK: id }, logger:)
         return [] unless resp.is_a?(Hash)
 
-        logger&.debug(message: "DMPs for AFFILIATION #{ror}", details: resp)
+        logger&.debug(message: "DMPs for AFFILIATION #{id}", details: resp)
         resp.fetch('dmps', [])
       end
 
       # Fetch the DMP IDs for the specified funder
       def _by_funder(funder:, client: nil, logger: nil)
         regex = /^[a-zA-Z0-9]+$/
-        ror = "#{ROR_DOMAIN}/#{funder.strip}" unless (funder.to_s =~ regex).nil?
+        id = "#{ROR_DOMAIN}/#{funder.strip}" unless (funder.to_s =~ regex).nil?
+        id = "#{DOI_DOMAIN}#{org.strip}" if id.nil? && !(org.to_s =~ Helper::DOI_REGEX).nil?
 
-        resp = client.get_item(key: { PK: 'FUNDER_INDEX', SK: ror }, logger:)
+        resp = client.get_item(key: { PK: 'FUNDER_INDEX', SK: id }, logger:)
         return [] unless resp.is_a?(Hash)
 
-        logger&.debug(message: "DMPs for FUNDER #{ror}", details: resp)
+        logger&.debug(message: "DMPs for FUNDER #{id}", details: resp)
         resp.fetch('dmps', [])
       end
 

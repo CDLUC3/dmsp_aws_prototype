@@ -30,6 +30,13 @@ module Functions
   class GetDmps
     SOURCE = 'GET /dmps'
 
+    SORT_OPTIONS = %w[title modified]
+    SORT_DIRECTIONS = %w[asc desc]
+    MAX_PAGE_SIZE = 100
+    DEFAULT_PAGE_SIZE = 25
+    DEFAULT_SORT_OPTION = 'modified'
+    DEFAULT_SORT_DIR = 'desc'
+
     # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
     # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
     def self.process(event:, context:)
@@ -47,52 +54,50 @@ module Functions
       provenance = Uc3DmpProvenance::Finder.from_lambda_cotext(identity: claim, logger:)
       return _respond(status: 403, errors: Uc3DmpId::Helper::MSG_DMP_FORBIDDEN, event:) if provenance.nil?
 
-      # resp = Uc3DmpId::Finder.search_dmps(args: params, logger:)
-      client = Uc3DmpDynamo::Client.new(table: ENV['DYNAMO_INDEX_TABLE'])
-      resp = _find_by_orcid(client:, owner: params['owner'], logger:)
-
-puts resp
-
-      dmps = resp
-
-      SORT_OPTIONS = %w[title modified]
-      SORT_DIRECTIONS = %w[asc desc]
-      MAX_PAGE_SIZE = 100
-      DEFAULT_PAGE_SIZE = 25
-      DEFAULT_SORT_OPTION = 'modified'
-      DEFAULT_SORT_DIR = 'desc'
+      resp = Uc3DmpId::Finder.search_dmps(args: params, logger:)
+      dmps = resp.is_a?(Array) ? resp : []
+      logger&.debug(message: 'Search returned the following index records:', details: dmps)
 
       # Perfom search operations
-      term = args.fetch('search', '').to_s.strip.downcase
+      term = params.fetch('search', '').to_s.strip.downcase
       unless term.blank?
+        logger&.debug(message: "Searching results for #{term}")
         dmps = dmps.select do |dmp|
-          dmp['title'].include?(term) || dmp['abstract'].include?(term)
+          dmp['title'].to_s.downcase.include?(term) || dmp['abstract'].to_s.downcase.include?(term)
         end
       end
 
       # Handle sort
-      col = args['sort'].to_s.downcase
-      dir = args['sort_dir'].to_s.downcase
+      col = params['sort'].to_s.downcase
+      dir = params['sort_dir'].to_s.downcase
       sort = SORT_OPTIONS.include?(col) ? col : DEFAULT_SORT_OPTION
       sort_dir = SORT_DIRECTIONS.include?(dir) ? dir : DEFAULT_SORT_DIR
+      logger&.debug(message: "Sorting results: #{col}, #{dir}")
       dmps = dmps.sort do |a, b|
         sort_dir == 'desc' ? b[sort] <=> a[sort] : a[sort] <=> b[sort]
       end
 
       # Handle pagination
+      dmps = _paginate_results(results: dmps, params:)
+      logger&.debug(
+        message: 'Paginated results:',
+        details: {
+          page: params['page'],
+          per_page: params['per_page'],
+          total_items: params['total_items'],
+          total_pages: params['total_pages']
+        }
+      )
 
       # Fetch full DMP records for the results
       client = Uc3DmpDynamo::Client.new(table: ENV['DYNAMO_TABLE'])
-      dmps = pks.map { |p_key| Uc3DmpId::Finder.by_pk(p_key:, client:, logger:, cleanse: true) }
+      logger&.debug(message: 'Fetching DMP ID JSON for the results:')
+      dmps = dmps.map { |dmp| Uc3DmpId::Finder.by_pk(p_key: dmp['pk'], client:, logger:, cleanse: true) }
+      return _respond(status: 400, errors: Uc3DmpId::Helper::MSG_DMP_NO_DMP_ID) if dmps.nil?
+      return _respond(status: 404, errors: Uc3DmpId::Helper::MSG_DMP_NOT_FOUND) if dmps.empty?
 
-      puts dmps
-
-
-      return _respond(status: 400, errors: Uc3DmpId::Helper::MSG_DMP_NO_DMP_ID) if resp.nil?
-      return _respond(status: 404, errors: Uc3DmpId::Helper::MSG_DMP_NOT_FOUND) if resp.empty?
-
-      logger.debug(message: 'Found the following results:', details: resp) if logger.respond_to?(:debug)
-      _respond(status: 200, items: [resp], event:)
+      logger&.debug(message: 'Found the following results:', details: dmps)
+      _respond(status: 200, items: dmps, event:, params:)
     rescue Uc3DmpId::FinderError => e
       _respond(status: 400, errors: [Uc3DmpId::Helper::MSG_DMP_NO_DMP_ID, e.message], event:)
     rescue StandardError => e
@@ -105,34 +110,6 @@ puts resp
     # rubocop:enable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
     class << self
-
-      def _find_by_orcid(client:, owner:, logger: null)
-        orcid_regex = /^([0-9a-zA-Z]{4}-){3}[0-9a-zA-Z]{4}$/
-        email_regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-        orcid = owner.to_s.strip
-        return [] if (orcid =~ orcid_regex).nil? && (orcid =~ email_regex).nil?
-
-        client = Uc3DmpDynamo::Client.new if client.nil?
-        resp = client.get_item(
-          key: { PK: 'PERSON_INDEX', SK: orcid },
-          logger:
-        )
-        return resp unless resp.is_a?(Hash)
-        logger&.debug(message: "DMPs for ORCID #{orcid}", details: resp)
-        resp.fetch('dmps', []).any? ? _fetch_dmps(client:, dmps: resp['dmps'], logger:) : []
-      end
-
-      def _fetch_dmps(client:, dmps:, logger: null)
-
-        # Add modified timestamp and featured flag to DmpIndexer so we can sort
-
-        # Handle pagination here!
-        client.table = ENV['DYNAMO_TABLE']
-        resp = dmps.map { |pk| client.get_item(key: { PK: pk, SK: 'VERSION#latest' }, logger:) }
-        resp
-        # resp.respond_to?(:items) ? resp.items.sort { |a, b| b['modified'] <=> a['modified'] } : resp
-      end
-
       # rubocop:disable Metrics/AbcSize
       def _process_params(event:)
         params = event.fetch('queryStringParameters', {})
@@ -163,12 +140,88 @@ puts resp
         ENV['DMP_ID_BASE_URL'] = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :dmp_id_base_url, logger:)
       end
 
+      # Paginate the results based on
+      def _paginate_results(results: [], params:)
+        params['total_items'] = results.length
+        params['total_pages'] = (params['total_items'].to_f / params['per_page']).ceil
+
+        # Ensure the current page is within valid bounds
+        params['page'] = params['total_pages'] if params['page'] > params['total_pages']
+        params['page'] = 1 if params['page'] < 1
+
+        # Calculate the range of results for the current page
+        start_index = (params['page'] - 1) * params['per_page']
+        end_index = [start_index + params['per_page'] - 1, params['total_items'] - 1].min
+
+        # Extract the results for the current page
+        results[start_index..end_index]
+      end
+
+      # get the request path and params from the event
+      def _url_from_event(event:)
+        return '' unless event.is_a?(Hash)
+
+        url = event.fetch('path', '/')
+        return url if event['queryStringParameters'].nil?
+
+        "#{url}?#{event['queryStringParameters'].map { |k, v| "#{k}=#{v}" }.join('&')}"
+      end
+
+      # Generate a pagination link
+      def _build_link(url:, target_page:, per_page: DEFAULT_PAGE_SIZE)
+        return nil if url.nil? || target_page.nil?
+
+        link = _url_without_pagination(url:)
+        return nil if link.nil?
+
+        link += '?' unless link.include?('?')
+        link += '&' unless link.end_with?('&') || link.end_with?('?')
+        "#{link}page=#{target_page}&per_page=#{per_page}"
+      end
+
+      # Remove the pagination query parameters from the URL
+      def _url_without_pagination(url:)
+        return nil if url.nil? || !url.is_a?(String)
+
+        parts = url.split('?')
+        out = parts.first
+        query_args = parts.length <= 1 ? [] : parts.last.split('&')
+        query_args = query_args.reject do |arg|
+          arg.start_with?('page=') || arg.start_with?('per_page=') ||
+            arg.start_with?('total_items=') || arg.start_with?('total_pages=')
+        end
+        return out unless query_args.any?
+
+        "#{out}?#{query_args.join('&')}"
+      end
+
       # Send the output to the Responder
       def _respond(status:, items: [], errors: [], event: {}, params: {})
-        Uc3DmpApiCore::Responder.respond(
-          status:, items:, errors:, event:,
-          page: params['page'], per_page: params['per_page']
-        )
+        url = _url_from_event(event:)
+        body = {
+          status: status.to_i,
+          requested: _url_without_pagination(url: url),
+          requested_at: Time.now.strftime('%Y-%m-%dT%H:%M:%S%L%Z'),
+          total_items: items.is_a?(Array) ? items.length : 0,
+          items: items,
+          errors:,
+          page: params['page'],
+          per_page: params['per_page'],
+          total_items: params['total_items'],
+          total_pages: params['total_pages']
+        }
+
+        prv = body[:page] - 1
+        nxt = body[:page] + 1
+        last = body[:total_pages]
+
+        body[:first] = _build_link(url:, target_page: 1, per_page: body[:per_page]) if body[:page] > 1
+        body[:prev] = _build_link(url:, target_page: prv, per_page: body[:per_page]) if body[:page] > 1
+        body[:next] = _build_link(url:, target_page: nxt, per_page: body[:per_page]) if body[:page] < last
+        body[:last] = _build_link(url:, target_page: last, per_page: body[:per_page]) if body[:page] < last
+        body.compact
+
+        { statusCode: status.to_i, body: body.to_json, headers: {} }
       end
     end
   end
