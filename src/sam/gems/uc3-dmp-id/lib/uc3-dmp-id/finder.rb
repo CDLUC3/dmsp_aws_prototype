@@ -37,7 +37,9 @@ module Uc3DmpId
         funder = args['funder']
 
         owner_pks = owner.nil? ? [] : _by_owner(owner: owner, client:, logger:)
-        org_pks = org.nil? ? [] : _by_org(org: org, client:, logger:)
+        # There may be multiple Org ids, so query them all
+        org_pks = org.nil? ? [] : org.split('|').map { |o| _by_org(org: o, client:, logger:) }
+        org_pks = org_pks.flatten.uniq
         funder_pks = funder.nil? ? [] : _by_funder(funder: funder, client:, logger:)
         # pks = [owner_pks, org_pks, funder_pks].reject(&:empty?)
         logger&.debug(

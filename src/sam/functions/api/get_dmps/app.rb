@@ -54,6 +54,22 @@ module Functions
       provenance = Uc3DmpProvenance::Finder.from_lambda_cotext(identity: claim, logger:)
       return _respond(status: 403, errors: Uc3DmpId::Helper::MSG_DMP_FORBIDDEN, event:) if provenance.nil?
 
+      # Security check. If the Provenance is not allowed to see ALL orgs and the
+      #                 requested org is not in the list of their allowed orgs, then
+      #                 remove the requested org from the params
+      unless provenance.fetch('org_access_level', '').downcase != 'all'
+        rors = provenance.fetch('ror_list', []).map { |id| id.gsub('https://ror.org/', '') }
+        # Reply with a 403 if the requested Org is not in the list of approved RORs
+        if !params['org'].nil? && !rors.include?(params['org'])
+          errors = "Invalid ROR. You may make requests for the following ROR ids: #{provenance.fetch('ror_list', [])}"
+          return _respond(status: 403, errors:, event:) if provenance.nil?
+
+        elsif params['org'].nil?
+          # If they did not specify an Org, allow all of the valid ones
+          params['org'] = rors.join('|')
+        end
+      end
+
       resp = Uc3DmpId::Finder.search_dmps(args: params, logger:)
       dmps = resp.is_a?(Array) ? resp : []
       logger&.debug(message: 'Search returned the following index records:', details: dmps)

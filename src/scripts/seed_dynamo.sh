@@ -24,7 +24,7 @@ echo "Creating Provenance item for $2 -> {\"PK\": \"PROVENANCE#$KEY\", \"SK\": \
 # Insert the Provenance record for the DMPTool application
 aws dynamodb put-item --table-name $DYNAMO_TABLE  \
     --item \
-        "{\"PK\":{\"S\":\"PROVENANCE#$KEY\"},\"SK\":{\"S\":\"PROFILE\"},\"contact\":{\"M\":{\"email\":{\"S\":\"$ADMIN_EMAIL\"},\"name\":{\"S\":\"Administrator\"}}},\"description\":{\"S\":\"The $2 $1 system\"},\"downloadUri\":{\"S\":\"https://$3/api/v2/plans/\"},\"homepage\":{\"S\":\"https://$3\"},\"name\":{\"S\":\"$2\"},\"redirectUri\":{\"S\":\"https://$3/callback\"},\"tokenUri\":{\"S\":\"https://$3/oauth/token\"}}"
+        "{\"PK\":{\"S\":\"PROVENANCE#$KEY\"},\"SK\":{\"S\":\"PROFILE\"},\"contact\":{\"M\":{\"email\":{\"S\":\"$ADMIN_EMAIL\"},\"name\":{\"S\":\"Administrator\"}}},\"description\":{\"S\":\"The $2 $1 system\"},\"downloadUri\":{\"S\":\"https://$3/api/v2/plans/\"},\"homepage\":{\"S\":\"https://$3\"},\"name\":{\"S\":\"$2\"},\"redirectUri\":{\"S\":\"https://$3/callback\"},\"tokenUri\":{\"S\":\"https://$3/oauth/token\"},\"org_access_level\":{\"S\":\"all\"}}"
 
 # Insert the root AUGMENTERS record
 echo "Creating Augmenter records -> { \"PK\": \"AUGMENTERS\", \"SK\": \"LIST\" } and { \"PK\": \"AUGMENTERS#datacite\", \"SK\": \"PROFILE\" }"
