@@ -129,7 +129,6 @@ module Functions
       # rubocop:disable Metrics/AbcSize
       def _process_params(event:)
         params = event.fetch('queryStringParameters', {})
-        return params unless params.keys.any?
 
         # Convert the URI encoded '@' character if the `owner` param was provided
         params['owner'] = params['owner'].to_s.gsub('%40', '@') unless params['owner'].nil?
