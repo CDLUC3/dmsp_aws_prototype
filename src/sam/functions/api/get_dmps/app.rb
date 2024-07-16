@@ -70,6 +70,11 @@ module Functions
         end
       end
 
+      # We do not allow completely open ended queries at this point
+      if params['org'].blank? && params['funder'].blank? && params['owner'].blank?
+        return _respond(status: 400, errors: 'You must specify one of the following: org, funder, owner', event:)
+      end
+
       resp = Uc3DmpId::Finder.search_dmps(args: params, logger:)
       dmps = resp.is_a?(Array) ? resp : []
       logger&.debug(message: 'Search returned the following index records:', details: dmps)
@@ -129,6 +134,7 @@ module Functions
       # rubocop:disable Metrics/AbcSize
       def _process_params(event:)
         params = event.fetch('queryStringParameters', {})
+        params = {} if params.nil?
 
         # Convert the URI encoded '@' character if the `owner` param was provided
         params['owner'] = params['owner'].to_s.gsub('%40', '@') unless params['owner'].nil?
@@ -220,10 +226,10 @@ module Functions
           total_items: items.is_a?(Array) ? items.length : 0,
           items: items,
           errors:,
-          page: params['page'],
-          per_page: params['per_page'],
-          total_items: params['total_items'],
-          total_pages: params['total_pages']
+          page: params['page'] || 1,
+          per_page: params['per_page'] || DEFAULT_PAGE_SIZE,
+          total_items: params['total_items'] || 0,
+          total_pages: params['total_pages'] || 1
         }
 
         prv = body[:page] - 1
