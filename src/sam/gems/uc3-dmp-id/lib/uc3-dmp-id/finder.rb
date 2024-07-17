@@ -41,19 +41,12 @@ module Uc3DmpId
         org_pks = org.nil? ? [] : org.split('|').map { |o| _by_org(org: o, client:, logger:) }
         org_pks = org_pks.flatten.uniq
         funder_pks = funder.nil? ? [] : _by_funder(funder: funder, client:, logger:)
-        # pks = [owner_pks, org_pks, funder_pks].reject(&:empty?)
         logger&.debug(
           message: 'PKs found',
           details: { owner: owner_pks, org: org_pks, funder: funder_pks }
         )
-        # return [] if pks.nil? || pks.empty?
-
-        # Only use the DMPs that fit all of the filter criteria
-        # dmps = pks.reduce(:&).flatten.uniq
-        # return [] if dmps.nil? || dmps.empty?
 
         [owner_pks, org_pks, funder_pks].flatten.uniq
-
       end
 
       # Find a DMP based on the contents of the incoming JSON
@@ -227,8 +220,6 @@ module Uc3DmpId
           next if item.nil?
 
           dmp = item['dmp'].nil? ? JSON.parse({ dmp: item }.to_json) : item
-          # dmp = _remove_narrative_if_private(json: dmp)
-          # Helper.cleanse_dmp_json(json: dmp)
         end
         results.compact.uniq
       end

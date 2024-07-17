@@ -62,7 +62,7 @@ module Functions
         # Reply with a 403 if the requested Org is not in the list of approved RORs
         if !params['org'].nil? && !rors.include?(params['org'])
           errors = "Invalid ROR. You may make requests for the following ROR ids: #{provenance.fetch('ror_list', [])}"
-          return _respond(status: 403, errors:, event:) if provenance.nil?
+          return _respond(status: 403, errors:, event:)
 
         elsif params['org'].nil?
           # If they did not specify an Org, allow all of the valid ones
@@ -95,7 +95,7 @@ module Functions
       sort_dir = SORT_DIRECTIONS.include?(dir) ? dir : DEFAULT_SORT_DIR
       logger&.debug(message: "Sorting results: #{col}, #{dir}")
       dmps = dmps.sort do |a, b|
-        sort_dir == 'desc' ? b[sort] <=> a[sort] : a[sort] <=> b[sort]
+        sort_dir == DEFAULT_SORT_DIR ? b[sort] <=> a[sort] : a[sort] <=> b[sort]
       end
 
       # Handle pagination
