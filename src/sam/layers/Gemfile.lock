@@ -147,7 +147,7 @@ GEM
       aws-sdk-ssm (~> 1.150)
       httparty (~> 0.21.0)
       json (~> 2.6)
-    uc3-dmp-id (0.1.81)
+    uc3-dmp-id (0.1.87)
       json (~> 2.6)
       json-schema (~> 3.0)
       text (~> 1.3)
