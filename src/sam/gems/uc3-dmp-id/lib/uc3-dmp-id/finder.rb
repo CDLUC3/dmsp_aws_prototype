@@ -17,22 +17,36 @@ module Uc3DmpId
     MSG_MISSING_PROV_ID = 'No Provenance identifier was provided. \
                            Expected: `{ "dmp_id": { "identifier": "value", "type": "value" }`'
 
+    ORCID_DOMAIN = 'https://orcid.org/'
+    ROR_DOMAIN = 'https://ror.org/'
+    DOI_DOMAIN = 'https://doi.org/'
+    SORT_OPTIONS = %w[title modified]
+    SORT_DIRECTIONS = %w[asc desc]
+    MAX_PAGE_SIZE = 100
+    DEFAULT_PAGE_SIZE = 25
+    DEFAULT_SORT_OPTION = 'modified'
+    DEFAULT_SORT_DIR = 'desc'
+
     class << self
       # TODO: Replace this with ElasticSearch
       def search_dmps(args:, logger: nil)
-        client = Uc3DmpDynamo::Client.new
-        return _by_owner(owner_org: args['owner_orcid'], client:, logger:) unless args['owner_orcid'].nil?
+        # Fetch the DMPs for each of the possible filter options
+        client = Uc3DmpDynamo::Client.new(table: ENV['DYNAMO_INDEX_TABLE'])
+        owner = args['owner']
+        org = args['org']
+        funder = args['funder']
 
-        unless args['owner_org_ror'].nil?
-          return _by_owner_org(owner_org: args['owner_org_ror'], client:,
-                               logger:)
-        end
-        unless args['modification_day'].nil?
-          return _by_mod_day(day: args['modification_day'], client:,
-                             logger:)
-        end
+        owner_pks = owner.nil? ? [] : _by_owner(owner: owner, client:, logger:)
+        # There may be multiple Org ids, so query them all
+        org_pks = org.nil? ? [] : org.split('|').map { |o| _by_org(org: o, client:, logger:) }
+        org_pks = org_pks.flatten.uniq
+        funder_pks = funder.nil? ? [] : _by_funder(funder: funder, client:, logger:)
+        logger&.debug(
+          message: 'PKs found',
+          details: { owner: owner_pks, org: org_pks, funder: funder_pks }
+        )
 
-        []
+        [owner_pks, org_pks, funder_pks].flatten.uniq
       end
 
       # Find a DMP based on the contents of the incoming JSON
@@ -134,74 +148,68 @@ module Uc3DmpId
 
       private
 
-      # Fetch the DMP IDs for the specified owner's ORCID (the owner is the :dmphub_owner_id on the DMP ID record)
-      def _by_owner(owner_id:, client: nil, logger: nil)
-        regex = /^([0-9A-Z]{4}-){3}[0-9A-Z]{4}$/
-        raise FinderError, MSG_INVALID_OWNER_ID if owner_id.nil? || (owner_id.to_s =~ regex).nil?
+      # Fetch the DMP IDs for the specified person's ORCID (or email)
+      def _by_owner(owner:, client: nil, logger: nil)
+        orcid_regex = /^([0-9a-zA-Z]{4}-){3}[0-9a-zA-Z]{4}$/
+        email_regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+        orcid = owner.to_s.strip
+        return [] if (orcid =~ orcid_regex).nil? && (orcid =~ email_regex).nil?
 
-        args = {
-          index_name: 'dmphub_owner_id_gsi',
-          key_conditions: {
-            dmphub_owner_id: {
-              attribute_value_list: [
-                "http://orcid.org/#{owner_id}",
-                "https://orcid.org/#{owner_id}"
-              ],
-              comparison_operator: 'IN'
-            }
-          },
-          filter_expression: 'SK = :version',
-          expression_attribute_values: { ':version': Helper::DMP_LATEST_VERSION }
-        }
-        logger.info(message: "Querying _by_owner with #{args}") if logger.respond_to?(:info)
-        client = Uc3DmpDynamo::Client.new if client.nil?
-        _process_search_response(response: client.query(args:, logger:))
+        orcid = "#{ORCID_DOMAIN}#{orcid}" unless (orcid =~ orcid_regex).nil?
+        resp = client.get_item(key: { PK: 'PERSON_INDEX', SK: orcid }, logger:)
+        return [] unless resp.is_a?(Hash)
+
+        logger&.debug(message: "DMPs for PERSON #{orcid}", details: resp)
+        resp.fetch('dmps', [])
       end
 
-      # Fetch the DMP IDs for the specified organization/institution (the org is the :dmphub_owner_org
-      # on the DMP ID record)
-      def _by_owner_org(owner_org:, client: nil, logger: nil)
+      # Fetch the DMP IDs for the specified organization/institution
+      def _by_org(org:, client: nil, logger: nil)
         regex = /^[a-zA-Z0-9]+$/
-        raise FinderError, MSG_INVALID_OWNER_ID if owner_org.nil? || (owner_org.to_s.downcase =~ regex).nil?
+        id = "#{ROR_DOMAIN}#{org.strip}" unless (org.to_s =~ regex).nil?
+        return [] if id.nil?
 
-        args = {
-          index_name: 'dmphub_owner_org_gsi',
-          key_conditions: {
-            dmphub_owner_org: {
-              attribute_value_list: [
-                "https://ror.org/#{owner_org.to_s.downcase}",
-                "http://ror.org/#{owner_org.to_s.downcase}"
-              ],
-              comparison_operator: 'IN'
-            }
-          },
-          filter_expression: 'SK = :version',
-          expression_attribute_values: { ':version': Helper::DMP_LATEST_VERSION }
-        }
-        logger.info(message: "Querying _by_owner_org with #{args}") if logger.respond_to?(:info)
-        client = Uc3DmpDynamo::Client.new if client.nil?
-        _process_search_response(response: client.query(args:, logger:))
+        resp = client.get_item(key: { PK: 'AFFILIATION_INDEX', SK: id }, logger:)
+        return [] unless resp.is_a?(Hash)
+
+        logger&.debug(message: "DMPs for AFFILIATION #{id}", details: resp)
+        resp.fetch('dmps', [])
       end
 
-      # Fetch the DMP IDs modified on the specified date (the date is the :dmphub_modification_day on the DMP ID record)
-      def _by_mod_day(day:, client: nil, logger: nil)
-        regex = /^[0-9]{4}(-[0-9]{2}){2}/
-        raise FinderError, MSG_INVALID_OWNER_ID if day.nil? || (day.to_s =~ regex).nil?
+      # Fetch the DMP IDs for the specified funder
+      def _by_funder(funder:, client: nil, logger: nil)
+        regex = /^[a-zA-Z0-9]+$/
+        id = "#{ROR_DOMAIN}/#{funder.strip}" unless (funder.to_s =~ regex).nil?
+        id = "#{DOI_DOMAIN}#{funder.strip}" if id.nil? && !(funder.to_s =~ Helper::DOI_REGEX).nil?
+        return [] if id.nil?
 
+        resp = client.get_item(key: { PK: 'FUNDER_INDEX', SK: id }, logger:)
+        return [] unless resp.is_a?(Hash)
+
+        logger&.debug(message: "DMPs for FUNDER #{id}", details: resp)
+        resp.fetch('dmps', [])
+      end
+
+      # Fetch the DMP IDs that are marked as featured
+      def _by_featured(client: nil, logger: nil)
         args = {
-          index_name: 'dmphub_modification_day_gsi',
-          key_conditions: {
-            dmphub_modification_day: {
-              attribute_value_list: [day.to_s],
-              comparison_operator: 'IN'
-            }
-          },
-          filter_expression: 'SK = :version',
-          expression_attribute_values: { ':version': Helper::DMP_LATEST_VERSION }
+          filter_expression: 'featured = :featured AND SK = :sk',
+          expression_attribute_values: { ':sk': 'METADATA', ':featured': 1 }
         }
-        logger.info(message: "Querying _by_mod_day with #{args}") if logger.respond_to?(:info)
+        logger&.debug(message: 'Fetch relevant DMPs _by_featured - scan args', details: args)
         client = Uc3DmpDynamo::Client.new if client.nil?
-        _process_search_response(response: client.query(args:, logger:))
+        _process_search_response(response: client.scan(args:))
+      end
+
+      # Return all of the publicly visible DMPs
+      def _publicly_visible(client: nil, logger: nil)
+        args = {
+          filter_expression: 'visibility = :visibility AND SK = :sk',
+          expression_attribute_values: { ':sk': 'METADATA', ':visibility': 'public' }
+        }
+        logger&.debug(message: 'Fetch relevant DMPs _publicly_visible - scan args', details: args)
+        client = Uc3DmpDynamo::Client.new if client.nil?
+        _process_search_response(response: client.scan(args:))
       end
 
       # Transform the search results so that we do not include any of the DMPHub specific metadata
@@ -212,8 +220,6 @@ module Uc3DmpId
           next if item.nil?
 
           dmp = item['dmp'].nil? ? JSON.parse({ dmp: item }.to_json) : item
-          dmp = _remove_narrative_if_private(json: dmp)
-          Helper.cleanse_dmp_json(json: dmp)
         end
         results.compact.uniq
       end

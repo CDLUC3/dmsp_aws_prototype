@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'aws-sdk-ssm'
+
 require 'uc3-dmp-cognito'
 require 'uc3-dmp-dynamo'
 
@@ -37,7 +39,19 @@ module Uc3DmpProvenance
           key: { PK: Helper.append_pk_prefix(provenance: client_name), SK: Helper::SK_PROVENANCE_PREFIX },
           logger:
         )
-        resp.nil? || resp.empty? ? nil : resp
+        return nil if resp.nil? || resp.empty?
+
+        # Fetch the list of RORs the provenance may access
+        key = "/uc3/dmp/tool/provenance/#{client_name}/ror_list"
+        begin
+          ssm_val = Uc3DmpApiCore::SsmReader.fetch_value(key:, logger:)
+        rescue Aws::SSM::Errors::ParameterNotFound
+          # If we get an error it is because the key doesn't exist, so just return as is
+          return resp
+        end
+
+        resp['ror_list'] = JSON.parse(ssm_val)
+        resp
       end
 
       # Fetch the Provenance by it's PK.
