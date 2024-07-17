@@ -26,4 +26,4 @@ parameters:
 hooks:
   after_update:
     cmd: 'src/scripts/add-api-client.sh prd uc-boulder http://localhost:3000/callback'
-    cmd: 'aws ssm put-parameter --overwrite --name /uc3/dmp/tool/provenance/uc-boulder/ror_list --type String --value \'["https://ror.org/02ttsq026"]\''
+    cmd: 'aws ssm put-parameter --overwrite --name /uc3/dmp/tool/provenance/uc-boulder/ror_list --type String --value "[\"https://ror.org/02ttsq026\"]"'
