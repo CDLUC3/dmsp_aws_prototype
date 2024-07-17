@@ -58,6 +58,7 @@ module Uc3DmpId
 
         # Create the prior version record ()
         client = Uc3DmpDynamo::Client.new if client.nil?
+        prior['dmphub_modifications'] = []
         resp = client.put_item(json: prior, logger:)
         return nil if resp.nil?
 

@@ -30,6 +30,7 @@ function Landing() {
     funder_id: "",
     award_id: "",
     opportunity_number: "",
+    funding_status: "",
 
     project_title: "",
     project_abstract: "",
@@ -71,7 +72,8 @@ function Landing() {
             funder_name: dmp.project[0]?.funding[0]?.name || "",
             funder_id: dmp.project[0]?.funding[0]?.funder_id?.identifier || "",
             award_id: dmp.project[0]?.funding[0]?.grant_id?.identifier || "",
-            opportunity_number: dmp.project[0]?.funding[0]?.dmproadmap_funding_opportunity_id?.identifiergetValue || "",
+            opportunity_number: dmp.project[0]?.funding[0]?.dmproadmap_funding_opportunity_id?.identifier || "", //?.identifiergetValue || "",
+            funding_status: dmp.project[0]?.funding[0]?.funding_status || "planned",
 
             project_title: dmp.project[0]?.title || "",
             project_abstract: dmp.project[0]?.description || "",
@@ -101,7 +103,7 @@ function Landing() {
       //Cleanup function
       controller.abort();
     }
-   
+
   }, [navigate]);
 
   function dmpIdWithoutAddress() {
@@ -121,7 +123,7 @@ function Landing() {
   }
   function narrativeUrl() {
     if (Array.isArray(formData.related_identifiers)) {
-      let id = formData.related_identifiers.find(id => id.descriptor === 'is_metadata_for' && id.work_type === 'output_management_plan');
+      let id = formData.related_identifiers.findLast(id => id.descriptor === 'is_metadata_for' && id.work_type === 'output_management_plan');
       return id?.identifier
     } else {
       return '';
@@ -189,7 +191,8 @@ function Landing() {
       {formData.funder_name !== '' &&
         <Funding funder_link={FunderLink}
                   award_id={formData.award_id}
-                  opportunity_number={formData.opportunity_number} />
+                  opportunity_number={formData.opportunity_number}
+                  funding_status={formData.funding_status} />
       }
 
       {((formData.project_abstract && formData.project_abstract !== '') || (formData.description && formData.description !== '')) &&

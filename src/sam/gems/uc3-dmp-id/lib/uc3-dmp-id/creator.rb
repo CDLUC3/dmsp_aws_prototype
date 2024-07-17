@@ -53,6 +53,7 @@ module Uc3DmpId
         annotated['registered'] = annotated['created'] if annotated['registered'].nil?
 
         # Create the item
+        annotated['dmphub_modifications'] = []
         resp = client.put_item(json: annotated, logger:)
         raise CreatorError, Helper::MSG_DMP_NO_DMP_ID if resp.nil?
 
