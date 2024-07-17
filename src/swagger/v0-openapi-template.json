@@ -666,11 +666,62 @@
             "type": "object",
             "required": ["items"],
             "properties": {
+              "status": {
+                "type": "integer",
+                "description": "The HTTP status code"
+              },
+              "requested": {
+                "type": "string",
+                "description": "The API endpoint that was called"
+              },
+              "requested_at": {
+                "type": "string",
+                "description": "Timestamp of the request"
+              },
+              "total_items": {
+                "type": "integer",
+                "description": "The total number of items that can be returned"
+              },
+              "total_pages": {
+                "type": "integer",
+                "description": "The total number of pages available"
+              },
+              "page": {
+                "type": "integer",
+                "description": "The current page"
+              },
+              "per_page": {
+                "type": "integer",
+                "description": "The total number of items per page"
+              },
+              "first": {
+                "type": "string",
+                "description": "The URL to fetch the first page"
+              },
+              "prev": {
+                "type": "string",
+                "description": "The URL to fetch the previous page"
+              },
+              "next": {
+                "type": "string",
+                "description": "The URL to fetch the next page"
+              },
+              "last": {
+                "type": "string",
+                "description": "The URL to fetch the last page"
+              },
               "items": {
                 "type": "array",
                 "description": "The DMPs",
                 "items": {
                   "$ref": "#/components/schemas/Dmp"
+                }
+              },
+              "errors": {
+                "type": "array",
+                "description": "Errors encountered during the request.",
+                "items": {
+                  "type": "string"
                 }
               }
             }
@@ -1011,6 +1062,154 @@
           "url": "https://api.dmphub.uc3dev.cdlib.net"
         }
       ],
+      "get": {
+        "tags": [
+          "DMP operations"
+        ],
+        "operationId": "GetDmps",
+        "description": "Retrieve the DMPs for your institution",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "query",
+            "description": "The ORCID id or email of one of the DMP's contributors.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "examples": {
+                "orcid": {
+                  "type": "string",
+                  "value": "0000-0000-0000-000X",
+                  "summary": "The ORCID without the protocol and domain"
+                },
+                "email": {
+                  "type": "string",
+                  "value": "tester%40example.com",
+                  "summary": "The email address with a percent encoded '@'"
+                }
+              }
+            }
+          },
+          {
+            "name": "org",
+            "description": "If your institution has specific ROR ids for different schools, you may specify an individual ROR id otherwise leave this blank to retrieve all DMPs for all of your associated ROR ids.",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "examples": {
+                "ror": {
+                  "type": "string",
+                  "value": "01cwqze88",
+                  "summary": "The ROR id without the protocol and domain"
+                }
+              }
+            }
+          },
+          {
+            "name": "funder",
+            "description": "A funder's ROR id or Crossref Funder id. Note that this is dependent on the way a DMP has encoded the funder's identifier. If the DMP uses the ROR id and you search for the Crossref Funder id, it will not return that DMP",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "examples": {
+                "ror": {
+                  "type": "string",
+                  "value": "01cwqze88",
+                  "summary": "The ROR id without the protocol and domain"
+                },
+                "crossref": {
+                  "type": "string",
+                  "value": "10.13039/100000002",
+                  "summary": "The Crossref funder id without the protocol and domain"
+                }
+              }
+            }
+          },
+          {
+            "name": "search",
+            "description": "An exact match search against DMP titles and abstracts",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "example": "Test Plan"
+            }
+          },
+          {
+            "name": "sort",
+            "description": "The sort type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["title", "modified"],
+              "default": "modified"
+            }
+          },
+          {
+            "name": "sort_by",
+            "description": "The sort direction",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["asc", "desc"],
+            "default": "desc"
+            }
+          },
+          {
+            "name": "page",
+            "description": "The current page of results",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "description": "The number of results on a page (max is 100)",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 25
+            }
+          }
+        ],
+        "security": [
+          {
+            "SystemAuthorizer": [
+              "https://auth.dmphub.uc3dev.cdlib.net/dev.read"
+            ]
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "An array of DMPs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DmpResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StandardErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
       "post": {
         "tags": [
           "DMP operations"

@@ -19,7 +19,6 @@ module Functions
   #    owner    - The :contact ORCID or email (e.g. `?owner=0000-0000-0000-000X` or `?owner=foo%40example.com`)
   #    org      - The :contact :affiliation ROR (e.g. `?org=8737548t`)
   #    funder   - The :project :funder_id ROR (e.g. `?funder=12345abc`)
-  #    featured - Return only plans marked as featured (e.g. `?featured=true`)
   #    search   - The term/phrase to search for in the Title and Abstract (e.g. `?search=Test+Plan`)
   #    sort     - The sort type. Options are: `modified`, `title`. Default: `modified` (e.g. `?sort=modified`)
   #    sort_dir - The sort direction. Options are: `asc` or `desc`. Default: `desc` (e.g. `?sort_dir=desc`)
@@ -78,6 +77,8 @@ module Functions
       resp = Uc3DmpId::Finder.search_dmps(args: params, logger:)
       dmps = resp.is_a?(Array) ? resp : []
       logger&.debug(message: 'Search returned the following index records:', details: dmps)
+      params['total_items'] = dmps.length
+      params['total_pages'] = _page_calc(params:)
 
       # Perfom search operations
       term = params.fetch('search', '').to_s.strip.downcase
@@ -161,18 +162,28 @@ module Functions
         ENV['DMP_ID_BASE_URL'] = Uc3DmpApiCore::SsmReader.get_ssm_value(key: :dmp_id_base_url, logger:)
       end
 
+      def _page_calc(params:)
+        total_items = params['total_items'].to_i
+        page = params['page'].to_f
+        per_page = params['per_page'].to_f
+        total_items > 0 ? (total_items / per_page.to_f).ceil : 1
+      end
+
       # Paginate the results based on
       def _paginate_results(results: [], params:)
-        params['total_items'] = results.length
-        params['total_pages'] = (params['total_items'].to_f / params['per_page']).ceil
+        total_items = results.length
+        page = params['page'].to_f
+        per_page = params['per_page'].to_f
+        total_pages = params['total_pages'].to_i
+
 
         # Ensure the current page is within valid bounds
-        params['page'] = params['total_pages'] if params['page'] > params['total_pages']
-        params['page'] = 1 if params['page'] < 1
+        page = total_pages if page > total_pages
+        page = 1 if page < 1
 
         # Calculate the range of results for the current page
-        start_index = (params['page'] - 1) * params['per_page']
-        end_index = [start_index + params['per_page'] - 1, params['total_items'] - 1].min
+        start_index = (page - 1) * per_page
+        end_index = [start_index + per_page - 1, total_items - 1].min
 
         # Extract the results for the current page
         results[start_index..end_index]
@@ -232,14 +243,15 @@ module Functions
           total_pages: params['total_pages'] || 1
         }
 
-        prv = body[:page] - 1
-        nxt = body[:page] + 1
-        last = body[:total_pages]
+        current_page = body[:page].to_i
+        prv = current_page - 1
+        nxt = current_page + 1
+        last = body[:total_pages].to_i
 
-        body[:first] = _build_link(url:, target_page: 1, per_page: body[:per_page]) if body[:page] > 1
-        body[:prev] = _build_link(url:, target_page: prv, per_page: body[:per_page]) if body[:page] > 1
-        body[:next] = _build_link(url:, target_page: nxt, per_page: body[:per_page]) if body[:page] < last
-        body[:last] = _build_link(url:, target_page: last, per_page: body[:per_page]) if body[:page] < last
+        body[:first] = _build_link(url:, target_page: 1, per_page: body[:per_page]) if current_page > 1
+        body[:prev] = _build_link(url:, target_page: prv, per_page: body[:per_page]) if current_page > 1
+        body[:next] = _build_link(url:, target_page: nxt, per_page: body[:per_page]) if current_page < last
+        body[:last] = _build_link(url:, target_page: last, per_page: body[:per_page]) if current_page < last
         body.compact
 
         { statusCode: status.to_i, body: body.to_json, headers: {} }
