@@ -49,27 +49,21 @@ module Uc3DmpId
         logger&.debug(message: 'Version after process_harvester_mods', details: version)
         raise UpdaterError, Helper::MSG_SERVER_ERROR if version.nil?
 
-        # Remove the version info any any lingering modification blocks
-        version.delete('dmphub_versions')
-        version.delete('dmphub_modifications')
-
-        # Set the :modified timestamps
-        now = Time.now.utc
-        version['modified'] = now.iso8601
-        version['dmphub_modification_day'] = now.strftime('%Y-%m-%d')
+        # Process the incoming payload
+        payload = _process_modifications(owner:, updater:, version:, payload:, logger:)
 
         # Save the changes
-        resp = client.put_item(json: version, logger:)
+        resp = client.put_item(json: _purge_mods(payload:), logger:)
         raise UpdaterError, Helper::MSG_DMP_UNABLE_TO_VERSION if resp.nil?
 
         # Send the updates to EZID
-        _post_process(provenance:, json: version, logger:)
+        _post_process(provenance:, json: payload, logger:)
 
         # Return the new version record
         logger.info(message: "Updated DMP ID: #{p_key}") if logger.respond_to?(:debug)
 
         # Append the :dmphub_versions Array
-        out = JSON.parse({ dmp: version }.to_json)
+        out = JSON.parse({ dmp: payload }.to_json)
         out = Versioner.append_versions(p_key:, dmp: out, client:, logger:)
         Helper.cleanse_dmp_json(json: out)
       end
@@ -106,7 +100,7 @@ module Uc3DmpId
 
         # Save the changes without creating a new version!
         logger&.debug(message: "DMP After narrative attachment", details: dmp)
-        resp = client.put_item(json: dmp, logger:)
+        resp = client.put_item(json: _purge_mods(payload: dmp), logger:)
         raise UpdaterError, Helper::MSG_DMP_UNABLE_TO_VERSION if resp.nil?
 
         logger&.debug(message: "Added DMP ID narrative for PK: #{p_key}, Narrative: #{url}")
@@ -115,6 +109,12 @@ module Uc3DmpId
       # rubocop:enable Metrics/AbcSize
 
       private
+
+      def _purge_mods(payload:)
+        # Ensure we've deleted the dmphub_mods!!!!
+        payload['dmphub_modifications'] = []
+        payload
+      end
 
       # Check to make sure the incoming JSON is valid, the DMP ID requested matches the DMP ID in the JSON
       # rubocop:disable Metrics/AbcSize
@@ -235,6 +235,40 @@ module Uc3DmpId
         logger&.debug(message: 'Returning updated VERSION:', details: version)
         version
       end
+
+      # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+      def _process_modifications(owner:, updater:, version:, payload:, logger: nil)
+        return version unless payload.is_a?(Hash) && !updater.nil?
+        return payload unless version.is_a?(Hash) && !owner.nil?
+
+        logger.debug(message: 'Modifications before processing.', details: payload) if logger.respond_to?(:debug)
+
+        excluded_keys = %w[modified dmphub_modifications dmphub_versions]
+
+        # Always remove the dmphub_versions and dmphub_modifications
+        excluded_keys.each { |key| payload.delete(key) }
+
+        # Always include the PK and SK!
+        payload['PK'] = version['PK']
+        payload['SK'] = Helper::DMP_LATEST_VERSION
+
+        # Set the :modified timestamps
+        now = Time.now.utc
+        version['modified'] = now.iso8601
+        version['dmphub_modification_day'] = now.strftime('%Y-%m-%d')
+
+        # Retain all the other attributes on the original version unless they are
+        # in the list of exclusions OR the incoming payload already has a value for it
+        version.keys.each do |key|
+          next if excluded_keys.include?(key) || !payload[key].nil?
+
+          payload[key] = version[key]
+        end
+        logger.debug(message: 'Modifications after processing.', details: payload) if logger.respond_to?(:debug)
+        payload
+      end
+      # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+
     end
   end
 end
