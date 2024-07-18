@@ -1185,8 +1185,6 @@ Outputs:
 
   DmpHubRestApiId:
     Value: !Ref DmpHubRestApi
-    Export:
-      Name: DmpHubRestApiId
 
   DeleteDmpFunctionArn:
     Value: !GetAtt DeleteDmpFunction.Arn
