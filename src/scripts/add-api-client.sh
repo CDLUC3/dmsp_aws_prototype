@@ -1,7 +1,7 @@
 
 if [ $# -ne 3 ]; then
-  echo 'Wrong number of arguments. Expecting 4:'
-  echo '  - The `env` for for the Dynamo Table (e.g. dev)'
+  echo 'Wrong number of arguments. Expecting 2:'
+  echo '  - The `env` for the Dynamo Table (e.g. dev)'
   echo '  - The Name of the external system (e.g. Foo)'
   echo '  - The Domain of the external system (e.g. example.com)'
   exit 1
@@ -24,11 +24,4 @@ echo "Creating Provenance item for $2 -> {\"PK\": \"PROVENANCE#$KEY\", \"SK\": \
 # Insert the Provenance record for the DMPTool application
 aws dynamodb put-item --table-name $DYNAMO_TABLE  \
     --item \
-        "{\"PK\":{\"S\":\"PROVENANCE#$KEY\"},\"SK\":{\"S\":\"PROFILE\"},\"contact\":{\"M\":{\"email\":{\"S\":\"$ADMIN_EMAIL\"},\"name\":{\"S\":\"Administrator\"}}},\"description\":{\"S\":\"The $2 $1 system\"},\"downloadUri\":{\"S\":\"https://$3/api/v2/plans/\"},\"homepage\":{\"S\":\"https://$3\"},\"name\":{\"S\":\"$2\"},\"redirectUri\":{\"S\":\"https://$3/callback\"},\"tokenUri\":{\"S\":\"https://$3/oauth/token\"},\"org_access_level\":{\"S\":\"all\"}}"
-
-echo ''
-echo 'Done.'
-echo ''
-echo 'Use the Partition and Sort keys listed above to find the new item in the table and ensure all of the information is correct.'
-echo 'For an overview of these records, please see: https://github.com/CDLUC3/dmp-hub-cfn/wiki/database#sample-provenance-item'
-echo ''
+        "{\"PK\":{\"S\":\"PROVENANCE#$KEY\"},\"SK\":{\"S\":\"PROFILE\"},\"contact\":{\"M\":{\"email\":{\"S\":\"$ADMIN_EMAIL\"},\"name\":{\"S\":\"Administrator\"}}},\"description\":{\"S\":\"The $2 $1 system\"},\"downloadUri\":{\"S\":\"https://$3/api/v2/plans/\"},\"homepage\":{\"S\":\"https://$3\"},\"name\":{\"S\":\"$2\"},\"redirectUri\":{\"S\":\"https://$3/callback\"},\"tokenUri\":{\"S\":\"https://$3/oauth/token\"},\"org_access_level\":{\"S\":\"restricted\"}}"

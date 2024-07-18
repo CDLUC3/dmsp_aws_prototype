@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    uc3-dmp-dynamo (0.0.21)
+    uc3-dmp-dynamo (0.0.24)
       aws-sdk-dynamodb (~> 1.83)
       json (~> 2.6)
       logger (~> 1.4)

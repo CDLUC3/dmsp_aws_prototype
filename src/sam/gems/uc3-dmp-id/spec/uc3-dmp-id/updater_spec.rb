@@ -74,6 +74,7 @@ RSpec.describe 'Uc3DmpId::Updater' do
       allow(Uc3DmpId::Helper).to receive(:eql?).and_return(false)
       allow(Uc3DmpId::Versioner).to receive(:generate_version).and_return(mods['dmp'])
       allow(client).to receive(:put_item).and_return(mods['dmp'])
+      allow(described_class).to receive(:_process_harvester_mods).and_return(mods['dmp'])
       allow(described_class).to receive(:_post_process)
 
       now = Time.now.utc.iso8601
@@ -81,7 +82,7 @@ RSpec.describe 'Uc3DmpId::Updater' do
       expect(result['dmp']['dmphub_versions']).to be_nil
       expect(result['dmp']['modified'] >= now).to be(true)
 
-      expect(described_class).to have_received(:_process_modifications).once
+      expect(described_class).to have_received(:_process_harvester_mods).once
       allow(client).to receive(:put_item).once
       expect(described_class).to have_received(:_post_process).once
     end
@@ -185,25 +186,124 @@ RSpec.describe 'Uc3DmpId::Updater' do
     end
   end
 
-  describe '_process_modifications(owner:, updater:, version:, mods:, note: nil, logger: nil)' do
-    it 'returns :version if :mods is not a Hash' do
-      result = described_class.send(:_process_modifications, owner:, updater:, version: dmp, mods: 123)
-      expect(result).to eql(dmp)
+  describe '_process_harvester_mods(client:, p_key:, json:, version:, logger: nil)' do
+    let!(:key_one) { 'https://doi.org/10.99999/repo.1234567890' }
+    let!(:key_two) { 'https://doi.org/10.99999/repo.0987654321' }
+    let!(:key_three) { 'https://doi.org/10.99999/repo.000000000' }
+
+    let!(:mod_default) do
+      {
+        confidence: 'Low',
+        descriptor: 'references',
+        discovered_at: '2024-07-12T22:43:37Z',
+        domain: 'https://doi.org/',
+        logic: ['contributor names matched'],
+        provenance: 'Datacite via Repo',
+        score: 2,
+        type: 'doi',
+        work_type: 'dataset'
+      }
     end
 
-    it 'returns :version if :updater is nil' do
-      result = described_class.send(:_process_modifications, owner:, updater: nil, version: dmp, mods:)
-      expect(result).to eql(dmp)
+    let!(:harvester_mods) do
+      JSON.parse({
+        PK: p_key,
+        SK: 'HARVESTER_MODS',
+        related_works: {
+          "#{key_one}": mod_default.merge({
+            citation: "Tester A. and Tester B. 2024. Test One Repo. #{key_one}.",
+            identifier: '10.99999/repo.1234567890',
+            status: 'pending'
+          }),
+          "#{key_two}": mod_default.merge({
+            citation: "Tester A. and Tester B. 2024. Test Two Repo. #{key_two}.",
+            identifier: '10.99999/repo.0987654321',
+            status: 'approved'
+          }),
+          "#{key_three}": mod_default.merge({
+            citation: "Tester A. and Tester B. 2024. Test Three Repo. #{key_three}.",
+            identifier: '10.99999/repo.000000000',
+            status: 'rejected'
+          })
+        },
+        tstamp: '2024-07-12T22:43:36Z'
+      }.to_json)
     end
 
-    it 'returns :mods if :version is not a Hash' do
-      result = described_class.send(:_process_modifications, owner:, updater:, version: 123, mods:)
-      expect(result).to eql(mods)
+    let!(:payload) do
+      dmp['dmp'].merge(JSON.parse({
+        dmphub_modifications: [{
+          augmenter_run_id: '2d220e0d5777d8f0',
+          dmproadmap_related_identifiers: [
+            mod_default.merge({
+              citation: "Tester A. and Tester B. 2024. Test One Repo. #{key_one}.",
+              identifier: '10.99999/repo.1234567890',
+              status: 'approved'
+            }),
+            mod_default.merge({
+              citation: "Tester A. and Tester B. 2024. Test Two Repo. #{key_two}.",
+              identifier: '10.99999/repo.0987654321',
+              status: 'approved'
+            }),
+            mod_default.merge({
+              citation: "Tester A. and Tester B. 2024. Test Three Repo. #{key_three}.",
+              identifier: '10.99999/repo.000000000',
+              status: 'rejected',
+            })
+          ]
+        }]
+      }.to_json))
     end
 
-    it 'returns :mods if :owner is nil' do
-      result = described_class.send(:_process_modifications, owner: nil, updater:, version: dmp, mods:)
-      expect(result).to eql(mods)
+    it 'returns :version as-is if :json does not have any dmphub_modifications' do
+      result = described_class.send(:_process_harvester_mods, client:, p_key:, json: {},
+                                    version: dmp['dmp'])
+      expect(result).to eql(dmp['dmp'])
+    end
+
+    it 'returns :version as-is if the DMP had no original HARVESTER_MODS record' do
+      allow(client).to receive(:get_item).and_return(nil)
+      result = described_class.send(:_process_harvester_mods, client:, p_key:,
+                                    json: payload, version: dmp['dmp'])
+      expect(result).to eql(dmp['dmp'])
+    end
+
+    it 'returns :version as-is if the original HARVESTER_MODS record has no related_works' do
+      allow(client).to receive(:get_item).and_return(JSON.parse({ test: 'testing' }.to_json))
+      result = described_class.send(:_process_harvester_mods, client:, p_key:,
+                                    json: payload, version: dmp['dmp'])
+      expect(result).to eql(dmp['dmp'])
+    end
+
+    it 'updates the HARVESTER_MODS as expected' do
+      allow(client).to receive(:get_item).and_return(harvester_mods)
+      allow(client).to receive(:put_item)
+
+      expected = harvester_mods
+      expected['related_works'][key_one]['status'] = 'approved'
+
+      result = described_class.send(:_process_harvester_mods, client:, p_key:,
+                                    json: payload, version: dmp['dmp'])
+      expect(client).to have_received(:put_item).with({ json: expected, logger: nil })
+    end
+
+    it 'appends the approved modifications in the payload to the original version' do
+      allow(client).to receive(:get_item).and_return(harvester_mods)
+      allow(client).to receive(:put_item)
+
+      result = described_class.send(:_process_harvester_mods, client:, p_key:,
+                                    json: payload, version: dmp['dmp'])
+
+      relateds = result['dmproadmap_related_identifiers']
+      id = relateds.select { |item| item['identifier'] == key_one }.first
+      expect(id['identifier']).to eql(key_one)
+      expect(id['descriptor']).to eql('references')
+      expect(id['type']).to eql('doi')
+      expect(id['work_type']).to eql('dataset')
+      expect(id['citation']).to eql("Tester A. and Tester B. 2024. Test One Repo. #{key_one}.")
+
+      expect(relateds.select { |item| item['identifier'] == key_two }.any?).to be(true)
+      expect(relateds.select { |item| item['identifier'] == key_three }.any?).to be(false)
     end
   end
 
