@@ -483,7 +483,7 @@ Resources:
       Architectures:
         - 'x86_64'
       Layers:
-        - !Ref LambdaLayer
+        - !Ref BaselineLayerId
       Policies:
         - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
         - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
@@ -984,7 +984,7 @@ Resources:
   #     Architectures:
   #       - 'x86_64'
   #     Layers:
-  #       - !Ref LambdaLayer
+  #       - !Ref BaselineLayerId
   #     Policies:
   #       - 'arn:aws:iam::aws:policy/AmazonS3FullAccess'
   #       - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'

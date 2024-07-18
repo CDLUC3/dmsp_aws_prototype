@@ -179,7 +179,7 @@ if ARGV.length >= 3
       { template_param_name: 'S3PrivateBucketId', lookup_name: "#{@cf_export_prefix}S3PrivateBucketId" },
       { template_param_name: 'S3CloudFrontBucketArn', lookup_name: "#{@cf_export_prefix}S3CloudFrontBucketArn" },
       { template_param_name: 'SnsEmailTopicArn', lookup_name: "#{@cf_export_prefix}SnsTopicEmailArn" },
-      { template_param_name: 'BaselineLayerId', lookup_name: "#{@cf_export_prefix}BaselineLayerId" }
+      { template_param_name: 'BaselineLayerId', lookup_name: "#{@cf_export_prefix}BaselineLayerId" },
       { template_param_name: 'SnsEmailTopicArn', lookup_name: "#{@cf_export_prefix}SnsTopicEmailArn" }
     ]
   end

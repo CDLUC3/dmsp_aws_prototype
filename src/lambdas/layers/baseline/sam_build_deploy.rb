@@ -183,11 +183,7 @@ if ARGV.length >= 3
 
       # Add the CF Role if this is not development
       if @env != 'dev'
-<<<<<<< HEAD
-        cf_roles = stack_exports.select do |export|
-=======
         cf_roles = @stack_exports.select do |export|
->>>>>>> main
           export.exporting_stack_id.include?('uc3-ops-aws-prd-iam') && export.name == 'uc3-prd-ops-cfn-service-role'
         end
         args << "--role-arn #{cf_roles.first&.value}"
