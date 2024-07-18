@@ -56,7 +56,7 @@ module Functions
       # Security check. If the Provenance is not allowed to see ALL orgs and the
       #                 requested org is not in the list of their allowed orgs, then
       #                 remove the requested org from the params
-      unless provenance.fetch('org_access_level', '').downcase != 'all'
+      if provenance.fetch('org_access_level', '').downcase != 'all'
         rors = provenance.fetch('ror_list', []).map { |id| id.gsub('https://ror.org/', '') }
         # Reply with a 403 if the requested Org is not in the list of approved RORs
         if !params['org'].nil? && !rors.include?(params['org'])
