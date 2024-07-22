@@ -1,4 +1,0 @@
----
-BUNDLE_PATH: "./"
-BUNDLE_WITHOUT: "test"
-BUNDLE_WITH: ""

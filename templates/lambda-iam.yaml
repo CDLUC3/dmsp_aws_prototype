@@ -142,6 +142,7 @@ Resources:
         - !Ref DynamoPolicy
         - !Ref EventBusPutEventPolicy
 
+  # Used by the Indexer and Utility Lambdas
   IndexerRole:
     Type: 'AWS::IAM::Role'
     Properties:
@@ -164,7 +165,6 @@ Resources:
         - !Ref DynamoPolicy
         - !Ref EventBusPutEventPolicy
         - !Ref VpcPolicy
-
 
   # Adding the DomainName to the SSM Parameter store here so that it's available in us-west-2 for our Lambdas
   DomainNameParameter:
