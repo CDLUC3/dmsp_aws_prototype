@@ -27,5 +27,5 @@ parameters:
 
 hooks:
   after_update:
-    cmd: 'src/scripts/add-api-client.sh prd stanford http://localhost:3000/callback'
+    cmd: 'src/add-api-client.sh prd stanford http://localhost:3000/callback'
     cmd: 'aws ssm put-parameter --overwrite --name /uc3/dmp/tool/provenance/stanford/ror_list --type String --value "[\"https://ror.org/03mtd9a03\",\"https://ror.org/00f54p054\",\"https://ror.org/014qe3j22\",\"https://ror.org/0551gkb08\"]"'

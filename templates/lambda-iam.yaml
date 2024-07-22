@@ -142,6 +142,7 @@ Resources:
         - !Ref DynamoPolicy
         - !Ref EventBusPutEventPolicy
 
+  # Used by the Indexer and Utility Lambdas
   IndexerRole:
     Type: 'AWS::IAM::Role'
     Properties:
