@@ -35,6 +35,10 @@
   </head>
 
   <body>
+
+
+
+
     <div id="swagger-ui"></div>
 
     <script src="./api-docs/swagger-ui-bundle.js"> </script>
@@ -63,7 +67,7 @@
 
         readTextFile("./api-docs/docs-list.json")
 
-        const ui = SwaggerUIBundle({
+        window.ui = SwaggerUIBundle({
           urls:JSON.parse(allText),
           dom_id: '#swagger-ui',
           deepLinking: true,
@@ -94,7 +98,7 @@
         // Replace the default Swagger logo with ours
         var images = getImagesByAlt('Swagger UI');
         if (images !== undefined && images[0] !== undefined) {
-          images[0].src="./assets/DMPTool_logo_blue_shades_v1b3b_no_tag.svg"
+          images[0].src="./api-docs/assets/DMPTool_logo_blue_shades_v1b3b_no_tag.svg"
         }
 
         // Replace the 'default' label at the top of the endpoint list with our text

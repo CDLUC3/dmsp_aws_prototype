@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: DMP-ID DynamoTable Stream function that updates OpenSearch
+Description: DMP-ID DynamoTable Stream function that updates the Dynamo INdexing table
 Parameters:
   Env:
     Type: String
@@ -11,19 +11,9 @@ Parameters:
   LogRetentionDays:
     Type: Number
     Default: 14
-  SubnetA:
-    Type: AWS::EC2::Subnet::Id
-  SubnetB:
-    Type: AWS::EC2::Subnet::Id
-  SubnetC:
-    Type: AWS::EC2::Subnet::Id
   IndexerRoleArn:
     Type: String
-  LambdaSecurityGroupId:
-    Type: String
-  OpenSearchSecurityGroupId:
-    Type: String
-  OpenSearchDomainEndpoint:
+  DynamoIndexTableName:
     Type: String
   BaselineLayerId:
     Type: String
@@ -51,20 +41,10 @@ Resources:
             Ref: Env
           LOG_LEVEL:
             Ref: DebugLevel
-          OPEN_SEARCH_DOMAIN:
-            Fn::Sub: https://${OpenSearchDomainEndpoint}
-          OPEN_SEARCH_INDEX:
-            Fn::Sub: ${Env}-dmp-id-search
-      VpcConfig:
-        SecurityGroupIds:
-        - Ref: LambdaSecurityGroupId
-        - Ref: OpenSearchSecurityGroupId
-        SubnetIds:
-        - Ref: SubnetA
-        - Ref: SubnetB
-        - Ref: SubnetC
+          DYNAMO_INDEX_TABLE:
+            Ref: DynamoIndexTableName
       Events:
-        DynamoDbOpenSearchEvent:
+        DynamoDbIndexingEvent:
           Type: DynamoDB
           Properties:
             Enabled: true
@@ -77,7 +57,7 @@ Resources:
                   Ref: DeadLetterQueueArn
     Metadata:
       SamResourceId: Function
-  OpenSearchPermission:
+  LambdaPermission:
     Type: AWS::Lambda::Permission
     Properties:
       FunctionName:

@@ -46,7 +46,10 @@ Parameters:
   DynamoTableName:
     Type: 'String'
 
-  DynamoTableStreamArn:
+  DynamoIndexTableName:
+    Type: 'String'
+
+  DynamoPolicyArn:
     Type: 'String'
 
   # ResourcesDynamoTableArn:
@@ -469,6 +472,57 @@ Resources:
       # Explicit retention time
       RetentionInDays: !Ref LogRetentionDays
 
+  # Search for DMP IDs
+  GetDmpsFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      CodeUri: 'functions/api/get_dmps'
+      Handler: 'app.Functions::GetDmps.process'
+      Runtime: 'ruby3.2'
+      Timeout: 5
+      Architectures:
+        - 'x86_64'
+      Layers:
+        - !Ref BaselineLayerId
+      Policies:
+        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonCognitoReadOnly'
+        - !Ref DynamoPolicyArn
+      DeadLetterQueue:
+        Type: 'SQS'
+        TargetArn: !Ref DeadLetterQueueArn
+      Environment:
+        Variables:
+          LAMBDA_ENV: !Ref Env
+          LOG_LEVEL: !Ref DebugLevel # 'debug'
+          SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolArn
+          DYNAMO_TABLE: !Ref DynamoTableName
+          DYNAMO_INDEX_TABLE: !Ref DynamoIndexTableName
+          CORS_ORIGIN: !If
+            - IsDev
+            - "*"
+            - !Sub "https://${DomainName}"
+      Events:
+        GetDmps:
+          Type: 'Api'
+          Properties:
+            RestApiId: !Ref DmpHubRestApi
+            Path: '/dmps'
+            Method: 'get'
+            Auth:
+              Authorizer: 'DmpHubCognitoAuthorizer'
+              AuthorizationScopes:
+                - !Sub 'https://auth.${DomainName}/${Env}.read'
+
+  GetDmpsLogGroup:
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${GetDmpsFunction}"
+      # Explicit retention time
+      RetentionInDays: !Ref LogRetentionDays
+
   # Fetch the specified DMP ID
   GetDmpFunction:
     Type: 'AWS::Serverless::Function'
@@ -514,57 +568,6 @@ Resources:
     Type: 'AWS::Logs::LogGroup'
     Properties:
       LogGroupName: !Sub "/aws/lambda/${GetDmpFunction}"
-      # Explicit retention time
-      RetentionInDays: !Ref LogRetentionDays
-
-  # Search for DMP IDs
-  GetDmpsFunction:
-    Type: 'AWS::Serverless::Function'
-    Properties:
-      CodeUri: 'functions/api/get_dmps/'
-      Handler: 'app.Functions::GetDmps.process'
-      Runtime: 'ruby3.2'
-      Timeout: 5
-      Architectures:
-        - 'x86_64'
-      Layers:
-        - !Ref BaselineLayerId
-      Policies:
-        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
-        - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
-        - 'arn:aws:iam::aws:policy/AmazonS3FullAccess'
-        - 'arn:aws:iam::aws:policy/AmazonCognitoReadOnly'
-        - !Ref DmpHubDynamoTableReadPolicy
-      DeadLetterQueue:
-        Type: 'SQS'
-        TargetArn: !Ref DeadLetterQueueArn
-      Environment:
-        Variables:
-          LAMBDA_ENV: !Ref Env
-          LOG_LEVEL: !Ref DebugLevel # 'debug'
-          SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
-          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolArn
-          DYNAMO_TABLE: !Ref DynamoTableName
-          CORS_ORIGIN: !If
-            - IsDev
-            - "*"
-            - !Sub "https://${DomainName}"
-      Events:
-        GetDmps:
-          Type: 'Api'
-          Properties:
-            RestApiId: !Ref DmpHubRestApi
-            Path: '/dmps'
-            Method: 'get'
-            Auth:
-              Authorizer: 'DmpHubCognitoAuthorizer'
-              AuthorizationScopes:
-                - !Sub 'https://auth.${DomainName}/${Env}.read'
-
-  GetDmpsLogGroup:
-    Type: 'AWS::Logs::LogGroup'
-    Properties:
-      LogGroupName: !Sub "/aws/lambda/${GetDmpsFunction}"
       # Explicit retention time
       RetentionInDays: !Ref LogRetentionDays
 
@@ -968,153 +971,68 @@ Resources:
       RetentionInDays: !Ref LogRetentionDays
 
   # Lambda responsible for communications with EZID
-  AugmenterDataciteFunction:
-    Type: 'AWS::Serverless::Function'
-    Properties:
-      CodeUri: 'functions/triggered/augmenter_datacite/'
-      Handler: 'app.Functions::AugmenterDatacite.process'
-      Runtime: 'ruby3.2'
-      # Depending on the DMP ID, there may be a lot of citations so we timeout after 5 minutes
-      Timeout: 300
-      Architectures:
-        - 'x86_64'
-      Layers:
-        - !Ref BaselineLayerId
-      Policies:
-        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
-        - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
-        - 'arn:aws:iam::aws:policy/AmazonSQSFullAccess'
-        - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
-        - !Ref DmpHubDynamoTableWritePolicy
-        - !Ref EventBusPolicy
-      Environment:
-        Variables:
-          LAMBDA_ENV: !Ref Env
-          LOG_LEVEL: !Ref DebugLevel # 'debug'
-          DOMAIN: !Ref DomainName
-          DMP_ID_BASE_URL: 'doi.org'
-          API_BASE_URL: !Sub 'https://api.${DomainName}'
-          SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
-          EVENT_BUS_NAME: !Ref EventBusArn
-          DYNAMO_TABLE: !Ref DynamoTableName
-      Events:
-        AugmenterDataciteEvent:
-          Type: 'EventBridgeRule'
-          Properties:
-            DeadLetterConfig:
-              Arn: !Ref DeadLetterQueueArn
-            EventBusName: !Ref EventBusArn
-            Pattern: !Sub >
-              {
-                "source": ["${DomainName}:lambda:event_publisher"],
-                "detail-type": ["RelatedWorkScan"]
-              }
-            RetryPolicy:
-              MaximumEventAgeInSeconds: 180
-              MaximumRetryAttempts: 3
-            State: 'ENABLED'  # 'DISABLED'
-
-  AugmenterDatacitePermission:
-    Type: 'AWS::Lambda::Permission'
-    Properties:
-      FunctionName: !Ref AugmenterDataciteFunction
-      Action: 'lambda:InvokeFunction'
-      Principal: 'events.amazonaws.com'
-
-  # Annoyingly, SAM does not auto-generate LogGroup for a non-API tiggered lambda
-  AugmenterDataciteFunctionLogGroup:
-    Type: 'AWS::Logs::LogGroup'
-    DependsOn:
-      - AugmenterDataciteFunction
-    Properties:
-      LogGroupName: !Sub "/aws/lambda/${AugmenterDataciteFunction}"
-      RetentionInDays: !Ref LogRetentionDays
-
-  # ----------------------------------------------------
-  # Scheduled Lambdas
-  #   See: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-property-function-sns.html
-  # ----------------------------------------------------
-  # Lambda responsible for fetching BibTex citations
-  AugmentationSchedulerFunction:
-    Type: 'AWS::Serverless::Function'
-    Properties:
-      CodeUri: 'functions/scheduled/augmentation_scheduler'
-      Handler: 'app.Functions::AugmentationScheduler.process'
-      Runtime: 'ruby3.2'
-      # Depending on the DMP ID, there may be a lot of citations so we timeout after 5 minutes
-      Timeout: 300
-      Architectures:
-        - 'x86_64'
-      Layers:
-        - !Ref BaselineLayerId
-      Policies:
-        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
-        - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
-        - 'arn:aws:iam::aws:policy/AmazonSQSFullAccess'
-        - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
-        - !Ref DmpHubDynamoTableWritePolicy
-        - !Ref EventBusPolicy
-      Environment:
-        Variables:
-          LAMBDA_ENV: !Ref Env
-          LOG_LEVEL: !Ref DebugLevel # 'debug'
-          DOMAIN: !Ref DomainName
-          DMP_ID_BASE_URL: 'doi.org'
-          API_BASE_URL: !Sub 'https://api.${DomainName}'
-          SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
-          EVENT_BUS_NAME: !Ref EventBusArn
-          DYNAMO_TABLE: !Ref DynamoTableName
-      Events:
-        AugmentationSchedulerEvent:
-          Type: 'EventBridgeRule'
-          Properties:
-            DeadLetterConfig:
-              Arn: !Ref DeadLetterQueueArn
-            EventBusName: !Ref EventBusArn
-            Pattern: !Sub >
-              {
-                "source": ["${DomainName}:lambda:event_publisher"],
-                "detail-type": ["ScannerStart"]
-              }
-            RetryPolicy:
-              MaximumEventAgeInSeconds: 180
-              MaximumRetryAttempts: 3
-            State: 'ENABLED'
-
-  AugmentationSchedulerPermission:
-    Type: 'AWS::Lambda::Permission'
-    Properties:
-      FunctionName: !Ref AugmentationSchedulerFunction
-      Action: 'lambda:InvokeFunction'
-      Principal: 'events.amazonaws.com'
-
-  # Annoyingly, SAM does not auto-generate LogGroup for a non-API tiggered lambda
-  AugmentationSchedulerFunctionLogGroup:
-    Type: 'AWS::Logs::LogGroup'
-    DependsOn:
-      - AugmentationSchedulerFunction
-    Properties:
-      LogGroupName: !Sub "/aws/lambda/${AugmentationSchedulerFunction}"
-      RetentionInDays: !Ref LogRetentionDays
-
-  # Scheduled events
-  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-events-rule.html#cfn-events-rule-scheduleexpression
-  # AugmentationSchedulerDaily:
-  #   Type: 'AWS::Events::Rule'
+  # ExplorerRorFunction:
+  #   Type: 'AWS::Serverless::Function'
   #   Properties:
-  #     # AWS CRON expressions have some nuances: https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-cron-expressions.html
-  #     ScheduleExpression: 'cron(0 0 ? * * *)' # Every night at midnight
-  #     Targets:
-  #       - Id: !Ref AugmentationSchedulerFunction
-  #         Arn: !GetAtt AugmentationSchedulerFunction.Arn
+  #     CodeUri: 'functions/triggered/explorer_ror/'
+  #     Handler: 'app.Functions::ExplorerRor.process'
+  #     Runtime: 'ruby3.2'
+  #     # Extended timeout to 15 minutes and nbump the memory to .5GB here since we download the complete
+  #     # ROR file and it is a large ZIP archive
+  #     Timeout: 900
+  #     MemorySize: 512
+  #     Architectures:
+  #       - 'x86_64'
+  #     Layers:
+  #       - !Ref BaselineLayerId
+  #     Policies:
+  #       - 'arn:aws:iam::aws:policy/AmazonS3FullAccess'
+  #       - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
+  #       - 'arn:aws:iam::aws:policy/AmazonSQSFullAccess'
+  #       - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
+  #       - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
+  #       - !Ref ResourcesDynamoTableWritePolicy
+  #       - !Ref EventBusPolicy
+  #     Environment:
+  #       Variables:
+  #         LAMBDA_ENV: !Ref Env
+  #         LOG_LEVEL: !Ref DebugLevel # 'debug'
+  #         DOMAIN: !Ref DomainName
+  #         SNS_FATAL_ERROR_TOPIC: !Ref SnsEmailTopicArn
+  #         DYNAMO_TABLE: !Ref ResourcesDynamoTableName
+  #         S3_BUCKET: !Ref S3PrivateBucketId
+  #     Events:
+  #       ExplorerRorEvent:
+  #         Type: 'EventBridgeRule'
+  #         Properties:
+  #           DeadLetterConfig:
+  #             Arn: !Ref DeadLetterQueueArn
+  #           EventBusName: !Ref EventBusArn
+  #           Pattern: !Sub >
+  #             {
+  #               "source": ["${DomainName}:lambda:event_publisher"],
+  #               "detail-type": ["ExploreRor"]
+  #             }
+  #           RetryPolicy:
+  #             MaximumEventAgeInSeconds: 180
+  #             MaximumRetryAttempts: 3
+  #           State: 'ENABLED'  # 'DISABLED'
 
-  # AugmentationSchedulerDailyPermission:
+  # ExplorerRorPermission:
   #   Type: 'AWS::Lambda::Permission'
   #   Properties:
-  #     FunctionName: !GetAtt AugmentationSchedulerFunction.Arn
+  #     FunctionName: !Ref ExplorerRorFunction
   #     Action: 'lambda:InvokeFunction'
   #     Principal: 'events.amazonaws.com'
-  #     SourceArn: !GetAtt AugmentationSchedulerDaily.Arn
+
+  # # Annoyingly, SAM does not auto-generate LogGroup for a non-API tiggered lambda
+  # ExplorerRorFunctionLogGroup:
+  #   Type: 'AWS::Logs::LogGroup'
+  #   DependsOn:
+  #     - ExplorerRorFunction
+  #   Properties:
+  #     LogGroupName: !Sub "/aws/lambda/${ExplorerRorFunction}"
+  #     RetentionInDays: !Ref LogRetentionDays
 
   # Scheduled events to keep some of the API lambdas warm
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-events-rule.html#cfn-events-rule-scheduleexpression
@@ -1123,50 +1041,14 @@ Resources:
     Properties:
       ScheduleExpression: 'rate(10 minutes)'
       Targets:
-        - Id: !Ref DeleteDmpFunction
-          Arn: !GetAtt DeleteDmpFunction.Arn
         - Id: !Ref GetDmpFunction
           Arn: !GetAtt GetDmpFunction.Arn
-        - Id: !Ref PostDmpsFunction
-          Arn: !GetAtt PostDmpsFunction.Arn
-        - Id: !Ref PutDmpFunction
-          Arn: !GetAtt PutDmpFunction.Arn
+        - Id: !Ref GetDmpsFunction
+          Arn: !GetAtt GetDmpsFunction.Arn
         - Id: !Ref ValidateDmpFunction
           Arn: !GetAtt ValidateDmpFunction.Arn
 
   # Lambda Permissions to allow the pre-warmer scheduled event to invoke the API Lambdas
-  DeleteDmpWarmerPermission:
-    Type: 'AWS::Lambda::Permission'
-    Properties:
-      FunctionName: !GetAtt DeleteDmpFunction.Arn
-      Action: 'lambda:InvokeFunction'
-      Principal: 'events.amazonaws.com'
-      SourceArn: !GetAtt LambdaDmpWarmerRule.Arn
-
-  GetDmpWarmerPermission:
-    Type: 'AWS::Lambda::Permission'
-    Properties:
-      FunctionName: !GetAtt GetDmpFunction.Arn
-      Action: 'lambda:InvokeFunction'
-      Principal: 'events.amazonaws.com'
-      SourceArn: !GetAtt LambdaDmpWarmerRule.Arn
-
-  PostDmpsWarmerPermission:
-    Type: 'AWS::Lambda::Permission'
-    Properties:
-      FunctionName: !GetAtt PostDmpsFunction.Arn
-      Action: 'lambda:InvokeFunction'
-      Principal: 'events.amazonaws.com'
-      SourceArn: !GetAtt LambdaDmpWarmerRule.Arn
-
-  PutDmpWarmerPermission:
-    Type: 'AWS::Lambda::Permission'
-    Properties:
-      FunctionName: !GetAtt PutDmpFunction.Arn
-      Action: 'lambda:InvokeFunction'
-      Principal: 'events.amazonaws.com'
-      SourceArn: !GetAtt LambdaDmpWarmerRule.Arn
-
   ValidateDmpWarmerPermission:
     Type: 'AWS::Lambda::Permission'
     Properties:
@@ -1221,6 +1103,9 @@ Outputs:
   S3BucketPolicyArn:
     Value: !Ref S3BucketPolicy
 
+  DmpHubRestApiId:
+    Value: !Ref DmpHubRestApi
+
   DeleteDmpFunctionArn:
     Value: !GetAtt DeleteDmpFunction.Arn
   GetAwardsCrossrefFunctionArn:
@@ -1229,8 +1114,6 @@ Outputs:
     Value: !GetAtt GetAwardsNihApiFunction.Arn
   GetAwardsNsfFunctionArn:
     Value: !GetAtt GetAwardsNsfApiFunction.Arn
-  GetDmpFunctionArn:
-    Value: !GetAtt GetDmpFunction.Arn
   PostDmpsFunctionArn:
     Value: !GetAtt PostDmpsFunction.Arn
   PostNarrativeFunctionArn:
