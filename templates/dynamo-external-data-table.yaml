@@ -1,0 +1,139 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: 'DynamoDB that holds local copies of external data'
+
+Parameters:
+  Env:
+    Type: 'String'
+    Default: 'dev'
+
+  Domain:
+    Type: 'String'
+
+  SsmPath:
+    Type: 'String'
+
+  DynamoTableClass:
+    Type: 'String'
+    Default: 'STANDARD'
+    AllowedValues:
+      - 'STANDARD'
+      - 'STANDARD_INFREQUENT_ACCESS'
+  DynamoEnableContributorInsights:
+    Type: 'String'
+    Default: 'false'
+    AllowedValues:
+      - 'true'
+      - 'false'
+  DynamoEnablePointInTimeRecovery:
+    Type: 'String'
+    Default: 'false'
+    AllowedValues:
+      - 'true'
+      - 'false'
+  DynamoBillingMode:
+    Type: 'String'
+    Default: 'PROVISIONED'
+    AllowedValues:
+      - 'PROVISIONED'
+      - 'PAY_PER_REQUEST'
+  DynamoReadCapacityUnits:
+    Type: 'Number'
+    Default: 10
+  DynamoWriteCapacityUnits:
+    Type: 'Number'
+    Default: 10
+
+  RdsSnapshot:
+    Type: 'String'
+    Default: 'none'
+
+Conditions:
+  PreventDelete:
+    !Equals [!Ref Env, 'prd']
+
+  ProvisionedCapacity:
+    !Not [!Equals [!Ref DynamoBillingMode, 'PAY_PER_REQUEST']]
+
+Resources:
+  # ----------------------------------------------
+  # DynamoDB polymorphic table for external info (e.g. ROR, DataCite, Crossref, etc.)
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html
+  # ----------------------------------------------
+  DynamoTable:
+    Type: 'AWS::DynamoDB::Table'
+    DeletionPolicy: !If
+      - PreventDelete
+      - 'Retain'
+      - 'Delete'
+    Properties:
+      KeySchema:
+        - AttributeName: 'RESOURCE_TYPE'
+          KeyType: 'HASH'
+        - AttributeName: 'ID'
+          KeyType: 'RANGE'
+
+      AttributeDefinitions:
+        # The type of record (e.g. FUNDER, REPOSITORY, PERSON, etc.)
+        - AttributeName: 'RESOURCE_TYPE'
+          AttributeType: 'S'
+        # The identifier for the resource (e.g. ROR, ORCID, URL, etc.)
+        - AttributeName: 'ID'
+          AttributeType: 'S'
+        # The last updated date
+        - AttributeName: 'source'
+          AttributeType: 'S'
+
+      GlobalSecondaryIndexes:
+        # An index to help us quickly fetch all of the
+        - IndexName: 'source_gsi'
+          KeySchema:
+            - AttributeName: 'source'
+              KeyType: 'HASH'
+            - AttributeName: 'ID'
+              KeyType: 'RANGE'
+          Projection:
+            ProjectionType: 'INCLUDE'
+            NonKeyAttributes: ['RESOURCE_TYPE', 'touch_date']
+          ContributorInsightsSpecification:
+            Enabled: !Ref DynamoEnableContributorInsights
+          ProvisionedThroughput: !If
+            - ProvisionedCapacity
+            - ReadCapacityUnits: !Ref DynamoReadCapacityUnits
+              WriteCapacityUnits: !Ref DynamoWriteCapacityUnits
+            - !Ref AWS::NoValue
+
+      StreamSpecification:
+        StreamViewType: 'NEW_IMAGE'
+
+      BillingMode: !Ref DynamoBillingMode
+      TableClass: !Ref DynamoTableClass
+      ProvisionedThroughput: !If
+        - ProvisionedCapacity
+        - ReadCapacityUnits: !Ref DynamoReadCapacityUnits
+          WriteCapacityUnits: !Ref DynamoWriteCapacityUnits
+        - !Ref AWS::NoValue
+      ContributorInsightsSpecification:
+        Enabled: !Ref DynamoEnableContributorInsights
+      # Determine cost before enabling
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: !Ref DynamoEnablePointInTimeRecovery
+
+Outputs:
+  ExternalDataDynamoTableName:
+    Value: !Select [1, !Split ['/', !GetAtt DynamoTable.Arn]]
+    Export:
+      Name: !Sub '${Env}-ExternalDataDynamoTableName'
+
+  ExternalDataDynamoTableStreamArn:
+    Value: !GetAtt DynamoTable.StreamArn
+    Export:
+      Name: !Sub '${Env}-ExternalDataDynamoTableStreamArn'
+
+  ExternalDataDynamoTableId:
+    Value: !Ref DynamoTable
+
+  ExternalDataDynamoTableArn:
+    Value: !GetAtt DynamoTable.Arn
+    Export:
+      Name: !Sub '${Env}-ExternalDataDynamoTableArn'

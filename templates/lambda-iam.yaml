@@ -25,6 +25,9 @@ Parameters:
   IndexTableArn:
     Type: 'String'
 
+  ExternalDataTableArn:
+    Type: 'String'
+
 Resources:
   # ----------------------------------------------------
   # Managed IAM Policies for DMPHub resources
@@ -55,6 +58,8 @@ Resources:
             - !Sub '${DmpTableArn}/index/*'
             - !Ref IndexTableArn
             - !Sub '${IndexTableArn}/index/*'
+            - !Ref ExternalDataTableArn
+            - !Sub '${ExternalDataTableArn}/index/*'
 
   DynamoStreamPolicy:
     Type: 'AWS::IAM::ManagedPolicy'
@@ -72,6 +77,7 @@ Resources:
             - 'dynamodb:ListStreams'
           Resource:
             - !Sub '${DmpTableArn}/stream/*'
+            - !Sub '${ExternalDataTableArn}/stream/*'
 
   EventBusPutEventPolicy:
     Type: 'AWS::IAM::ManagedPolicy'
