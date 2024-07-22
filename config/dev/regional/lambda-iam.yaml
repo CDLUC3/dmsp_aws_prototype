@@ -16,4 +16,4 @@ parameters:
 
   IndexTableArn: !stack_output dev/regional/dynamo-index-table.yaml::DynamoIndexTableArn
 
-  ExternalDataTableArn: !stack_output dev/regional/dynamo-external-data-table.yaml::DynamoExternalDataTableArn
+  ExternalDataTableArn: !stack_output dev/regional/dynamo-external-data-table.yaml::ExternalDataDynamoTableArn
