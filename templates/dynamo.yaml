@@ -57,47 +57,6 @@ Conditions:
 
 Resources:
   # ----------------------------------------------
-  # DynamoDB polymorphic table for external info (e.g. ROR, DataCite, Crossref, etc.)
-  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html
-  # ----------------------------------------------
-  TypeaheadTable:
-    Type: 'AWS::DynamoDB::Table'
-    DeletionPolicy: !If
-      - PreventDelete
-      - 'Retain'
-      - 'Delete'
-    Properties:
-      KeySchema:
-        - AttributeName: 'PK'
-          KeyType: 'HASH'
-        - AttributeName: 'SK'
-          KeyType: 'RANGE'
-
-      AttributeDefinitions:
-        # The type of record (e.g. INSTITUTION, REPOSITORY, LICENSE, etc.)
-        - AttributeName: 'PK'
-          AttributeType: 'S'
-        # The identifier for the resource (e.g. https://ror.org/12345, https://doi.org/12345, https://www.example.com, etc.)
-        - AttributeName: 'SK'
-          AttributeType: 'S'
-
-      StreamSpecification:
-        StreamViewType: 'NEW_IMAGE'
-
-      BillingMode: !Ref DynamoBillingMode
-      TableClass: !Ref DynamoTableClass
-      ProvisionedThroughput: !If
-        - ProvisionedCapacity
-        - ReadCapacityUnits: !Ref DynamoReadCapacityUnits
-          WriteCapacityUnits: !Ref DynamoWriteCapacityUnits
-        - !Ref AWS::NoValue
-      ContributorInsightsSpecification:
-        Enabled: !Ref DynamoEnableContributorInsights
-      # Determine cost before enabling
-      PointInTimeRecoverySpecification:
-        PointInTimeRecoveryEnabled: !Ref DynamoEnablePointInTimeRecovery
-
-  # ----------------------------------------------
   # DynamoDB polymorphic table for DMPs
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html
   # ----------------------------------------------
@@ -233,11 +192,6 @@ Resources:
       Value: !Select [1, !Split ['/', !GetAtt DynamoTable.Arn]]
 
 Outputs:
-  TypeaheadTableName:
-    Value: !Select [1, !Split ['/', !GetAtt TypeaheadTable.Arn]]
-    Export:
-      Name: !Sub '${Env}-TypeaheadTableName'
-
   DynamoTableName:
     Value: !Select [1, !Split ['/', !GetAtt DynamoTable.Arn]]
     Export:

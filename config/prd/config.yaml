@@ -15,4 +15,6 @@ stack_tags:
   Contact: 'briley'
 
 # In the cdl-uc3-prd account devs must call cloudformation using a service role
-cloudformation_service_role: !ssm_parameter /uc3/prd/CfnServiceRoleArn
+cloudformation_service_role: !ssm
+  name: /uc3/prd/CfnServiceRoleArn
+  region: us-west-2
