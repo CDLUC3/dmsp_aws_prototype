@@ -276,28 +276,6 @@ Resources:
       # The length of time the user can refresh their token
       RefreshTokenValidity: !Ref RefreshTokenValidity
 
-  # New ReactJS UI Client
-  #    WARNING: Changes to this Client may result in a new Client Id/Secret. If so, you will need to
-  #             update the SSM params in `/uc3/dmp/hub/${Env}/DmspClient[Id/Secret]`
-  #             You will also need to inform the ReactJS admin of the change.
-  DmspUserPoolClient:
-    Type: 'AWS::Cognito::UserPoolClient'
-    #DeletionPolicy: Retain
-    Properties:
-      ClientName: !Sub '${AWS::StackName}-dmsp-ui'
-      UserPoolId: !Ref UserPool
-      GenerateSecret: true
-      AllowedOAuthFlowsUserPoolClient: true
-      AllowedOAuthFlows:
-        - 'code'
-      AllowedOAuthScopes:
-        - 'email'
-        - 'openid'
-      CallbackURLs: !Ref DmspUiCallbackUrls
-      LogoutURLs: !Ref DmspLogoutUrls
-      SupportedIdentityProviders:
-        - 'COGNITO'
-
   # -----------------------------------------------------------
   # Route53 - DNS configuration
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_Route53.html
@@ -330,10 +308,10 @@ Outputs:
       Name: !Sub '${Env}-CognitoUserPoolArn'
 
   DmspUserPoolClientId:
-    Value: !Ref DmspUserPoolClient
+    Value: !Ref UiUserPoolClient
 
   DmspUserPoolClientSecret:
-    Value: !GetAtt DmspUserPoolClient.ClientSecret
+    Value: !GetAtt UiUserPoolClient.ClientSecret
 
   # DmspUserPoolclientUrl:
   #   Value: !Sub 'https://${Subdomain}.${Domain}.${AWS::Region}.amazoncognito.com/login?response_type=code&client_id=${DmspUserPoolClient}&redirect_uri=${DmspUiRedirectUrl}'

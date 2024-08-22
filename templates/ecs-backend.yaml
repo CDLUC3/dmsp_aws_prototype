@@ -219,8 +219,6 @@ Resources:
             - ContainerPort: !Ref DbPort
               Protocol: 'tcp'
           Environment:
-            - Name: 'APP_ENV'
-              Value: !Ref AppEnv
             - Name: 'LOG_LEVEL'
               Value: !Ref LogLevel
             - Name: 'USE_MOCK_DATA'

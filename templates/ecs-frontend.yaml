@@ -33,6 +33,15 @@ Parameters:
     Type: 'Number'
     Default: 4000
 
+  NextPublicBaseUrl:
+    Type: 'String'
+
+  NextPublicServerEndpoint:
+    Type: 'String'
+
+  NextPublicGraphqlServerEndpoint:
+    Type: 'String'
+
   JwtSecret:
     Type: 'String'
 
@@ -174,6 +183,12 @@ Resources:
               Value: !Ref LogLevel
             - Name: 'JWT_SECRET'
               Value: !Ref JwtSecret
+            - Name: 'NEXT_PUBLIC_BASE_URL'
+              Value: !Ref NextPublicBaseUrl
+            - Name: 'NEXT_PUBLIC_SERVER_ENDPOINT'
+              Value: !Ref NextPublicServerEndpoint
+            - Name: 'NEXT_PUBLIC_GRAPHQL_SERVER_ENDPOINT'
+              Value: !Ref NextPublicGraphqlServerEndpoint
 
   # Container Service definition
   EcsService:

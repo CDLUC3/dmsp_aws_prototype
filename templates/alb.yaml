@@ -213,12 +213,34 @@ Resources:
         - Field: 'path-pattern'
           PathPatternConfig:
             Values:
+              # NextJS support
               - '/graphql'
-              - '/auth'
-              - '/token'
-              - '/up'
+              - '/apollo-signin'
+              - '/apollo-signout'
+              - '/apollo-signup'
       ListenerArn: !GetAtt AlbListenerHttps.ListenerArn
       Priority: 1
+
+  # Listener rule to send traffic to certain paths to the Apollo server backend
+  ApolloServerListenerRule2:
+    Type: 'AWS::ElasticLoadBalancingV2::ListenerRule'
+    Properties:
+      Actions:
+        - Type: 'forward'
+          TargetGroupArn: !Ref ApolloServerTargetGroup
+      Conditions:
+        - Field: 'path-pattern'
+          PathPatternConfig:
+            Values:
+              # ALB healthcheck
+              - '/up'
+
+              # OAuth2 support
+              - '/apollo-authenticate'
+              - '/apollo-authorize'
+              - '/apollo-token'
+      ListenerArn: !GetAtt AlbListenerHttps.ListenerArn
+      Priority: 5 # Big jump here. CF won't allow you to reorder and add additional at the same time
 
   # Listener rule to send traffic to certain paths to the Apollo server backend
   NextJsServerListenerRule:
@@ -233,7 +255,7 @@ Resources:
             Values:
               - '/healthcheck'
       ListenerArn: !GetAtt AlbListenerHttps.ListenerArn
-      Priority: 2
+      Priority: 10 # Big jump here. CF won't allow you to reorder and add additional at the same time
 
   # TODO: Add the listener rule to send traffic to Shibboleth
 
