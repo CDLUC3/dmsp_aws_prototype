@@ -91,6 +91,17 @@ Parameters:
   DmpIdShoulder:
     Type: 'String'
 
+  RestDataSourceCacheTtl:
+    Type: 'Number'
+    Default: 180
+
+  JwtSecret:
+    Type: 'String'
+
+  JwtTtl:
+    Type: 'String'
+    Default: '1hr'
+
   DbConnectionLimit:
     Type: 'Number'
     Default: 5
@@ -208,10 +219,19 @@ Resources:
             - ContainerPort: !Ref DbPort
               Protocol: 'tcp'
           Environment:
+            - Name: 'APP_ENV'
+              Value: !Ref AppEnv
             - Name: 'LOG_LEVEL'
               Value: !Ref LogLevel
             - Name: 'USE_MOCK_DATA'
               Value: !Ref UseMockData
+
+            - Name: 'REST_DATA_SOURCE_CACHE_TTL'
+              Value: !Ref RestDataSourceCacheTtl
+            - Name: 'JWT_SECRET'
+              Value: !Ref JwtSecret
+            - Name: 'JWT_TTL'
+              Value: !Ref JwtTtl
 
             - Name: 'DMP_ID_BASE_URL'
               Value: !Ref DmpIdBaseUrl

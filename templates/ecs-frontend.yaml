@@ -33,6 +33,9 @@ Parameters:
     Type: 'Number'
     Default: 4000
 
+  JwtSecret:
+    Type: 'String'
+
   EcsDesiredServiceCount:
     Type: 'Number'
     Default: 1
@@ -169,6 +172,8 @@ Resources:
           Environment:
             - Name: 'LOG_LEVEL'
               Value: !Ref LogLevel
+            - Name: 'JWT_SECRET'
+              Value: !Ref JwtSecret
 
   # Container Service definition
   EcsService:

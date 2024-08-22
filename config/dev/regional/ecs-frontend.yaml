@@ -40,4 +40,6 @@ parameters:
 
   LogLevel: 'debug'
 
-  HelpdeskEmail: !ssm_parameter /uc3/dmsp/prototype/dev/HelpdeskEmail
+  JwtSecret: !ssm /uc3/dmp/tool/dev/JWTSecret
+
+  HelpdeskEmail: !ssm /uc3/dmsp/prototype/dev/HelpdeskEmail

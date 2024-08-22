@@ -23,7 +23,7 @@ parameters:
   S3ArtifactBucketArn: !stack_output dev/regional/s3.yaml::S3PrivateBucketArn
   S3ArtifactBucketId: !stack_output dev/regional/s3.yaml::S3PrivateBucketId
 
-  CodeStarConnectionArn: !ssm_parameter /uc3/CodeStarConnectionArn
+  CodeStarConnectionArn: !ssm /uc3/CodeStarConnectionArn
 
   # DbSecurityGroupId: !stack_output dev/regional/rds.yaml::DbSecurityGroupId
 
@@ -33,8 +33,8 @@ parameters:
   DbHost: !stack_output dev/regional/rds.yaml::DbAddress
   DbPort: !stack_output dev/regional/rds.yaml::DbPort
   DbName: !stack_output dev/regional/rds.yaml::DbName
-  DbUsername: !ssm_parameter /uc3/dmp/hub/dev/DbUsername
-  DbPassword: !ssm_parameter /uc3/dmp/hub/dev/DbPassword
+  DbUsername: !ssm /uc3/dmp/hub/dev/DbUsername
+  DbPassword: !ssm /uc3/dmp/hub/dev/DbPassword
 
   AppName: !stack_attr sceptre_user_data.backend_server_container_name
 
