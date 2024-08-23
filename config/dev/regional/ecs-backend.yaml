@@ -38,16 +38,20 @@ parameters:
   CognitoClientId: !stack_output dev/regional/cognito.yaml::DmspUserPoolClientId
   CognitoClientSecret: !stack_output dev/regional/cognito.yaml::DmspUserPoolClientSecret
 
-  DmpIdBaseUrl: !ssm_parameter /uc3/dmp/hub/dev/EzidBaseUrl
-  DmpIdShoulder: !ssm_parameter /uc3/dmp/hub/dev/EzidShoulder
+  DmpIdBaseUrl: !ssm /uc3/dmp/hub/dev/EzidBaseUrl
+  DmpIdShoulder: !ssm /uc3/dmp/hub/dev/EzidShoulder
+
+  RestDataSourceCacheTtl: '180'
+  JwtSecret: !ssm /uc3/dmp/tool/dev/JWTSecret
+  JwtTtl: '1hr'
 
   DbConnectionLimit: '5'
   DbHost: !stack_output dev/regional/rds.yaml::DbAddress
   DbPort: !stack_output dev/regional/rds.yaml::DbPort
   DbName: !stack_output dev/regional/rds.yaml::DbName
-  DbUsername: !ssm_parameter /uc3/dmp/hub/dev/DbUsername
-  DbPassword: !ssm_parameter /uc3/dmp/hub/dev/DbPassword
+  DbUsername: !ssm /uc3/dmp/hub/dev/DbUsername
+  DbPassword: !ssm /uc3/dmp/hub/dev/DbPassword
 
-  HelpdeskEmail: !ssm_parameter /uc3/dmsp/prototype/dev/HelpdeskEmail
+  HelpdeskEmail: !ssm /uc3/dmsp/prototype/dev/HelpdeskEmail
 
   UseMockData: 'true'

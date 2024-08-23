@@ -3,7 +3,7 @@ template:
   type: 'file'
 
 parameters:
-  CodeStarConnectionArn: !ssm_parameter /uc3/CodeStarConnectionArn
+  CodeStarConnectionArn: !ssm /uc3/CodeStarConnectionArn
 
   S3ArtifactBucketId: !stack_output dev/regional/s3.yaml::S3PrivateBucketId
 

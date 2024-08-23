@@ -22,7 +22,7 @@ parameters:
   S3ArtifactBucketArn: !stack_output dev/regional/s3.yaml::S3PrivateBucketArn
   S3ArtifactBucketId: !stack_output dev/regional/s3.yaml::S3PrivateBucketId
 
-  CodeStarConnectionArn: !ssm_parameter /uc3/CodeStarConnectionArn
+  CodeStarConnectionArn: !ssm /uc3/CodeStarConnectionArn
 
   DbSecurityGroupId: !stack_output dev/regional/rds.yaml::DbSecurityGroupId
   DbPort: !stack_output dev/regional/rds.yaml::DbPort

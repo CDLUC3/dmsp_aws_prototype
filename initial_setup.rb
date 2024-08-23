@@ -18,10 +18,14 @@ OptionParser.new do |parser|
   parser.on("-s", "--ezid-shoulder SHOULDER", "Your EZID DOI shoulder") { |s| @opts[:ezid_shoulder] = s }
   parser.on("-u", "--ezid-username USER", "Your EZID username") { |u| @opts[:ezid_user] = u }
   parser.on("-p", "--ezid-password PWD", "Your EZID password") { |p| @opts[:ezid_pwd] = p }
+  parser.on("-j", "--jwt-secret JWT_SECRET", "The DMPTool JSON Web Token Secret") { |p| @opts[:jwt_secret] = p }
 end.parse!
 
 def put_param(key:, val:, secure: false, override: false)
-  name = "/uc3/dmp/hub/#{@opts[:env]}/#{key}"
+  dmptool_vals = %w[JWTSecret]
+  service = dmptool_vals.include?(key) ? 'tool' : 'hub'
+  name = "/uc3/dmp/#{service}/#{@opts[:env]}/#{key}"
+
   args = [
     "--region #{@opts[:region]}",
     "--name #{name}",
@@ -55,6 +59,8 @@ if @opts.length > 3 && !@opts[:env].nil?
   put_param(key: 'EzidShoulder', val: @opts[:ezid_shoulder], secure: true) unless @opts[:ezid_shoulder].nil?
   put_param(key: 'EzidUsername', val: @opts[:ezid_user], secure: true) unless @opts[:ezid_user].nil?
   put_param(key: 'EzidPassword', val: @opts[:ezid_pwd], secure: true) unless @opts[:ezid_pwd].nil?
+
+  put_param(key: 'JWTSecret', val: @opts[:jwt_secret], secure: true) unless @opts[:jwt_secret].nil?
 else
   puts 'You must specify the environment and one or more options! Run `ruby initial_setup -h` for more info.'
 end
