@@ -42,6 +42,16 @@ Parameters:
   AlbTargetGroupArn:
     Type: 'String'
 
+  CacheHost:
+    Type: 'String'
+
+  CachePort:
+    Type: 'String'
+
+  CacheConnectTimeout:
+    Type: 'Number'
+    Default: 10000 # 10 seconds
+
   CpuSize:
     Type: 'String'
     Default: '2048' # 2 vCPU
@@ -95,12 +105,42 @@ Parameters:
     Type: 'Number'
     Default: 180
 
+  NodeEnv:
+    Type: 'String'
+    Default: 'development'
+
+  BcryptSaltRounds:
+    Type: 'Number'
+    Default: 10
+
+  HashTokenSecret:
+    Type: 'String'
+
+  RestDataSourceCacheTtl:
+    Type: 'Number'
+    Default: 180 # 2 minutes
+
   JwtSecret:
     Type: 'String'
 
   JwtTtl:
+    Type: 'Number'
+    Default: 600 # 10 minutes
+
+  JwtRefreshSecret:
     Type: 'String'
-    Default: '1hr'
+
+  JwtRefreshTtl:
+    Type: 'Number'
+    Default: 86400 # 1 day
+
+  CsrfLength:
+    Type: 'Number'
+    Default: 32
+
+  CsrfTtl:
+    Type: 'Number'
+    Default: 3600 # 1 hour
 
   DbConnectionLimit:
     Type: 'Number'
@@ -137,11 +177,33 @@ Conditions:
   IsDev:
     !Equals [!Ref Env, 'dev']
 
+  IsSingleInstance:
+    !Equals [!Ref EcsDesiredServiceCount, 1]
+
 Resources:
   # -----------------------------------------------------------
   # Identitity and Access Management (IAM)
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_IAM.html
   # -----------------------------------------------------------
+  # Policy to allow SSM Session Manager to access our ECS containers
+  SessionManagerPolicy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          Effect: 'Allow'
+          Action:
+            - 'ecs:ExecuteCommand'
+            - 'ssmmessages:CreateControlChannel'
+            - 'ssmmessages:CreateDataChannel'
+            - 'ssmmessages:OpenControlChannel'
+            - 'ssmmessages:OpenDataChannel'
+          Resource: '*'
+          Condition:
+            StringEquals:
+              "ecs:container-name": !Ref AppName
+
   # Role that grants our containers in the task permission to call AWS APIs
   EcsTaskRole:
     Type: 'AWS::IAM::Role'
@@ -162,10 +224,8 @@ Resources:
         - 'arn:aws:iam::aws:policy/AmazonRDSDataFullAccess'
         - 'arn:aws:iam::aws:policy/AmazonSESFullAccess'
         - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
-
-
-        # - 'arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceRole'
-        # - 'arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role'
+        - 'arn:aws:iam::aws:policy/AmazonElastiCacheFullAccess'
+        - !Ref SessionManagerPolicy
 
   # -----------------------------------------------------------
   # Elastic Container Service (ECS) - Containers that host the application
@@ -218,7 +278,13 @@ Resources:
             # RDS port (The MySQL DB port)
             - ContainerPort: !Ref DbPort
               Protocol: 'tcp'
+            # Redis port
+            - ContainerPort: !Ref CachePort
+              Protocol: 'tcp'
           Environment:
+            - Name: 'NODE_ENV'
+              Value: !Ref NodeEnv
+
             - Name: 'LOG_LEVEL'
               Value: !Ref LogLevel
             - Name: 'USE_MOCK_DATA'
@@ -226,10 +292,33 @@ Resources:
 
             - Name: 'REST_DATA_SOURCE_CACHE_TTL'
               Value: !Ref RestDataSourceCacheTtl
+
+            - Name: 'BCRYPT_SALT_ROUNDS'
+              Value: !Ref BcryptSaltRounds
+            - Name: 'TOKEN_HASH_SECRET'
+              Value: !Ref HashTokenSecret
+
             - Name: 'JWT_SECRET'
               Value: !Ref JwtSecret
             - Name: 'JWT_TTL'
               Value: !Ref JwtTtl
+            - Name: 'JWT_REFRESH_SECRET'
+              Value: !Ref JwtRefreshSecret
+            - Name: 'JWT_REFRESH_TTL'
+              Value: !Ref JwtRefreshTtl
+
+            - Name: 'CSRF_LENGTH'
+              Value: !Ref CsrfLength
+            - Name: 'CSRF_TTL'
+              Value: !Ref CsrfTtl
+
+            # Elasticache Redis connection
+            - Name: 'CACHE_HOST'
+              Value: !Ref CacheHost
+            - Name: 'CACHE_PORT'
+              Value: !Ref CachePort
+            - Name: 'CACHE_CONNECT_TIMEOUT'
+              Value: !Ref CacheConnectTimeout
 
             - Name: 'DMP_ID_BASE_URL'
               Value: !Ref DmpIdBaseUrl
@@ -271,13 +360,10 @@ Resources:
       Cluster: !Ref EcsClusterId
       DesiredCount: !Ref EcsDesiredServiceCount
       EnableECSManagedTags: true
+      EnableExecuteCommand: true # Allow session manager
       HealthCheckGracePeriodSeconds: !Ref HealthCheckGracePeriod
       LaunchType: 'FARGATE'
       DeploymentConfiguration:
-        MinimumHealthPercent: !If
-          - IsDev
-          - !Ref AWS::NoValue
-          - !Ref MinimumHealthyContainerPercentage
         MaximumPercent: !Ref MaximumHealthyContainerPercentage
         DeploymentCircuitBreaker:
           Enable: true

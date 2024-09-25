@@ -215,6 +215,7 @@ Resources:
             Values:
               # NextJS support
               - '/graphql'
+              - '/apollo-refresh'
               - '/apollo-signin'
               - '/apollo-signout'
               - '/apollo-signup'
@@ -235,10 +236,8 @@ Resources:
               # ALB healthcheck
               - '/up'
 
-              # OAuth2 support
-              - '/apollo-authenticate'
-              - '/apollo-authorize'
-              - '/apollo-token'
+              # CSRF support for `/apollo-*` endpoints
+              - '/apollo-csrf'
       ListenerArn: !GetAtt AlbListenerHttps.ListenerArn
       Priority: 5 # Big jump here. CF won't allow you to reorder and add additional at the same time
 

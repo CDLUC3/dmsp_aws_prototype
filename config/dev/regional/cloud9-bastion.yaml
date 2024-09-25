@@ -7,10 +7,6 @@ parameters:
 
   SubnetId: !stack_attr sceptre_user_data.public_subnet_a
 
-  DbSecurityGroupId: !stack_output dev/regional/rds.yaml::DbSecurityGroupId
-
-  DbPort: !stack_output dev/regional/rds.yaml::DbPort
-
   IdleTimeoutMinutes: '15'
 
   ImageId: 'amazonlinux-2023-x86_64'

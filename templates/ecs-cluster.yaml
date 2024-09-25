@@ -13,11 +13,16 @@ Parameters:
   DbSecurityGroupId:
     Type: 'String'
 
-  DbHost:
+  CacheSecurityGroupId:
     Type: 'String'
 
   DbPort:
     Type: 'String'
+    Default: '3006'
+
+  CachePort:
+    Type: 'String'
+    Default: '6379'
 
 Resources:
   # -----------------------------------------------------------
@@ -101,6 +106,30 @@ Resources:
       ToPort: !Ref DbPort
       GroupId: !GetAtt EcsSecurityGroup.GroupId
       DestinationSecurityGroupId: !Ref DbSecurityGroupId
+
+  # Allow the RDS instance(s) to receive traffic from the ECS instance(s)
+  CacheSecurityGroupIngressFromEcs:
+    Type: AWS::EC2::SecurityGroupIngress
+    DependsOn:
+      - EcsSecurityGroup
+    Properties:
+      IpProtocol: 'tcp'
+      FromPort: !Ref CachePort
+      ToPort: !Ref CachePort
+      GroupId: !Ref CacheSecurityGroupId
+      SourceSecurityGroupId: !GetAtt EcsSecurityGroup.GroupId
+
+  # Allow the RDS instance(s) to receive traffic from the ECS instance(s)
+  EcsSecurityGroupEgressToCache:
+    Type: AWS::EC2::SecurityGroupEgress
+    DependsOn:
+      - EcsSecurityGroup
+    Properties:
+      IpProtocol: 'tcp'
+      FromPort: !Ref CachePort
+      ToPort: !Ref CachePort
+      GroupId: !GetAtt EcsSecurityGroup.GroupId
+      DestinationSecurityGroupId: !Ref CacheSecurityGroupId
 
   # -----------------------------------------------------------
   # Elastic Container Service (ECS) - Containers that host the application

@@ -9,6 +9,8 @@ parameters:
 
   DbSecurityGroupId: !stack_output dev/regional/rds.yaml::DbSecurityGroupId
 
-  DbHost: !stack_output dev/regional/rds.yaml::DbAddress
+  CacheSecurityGroupId: !stack_output dev/regional/redis-backend.yaml::RedisCacheSecurityGroupID
 
   DbPort: !stack_output dev/regional/rds.yaml::DbPort
+
+  CachePort: !stack_output dev/regional/redis-backend.yaml::RedisReaderPort

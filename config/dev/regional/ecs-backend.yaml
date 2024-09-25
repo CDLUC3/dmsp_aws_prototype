@@ -9,7 +9,7 @@ parameters:
 
   AppName: !stack_attr sceptre_user_data.backend_server_container_name
 
-  EcsDesiredServiceCount: '1'
+  EcsDesiredServiceCount: '2'
 
   AppPort: '4000'
 
@@ -30,7 +30,7 @@ parameters:
 
   StartTimeout: '30'
   HealthCheckGracePeriod: '30'
-  MinimumHealthyContainerPercentage: '100'
+  MinimumHealthyContainerPercentage: '50'
   MaximumHealthyContainerPercentage: '200'
   StopTimeout: '30'
 
@@ -41,9 +41,19 @@ parameters:
   DmpIdBaseUrl: !ssm /uc3/dmp/hub/dev/EzidBaseUrl
   DmpIdShoulder: !ssm /uc3/dmp/hub/dev/EzidShoulder
 
-  RestDataSourceCacheTtl: '180'
+  BcryptSaltRounds: '10'
+  HashTokenSecret: !ssm /uc3/dmp/tool/dev/CacheHashSecret
+  RestDataSourceCacheTtl: '180' # 2 minutes
+
+  NodeEnv: 'staging'
+
   JwtSecret: !ssm /uc3/dmp/tool/dev/JWTSecret
-  JwtTtl: '1hr'
+  JwtTtl: '600000' # 10 minutes (in milliseconds)
+  JwtRefreshSecret: !ssm /uc3/dmp/tool/dev/JWTRefreshSecret
+  JwtRefreshTtl: '86400000' # 1 day (in milliseconds)
+
+  CsrfLength: '64'
+  CsrfTtl: '3600' # 1 hour (in seconds)
 
   DbConnectionLimit: '5'
   DbHost: !stack_output dev/regional/rds.yaml::DbAddress
@@ -51,6 +61,10 @@ parameters:
   DbName: !stack_output dev/regional/rds.yaml::DbName
   DbUsername: !ssm /uc3/dmp/hub/dev/DbUsername
   DbPassword: !ssm /uc3/dmp/hub/dev/DbPassword
+
+  CacheHost: !stack_output dev/regional/redis-backend.yaml::RedisReaderHost
+  CachePort: !stack_output dev/regional/redis-backend.yaml::RedisReaderPort
+  CacheConnectTimeout: '10000' # 10 seconds
 
   HelpdeskEmail: !ssm /uc3/dmsp/prototype/dev/HelpdeskEmail
 
