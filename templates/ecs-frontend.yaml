@@ -108,6 +108,25 @@ Resources:
   # Identitity and Access Management (IAM)
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_IAM.html
   # -----------------------------------------------------------
+  # Policy to allow SSM Session Manager to access our ECS containers
+  SessionManagerPolicy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          Effect: 'Allow'
+          Action:
+            - 'ecs:ExecuteCommand'
+            - 'ssmmessages:CreateControlChannel'
+            - 'ssmmessages:CreateDataChannel'
+            - 'ssmmessages:OpenControlChannel'
+            - 'ssmmessages:OpenDataChannel'
+          Resource: '*'
+          Condition:
+            StringEquals:
+              "ecs:container-name": !Ref AppName
+
   # Role that grants our containers in the task permission to call AWS APIs
   EcsTaskRole:
     Type: 'AWS::IAM::Role'
@@ -126,6 +145,7 @@ Resources:
         - 'arn:aws:iam::aws:policy/AmazonS3FullAccess'
         - 'arn:aws:iam::aws:policy/AmazonSESFullAccess'
         - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
+        - !Ref SessionManagerPolicy
 
   # -----------------------------------------------------------
   # Elastic Container Service (ECS) - Containers that host the application
@@ -199,6 +219,7 @@ Resources:
       Cluster: !Ref EcsClusterId
       DesiredCount: !Ref EcsDesiredServiceCount
       EnableECSManagedTags: true
+      EnableExecuteCommand: true # Allow session manager
       HealthCheckGracePeriodSeconds: !Ref HealthCheckGracePeriod
       LaunchType: 'FARGATE'
       DeploymentConfiguration:

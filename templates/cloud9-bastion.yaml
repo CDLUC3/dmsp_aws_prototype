@@ -9,13 +9,6 @@ Parameters:
   VpcId:
     Type: 'AWS::EC2::VPC::Id'
 
-  DbSecurityGroupId:
-    Type: 'String'
-
-  DbPort:
-    Type: 'Number'
-    Default: 3306
-
   IdleTimeoutMinutes:
     Type: 'Number'
     Default: 15
