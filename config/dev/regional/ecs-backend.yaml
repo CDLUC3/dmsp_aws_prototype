@@ -48,12 +48,12 @@ parameters:
   NodeEnv: 'staging'
 
   JwtSecret: !ssm /uc3/dmp/tool/dev/JWTSecret
-  JwtTtl: '600' # 10 minutes
+  JwtTtl: '600000' # 10 minutes (in milliseconds)
   JwtRefreshSecret: !ssm /uc3/dmp/tool/dev/JWTRefreshSecret
-  JwtRefreshTtl: '86400' # 1 day
+  JwtRefreshTtl: '86400000' # 1 day (in milliseconds)
 
-  CsrfLength: '32'
-  CsrfTtl: '3600' # 1 hour
+  CsrfLength: '64'
+  CsrfTtl: '3600' # 1 hour (in seconds)
 
   DbConnectionLimit: '5'
   DbHost: !stack_output dev/regional/rds.yaml::DbAddress
