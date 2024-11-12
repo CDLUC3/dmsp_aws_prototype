@@ -43,6 +43,5 @@ parameters:
   NextPublicBaseUrl: ="https://ui.dmphub.uc3dev.cdlib.net"
   NextPublicServerEndpoint: ="https://ui.dmphub.uc3dev.cdlib.net"
   NextPublicGraphqlServerEndpoint: ="https://ui.dmphub.uc3dev.cdlib.net/graphql"
-  JwtSecret: !ssm /uc3/dmp/tool/dev/JWTSecret
 
   HelpdeskEmail: !ssm /uc3/dmsp/prototype/dev/HelpdeskEmail

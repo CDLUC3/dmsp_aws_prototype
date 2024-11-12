@@ -48,9 +48,9 @@ parameters:
   NodeEnv: 'staging'
 
   JwtSecret: !ssm /uc3/dmp/tool/dev/JWTSecret
-  JwtTtl: '600000' # 10 minutes (in milliseconds)
+  JwtTtl: '1800000' # 30 minutes (in milliseconds)
   JwtRefreshSecret: !ssm /uc3/dmp/tool/dev/JWTRefreshSecret
-  JwtRefreshTtl: '86400000' # 1 day (in milliseconds)
+  JwtRefreshTtl: '86400000' # 24 hours (in milliseconds)
 
   CsrfLength: '64'
   CsrfTtl: '3600' # 1 hour (in seconds)

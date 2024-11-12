@@ -6,6 +6,8 @@
 - Session Manager policies for `ecs-frontend` and `ecs-backend` so that we can connect to containers
 
 ### Updated
+- Updated JWT TTL for `ecs-backend`
+- Removed `JwtSecret`from `ecs-frontend`
 - Updated the `ecs-backend.yaml` Sceptre config and template to include the Elasticache Host and Port and also a bunch of new bcrypt, crypto, NODE_ENV and jwt ENV variables
 - Updated the `ecs-cluster.yaml` so that it has the Redis port and attaches to the Redis Security Group
 - Updated the `ecs-backend.yaml` and `ecs-frontend.yaml` to have a minimum of 2 containers
