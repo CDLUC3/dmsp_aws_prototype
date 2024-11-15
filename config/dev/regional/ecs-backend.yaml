@@ -7,7 +7,8 @@ parameters:
 
   Env: !stack_attr sceptre_user_data.env
 
-  AppName: !stack_attr sceptre_user_data.backend_server_container_name
+  AppName: !stack_attr sceptre_user_data.app_name
+  ContainerName: !stack_attr sceptre_user_data.backend_server_container_name
 
   EcsDesiredServiceCount: '2'
 
@@ -66,6 +67,11 @@ parameters:
   CachePort: !stack_output dev/regional/redis-backend.yaml::RedisReaderPort
   CacheConnectTimeout: '10000' # 10 seconds
 
-  HelpdeskEmail: !ssm /uc3/dmsp/prototype/dev/HelpdeskEmail
+  SesEndpoint: !ssm /uc3/dev/SesEndpoint
+  SesAccessKeyId: !ssm /uc3/dev/SesAccessKeyId
+  SesAccessKeySecret: !ssm /uc3/dev/SesAccessKeySecret
+  SesBouncedEmailBucket: !ssm /uc3/dev/SesBouncedEmailBucket
+  DoNotReplyEmail: !ssm /uc3/dmp/tool/dev/DoNotReplyEmail
+  HelpdeskEmail: !ssm /uc3/dmp/tool/dev/HelpdeskEmail
 
   UseMockData: 'true'

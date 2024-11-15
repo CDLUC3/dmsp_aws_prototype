@@ -26,6 +26,9 @@ Parameters:
   AppName:
     Type: 'String'
 
+  ContainerName:
+    Type: 'String'
+
   AppPort:
     Type: 'Number'
 
@@ -163,6 +166,21 @@ Parameters:
   DbPassword:
     Type: 'String'
 
+  SesEndpoint:
+    Type: 'String'
+
+  SesAccessKeyId:
+    Type: 'String'
+
+  SesAccessKeySecret:
+    Type: 'String'
+
+  SesBouncedEmailBucket:
+    Type: 'String'
+
+  DoNotReplyEmail:
+    Type: 'String'
+
   HelpdeskEmail:
     Type: 'String'
 
@@ -202,7 +220,7 @@ Resources:
           Resource: '*'
           Condition:
             StringEquals:
-              "ecs:container-name": !Ref AppName
+              "ecs:container-name": !Ref ContainerName
 
   # Role that grants our containers in the task permission to call AWS APIs
   EcsTaskRole:
@@ -252,7 +270,7 @@ Resources:
           DisableNetworking: false
           Essential: true
           Interactive: true
-          Name: !Ref AppName
+          Name: !Ref ContainerName
           StartTimeout: !Ref StartTimeout
           StopTimeout: !Ref StopTimeout
           # TODO: Figure out what container health check should be run (e.g. memory usage)
@@ -267,7 +285,7 @@ Resources:
               awslogs-region: !Ref AWS::Region
               awslogs-create-group: true
               awslogs-group: !Ref AWS::StackName
-              awslogs-stream-prefix: !Ref AppName
+              awslogs-stream-prefix: !Ref ContainerName
           PortMappings:
             # SES port (Email)
             - ContainerPort: 25
@@ -284,6 +302,9 @@ Resources:
           Environment:
             - Name: 'NODE_ENV'
               Value: !Ref NodeEnv
+
+            - Name: 'APP_NAME'
+              Value: !Ref AppName
 
             - Name: 'LOG_LEVEL'
               Value: !Ref LogLevel
@@ -348,6 +369,20 @@ Resources:
               Value: !Ref DbUsername
             - Name: 'MYSQL_PASSWORD'
               Value: !Ref DbPassword
+
+            # AWS SES Emails
+            - Name: 'SES_ENDPOINT'
+              Value: !Ref SesEndpoint
+            - Name: 'SES_ACCESS_ID'
+              Value: !Ref SesAccessKeyId
+            - Name: 'SES_ACCESS_SECRET'
+              Value: !Ref SesAccessKeySecret
+            - Name: 'SES_BOUNCED_EMAIL_BUCKET'
+              Value: !Ref SesBouncedEmailBucket
+            - Name: 'SES_BOUNCE_EMAIL_ADDRESS'
+              Value: !Ref DoNotReplyEmail
+            - Name: 'DO_NOT_REPLY_EMAIL_ADDRESS'
+              Value: !Ref DoNotReplyEmail
             - Name: 'HELPDESK_EMAIL'
               Value: !Ref HelpdeskEmail
 
@@ -377,7 +412,7 @@ Resources:
       LoadBalancers:
         - TargetGroupArn: !Ref AlbTargetGroupArn
           ContainerPort: !Ref AppPort
-          ContainerName: !Ref AppName
+          ContainerName: !Ref ContainerName
       NetworkConfiguration:
         AwsvpcConfiguration:
           SecurityGroups:

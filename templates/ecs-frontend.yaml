@@ -26,6 +26,9 @@ Parameters:
   AppName:
     Type: 'String'
 
+  ContainerName:
+    Type: 'String'
+
   AppPort:
     Type: 'Number'
 
@@ -122,7 +125,7 @@ Resources:
           Resource: '*'
           Condition:
             StringEquals:
-              "ecs:container-name": !Ref AppName
+              "ecs:container-name": !Ref ContainerName
 
   # Role that grants our containers in the task permission to call AWS APIs
   EcsTaskRole:
@@ -169,7 +172,7 @@ Resources:
           DisableNetworking: false
           Essential: true
           Interactive: true
-          Name: !Ref AppName
+          Name: !Ref ContainerName
           StartTimeout: !Ref StartTimeout
           StopTimeout: !Ref StopTimeout
           # TODO: Figure out what container health check should be run (e.g. memory usage)
@@ -184,7 +187,7 @@ Resources:
               awslogs-region: !Ref AWS::Region
               awslogs-create-group: true
               awslogs-group: !Ref AWS::StackName
-              awslogs-stream-prefix: !Ref AppName
+              awslogs-stream-prefix: !Ref ContainerName
           PortMappings:
             # SES port (Email)
             - ContainerPort: 25
@@ -204,6 +207,8 @@ Resources:
               Value: !Ref NextPublicServerEndpoint
             - Name: 'NEXT_PUBLIC_GRAPHQL_SERVER_ENDPOINT'
               Value: !Ref NextPublicGraphqlServerEndpoint
+            - Name: 'APP_NAME'
+              Value: !Ref AppName
 
   # Container Service definition
   EcsService:
@@ -235,7 +240,7 @@ Resources:
       LoadBalancers:
         - TargetGroupArn: !Ref AlbTargetGroupArn
           ContainerPort: !Ref AppPort
-          ContainerName: !Ref AppName
+          ContainerName: !Ref ContainerName
       NetworkConfiguration:
         AwsvpcConfiguration:
           SecurityGroups:
