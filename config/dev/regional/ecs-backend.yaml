@@ -62,8 +62,8 @@ parameters:
   DbUsername: !ssm /uc3/dmp/hub/dev/DbUsername
   DbPassword: !ssm /uc3/dmp/hub/dev/DbPassword
 
-  CacheHost: !stack_output dev/regional/redis-backend.yaml::RedisReaderHost
-  CachePort: !stack_output dev/regional/redis-backend.yaml::RedisReaderPort
+  CacheHost: !stack_output dev/regional/cache-backend.yaml::CacheClusterEndpointAddress
+  CachePort: !stack_output dev/regional/cache-backend.yaml::CacheClusterEndpointPort
   CacheConnectTimeout: '10000' # 10 seconds
 
   HelpdeskEmail: !ssm /uc3/dmsp/prototype/dev/HelpdeskEmail
