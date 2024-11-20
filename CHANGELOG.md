@@ -14,6 +14,9 @@
 - Updated the `initial_setup.rb` script so that the JWT refresh token secret and Cache hash secret can be specified (updated the Wiki documentation as well)
 - Updated the `alb.yaml` with the new refresh, signout and csrf backend endpoints
 
+### Fixed
+- Corrected ways that env variables defined in `config/regional/ecs-frontend.yaml` file
+
 ## v1.4.4
 
 ### Added
