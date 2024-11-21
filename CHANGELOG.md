@@ -1,5 +1,8 @@
 # Changle Log
 
+### Added
+- S3 bucket for use when transferring files between our AWS cloud environ to/from COKI's Google cloud
+
 ## v1.4.4
 
 ### Added

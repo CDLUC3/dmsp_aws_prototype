@@ -86,6 +86,39 @@ Resources:
         DestinationBucketName: !Ref S3LogBucket
         LogFilePrefix: 's3-access'
 
+  # S3 Bucket for transferring files between our AWS cloud environ and external systems
+  S3FileExchangeBucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      AccessControl: 'Private'
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          # The DMPTool <--> COKI integration occurs once per week, so only need to retain files for 6 days
+          - Id: CokiRule
+            Prefix: coki
+            Status: Enabled
+            ExpirationInDays: 6
+      LoggingConfiguration:
+        DestinationBucketName: !Ref S3LogBucket
+        LogFilePrefix: 's3-access'
+
+      # TODO: Uncomment this block once we have the Lambda setup to process incoming files from COKI
+      #       See: https://docs.aws.amazon.com/lambda/latest/dg/with-s3.html
+      # NotificationConfiguration:
+      #   LambdaConfiguration:
+      #     Event: 's3:ObjectCreated:*'
+      #     Filter:
+      #       S3Key:
+      #         Rules:
+      #           # Not sure if this is the correct format, will need to test
+      #           - Name: 'coki/*'
+      #             Value: '*.jsonl'
+
   # ----------------------------------------------
   # SSM Parameter Store
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-ssm-parameter.html
