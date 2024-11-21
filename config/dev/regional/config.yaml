@@ -21,6 +21,7 @@ sceptre_user_data:
 
   env: 'dev'
   domain: 'dmphub.uc3dev.cdlib.net'
+  app_name: 'DMP Tool'
   ssm_path: '/uc3/dmp/hub/dev/'
 
   backend_server_container_name: 'uc3-dmp-dev-apollo'

@@ -117,7 +117,7 @@ Resources:
       ReplicationGroupDescription: !Sub "${AWS::StackName} cache group"
       SecurityGroupIds:
         - !GetAtt CacheSecurityGroup.GroupId
-      TransitEncryptionEnabled: false
+      TransitEncryptionEnabled: true
 
 Outputs:
   CacheLogGroupArn:
@@ -135,8 +135,14 @@ Outputs:
   CacheClusterId:
     Value: !Ref CacheReplicationGroup
 
-  CacheClusterEndpointAddress:
+  CachePrimaryEndpointAddress:
     Value: !GetAtt CacheReplicationGroup.PrimaryEndPoint.Address
 
-  CacheClusterEndpointPort:
+  CachePrimaryEndpointPort:
     Value: !GetAtt CacheReplicationGroup.PrimaryEndPoint.Port
+
+  CacheReaderEndpointAddress:
+    Value: !GetAtt CacheReplicationGroup.ReaderEndPoint.Address
+
+  CacheReaderEndpointPort:
+    Value: !GetAtt CacheReplicationGroup.ReaderEndPoint.Port
