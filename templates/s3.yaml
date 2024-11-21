@@ -162,3 +162,14 @@ Outputs:
     Value: !GetAtt S3PrivateBucket.Arn
     Export:
       Name: !Sub '${Env}-S3PrivateBucketArn'
+
+  S3FileExchangeBucketId:
+    Value: !Ref S3FileExchangeBucket
+    Export:
+      Name: !Sub '${Env}-S3FileExchangeBucketId'
+  S3FileExchangeBucketUri:
+    Value: !Sub "s3://${S3FileExchangeBucket}"
+  S3FileExchangeBucketArn:
+    Value: !GetAtt S3FileExchangeBucket.Arn
+    Export:
+      Name: !Sub '${Env}-S3FileExchangeBucketArn'
