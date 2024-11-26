@@ -26,7 +26,13 @@ Parameters:
   AppName:
     Type: 'String'
 
+  DomainName:
+    Type: 'String'
+
   ContainerName:
+    Type: 'String'
+
+  DefaultAffiliationRor:
     Type: 'String'
 
   AppPort:
@@ -306,6 +312,12 @@ Resources:
             - Name: 'APP_NAME'
               Value: !Ref AppName
 
+            - Name: 'DOMAIN'
+              Value: !Ref DomainName
+
+            - Name: 'DEFAULT_AFFILIATION_URI'
+              Value: !Ref DefaultAffiliationRor
+
             - Name: 'LOG_LEVEL'
               Value: !Ref LogLevel
             - Name: 'USE_MOCK_DATA'
@@ -383,7 +395,7 @@ Resources:
               Value: !Ref DoNotReplyEmail
             - Name: 'DO_NOT_REPLY_EMAIL_ADDRESS'
               Value: !Ref DoNotReplyEmail
-            - Name: 'HELPDESK_EMAIL'
+            - Name: 'HELPDESK_EMAIL_ADDRESS'
               Value: !Ref HelpdeskEmail
 
   # Container Service definition

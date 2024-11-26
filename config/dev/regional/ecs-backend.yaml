@@ -8,7 +8,10 @@ parameters:
   Env: !stack_attr sceptre_user_data.env
 
   AppName: !stack_attr sceptre_user_data.app_name
+  DomainName: !stack_attr sceptre_user_data.domain
   ContainerName: !stack_attr sceptre_user_data.backend_server_container_name
+
+  DefaultAffiliationRor: 'https://ror.org/00dmfq477'
 
   EcsDesiredServiceCount: '2'
 
@@ -68,8 +71,8 @@ parameters:
   CacheConnectTimeout: '10000' # 10 seconds
 
   SesEndpoint: !ssm /uc3/dev/SesEndpoint
-  SesAccessKeyId: !ssm /uc3/dev/SesAccessKeyId
-  SesAccessKeySecret: !ssm /uc3/dev/SesAccessKeySecret
+  SesAccessKeyId: !ssm /uc3/dmp/tool/dev/SesAccessKeyId
+  SesAccessKeySecret: !ssm /uc3/dmp/tool/dev/SesAccessKeySecret
   SesBouncedEmailBucket: !ssm /uc3/dev/SesBouncedEmailBucket
   DoNotReplyEmail: !ssm /uc3/dmp/tool/dev/DoNotReplyEmail
   HelpdeskEmail: !ssm /uc3/dmp/tool/dev/HelpdeskEmail
