@@ -3,7 +3,7 @@ template:
   type: 'file'
 
 parameters:
-  UserPoolId: !stack_output prd/regional/cognito.yaml::UserPoolId
+  UserPoolId: !stack_output stg/regional/cognito.yaml::UserPoolId
 
   Domain: !stack_attr sceptre_user_data.domain
   Subdomain: 'auth'
@@ -25,9 +25,9 @@ parameters:
 
   Scopes:
     Scopes:
-    - 'https://auth.dmphub.uc3dev.cdlib.net/prd.data-transfer'
+    - 'https://auth.dmphub.uc3stg.cdlib.net/stg.data-transfer'
 
 hooks:
   after_update:
-    cmd: 'src/add-api-client.sh dev coki http://localhost:3000/callback'
+    cmd: 'src/add-api-client.sh stg coki http://localhost:3000/callback'
     cmd: 'aws ssm put-parameter --overwrite --name /uc3/dmp/tool/provenance/coki/ror_list --type String --value "[]"'
