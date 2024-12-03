@@ -250,7 +250,6 @@ Resources:
         - !Sub 'https://${Subdomain}.${Domain}/${Env}.read'
         - !Sub 'https://${Subdomain}.${Domain}/${Env}.upload'
         - !Sub 'https://${Subdomain}.${Domain}/${Env}.write'
-        - !Sub 'https://${Subdomain}.${Domain}/${Env}.data-transfer'
       EnableTokenRevocation: true
       PreventUserExistenceErrors: 'ENABLED'
       GenerateSecret: true
