@@ -24,7 +24,6 @@ parameters:
   RefreshTokenValidity: '10080'
 
   Scopes:
-    Scopes:
     - 'https://auth.dmphub.uc3stg.cdlib.net/stg.data-transfer'
 
 hooks:

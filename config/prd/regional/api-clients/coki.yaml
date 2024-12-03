@@ -24,7 +24,6 @@ parameters:
   RefreshTokenValidity: '10080'
 
   Scopes:
-    Scopes:
     - 'https://auth.dmphub.uc3prd.cdlib.net/prd.data-transfer'
 
 hooks:
