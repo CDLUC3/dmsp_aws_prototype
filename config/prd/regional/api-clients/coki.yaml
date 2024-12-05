@@ -9,11 +9,7 @@ parameters:
   Subdomain: 'auth'
   Env: !stack_attr sceptre_user_data.env
 
-  ClientName: 'uc-riverside'
-
-  Scopes:
-    - 'https://auth.dmphub.uc3prd.cdlib.net/prd.read'
-    - 'https://auth.dmphub.uc3prd.cdlib.net/prd.write'
+  ClientName: 'coki'
 
   ClientCallbackUri: 'https://localhost:3000/callback'
 
@@ -27,7 +23,10 @@ parameters:
   IdTokenValidity: '7'
   RefreshTokenValidity: '10080'
 
+  Scopes:
+    - 'https://auth.dmphub.uc3prd.cdlib.net/prd.data-transfer'
+
 hooks:
   after_update:
-    cmd: 'src/add-api-client.sh prd uc-riverside http://localhost:3000/callback'
-    cmd: 'aws ssm put-parameter --overwrite --name /uc3/dmp/tool/provenance/uc-riverside/ror_list --type String --value "[\"https://ror.org/03nawhv43\"]"'
+    cmd: 'src/add-api-client.sh prd coki http://localhost:3000/callback'
+    cmd: 'aws ssm put-parameter --overwrite --name /uc3/dmp/tool/provenance/coki/ror_list --type String --value "[]"'

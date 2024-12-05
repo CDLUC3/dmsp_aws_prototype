@@ -4,6 +4,7 @@
 - `redis.yaml` Elasticache template
 - `redis-backend.yaml` Sceptre config
 - Session Manager policies for `ecs-frontend` and `ecs-backend` so that we can connect to containers
+- S3 bucket for use when transferring files between our AWS cloud environ to/from COKI's Google cloud
 
 ### Updated
 - Updated JWT TTL for `ecs-backend`
