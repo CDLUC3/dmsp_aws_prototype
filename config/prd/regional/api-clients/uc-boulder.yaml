@@ -11,6 +11,10 @@ parameters:
 
   ClientName: 'uc-boulder'
 
+  Scopes:
+    - 'https://auth.dmphub.uc3prd.cdlib.net/prd.read'
+    - 'https://auth.dmphub.uc3prd.cdlib.net/prd.write'
+
   ClientCallbackUri: 'https://localhost:3000/callback'
 
   OnlyAllowAdminsToCreateUsers: 'false'
