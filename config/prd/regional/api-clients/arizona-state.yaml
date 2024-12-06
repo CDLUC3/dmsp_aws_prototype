@@ -13,7 +13,9 @@ parameters:
 
   ClientCallbackUri: 'https://localhost:3000/callback/'
 
-  AllowWrite: 'yes'
+  Scopes:
+    - 'https://auth.dmphub.uc3prd.cdlib.net/prd.read'
+    - 'https://auth.dmphub.uc3prd.cdlib.net/prd.write'
 
   OnlyAllowAdminsToCreateUsers: 'false'
   UnusedAccountValidityDays: '14'

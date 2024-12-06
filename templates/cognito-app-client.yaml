@@ -22,6 +22,9 @@ Parameters:
   ClientCallbackUri:
     Type: 'String'
 
+  Scopes:
+    Type: 'List<String>'
+
   OnlyAllowAdminsToCreateUsers:
     Type: 'String'
     Default: 'false'
@@ -62,17 +65,6 @@ Parameters:
     Type: 'Number'
     Default: 10080 # 7 days
 
-  AllowWrite:
-    Type: 'String'
-    Default: 'no'
-    AllowedValues:
-      - 'yes'
-      - 'no'
-
-Conditions:
-  WriteAllowed:
-    !Equals [!Ref AllowWrite, 'yes']
-
 Resources:
   # --------------------------------------------------------------
   # Cognito UserPool application clients
@@ -92,13 +84,7 @@ Resources:
       AllowedOAuthFlowsUserPoolClient: true
       AllowedOAuthFlows:
         - 'client_credentials'
-      AllowedOAuthScopes: !If
-        - WriteAllowed
-        # Allow both read and write
-        - - !Sub 'https://${Subdomain}.${Domain}/${Env}.read'
-          - !Sub 'https://${Subdomain}.${Domain}/${Env}.write'
-        # Only allow read
-        - - !Sub 'https://${Subdomain}.${Domain}/${Env}.read'
+      AllowedOAuthScopes: !Ref Scopes
       EnableTokenRevocation: true
       PreventUserExistenceErrors: 'ENABLED'
       GenerateSecret: true
