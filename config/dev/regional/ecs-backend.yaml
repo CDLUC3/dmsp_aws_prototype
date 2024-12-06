@@ -8,10 +8,11 @@ parameters:
   Env: !stack_attr sceptre_user_data.env
 
   AppName: !stack_attr sceptre_user_data.app_name
-  DomainName: !stack_attr sceptre_user_data.domain
+  Domain: !stack_attr sceptre_user_data.domain
   ContainerName: !stack_attr sceptre_user_data.backend_server_container_name
-
-  DefaultAffiliationRor: 'https://ror.org/00dmfq477'
+  DefaultAffiliationUri: !ssm /uc3/dmp/tool/dev/DefaultAffiliationId
+  DoiBase: !ssm /uc3/dmp/hub/dev/EzidBaseUrl
+  DoiShoulder: !ssm /uc3/dmp/hub/dev/EzidShoulder
 
   EcsDesiredServiceCount: '2'
 
@@ -66,8 +67,8 @@ parameters:
   DbUsername: !ssm /uc3/dmp/hub/dev/DbUsername
   DbPassword: !ssm /uc3/dmp/hub/dev/DbPassword
 
-  CacheHost: !stack_output dev/regional/redis-backend.yaml::RedisReaderHost
-  CachePort: !stack_output dev/regional/redis-backend.yaml::RedisReaderPort
+  CacheHost: !stack_output dev/regional/cache-backend.yaml::CachePrimaryEndpointAddress
+  CachePort: !stack_output dev/regional/cache-backend.yaml::CachePrimaryEndpointPort
   CacheConnectTimeout: '10000' # 10 seconds
 
   SesEndpoint: !ssm /uc3/dev/SesEndpoint

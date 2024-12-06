@@ -1,0 +1,148 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Redis Cache for the Apollo server'
+
+Parameters:
+  VpcId:
+    Type: 'AWS::EC2::VPC::Id'
+
+  Subnets:
+    Type: 'List<AWS::EC2::Subnet::Id>'
+
+  Env:
+    Type: 'String'
+    Default: 'dev'
+
+  LogRetentionDays:
+    Type: 'Number'
+    Default: 7
+
+  CachePort:
+    Type: 'Number'
+    Default: 6379
+
+  NbrCacheClusters:
+    Type: 'Number'
+    Default: 1
+
+  AutomaticFailoverEnabled:
+    Type: 'String'
+    Default: 'false'
+    AllowedValues:
+      - 'true'
+      - 'false'
+
+  CacheNodeType:
+    Type: 'String'
+    Default: 'cache.t2.micro'
+
+  ClusterMode:
+    Type: 'String'
+    Default: 'Disabled'
+    AllowedValues:
+      - 'Disabled'
+      - 'Enabled'
+
+  Engine:
+    Type: 'String'
+    Default: 'valkey'
+    AllowedValues:
+      - 'redis'
+      - 'valkey'
+
+  EngineVersion:
+    Type: 'String'
+    Default: '7.2'
+
+Conditions:
+  FailoverEnabled:
+    !Equals [!Ref AutomaticFailoverEnabled, 'true']
+
+Resources:
+  CacheLogGroup:
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      RetentionInDays: !Ref LogRetentionDays
+
+  # CacheSecurityGroup:
+  #   Type: 'AWS::ElastiCache::SecurityGroup'
+  #   Properties:
+  #     Description: !Sub "${AWS::StackName} SecGrp"
+
+  CacheSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: !Sub "${AWS::StackName} SecGrp"
+      GroupName: !Sub '${AWS::StackName}-cache-sec'
+      VpcId: !Ref VpcId
+
+  # CacheSecurityGroupIngress:
+  #   Type: 'AWS::ElastiCache::SecurityGroupIngress'
+  #   Properties:
+  #     CacheSecurityGroupName: !Ref CacheSecurityGroup
+  #     EC2SecurityGroupName: !Ref EcsSecurityGroupId
+  #     EC2SecurityGroupOwnerId: !Ref AWS::AccountId
+
+  CacheSubNetGroup:
+    Type: 'AWS::ElastiCache::SubnetGroup'
+    Properties:
+      Description: !Sub "${AWS::StackName} SubNetGrp"
+      SubnetIds: !Ref Subnets
+
+  CacheReplicationGroup:
+    Type: 'AWS::ElastiCache::ReplicationGroup'
+    DependsOn:
+      - CacheSubNetGroup
+      - CacheSecurityGroup
+    Properties:
+      AutomaticFailoverEnabled: !If
+        - FailoverEnabled
+        - true
+        - false
+      AutoMinorVersionUpgrade: true
+      CacheNodeType: !Ref CacheNodeType
+      CacheSubnetGroupName: !Ref CacheSubNetGroup
+      ClusterMode: !Ref ClusterMode
+      Engine: !Ref Engine
+      EngineVersion: !Ref EngineVersion
+      LogDeliveryConfigurations:
+        - DestinationType: 'cloudwatch-logs'
+          LogFormat: 'json'
+          LogType: 'engine-log'
+          DestinationDetails:
+            CloudWatchLogsDetails:
+              LogGroup: !Ref CacheLogGroup
+      NumCacheClusters: !Ref NbrCacheClusters
+      Port: !Ref CachePort
+      PreferredMaintenanceWindow: 'sun:23:00-mon:01:30'
+      ReplicationGroupDescription: !Sub "${AWS::StackName} cache group"
+      SecurityGroupIds:
+        - !GetAtt CacheSecurityGroup.GroupId
+      TransitEncryptionEnabled: true
+
+Outputs:
+  CacheLogGroupArn:
+    Value: !GetAtt CacheLogGroup.Arn
+
+  CacheLogGroupName:
+    Value: !Ref CacheLogGroup
+
+  CacheSecurityGroupId:
+    Value: !GetAtt CacheSecurityGroup.GroupId
+
+  CacheSubNetGroupId:
+    Value: !Ref CacheSubNetGroup
+
+  CacheClusterId:
+    Value: !Ref CacheReplicationGroup
+
+  CachePrimaryEndpointAddress:
+    Value: !GetAtt CacheReplicationGroup.PrimaryEndPoint.Address
+
+  CachePrimaryEndpointPort:
+    Value: !GetAtt CacheReplicationGroup.PrimaryEndPoint.Port
+
+  CacheReaderEndpointAddress:
+    Value: !GetAtt CacheReplicationGroup.ReaderEndPoint.Address
+
+  CacheReaderEndpointPort:
+    Value: !GetAtt CacheReplicationGroup.ReaderEndPoint.Port
