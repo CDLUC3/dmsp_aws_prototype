@@ -10,7 +10,7 @@ parameters:
   CodeBuildProjectName: !stack_output dev/regional/codebuild-backend.yaml::CodeBuildProjectId
 
   RepositoryName: 'CDLUC3/dmsp_backend_prototype'
-  BranchToMonitor: 'feature/BR-emailService' # 'development'
+  BranchToMonitor: 'development'
   SourceOutputArtifactFormat: 'CODEBUILD_CLONE_REF'
 
   EcsCluster: !stack_output dev/regional/ecs-cluster.yaml::EcsFargateClusterId
