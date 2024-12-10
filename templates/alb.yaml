@@ -213,7 +213,7 @@ Resources:
         - Field: 'path-pattern'
           PathPatternConfig:
             Values:
-              # NextJS support
+              # GraphQL endpoints (only 5 allowed in one Rule)
               - '/graphql'
               - '/apollo-refresh'
               - '/apollo-signin'
@@ -233,10 +233,8 @@ Resources:
         - Field: 'path-pattern'
           PathPatternConfig:
             Values:
-              # ALB healthcheck
+              # GraphQL endpoints continued (only 5 allowed in one Rule)
               - '/up'
-
-              # CSRF support for `/apollo-*` endpoints
               - '/apollo-csrf'
       ListenerArn: !GetAtt AlbListenerHttps.ListenerArn
       Priority: 5 # Big jump here. CF won't allow you to reorder and add additional at the same time

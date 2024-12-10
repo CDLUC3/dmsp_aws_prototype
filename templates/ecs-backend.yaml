@@ -182,6 +182,21 @@ Parameters:
   DbPassword:
     Type: 'String'
 
+  SesEndpoint:
+    Type: 'String'
+
+  SesAccessKeyId:
+    Type: 'String'
+
+  SesAccessKeySecret:
+    Type: 'String'
+
+  SesBouncedEmailBucket:
+    Type: 'String'
+
+  DoNotReplyEmail:
+    Type: 'String'
+
   HelpdeskEmail:
     Type: 'String'
 
@@ -288,8 +303,8 @@ Resources:
               awslogs-group: !Ref AWS::StackName
               awslogs-stream-prefix: !Ref ContainerName
           PortMappings:
-            # SES port (Email)
-            - ContainerPort: 25
+            # SES SMTP port
+            - ContainerPort: 465
               Protocol: 'tcp'
             # ALB port (The port we are listening on)
             - ContainerPort: !Ref AppPort
@@ -303,6 +318,9 @@ Resources:
           Environment:
             - Name: 'NODE_ENV'
               Value: !Ref NodeEnv
+
+            - name: 'APP_ENV'
+              Value: !Ref Env
 
             - Name: 'APP_NAME'
               Value: !Ref AppName
@@ -381,7 +399,21 @@ Resources:
               Value: !Ref DbUsername
             - Name: 'MYSQL_PASSWORD'
               Value: !Ref DbPassword
-            - Name: 'HELPDESK_EMAIL'
+
+            # AWS SES Emails
+            - Name: 'SES_ENDPOINT'
+              Value: !Ref SesEndpoint
+            - Name: 'SES_ACCESS_ID'
+              Value: !Ref SesAccessKeyId
+            - Name: 'SES_ACCESS_SECRET'
+              Value: !Ref SesAccessKeySecret
+            - Name: 'SES_BOUNCED_EMAIL_BUCKET'
+              Value: !Ref SesBouncedEmailBucket
+            - Name: 'SES_BOUNCE_EMAIL_ADDRESS'
+              Value: !Ref DoNotReplyEmail
+            - Name: 'DO_NOT_REPLY_EMAIL_ADDRESS'
+              Value: !Ref DoNotReplyEmail
+            - Name: 'HELPDESK_EMAIL_ADDRESS'
               Value: !Ref HelpdeskEmail
 
   # Container Service definition
