@@ -9,6 +9,9 @@ Parameters:
   VpcId:
     Type: 'AWS::EC2::VPC::Id'
 
+  AppName:
+    Type: 'String'
+
   IdleTimeoutMinutes:
     Type: 'Number'
     Default: 15
@@ -30,9 +33,6 @@ Parameters:
   Subservice:
     Type: 'String'
 
-  Environment:
-    Type: 'String'
-
   CodeRepo:
     Type: 'String'
 
@@ -49,10 +49,10 @@ Resources:
     Properties:
       AutomaticStopTimeMinutes: !Ref IdleTimeoutMinutes
       ConnectionType: 'CONNECT_SSM'
-      Description: !Sub "${AWS::StackName} Bastion to provide access to RDS"
+      Description: !Sub "${AWS::StackName} Bastion"
       ImageId: !Ref ImageId
       InstanceType: !Ref InstanceType
-      # Name: !Sub "${Program}-${Service}-${Subservice}-${Environment}-bastion"
+      Name: !Sub "${AppName}-bastion"
       SubnetId: !Ref SubnetId
       Tags:
         - Key: 'Program'
@@ -61,8 +61,6 @@ Resources:
           Value: !Ref Service
         - Key: 'Subservice'
           Value: !Ref Subservice
-        - Key: 'Environment'
-          Value: !Ref Environment
         - Key: 'CodeRepo'
           Value: !Ref CodeRepo
         - Key: 'Contact'

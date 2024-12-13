@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 
-Description: 'WAF for DMPTool/DMPHub'
+Description: 'Web application Firewall'
 
 Parameters:
   Scope:
@@ -32,7 +32,7 @@ Resources:
   WafRegional:
     Type: 'AWS::WAFv2::WebACL'
     Properties:
-      Name: !Sub "${AWS::StackName}-Cloudfront-WAF"
+      Name: !Sub "${AWS::StackName}-WAF"
       DefaultAction:
         Allow: {}
       Scope: !Ref Scope

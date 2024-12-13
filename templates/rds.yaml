@@ -2,7 +2,7 @@ AWSTemplateFormatVersion: '2010-09-09'
 
 Transform: 'AWS::SecretsManager-2020-07-23'
 
-Description: 'Persistent resources for the DMPRoadmap system'
+Description: 'MySQL Databases'
 
 Parameters:
   VpcId:
@@ -14,6 +14,9 @@ Parameters:
   Env:
     Type: 'String'
     Default: 'dev'
+
+  AppName:
+    Type: 'String'
 
   SsmPath:
     Type: 'String'
@@ -260,12 +263,12 @@ Outputs:
   DbSecurityGroupId:
     Value: !GetAtt DbSecurityGroup.GroupId
     Export:
-      Name: !Sub '${Env}-DbSecurityGroupId'
+      Name: !Sub '${Env}-${AppName}-DbSecurityGroupId'
 
   DbSubnetName:
     Value: !Ref DbSubnetGroup
     Export:
-      Name: !Sub '${Env}-DbSubnetName'
+      Name: !Sub '${Env}-${AppName}-DbSubnetName'
 
   DbInstanceName:
     Value: !Ref Database

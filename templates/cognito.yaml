@@ -278,6 +278,25 @@ Resources:
       # The length of time the user can refresh their token
       RefreshTokenValidity: !Ref RefreshTokenValidity
 
+  # TODO: Modve these to SecretsManager!
+  UiUserPoolClientIdParameter:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: !Sub "${AWS::StackName} DMP Tool UI ClientId"
+      Name: !Sub "${SsmPath}DmptoolClientId"
+      # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
+      Type: 'String'
+      Value: !Ref UiUserPoolClient
+
+  UiUserPoolClientSecretParameter:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: !Sub "${AWS::StackName} DMP Tool UI ClientId"
+      Name: !Sub "${SsmPath}DmptoolClientSecret"
+      # Note: AWS CloudFormation does not yet support creating a SecureString parameter type.
+      Type: 'String'
+      Value: !GetAtt UiUserPoolClient.ClientSecret
+
   # -----------------------------------------------------------
   # Route53 - DNS configuration
   #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_Route53.html

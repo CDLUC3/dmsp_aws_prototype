@@ -15,20 +15,20 @@ parameters:
   NodeEnv: 'development'
   AppName: !stack_attr sceptre_user_data.frontend_server_container_name
 
-  EcrRepositoryArn: !stack_output dev/regional/ecr.yaml::EcrRepositoryArn
-  EcrRepositoryUri: !stack_output dev/regional/ecr.yaml::EcrRepositoryUri
-  EcrRepositoryName: !stack_output dev/regional/ecr.yaml::EcrRepositoryName
+  EcrRepositoryArn: !stack_output tool/ecr.yaml::EcrRepositoryArn
+  EcrRepositoryUri: !stack_output tool/ecr.yaml::EcrRepositoryUri
+  EcrRepositoryName: !stack_output tool/ecr.yaml::EcrRepositoryName
 
-  S3ArtifactBucketArn: !stack_output dev/regional/s3.yaml::S3PrivateBucketArn
-  S3ArtifactBucketId: !stack_output dev/regional/s3.yaml::S3PrivateBucketId
+  S3ArtifactBucketArn: !stack_output tool/s3.yaml::S3PrivateBucketArn
+  S3ArtifactBucketId: !stack_output tool/s3.yaml::S3PrivateBucketId
 
   CodeStarConnectionArn: !ssm /uc3/CodeStarConnectionArn
 
-  DbSecurityGroupId: !stack_output dev/regional/rds.yaml::DbSecurityGroupId
-  DbPort: !stack_output dev/regional/rds.yaml::DbPort
+  DbSecurityGroupId: !stack_output tool/dev/rds.yaml::DbSecurityGroupId
+  DbPort: !stack_output tool/dev/rds.yaml::DbPort
 
-  CodePipelineLogGroupArn: !stack_output dev/regional/cloudwatch.yaml::CodePipelineLogGroupArn
-  CodePipelineLogGroupName: !stack_output dev/regional/cloudwatch.yaml::CodePipelineLogGroupName
+  CodePipelineLogGroupArn: !stack_output tool/dev/cloudwatch.yaml::CodePipelineLogGroupArn
+  CodePipelineLogGroupName: !stack_output tool/dev/cloudwatch.yaml::CodePipelineLogGroupName
 
   CodeBuildEnvironmentType: 'LINUX_CONTAINER'
   CodeBuildEnvironmentComputeType: 'BUILD_GENERAL1_SMALL'

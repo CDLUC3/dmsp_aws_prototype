@@ -1,0 +1,123 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: 'CodePipeline for the DMPSP Apollo server backend application'
+
+# TODO: We may be able to consolidate this if the templates for the Apollo Server backend and the nextJS frontend
+#       are very similar. Chances are that the only diff might be with the ENV variables, which we can update
+#       here to to be passed in as a List<String>
+
+Parameters:
+  CodeStarConnectionArn:
+    Type: 'String'
+
+  S3ArtifactBucketId:
+    Type: 'String'
+
+  CodeBuildProjectName:
+    Type: 'String'
+
+  RepositoryName:
+    Type: 'String'
+
+  BranchToMonitor:
+    Type: 'String'
+    Default: 'development'
+
+  SourceOutputArtifactFormat:
+    Type: 'String'
+    Default: 'CODEBUILD_CLONE_REF'
+
+Resources:
+  # -----------------------------------------------------------
+  # Identitity and Access Management (IAM)
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_IAM.html
+  # -----------------------------------------------------------
+  CodePipelineRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service:
+                - 'codepipeline.amazonaws.com'
+            Action:
+              - 'sts:AssumeRole'
+      Policies:
+        - PolicyName: !Sub '${AWS::StackName}-pipeline-policy'
+          PolicyDocument: !Sub >
+            {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": ["codestar-connections:UseConnection"],
+                  "Resource": "${CodeStarConnectionArn}"
+                }
+              ]
+            }
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AWSCodePipeline_FullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonS3FullAccess'
+        - 'arn:aws:iam::aws:policy/AWSCodeBuildDeveloperAccess'
+        - 'arn:aws:iam::aws:policy/AmazonECS_FullAccess'
+        - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
+
+  # -----------------------------------------------------------
+  # CodePipeline
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-codepipeline-pipeline.html
+  # -----------------------------------------------------------
+  CodePipeline:
+    Type: 'AWS::CodePipeline::Pipeline'
+    Properties:
+      RoleArn: !GetAtt CodePipelineRole.Arn
+      ArtifactStore:
+        # CloudFormation only supports S3 at the moment!
+        Type: 'S3'
+        Location: !Ref S3ArtifactBucketId
+      Stages:
+        - Name: 'Source'
+          Actions:
+            - Name: 'Source'
+              RunOrder: 1
+              ActionTypeId:
+                Category: 'Source'
+                Owner: 'AWS'
+                Provider: 'CodeStarSourceConnection'
+                Version: '1'
+              # See: https://docs.aws.amazon.com/codepipeline/latest/userguide/action-reference-CodestarConnectionSource.html
+              # for info on tying CodeBuild in
+              Configuration:
+                ConnectionArn: !Ref CodeStarConnectionArn
+                FullRepositoryId: !Ref RepositoryName
+                BranchName: !Ref BranchToMonitor
+                OutputArtifactFormat: 'CODEBUILD_CLONE_REF'
+              OutputArtifacts:
+                - Name: 'SourceArtifact'
+
+        - Name: 'Build'
+          Actions:
+            - Name: 'Build'
+              RunOrder: 2
+              InputArtifacts:
+                - Name: 'SourceArtifact'
+              ActionTypeId:
+                Category: 'Build'
+                Owner: 'AWS'
+                Provider: 'CodeBuild'
+                Version: '1'
+              Configuration:
+                ProjectName: !Ref CodeBuildProjectName
+              OutputArtifacts:
+                - Name: 'BuildArtifact'
+
+Outputs:
+  CodePipelineRoleArn:
+    Value: !GetAtt CodePipelineRole.Arn
+
+  CodePipelineId:
+    Value: !Ref CodePipeline
+
+  CodePipelineVersion:
+    Value: !GetAtt CodePipeline.Version

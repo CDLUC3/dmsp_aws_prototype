@@ -5,13 +5,13 @@ template:
 parameters:
   HostedZoneId: !stack_attr sceptre_user_data.hosted_zone
 
-  Domain: 'ui.dmphub.uc3dev.cdlib.net'
+  Domain: 'ui.dmptool.uc3dev.cdlib.net'
   RecordType: 'A'
 
-  TargetName: !stack_output dev/regional/alb.yaml::AlbDnsName
-  TargetHostedZoneId: !stack_output dev/regional/alb.yaml::AlbCanonicalHostedZoneId
+  TargetName: !stack_output tool/dev/alb.yaml::AlbDnsName
+  TargetHostedZoneId: !stack_output tool/dev/alb.yaml::AlbCanonicalHostedZoneId
 
   # We need to tell it which region our ALB lives in
   TargetRegion: 'us-west-2'
 
-  SetIdentifier: 'dmsp-prototype'
+  SetIdentifier: 'dmptool'

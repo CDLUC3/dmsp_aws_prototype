@@ -7,6 +7,8 @@ parameters:
 
   SubnetId: !stack_attr sceptre_user_data.public_subnet_a
 
+  AppName: !stack_attr sceptre_user_data.app_name
+
   IdleTimeoutMinutes: '15'
 
   ImageId: 'amazonlinux-2023-x86_64'
@@ -17,6 +19,5 @@ parameters:
   Program: !stack_attr stack_tags.Program
   Service: !stack_attr stack_tags.Service
   Subservice: !stack_attr stack_tags.Subservice
-  Environment: !stack_attr stack_tags.Environment
   CodeRepo: !stack_attr stack_tags.CodeRepo
   Contact: !stack_attr stack_tags.Contact

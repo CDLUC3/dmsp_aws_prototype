@@ -1,5 +1,5 @@
-# Core DMPHub configuration
+# Core DMP Tool configuration
 # --------------------------------------
-project_code: 'uc3-dmp-hub'
+project_code: 'uc3-dmp'
 
 region: 'us-west-2'

@@ -1,0 +1,45 @@
+template:
+  path: 'codebuild-backend.yaml'
+  type: 'file'
+
+parameters:
+  VpcId: !stack_attr sceptre_user_data.vpc_id
+  Subnets: !stack_attr sceptre_user_data.public_subnets
+
+  Program: !stack_attr stack_tags.Program
+  Service: !stack_attr stack_tags.Service
+  Subservice: !stack_attr stack_tags.Subservice
+  CodeRepo: !stack_attr stack_tags.CodeRepo
+  Contact: !stack_attr stack_tags.Contact
+
+  Env: !stack_attr sceptre_user_data.env
+  AppName: !stack_attr sceptre_user_data.backend_server_container_name
+
+  EcrRepositoryArn: !stack_output tool/ecr.yaml::EcrRepositoryArn
+  EcrRepositoryUri: !stack_output tool/ecr.yaml::EcrRepositoryUri
+  EcrRepositoryName: !stack_output tool/ecr.yaml::EcrRepositoryName
+
+  S3ArtifactBucketArn: !stack_output tool/s3.yaml::S3PrivateBucketArn
+  S3ArtifactBucketId: !stack_output tool/s3.yaml::S3PrivateBucketId
+
+  CodeStarConnectionArn: !ssm /uc3/CodeStarConnectionArn
+
+  CodePipelineLogGroupArn: !stack_output tool/dev/cloudwatch.yaml::CodePipelineLogGroupArn
+  CodePipelineLogGroupName: !stack_output tool/dev/cloudwatch.yaml::CodePipelineLogGroupName
+
+  DbSecurityGroupId: !stack_output tool/dev/rds.yaml::DbSecurityGroupId
+  DbInstanceArn: !stack_output tool/dev/rds.yaml::DbInstanceArn
+  DbHost: !stack_output tool/dev/rds.yaml::DbAddress
+  DbPort: !stack_output tool/dev/rds.yaml::DbPort
+  DbName: !stack_output tool/dev/rds.yaml::DbName
+  DbUsername: !ssm /uc3/dmp/tool/dev/DbUsername
+  DbPassword: !ssm /uc3/dmp/tool/dev/DbPassword
+
+  # We want Apollo server to run in development mode in this env so that the Explorer works
+  NodeEnv: 'development'
+
+  CodeBuildEnvironmentType: 'LINUX_CONTAINER'
+  CodeBuildEnvironmentComputeType: 'BUILD_GENERAL1_SMALL'
+  # This is AL2023
+  CodeBuildEnvironmentImage: 'aws/codebuild/amazonlinux2-x86_64-standard:5.0'
+  CodeBuildTimeout: '15'

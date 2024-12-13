@@ -1,0 +1,14 @@
+template:
+  path: 'ecr.yaml'
+  type: 'file'
+
+parameters:
+  AppName: !stack_attr sceptre_user_data.app_name
+
+  ECRLifecyclePolicyTagPrefix: 'latest'
+
+hooks:
+  # After we create the ECR the first time we want to build the frontend, backend and shibboleth
+  # images and push them into the ECR so that the ECS services can be built
+  after_create:
+    - !cmd './config/tool/initial-deploy/deploy-ecs-images.sh development'

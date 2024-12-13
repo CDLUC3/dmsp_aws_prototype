@@ -1,11 +1,8 @@
-# Sceptre will create an S3 bucket to store your CloudFormation templates. Define the name here or
-# provide the name of an existing bucket.
-template_bucket_name: 'uc3-dmp-hub-cf-bucket'
-
 # Define reusable variables that can be referenced in template specific config files via:
 #   my_variable: !stack_attr sceptre_user_data.[variable]
 sceptre_user_data:
   vpc_id: !stack_output_external cdl-uc3-dev-vpc-stack::vpc
+
   public_subnets:
     - !stack_output_external cdl-uc3-dev-defaultsubnet-stack::defaultsubnet2a
     - !stack_output_external cdl-uc3-dev-defaultsubnet-stack::defaultsubnet2b
@@ -16,9 +13,22 @@ sceptre_user_data:
   public_subnet_b: !stack_output_external cdl-uc3-dev-defaultsubnet-stack::defaultsubnet2b
   public_subnet_c: !stack_output_external cdl-uc3-dev-defaultsubnet-stack::defaultsubnet2c
 
-  # hosted_zone_id: !stack_output_external uc3-ops-dmphub-dev-route53::HostedZoneId
-  hosted_zone_id: !ssm /uc3/dmp/hub/dev/HostedZoneId
+  app_name: 'dmptool'
+  app_display_name: 'DMP Tool'
 
   env: 'dev'
-  domain: 'dmphub.uc3dev.cdlib.net'
-  ssm_path: '/uc3/dmp/hub/dev/'
+  domain: 'dmptool.uc3dev.cdlib.net'
+  ssm_path: '/uc3/dmp/tool/dev/'
+
+  backend_server_container_name: 'uc3-dmp-tool-dev-apollo'
+  frontend_server_container_name: 'uc3-dmp-tool-dev-nextJS'
+
+# Stack tags are attached to every AWS resource created by these CloudFormation templates
+# with the exception of the Lambda functions and layers which are managed by AWS SAM.
+stack_tags:
+  Program: 'uc3'
+  Service: 'dmp'
+  Subservice: 'tool'
+  Environment: 'dev'
+  CodeRepo: 'https://github.com/CDLUC3/dmsp_aws_prototype'
+  Contact: 'briley'

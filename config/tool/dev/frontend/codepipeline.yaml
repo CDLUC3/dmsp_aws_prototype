@@ -5,9 +5,9 @@ template:
 parameters:
   CodeStarConnectionArn: !ssm /uc3/CodeStarConnectionArn
 
-  S3ArtifactBucketId: !stack_output dev/regional/s3.yaml::S3PrivateBucketId
+  S3ArtifactBucketId: !stack_output tool/s3.yaml::S3PrivateBucketId
 
-  CodeBuildProjectName: !stack_output dev/regional/codebuild-frontend.yaml::CodeBuildProjectId
+  CodeBuildProjectName: !stack_output tool/dev/frontend/codebuild.yaml::CodeBuildProjectId
 
   RepositoryName: 'CDLUC3/dmsp_frontend_prototype'
   BranchToMonitor: 'development'
@@ -15,5 +15,5 @@ parameters:
 
   # Comment these 2 ECS parameters out the first time you build the environment. The ECS services
   # require an image already be in the ECR, but this Pipeline builds those images!
-  EcsCluster: !stack_output dev/regional/ecs-cluster.yaml::EcsFargateClusterId
-  EcsServiceName: !stack_output dev/regional/ecs-frontend.yaml::EcsServiceName
+  EcsCluster: !stack_output tool/dev/ecs-cluster.yaml::EcsFargateClusterId
+  EcsServiceName: !stack_output tool/dev/frontend/ecs.yaml::EcsServiceName

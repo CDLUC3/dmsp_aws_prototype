@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: 'AWS::Serverless-2016-10-31'
 
-Description: 'Application load balancer for the DMPTool ECS instances'
+Description: 'Application load balancer for ECS'
 
 Parameters:
   VpcId:
@@ -36,9 +36,6 @@ Parameters:
     Default: 'dev'
 
   Domain:
-    Type: 'String'
-
-  Subdomain:
     Type: 'String'
 
 Resources:

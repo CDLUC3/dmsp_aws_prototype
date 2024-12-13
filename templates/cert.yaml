@@ -1,11 +1,14 @@
 AWSTemplateFormatVersion: '2010-09-09'
 
-Description: 'SSL Cert for all DMPHub endpoints'
+Description: 'SSL Certs'
 
 Parameters:
   Env:
     Type: 'String'
     Default: 'dev'
+
+  AppName:
+    Type: 'String'
 
   HostedZoneId:
     Type: 'String'
@@ -34,4 +37,4 @@ Outputs:
   CertificateArn:
     Value: !Ref Certificate
     Export:
-      Name: !Sub '${Env}-CertificateArn'
+      Name: !Sub '${Env}-${AppName}-CertificateArn'

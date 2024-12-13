@@ -1,0 +1,74 @@
+template:
+  path: 'ecs-backend.yaml'
+  type: 'file'
+
+parameters:
+  # Sceptre user data
+  Subnets: !stack_attr sceptre_user_data.public_subnets
+  Env: !stack_attr sceptre_user_data.env
+  AppDisplayName: !stack_attr sceptre_user_data.app_display_name
+  Domain: !stack_attr sceptre_user_data.domain
+  ContainerName: !stack_attr sceptre_user_data.backend_server_container_name
+
+  # SSM Parameters (defined manually - see ~/config/seed_ssm.sh)
+  DefaultAffiliationUri: !ssm /uc3/dmp/tool/DefaultAffiliationId
+  HelpdeskEmail: !ssm /uc3/dmp/tool/dev/HelpdeskEmail
+  HashTokenSecret: !ssm /uc3/dmp/tool/dev/CacheHashSecret
+  JwtSecret: !ssm /uc3/dmp/tool/dev/JWTSecret
+  JwtRefreshSecret: !ssm /uc3/dmp/tool/dev/JWTRefreshSecret
+
+  # SSM Parameters (set by the RDS CloudFormation template)
+  DbUsername: !ssm /uc3/dmp/tool/dev/DbUsername
+  DbPassword: !ssm /uc3/dmp/tool/dev/DbPassword
+
+  # SSM Parameters (defined and set by the DMP Hub CloudFormation)
+  DoiBase: !ssm /uc3/dmp/hub/dev/EzidBaseUrl
+  DoiShoulder: !ssm /uc3/dmp/hub/dev/EzidShoulder
+  CognitoClientId: !ssm /uc3/dmp/hub/dev/DmptoolClientId
+  CognitoClientSecret: !ssm /uc3/dmp/hub/dev/DmptoolClientSecret
+
+  # ECR
+  EcrRepositoryUri: !stack_output tool/ecr.yaml::EcrRepositoryUri
+  EcrImageTag: 'apollo-latest'
+
+  # ALB
+  AlbTargetGroupArn: !stack_output tool/dev/alb.yaml::ApolloServerTargetGroupArn
+  AlbSecGrpId: !stack_output tool/dev/alb.yaml::AlbSecurityGroupId
+
+  # RDS
+  DbHost: !stack_output tool/dev/rds.yaml::DbAddress
+  DbPort: !stack_output tool/dev/rds.yaml::DbPort
+  DbName: !stack_output tool/dev/rds.yaml::DbName
+
+  # Elasticache
+  CacheHost: !stack_output tool/dev/backend/cache.yaml::CachePrimaryEndpointAddress
+  CachePort: !stack_output tool/dev/backend/cache.yaml::CachePrimaryEndpointPort
+
+  # ECS Cluster
+  EcsClusterId: !stack_output tool/dev/ecs-cluster.yaml::EcsFargateClusterId
+  EcsTaskExecutionRoleId: !stack_output tool/dev/ecs-cluster.yaml::EcsFargateExecutionRoleId
+  EcsSecGrpId: !stack_output tool/dev/ecs-cluster.yaml::EcsFargateSecGrp
+
+  # ECS Service/Task
+  EcsDesiredServiceCount: '2'
+  AppPort: '4000'
+  CpuSize: '2048'
+  MemorySize: '4096'
+  StartTimeout: '30'
+  HealthCheckGracePeriod: '30'
+  MinimumHealthyContainerPercentage: '50'
+  MaximumHealthyContainerPercentage: '200'
+  StopTimeout: '30'
+
+  # Container ENV
+  LogLevel: 'debug'
+  NodeEnv: 'staging'
+  BcryptSaltRounds: '10'
+  RestDataSourceCacheTtl: '180' # 2 minutes
+  JwtTtl: '1800000' # 30 minutes (in milliseconds)
+  JwtRefreshTtl: '86400000' # 24 hours (in milliseconds)
+  CsrfLength: '64'
+  CsrfTtl: '3600' # 1 hour (in seconds)
+  DbConnectionLimit: '5'
+  CacheConnectTimeout: '10000' # 10 seconds
+  UseMockData: 'true'

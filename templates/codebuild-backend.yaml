@@ -10,11 +10,8 @@ Parameters:
   VpcId:
     Type: 'AWS::EC2::VPC::Id'
 
-  # RouteTableId:
-  #   Type: 'String'
-
-  # Subnets:
-  #   Type: 'List<AWS::EC2::Subnet::Id>'
+  Subnets:
+    Type: 'List<AWS::EC2::Subnet::Id>'
 
   Program:
     Type: 'String'
@@ -63,14 +60,14 @@ Parameters:
   S3ArtifactBucketId:
     Type: 'String'
 
-  # S3ArtifactBucketAlias:
-  #   Type: 'String'
-
   CodeStarConnectionArn:
     Type: 'String'
 
-  # DbSecurityGroupId:
-  #   Type: 'String'
+  DbSecurityGroupId:
+    Type: 'String'
+
+  DbInstanceArn:
+    Type: 'String'
 
   DbHost:
     Type: 'String'
@@ -168,7 +165,9 @@ Resources:
                     "s3:GetObject",
                     "s3:GetObjectVersion",
                     "s3:GetBucketAcl",
-                    "s3:GetBucketLocation"
+                    "s3:GetBucketLocation",
+                    "s3:ListObjects",
+                    "s3:ListBucket"
                   ],
                   "Resource": [
                     "${S3ArtifactBucketArn}",
@@ -183,7 +182,11 @@ Resources:
                     "ec2:DescribeNetworkInterfaces",
                     "ec2:DeleteNetworkInterface",
                     "ec2:DescribeSubnets",
+                    "ec2:CreateSecurityGroup",
                     "ec2:DescribeSecurityGroups",
+                    "ec2:AuthorizeSecurityGroupIngress",
+                    "ec2:AuthorizeSecurityGroupEgress",
+                    "ec2:RevokeSecurityGroupEgress",
                     "ec2:DescribeDhcpOptions",
                     "ec2:DescribeVpcs",
                     "ec2:CreateNetworkInterfacePermission"
@@ -209,6 +212,37 @@ Resources:
                   "Effect": "Allow",
                   "Action": ["codestar-connections:UseConnection"],
                   "Resource": "${CodeStarConnectionArn}"
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "rds:connect",
+                    "rds-db:connect",
+                    "rds:CreateDBProxy",
+                    "rds:CreateDBInstance",
+                    "rds:CreateDBSubnetGroup",
+                    "rds:DescribeDBClusters",
+                    "rds:DescribeDBInstances",
+                    "rds:DescribeDBSubnetGroups",
+                    "rds:DescribeDBProxies",
+                    "rds:DescribeDBProxyTargets",
+                    "rds:DescribeDBProxyTargetGroups",
+                    "rds:RegisterDBProxyTargets",
+                    "rds:ModifyDBInstance",
+                    "rds:ModifyDBProxy"
+                  ],
+                  "Resource": "${DbInstanceArn}"
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "secretsmanager:GetResourcePolicy",
+                    "secretsmanager:GetSecretValue",
+                    "secretsmanager:DescribeSecret",
+                    "secretsmanager:ListSecretVersionIds",
+                    "secretsmanager:CreateSecret"
+                  ],
+                  "Resource": "*"
                 }
               ]
             }
@@ -241,14 +275,14 @@ Resources:
           Value: 'Security-group-attached-to-ENI'
 
   # Allow RDS to receive traffic from this CodeBuild
-  # RdsSecurityGroupIngressFromCodeBuild:
-  #   Type: 'AWS::EC2::SecurityGroupIngress'
-  #   Properties:
-  #     IpProtocol: 'tcp'
-  #     FromPort: !Ref DbPort
-  #     ToPort: !Ref DbPort
-  #     GroupId: !Ref DbSecurityGroupId
-  #     SourceSecurityGroupId: !GetAtt CodeBuildSecurityGroup.GroupId
+  RdsSecurityGroupIngressFromCodeBuild:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      IpProtocol: 'tcp'
+      FromPort: !Ref DbPort
+      ToPort: !Ref DbPort
+      GroupId: !Ref DbSecurityGroupId
+      SourceSecurityGroupId: !GetAtt CodeBuildSecurityGroup.GroupId
 
   # Allow this CodeBuild to call RDS
   # CodeBuildSecurityGroupEgressToRds:
@@ -261,14 +295,14 @@ Resources:
   #     DestinationSecurityGroupId: !Ref DbSecurityGroupId
 
   # Allow this CodeBuild to receive from RDS
-  # CodeBuildSecurityGroupIngressFromRds:
-  #   Type: 'AWS::EC2::SecurityGroupIngress'
-  #   Properties:
-  #     IpProtocol: 'tcp'
-  #     FromPort: !Ref DbPort
-  #     ToPort: !Ref DbPort
-  #     GroupId: !GetAtt CodeBuildSecurityGroup.GroupId
-  #     SourceSecurityGroupId: !Ref DbSecurityGroupId
+  CodeBuildSecurityGroupIngressFromRds:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      IpProtocol: 'tcp'
+      FromPort: !Ref DbPort
+      ToPort: !Ref DbPort
+      GroupId: !GetAtt CodeBuildSecurityGroup.GroupId
+      SourceSecurityGroupId: !Ref DbSecurityGroupId
 
   # VPC Gateway Endpoint to allow our CodeBuild to access the CodePipeline's S3 bucket
   # S3VpcGatewayEndpoint:
@@ -310,11 +344,11 @@ Resources:
       Cache:
         Type: 'S3'
         Location: !Sub "${S3ArtifactBucketId}/apollo/build-cache"
-      # VpcConfig:
-      #   VpcId: !Ref VpcId
-      #   Subnets: !Ref Subnets
-      #   SecurityGroupIds:
-      #     - !Ref CodeBuildSecurityGroup
+      VpcConfig:
+        VpcId: !Ref VpcId
+        Subnets: !Ref Subnets
+        SecurityGroupIds:
+          - !Ref CodeBuildSecurityGroup
       Environment:
         ComputeType: !Ref CodeBuildEnvironmentComputeType
         Image: !Ref CodeBuildEnvironmentImage

@@ -1,0 +1,190 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: 'Lambda function that will create the applications DB in RDS'
+
+# This pipeline should be deleted after the initial creation of your application stack
+# It is the same as the one used for the backend, but does not include the deploy stage.
+# This allows us to
+
+Parameters:
+  AppName:
+    Type: 'String'
+
+Resources:
+  # Policy needed to allow ALB to write it's access logs to the S3Bucket
+  RdsInitializerRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service: 'lambda.amazonaws.com'
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicName: !Sub '${AppName}-init-rds'
+          PolicyDocument: !Sub >
+            {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "ec2:CreateSecurityGroup",
+                    "ec2:DescribeSecurityGroups",
+                    "ec2:DescribeSubnets",
+                    "ec2:DescribeVpcs",
+                    "ec2:AuthorizeSecurityGroupIngress",
+                    "ec2:AuthorizeSecurityGroupEgress",
+                    "ec2:RevokeSecurityGroupEgress",
+                    "ec2:CreateNetworkInterface",
+                    "ec2:DeleteNetworkInterface",
+                    "ec2:DescribeNetworkInterfaces"
+                  ],
+                  "Resource": "*"
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "rds-db:connect",
+                    "rds:CreateDBProxy",
+                    "rds:CreateDBInstance",
+                    "rds:CreateDBSubnetGroup",
+                    "rds:DescribeDBClusters",
+                    "rds:DescribeDBInstances",
+                    "rds:DescribeDBSubnetGroups",
+                    "rds:DescribeDBProxies",
+                    "rds:DescribeDBProxyTargets",
+                    "rds:DescribeDBProxyTargetGroups",
+                    "rds:RegisterDBProxyTargets",
+                    "rds:ModifyDBInstance",
+                    "rds:ModifyDBProxy"
+                  ],
+                  "Resource": "*"
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "lambda:CreateFunction",
+                    "lambda:ListFunctions",
+                    "lambda:UpdateFunctionConfiguration"
+                  ],
+                  "Resource": "*"
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "iam:AttachRolePolicy",
+                    "iam:AttachPolicy",
+                    "iam:CreateRole",
+                    "iam:CreatePolicy"
+                  ],
+                  "Resource": "*"
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "secretsmanager:GetResourcePolicy",
+                    "secretsmanager:GetSecretValue",
+                    "secretsmanager:DescribeSecret",
+                    "secretsmanager:ListSecretVersionIds",
+                    "secretsmanager:CreateSecret"
+                  ],
+                  "Resource": "*"
+                }
+              ]
+            }
+
+  RdsInitializerFunction:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      Architectures:
+        - 'arm64'
+      Code: ZipFile |
+        import { Signer } from "@aws-sdk/rds-signer";
+        import mysql from 'mysql2/promise';
+
+        async function createAuthToken() {
+          // Define connection authentication parameters
+          const dbinfo = {
+            hostname: process.env.DB_HOST,
+            port: process.env.DB_PORT,
+            username: process.env.DB_USER,
+            region: process.env.AWS_REGION,
+          }
+
+          // Create RDS Signer object
+          const signer = new Signer(dbinfo);
+
+          // Request authorization token from RDS, specifying the username
+          const token = await signer.getAuthToken();
+          return token;
+        }
+
+        async function dbOps() {
+          // Obtain auth token
+          const token = await createAuthToken();
+          // Define connection configuration
+          let connectionConfig = {
+            host: process.env.DB_HOST,
+            user: process.env.DB_USER,
+            password: token,
+            ssl: 'Amazon RDS'
+          }
+          // Create the connection to the DB
+          const conn = await mysql.createConnection(connectionConfig);
+          // Obtain the result of the query
+          const [res,] = await conn.execute('CREATE DATABASE ?', [process.env.DB_NAME]);
+          return res;
+
+        }
+
+        export const handler = async (event) => {
+          // Execute database flow
+          const result = await dbOps();
+          // Return result
+          return {
+            statusCode: 200,
+            body: JSON.stringify("The selected sum is: " + result[0].sum)
+          }
+        };
+
+
+
+  CodeSigningConfigArn: String
+  DeadLetterConfig:
+    DeadLetterConfig
+  Description: String
+  Environment:
+    Environment
+  EphemeralStorage:
+    EphemeralStorage
+  FileSystemConfigs:
+    - FileSystemConfig
+  FunctionName: String
+  Handler: String
+  ImageConfig:
+    ImageConfig
+  KmsKeyArn: String
+  Layers:
+    - String
+  LoggingConfig:
+    LoggingConfig
+  MemorySize: Integer
+  PackageType: String
+  RecursiveLoop: String
+  ReservedConcurrentExecutions: Integer
+  Role: String
+  Runtime: String
+  RuntimeManagementConfig:
+    RuntimeManagementConfig
+  SnapStart:
+    SnapStart
+  Tags:
+    - Tag
+  Timeout: Integer
+  TracingConfig:
+    TracingConfig
+  VpcConfig:
+    VpcConfig

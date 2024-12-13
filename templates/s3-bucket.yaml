@@ -1,0 +1,78 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: 'S3 buckets both logs and codepipeline artifacts'
+
+Parameters:
+  AppName:
+    Type: 'String'
+
+  LogBucketObjectLifeSpan:
+    Type: 'Number'
+    Default: 30
+
+Resources:
+  # ----------------------------------------------
+  # Simple Storage Service (S3) buckets
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket.html
+  # ----------------------------------------------
+  # S3 Bucket to store logs from services like CloudFront
+  S3LogBucket:
+    Type: 'AWS::S3::Bucket'
+    DeletionPolicy: 'Delete'
+    Properties:
+      LifecycleConfiguration:
+        Rules:
+          - ExpirationInDays: !Ref LogBucketObjectLifeSpan
+            Status: 'Enabled'
+      AccessControl: 'Private'
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: ObjectWriter
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  # S3 Bucket for storing things that should not be publicly accessible like CodePipeline artifacts
+  S3PrivateBucket:
+    Type: 'AWS::S3::Bucket'
+    DeletionPolicy: 'Delete'
+    Properties:
+      AccessControl: 'Private'
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: ObjectWriter
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LoggingConfiguration:
+        DestinationBucketName: !Ref S3LogBucket
+        LogFilePrefix: 's3-access'
+
+Outputs:
+  S3LogBucketId:
+    Value: !Ref S3LogBucket
+
+  S3LogBucketUri:
+    Value: !Sub "s3://${S3LogBucket}"
+
+  S3LogBucketArn:
+    Value: !GetAtt S3LogBucket.Arn
+    Export:
+      Name: !Sub '${AppName}-S3LogBucketArn'
+
+  S3PrivateBucketId:
+    Value: !Ref S3PrivateBucket
+    Export:
+      Name: !Sub '${AppName}-S3PrivateBucketId'
+
+  S3PrivateBucketUri:
+    Value: !Sub "s3://${S3PrivateBucket}"
+
+  S3PrivateBucketArn:
+    Value: !GetAtt S3PrivateBucket.Arn
+    Export:
+      Name: !Sub '${AppName}-S3PrivateBucketArn'

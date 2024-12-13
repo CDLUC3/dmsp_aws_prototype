@@ -23,7 +23,7 @@ Parameters:
     Type: 'String'
     Default: 'dev'
 
-  AppName:
+  AppDisplayName:
     Type: 'String'
 
   Domain:
@@ -112,12 +112,6 @@ Parameters:
     Type: 'String'
 
   CognitoClientSecret:
-    Type: 'String'
-
-  DmpIdBaseUrl:
-    Type: 'String'
-
-  DmpIdShoulder:
     Type: 'String'
 
   RestDataSourceCacheTtl:
@@ -305,7 +299,7 @@ Resources:
               Value: !Ref NodeEnv
 
             - Name: 'APP_NAME'
-              Value: !Ref AppName
+              Value: !Ref AppDisplayName
 
             - Name: 'DOMAIN'
               Value: !Ref Domain
@@ -354,9 +348,9 @@ Resources:
               Value: !Ref CacheAutomaticFailoverEnabled
 
             - Name: 'DMP_ID_BASE_URL'
-              Value: !Ref DmpIdBaseUrl
+              Value: !Ref DoiBase
             - Name: 'DMP_ID_SHOULDER'
-              Value: !Ref DmpIdShoulder
+              Value: !Ref DoiShoulder
 
             # DMPHub API connection
             - Name: 'DMPHUB_AUTH_URL'

@@ -1,10 +1,10 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: 'AWS::Serverless-2016-10-31'
 
-Description: 'Elastic container registry for DMPTool build images'
+Description: 'Elastic container registry for build images'
 
 Parameters:
-  Env:
+  AppName:
     Type: 'String'
 
   ECRLifecyclePolicyTagPrefix:
@@ -19,7 +19,7 @@ Resources:
     Type: 'AWS::ECR::Repository'
     DeletionPolicy: 'Retain'
     Properties:
-      RepositoryName: !Sub '${AWS::StackName}-ecr'
+      RepositoryName: !Sub '${AppName}-ecr'
       ImageScanningConfiguration:
         ScanOnPush: true
       LifecyclePolicy:
@@ -61,6 +61,8 @@ Resources:
 Outputs:
   EcrRepositoryName:
     Value: !Ref EcrRepository
+    Export:
+      Name: !Sub '${AppName}-EcrRepositoryName'
 
   EcrRepositoryArn:
     Value: !GetAtt EcrRepository.Arn
@@ -68,4 +70,4 @@ Outputs:
   EcrRepositoryUri:
     Value: !GetAtt EcrRepository.RepositoryUri
     Export:
-      Name: !Sub '${Env}-EcrRepositoryUri'
+      Name: !Sub '${AppName}-EcrRepositoryUri'

@@ -1,0 +1,17 @@
+template:
+  path: 'codepipeline.yaml'
+  type: 'file'
+
+parameters:
+  CodeStarConnectionArn: !ssm /uc3/CodeStarConnectionArn
+
+  S3ArtifactBucketId: !stack_output tool/s3.yaml::S3PrivateBucketId
+
+  CodeBuildProjectName: !stack_output tool/dev/backend/codebuild.yaml::CodeBuildProjectId
+
+  RepositoryName: 'CDLUC3/dmsp_backend_prototype'
+  BranchToMonitor: 'development'
+  SourceOutputArtifactFormat: 'CODEBUILD_CLONE_REF'
+
+  EcsCluster: !stack_output tool/dev/ecs-cluster.yaml::EcsFargateClusterId
+  EcsServiceName: !stack_output tool/dev/backend/ecs.yaml::EcsServiceName

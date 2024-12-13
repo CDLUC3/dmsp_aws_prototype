@@ -1,0 +1,36 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: 'Persistent resources for the DMPRoadmap system'
+
+Parameters:
+  SsmPath:
+    Type: 'String'
+
+  ParamDescription:
+    Type: 'String'
+
+  ParamName:
+    Type: 'String'
+
+  ParamType:
+    Type: 'String'
+    Default: 'String'
+    AllowedValues:
+      - 'String'
+      - 'SecureString'
+
+  ParamValue:
+    Type: 'String'
+
+Resources:
+  # ----------------------------------------------
+  # SSM Parameter Store (for some reason SecureString is not supported!)
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-ssm-parameter.html
+  # ----------------------------------------------
+  DbHostUrlParameter:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: !Sub "${AWS::StackName} ${ParamDescription}"
+      Name: !Sub "${SsmPath}${ParamName}"
+      Type: !Ref ParamType
+      Value: !Ref ParamValue

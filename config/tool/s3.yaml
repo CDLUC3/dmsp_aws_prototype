@@ -1,0 +1,8 @@
+template:
+  path: s3-bucket.yaml
+  type: file
+
+parameters:
+  AppName: !stack_attr sceptre_user_data.app_name
+
+  LogBucketObjectLifeSpan: '14'

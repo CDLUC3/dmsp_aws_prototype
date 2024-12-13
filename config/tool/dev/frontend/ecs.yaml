@@ -1,0 +1,44 @@
+template:
+  path: 'ecs-frontend.yaml'
+  type: 'file'
+
+dependencies:
+  - dev/global/tool-route53.yaml
+
+parameters:
+  Subnets: !stack_attr sceptre_user_data.public_subnets
+
+  Env: !stack_attr sceptre_user_data.env
+
+  DomainName: !stack_attr sceptre_user_data.domain
+  ContainerName: !stack_attr sceptre_user_data.frontend_server_container_name
+
+  EcsDesiredServiceCount: '1'
+
+  AppPort: '3000'
+  ApolloPort: '4000'
+
+  EcrRepositoryUri: !stack_output tool/ecr.yaml::EcrRepositoryUri
+
+  EcrImageTag: 'nextJS-latest'
+
+  EcsClusterId: !stack_output tool/dev/ecs-cluster.yaml::EcsFargateClusterId
+  EcsTaskExecutionRoleId: !stack_output tool/dev/ecs-cluster.yaml::EcsFargateExecutionRoleId
+  EcsSecGrpId: !stack_output tool/dev/ecs-cluster.yaml::EcsFargateSecGrp
+
+  AlbTargetGroupArn: !stack_output tool/dev/alb.yaml::NextJsServerTargetGroupArn
+
+  AlbSecGrpId: !stack_output tool/dev/alb.yaml::AlbSecurityGroupId
+
+  CpuSize: '2048'
+  MemorySize: '4096'
+
+  StartTimeout: '30'
+  HealthCheckGracePeriod: '30'
+  MinimumHealthyContainerPercentage: '100'
+  MaximumHealthyContainerPercentage: '200'
+  StopTimeout: '30'
+
+  LogLevel: 'debug'
+
+  HelpdeskEmail: !ssm /uc3/dmp/tool/dev/HelpdeskEmail
