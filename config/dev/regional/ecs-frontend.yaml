@@ -10,7 +10,8 @@ parameters:
 
   Env: !stack_attr sceptre_user_data.env
 
-  AppName: !stack_attr sceptre_user_data.frontend_server_container_name
+  AppName: !stack_attr sceptre_user_data.app_name
+  ContainerName: !stack_attr sceptre_user_data.frontend_server_container_name
 
   EcsDesiredServiceCount: '1'
 

@@ -182,6 +182,21 @@ Parameters:
   DbPassword:
     Type: 'String'
 
+  SesEndpoint:
+    Type: 'String'
+
+  SesAccessKeyId:
+    Type: 'String'
+
+  SesAccessKeySecret:
+    Type: 'String'
+
+  SesBouncedEmailBucket:
+    Type: 'String'
+
+  DoNotReplyEmail:
+    Type: 'String'
+
   HelpdeskEmail:
     Type: 'String'
 
@@ -288,8 +303,8 @@ Resources:
               awslogs-group: !Ref AWS::StackName
               awslogs-stream-prefix: !Ref ContainerName
           PortMappings:
-            # SES port (Email)
-            - ContainerPort: 25
+            # SES SMTP port
+            - ContainerPort: 465
               Protocol: 'tcp'
             # ALB port (The port we are listening on)
             - ContainerPort: !Ref AppPort
@@ -301,49 +316,72 @@ Resources:
             - ContainerPort: !Ref CachePort
               Protocol: 'tcp'
           Environment:
+            # NODE_ENV is used by nodeJS to determine how to deploy/run the application (e.g. development, etc.)
             - Name: 'NODE_ENV'
               Value: !Ref NodeEnv
 
+            # APP_ENV is used for display purposes in emails and other messaging to indicate
+            # what AWS environment the system is running in (e.g. dev, stg, etc.)
+            - name: 'APP_ENV'
+              Value: !Ref Env
+
+            # The application as it should appear in emails and other messaging
             - Name: 'APP_NAME'
               Value: !Ref AppName
 
+            # The domain name of the application
             - Name: 'DOMAIN'
               Value: !Ref Domain
 
+            # A default affiliation ID to be used as the affiliation when anonymizing a user account.
             - Name: 'DEFAULT_AFFILIATION_URI'
               Value: !Ref DefaultAffiliationUri
 
+            # The URL for DMP IDs (e.g. https://doi.org/11.22222/A1)
             - Name: 'DMSP_BASE_URL'
               Value: !Sub "${DoiBase}${DoiShoulder}"
 
+            # The loggin level you want the application use
             - Name: 'LOG_LEVEL'
               Value: !Ref LogLevel
+
+            # Whether or not to use mock data (not fully supported in the backend atm)
             - Name: 'USE_MOCK_DATA'
               Value: !Ref UseMockData
 
+            # The Apollo TTL for the cache it uses when making external API calls (e.g to the DMP Hub)
             - Name: 'REST_DATA_SOURCE_CACHE_TTL'
               Value: !Ref RestDataSourceCacheTtl
 
+            # The number of rounds bcrypt should use when salting passwords
             - Name: 'BCRYPT_SALT_ROUNDS'
               Value: !Ref BcryptSaltRounds
+
+            # The secret that will be used when hashing tokens before storing in the cache
             - Name: 'TOKEN_HASH_SECRET'
               Value: !Ref HashTokenSecret
 
+            # The secret to use when hashing the JWT access token (the `dmpt` cookie)
             - Name: 'JWT_SECRET'
               Value: !Ref JwtSecret
+            # The access token TTL
             - Name: 'JWT_TTL'
               Value: !Ref JwtTtl
+
+            # The secret to use when hashing the refresh token (the `dmpr` cookie)
             - Name: 'JWT_REFRESH_SECRET'
               Value: !Ref JwtRefreshSecret
+            # The refresh token TTL
             - Name: 'JWT_REFRESH_TTL'
               Value: !Ref JwtRefreshTtl
 
+            # The length of the CSRF token length and TTL
             - Name: 'CSRF_LENGTH'
               Value: !Ref CsrfLength
             - Name: 'CSRF_TTL'
               Value: !Ref CsrfTtl
 
-            # Elasticache Redis connection
+            # Elasticache Redis connection info
             - Name: 'CACHE_HOST'
               Value: !Ref CacheHost
             - Name: 'CACHE_PORT'
@@ -353,12 +391,7 @@ Resources:
             - Name: 'CACHE_AUTOFAILOVER_ENABLED'
               Value: !Ref CacheAutomaticFailoverEnabled
 
-            - Name: 'DMP_ID_BASE_URL'
-              Value: !Ref DmpIdBaseUrl
-            - Name: 'DMP_ID_SHOULDER'
-              Value: !Ref DmpIdShoulder
-
-            # DMPHub API connection
+            # DMPHub API connection info
             - Name: 'DMPHUB_AUTH_URL'
               Value: !Sub "https://auth.dmphub.uc3${Env}.cdlib.net"
             - Name: 'DMPHUB_API_BASE_URL'
@@ -368,7 +401,7 @@ Resources:
             - Name: 'DMPHUB_API_CLIENT_SECRET'
               Value: !Ref CognitoClientSecret
 
-            # AWS RDS MySQL database
+            # AWS RDS MySQL database info
             - Name: 'MYSQL_CONNECTION_LIMIT'
               Value: !Ref DbConnectionLimit
             - Name: 'MYSQL_HOST'
@@ -381,7 +414,21 @@ Resources:
               Value: !Ref DbUsername
             - Name: 'MYSQL_PASSWORD'
               Value: !Ref DbPassword
-            - Name: 'HELPDESK_EMAIL'
+
+            # AWS SES Emails info
+            - Name: 'SES_ENDPOINT'
+              Value: !Ref SesEndpoint
+            - Name: 'SES_ACCESS_ID'
+              Value: !Ref SesAccessKeyId
+            - Name: 'SES_ACCESS_SECRET'
+              Value: !Ref SesAccessKeySecret
+            - Name: 'SES_BOUNCED_EMAIL_BUCKET'
+              Value: !Ref SesBouncedEmailBucket
+            - Name: 'SES_BOUNCE_EMAIL_ADDRESS'
+              Value: !Ref DoNotReplyEmail
+            - Name: 'DO_NOT_REPLY_EMAIL_ADDRESS'
+              Value: !Ref DoNotReplyEmail
+            - Name: 'HELPDESK_EMAIL_ADDRESS'
               Value: !Ref HelpdeskEmail
 
   # Container Service definition
