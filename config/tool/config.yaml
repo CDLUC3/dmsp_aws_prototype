@@ -1,0 +1,3 @@
+# Sceptre will create an S3 bucket to store your CloudFormation templates. Define the name here or
+# provide the name of an existing bucket.
+template_bucket_name: 'dmp-tool-cloudformation'

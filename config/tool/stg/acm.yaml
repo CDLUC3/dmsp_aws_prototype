@@ -1,0 +1,10 @@
+template:
+  path: cert.yaml
+  type: file
+
+parameters:
+  HostedZoneId: !stack_attr sceptre_user_data.hosted_zone
+
+  Domain: !stack_attr sceptre_user_data.domain
+
+  Env: !stack_attr sceptre_user_data.env

@@ -1,0 +1,45 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: 'S3 bucket'
+
+Parameters:
+  Env:
+    Type: 'String'
+    Default: 'dev'
+
+  S3Versioning:
+    Type: 'String'
+    Default: 'Enabled'
+    AllowedValues:
+      - Enabled
+      - Suspended
+
+  S3LogBucket:
+    Type: 'String'
+
+Resources:
+  S3Bucket:
+    Type: 'AWS::S3::Bucket'
+    DeletionPolicy: 'Retain'
+    Properties:
+      AccessControl: 'Private'
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LoggingConfiguration:
+        DestinationBucketName: !Ref S3LogBucket
+        LogFilePrefix: 's3-access'
+      VersioningConfiguration:
+        Status: !Ref S3Versioning
+
+Outputs:
+  S3BucketID:
+    Value: !Ref S3Bucket
+
+  S3BucketURI:
+    Value: !Sub "s3://${S3Bucket}"
+
+  S3BucketARN:
+    Value: !GetAtt S3Bucket.Arn

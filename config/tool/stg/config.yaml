@@ -1,0 +1,38 @@
+# Stack tags are attached to every AWS resource created by these CloudFormation templates
+# with the exception of the Lambda functions and layers which are managed by AWS SAM.
+stack_tags:
+  Program: 'uc3'
+  Service: 'dmp'
+  Subservice: 'tool'
+  Environment: 'stg'
+  CodeRepo: 'https://github.com/CDLUC3/dmsp_aws_prototype'
+  Contact: 'briley'
+
+# Define reusable variables that can be referenced in template specific config files via:
+#   my_variable: !stack_attr sceptre_user_data.[variable]
+sceptre_user_data:
+  vpc_id: !stack_output_external cdl-uc3-prd-vpc-stack::vpc
+
+  public_subnets:
+    - !stack_output_external cdl-uc3-prd-defaultsubnet-stack::defaultsubnet2a
+    - !stack_output_external cdl-uc3-prd-defaultsubnet-stack::defaultsubnet2b
+    - !stack_output_external cdl-uc3-prd-defaultsubnet-stack::defaultsubnet2c
+
+  # We sometimes need to access the subnets individually
+  public_subnet_a: !stack_output_external cdl-uc3-prd-defaultsubnet-stack::defaultsubnet2a
+  public_subnet_b: !stack_output_external cdl-uc3-prd-defaultsubnet-stack::defaultsubnet2b
+  public_subnet_c: !stack_output_external cdl-uc3-prd-defaultsubnet-stack::defaultsubnet2c
+
+  # The Hosted Zone
+  hosted_zone: !stack_output_external uc3-ops-aws-prd-route53::HostedZoneIdUc3StgCdlibNet
+
+  # Environment specific variables
+  app: 'dmptool'
+  env: 'stg'
+  domain: 'dmptool-stg.uc3stg.cdlib.net'
+  ssm_path: '/uc3/dmp/tool/stg/'
+
+  # ECS container name prefixes
+  backend_server_container_name: 'apolloServer'
+  frontend_server_container_name: 'nextJS'
+  shibboleth_server_container_name: 'shibboleth'

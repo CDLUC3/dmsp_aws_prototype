@@ -1,0 +1,17 @@
+template:
+  path: 'route53.yaml'
+  type: 'file'
+
+parameters:
+  HostedZoneId: !stack_attr sceptre_user_data.hosted_zone
+
+  Domain: !stack_attr sceptre_user_data.domain
+  RecordType: 'A'
+
+  TargetName: !stack_output tool/stg/alb.yaml::AlbDnsName
+  TargetHostedZoneId: !stack_output tool/stg/alb.yaml::AlbCanonicalHostedZoneId
+
+  # We need to tell it which region our ALB lives in
+  TargetRegion: 'us-west-2'
+
+  SetIdentifier: 'dmptool-stg'

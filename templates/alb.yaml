@@ -38,9 +38,6 @@ Parameters:
   Domain:
     Type: 'String'
 
-  Subdomain:
-    Type: 'String'
-
 Resources:
   # -----------------------------------------------------------
   # EC2 Security Groups for ECS containers (see their definitions in application.yaml)

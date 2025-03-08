@@ -6,6 +6,7 @@ Description: 'Elastic container registry for DMPTool build images'
 Parameters:
   Env:
     Type: 'String'
+    Default: 'dev'
 
   ECRLifecyclePolicyTagPrefix:
     Type: 'String'
@@ -19,7 +20,7 @@ Resources:
     Type: 'AWS::ECR::Repository'
     DeletionPolicy: 'Retain'
     Properties:
-      RepositoryName: !Sub '${AWS::StackName}-ecr'
+      RepositoryName: !Ref AWS::StackName
       ImageScanningConfiguration:
         ScanOnPush: true
       LifecyclePolicy:
@@ -62,10 +63,8 @@ Outputs:
   EcrRepositoryName:
     Value: !Ref EcrRepository
 
-  EcrRepositoryArn:
+  EcrRepositoryARN:
     Value: !GetAtt EcrRepository.Arn
 
-  EcrRepositoryUri:
+  EcrRepositoryURI:
     Value: !GetAtt EcrRepository.RepositoryUri
-    Export:
-      Name: !Sub '${Env}-EcrRepositoryUri'

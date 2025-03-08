@@ -153,7 +153,6 @@ Resources:
       PreferredBackupWindow: !Ref PreferredBackupWindow
       BackupRetentionPeriod: !Ref DbBackupRetentionDays
       CopyTagsToSnapshot: true
-      DBInstanceClass: 'db.t3.small'
       AllocatedStorage: !Ref DbSizeGb
       StorageType: !Ref StorageType
       StorageEncrypted: !Ref StorageEncrypted
@@ -260,12 +259,12 @@ Outputs:
   DbSecurityGroupId:
     Value: !GetAtt DbSecurityGroup.GroupId
     Export:
-      Name: !Sub '${Env}-DbSecurityGroupId'
+      Name: !Sub '${DbName}-${Env}-DbSecurityGroupId'
 
   DbSubnetName:
     Value: !Ref DbSubnetGroup
     Export:
-      Name: !Sub '${Env}-DbSubnetName'
+      Name: !Sub '${DbName}-${Env}-DbSubnetName'
 
   DbInstanceName:
     Value: !Ref Database
