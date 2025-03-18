@@ -14,7 +14,7 @@ parameters:
   # restore that snapshot. If not, just leave this commented out and Docker will initialize the DB
   # DBSnapshot: 'Snapshot ARN'
 
-  DbInstanceType: 'db.t3.micro'
+  DbInstanceType: 'db.t4g.small'
   DbSizeGb: '20'
   StorageType: 'gp3'
 
