@@ -137,6 +137,8 @@ Resources:
   # -----------------------------------------------------------
   EcsCluster:
     Type: 'AWS::ECS::Cluster'
+    DependsOn:
+      - EcsSecurityGroup
     Properties:
       ClusterName: !Sub '${AWS::StackName}-fargate-clst'
       CapacityProviders:
