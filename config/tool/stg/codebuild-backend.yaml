@@ -1,0 +1,51 @@
+template:
+  path: 'codebuild-backend.yaml'
+  type: 'file'
+
+parameters:
+  VpcId: !stack_attr sceptre_user_data.vpc_id
+  Subnets: !stack_attr sceptre_user_data.public_subnets
+
+  Program: !stack_attr stack_tags.Program
+  Service: !stack_attr stack_tags.Service
+  Subservice: !stack_attr stack_tags.Subservice
+  CodeRepo: !stack_attr stack_tags.CodeRepo
+  Contact: !stack_attr stack_tags.Contact
+
+  Env: !stack_attr sceptre_user_data.env
+
+  # CodeStarConnectionArn: !ssm /uc3/CodeStarConnectionArn
+  CodeStarConnectionArn: !stack_output tool/stg/codestar-connection.yaml::CodestarConnectionARN
+
+  EcrRepositoryArn: !stack_output tool/stg/ecr.yaml::EcrRepositoryARN
+  EcrRepositoryUri: !stack_output tool/stg/ecr.yaml::EcrRepositoryURI
+  EcrRepositoryName: !stack_output tool/stg/ecr.yaml::EcrRepositoryName
+
+  S3ArtifactBucketArn: !stack_output tool/stg/s3-content.yaml::S3BucketARN
+  S3ArtifactBucketId: !stack_output tool/stg/s3-content.yaml::S3BucketID
+
+  CodePipelineLogGroupArn: !stack_output tool/stg/cloudwatch.yaml::CodePipelineLogGroupArn
+  CodePipelineLogGroupName: !stack_output tool/stg/cloudwatch.yaml::CodePipelineLogGroupName
+
+  DbSecurityGroupId: !stack_output tool/stg/rds.yaml::DbSecurityGroupId
+
+  DbHost: !stack_output tool/stg/rds.yaml::DbAddress
+  DbPort: !stack_output tool/stg/rds.yaml::DbPort
+  DbName: !stack_output tool/stg/rds.yaml::DbName
+  DbUsername: !ssm /uc3/dmp/tool/stg/DbUsername
+  DbPassword: !ssm /uc3/dmp/tool/stg/DbPassword
+
+  AppName: !stack_attr sceptre_user_data.backend_server_container_name
+
+  NodeEnv: 'development'
+
+  CodeBuildEnvironmentType: 'LINUX_CONTAINER'
+  CodeBuildEnvironmentComputeType: 'BUILD_GENERAL1_SMALL'
+  # This is AL2023. Use `aws codebuild list-curated-environment-images` to see the latest images
+  # CodeBuildEnvironmentImage: 'aws/codebuild/eb-nodejs-6.10.0-amazonlinux-64:4.0.0'
+  CodeBuildEnvironmentImage: 'aws/codebuild/amazonlinux2-x86_64-standard:5.0'
+  CodeBuildTimeout: '15'
+
+hooks:
+  after_create:
+    - cmd: 'aws codebuild start-build --project-name apolloServer-stg-codebuild'

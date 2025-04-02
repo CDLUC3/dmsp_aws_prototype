@@ -2,19 +2,12 @@ AWSTemplateFormatVersion: '2010-09-09'
 
 Description: 'CodeBuild for the DMPSP Apollo server backend application'
 
-# TODO: We may be able to consolidate this if the templates for the Apollo Server backend and the nextJS frontend
-#       are very similar. Chances are that the only diff might be with the ENV variables, which we can update
-#       here to to be passed in as a List<String>
-
 Parameters:
   VpcId:
     Type: 'AWS::EC2::VPC::Id'
 
-  # RouteTableId:
-  #   Type: 'String'
-
-  # Subnets:
-  #   Type: 'List<AWS::EC2::Subnet::Id>'
+  Subnets:
+    Type: 'List<AWS::EC2::Subnet::Id>'
 
   Program:
     Type: 'String'
@@ -63,14 +56,11 @@ Parameters:
   S3ArtifactBucketId:
     Type: 'String'
 
-  # S3ArtifactBucketAlias:
-  #   Type: 'String'
-
   CodeStarConnectionArn:
     Type: 'String'
 
-  # DbSecurityGroupId:
-  #   Type: 'String'
+  DbSecurityGroupId:
+    Type: 'String'
 
   DbHost:
     Type: 'String'
@@ -128,7 +118,7 @@ Resources:
               - 'sts:AssumeRole'
       ManagedPolicyArns:
         - 'arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPowerUser'
-        #  - 'arn:aws:iam::aws:policy/AmazonRDSDataFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonRDSDataFullAccess'
       Policies:
         - PolicyName: !Sub '${AWS::StackName}-build-policy'
           PolicyDocument: !Sub >
@@ -241,59 +231,34 @@ Resources:
           Value: 'Security-group-attached-to-ENI'
 
   # Allow RDS to receive traffic from this CodeBuild
-  # RdsSecurityGroupIngressFromCodeBuild:
-  #   Type: 'AWS::EC2::SecurityGroupIngress'
-  #   Properties:
-  #     IpProtocol: 'tcp'
-  #     FromPort: !Ref DbPort
-  #     ToPort: !Ref DbPort
-  #     GroupId: !Ref DbSecurityGroupId
-  #     SourceSecurityGroupId: !GetAtt CodeBuildSecurityGroup.GroupId
+  RdsSecurityGroupIngressFromCodeBuild:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      IpProtocol: 'tcp'
+      FromPort: !Ref DbPort
+      ToPort: !Ref DbPort
+      GroupId: !Ref DbSecurityGroupId
+      SourceSecurityGroupId: !GetAtt CodeBuildSecurityGroup.GroupId
 
   # Allow this CodeBuild to call RDS
-  # CodeBuildSecurityGroupEgressToRds:
-  #   Type: 'AWS::EC2::SecurityGroupEgress'
-  #   Properties:
-  #     IpProtocol: 'tcp'
-  #     FromPort: !Ref DbPort
-  #     ToPort: !Ref DbPort
-  #     GroupId: !GetAtt CodeBuildSecurityGroup.GroupId
-  #     DestinationSecurityGroupId: !Ref DbSecurityGroupId
+  CodeBuildSecurityGroupEgressToRds:
+    Type: 'AWS::EC2::SecurityGroupEgress'
+    Properties:
+      IpProtocol: 'tcp'
+      FromPort: !Ref DbPort
+      ToPort: !Ref DbPort
+      GroupId: !GetAtt CodeBuildSecurityGroup.GroupId
+      DestinationSecurityGroupId: !Ref DbSecurityGroupId
 
   # Allow this CodeBuild to receive from RDS
-  # CodeBuildSecurityGroupIngressFromRds:
-  #   Type: 'AWS::EC2::SecurityGroupIngress'
-  #   Properties:
-  #     IpProtocol: 'tcp'
-  #     FromPort: !Ref DbPort
-  #     ToPort: !Ref DbPort
-  #     GroupId: !GetAtt CodeBuildSecurityGroup.GroupId
-  #     SourceSecurityGroupId: !Ref DbSecurityGroupId
-
-  # VPC Gateway Endpoint to allow our CodeBuild to access the CodePipeline's S3 bucket
-  # S3VpcGatewayEndpoint:
-  #   Type: 'AWS::EC2::VPCEndpoint'
-  #   Properties:
-  #     VpcEndpointType: 'Gateway'
-  #     VpcId: !Ref VpcId
-  #     ServiceName: !Sub "com.amazonaws.${AWS::Region}.s3"
-  #     PolicyDocument:
-  #       Version: '2012-10-17'
-  #       Statement:
-  #         - Effect: 'Allow'
-  #           Principal: '*'
-  #           Action:
-  #             - 's3:GetObject'
-  #             - 's3:PutObject'
-  #             - 's3:GetObjectVersion'
-  #             - 's3:GetBucketAcl'
-  #             - 's3:GetBucketLocation'
-  #           Resource:
-  #             - !Ref S3ArtifactBucketArn
-  #             - !Sub "${S3ArtifactBucketArn}/*"
-  #     RouteTableIds:
-  #       - !Ref RouteTableId
-
+  CodeBuildSecurityGroupIngressFromRds:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      IpProtocol: 'tcp'
+      FromPort: !Ref DbPort
+      ToPort: !Ref DbPort
+      GroupId: !GetAtt CodeBuildSecurityGroup.GroupId
+      SourceSecurityGroupId: !Ref DbSecurityGroupId
 
   # -----------------------------------------------------------
   # CodeBuild
@@ -302,6 +267,7 @@ Resources:
   CodeBuildProject:
     Type: 'AWS::CodeBuild::Project'
     Properties:
+      Name: !Sub '${AppName}-${Env}-backend-codebuild'
       QueuedTimeoutInMinutes: 5
       Artifacts:
         Type: 'CODEPIPELINE'
@@ -310,11 +276,11 @@ Resources:
       Cache:
         Type: 'S3'
         Location: !Sub "${S3ArtifactBucketId}/apollo/build-cache"
-      # VpcConfig:
-      #   VpcId: !Ref VpcId
-      #   Subnets: !Ref Subnets
-      #   SecurityGroupIds:
-      #     - !Ref CodeBuildSecurityGroup
+      VpcConfig:
+        VpcId: !Ref VpcId
+        Subnets: !Ref Subnets
+        SecurityGroupIds:
+          - !Ref CodeBuildSecurityGroup
       Environment:
         ComputeType: !Ref CodeBuildEnvironmentComputeType
         Image: !Ref CodeBuildEnvironmentImage
@@ -354,6 +320,9 @@ Resources:
 Outputs:
   CodeBuildRoleArn:
     Value: !GetAtt CodeBuildRole.Arn
+
+  CodebuildSecurityGroupId:
+    Value: !GetAtt CodeBuildSecurityGroup.GroupId
 
   CodeBuildProjectId:
     Value: !Ref CodeBuildProject

@@ -1,0 +1,6 @@
+template:
+  path: 'cloudwatch.yaml'
+  type: 'file'
+
+parameters:
+  LogRetentionDays: '14'

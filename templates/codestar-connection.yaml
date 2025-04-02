@@ -1,0 +1,25 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: 'Codestar Connection for our CodePipelines to watch GitHub'
+
+Parameters:
+  AppName:
+    Type: String
+
+  Env:
+    Type: String
+    Default: 'dev'
+
+Resources:
+  CodestarConnection:
+    Type: 'AWS::CodeStarConnections::Connection'
+    Properties:
+      ConnectionName: !Sub '${AppName}-${Env}-GitHub'
+      ProviderType: 'GitHub'
+
+Outputs:
+  CodestarConnectionID:
+    Value: !Ref CodestarConnection
+
+  CodestarConnectionARN:
+    Value: !GetAtt CodestarConnection.ConnectionArn
