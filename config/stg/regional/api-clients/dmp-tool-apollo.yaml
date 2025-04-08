@@ -1,0 +1,34 @@
+template:
+  path: 'cognito-app-client.yaml'
+  type: 'file'
+
+parameters:
+  UserPoolId: !stack_output stg/regional/cognito.yaml::UserPoolId
+
+  Domain: !stack_attr sceptre_user_data.domain
+  Subdomain: 'auth'
+  Env: !stack_attr sceptre_user_data.env
+
+  ClientName: 'dmp-tool-apollo'
+
+  ClientCallbackUri: 'https://dmptool-stg.uc3stg.cdlib.net/dmphub/callback'
+
+  OnlyAllowAdminsToCreateUsers: 'false'
+  UnusedAccountValidityDays: '14'
+  MinimumPasswordLength: '8'
+
+  TokenValidityUnits: 'minutes'
+  AccessTokenValidity: '10'
+  AuthSessionValidatyMinutes: '3'
+  IdTokenValidity: '7'
+  RefreshTokenValidity: '10080'
+
+  Scopes:
+    - 'https://auth.dmphub.uc3stg.cdlib.net/stg.delete'
+    - 'https://auth.dmphub.uc3stg.cdlib.net/stg.read'
+    - 'https://auth.dmphub.uc3stg.cdlib.net/stg.upload'
+    - 'https://auth.dmphub.uc3stg.cdlib.net/stg.write'
+
+hooks:
+  after_update:
+    cmd: 'src/add-api-client.sh stg dmp-tool-apollo https://dmptool-stg.uc3stg.cdlib.net/dmphub/callback'
