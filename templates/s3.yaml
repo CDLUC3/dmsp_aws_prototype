@@ -14,9 +14,22 @@ Parameters:
     Type: 'Number'
     Default: 30
 
+  # sqs queue must be available before trying to configure it here
+  S3LogsEventNotificationQueueArn:
+    Type: 'String'
+    Default: ""
+
+
 Conditions:
   PreventDelete:
     !Equals [!Ref Env, 'prd']
+
+  # If sqs queue is not defined, do not configure log event notifications
+  SetLogsEventNotifications: !Not
+    - !Equals 
+      - !Ref S3LogsEventNotificationQueueArn
+      - ''
+
 
 Resources:
   # ----------------------------------------------
@@ -44,6 +57,15 @@ Resources:
         BlockPublicPolicy: true
         IgnorePublicAcls: true
         RestrictPublicBuckets: true
+      NotificationConfiguration:
+        !If
+          - SetLogsEventNotifications
+          -
+            QueueConfigurations:
+              - Event: s3:ObjectCreated:*
+                Queue: !Ref S3LogsEventNotificationQueueArn
+          - {}
+
 
   # S3 Bucket that stores DMP documents and UI resources. It is not directly public, but is
   # instead server through the CloudFront Distribution

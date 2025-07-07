@@ -8,3 +8,7 @@ parameters:
   SsmPath: !stack_attr sceptre_user_data.ssm_path
 
   LogBucketObjectLifeSpan: '30'
+
+  # sqs queue must be available before trying to configure it here
+  S3LogsEventNotificationQueueArn: !stack_output_external uc3-ops-dev-osis-pipelines::Uc3OpsOsisPipelineSqsQueue
+
