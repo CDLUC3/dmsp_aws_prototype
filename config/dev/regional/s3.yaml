@@ -10,6 +10,6 @@ parameters:
   LogBucketObjectLifeSpan: '30'
 
   # sqs queue must be available before trying to configure it here
-  S3LogsEventNotificationQueueArn: !stack_output_external uc3-ops-dev-osis-sqs::Uc3OpsOsisPipelineQueueArn
+  S3LogsEventNotificationQueueArn: !stack_output_external uc3-ops-logstash-dev-sqs::DmpHubDevLogstashPipelineQueueArn
 
 
