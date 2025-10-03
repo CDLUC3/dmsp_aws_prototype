@@ -11,5 +11,6 @@ parameters:
 
   # sqs queue must be available before trying to configure it here
   S3LogsEventNotificationQueueArn: !stack_output_external uc3-ops-logstash-dev-sqs::DmpHubDevLogstashPipelineQueueArn
+  S3WafLogsEventNotificationQueueArn: !stack_output_external uc3-ops-logstash-dev-sqs::DmpHubDevWafLogstashPipelineQueue
 
 

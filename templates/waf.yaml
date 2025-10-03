@@ -24,6 +24,10 @@ Parameters:
       - 'true'
       - 'false'
 
+  S3WafLogsBucketARN:
+    Type: 'String'
+
+
 Resources:
   # -----------------------------------------------------------
   # Web Application Firewall (WAF) - Stops malicious actors/bots from reaching application
@@ -80,6 +84,18 @@ Resources:
               VendorName: 'AWS'
               Name: 'AWSManagedRulesKnownBadInputsRuleSet'
               ExcludedRules: []
+
+  # -----------------------------------------------------------
+  # WAF Logging Configuration - send logs to S3 bucket for ingestion to OpenSearch
+  #   See: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-wafv2-loggingconfiguration.html
+  # -----------------------------------------------------------
+  WafLoggingConfiguration:
+    Type: AWS::WAFv2::LoggingConfiguration
+    Properties:
+      ResourceArn: !GetAtt WafRegional.Arn
+      LogDestinationConfigs:
+      - !Ref S3WafLogsBucketARN
+
 
 Outputs:
   WafId:

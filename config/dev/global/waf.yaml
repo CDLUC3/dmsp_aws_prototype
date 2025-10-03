@@ -9,3 +9,5 @@ parameters:
   SampledRequestsEnabled: 'true'
   # Whether WAF sends metrics to Amazon CloudWatch.
   CloudWatchMetricsEnabled: 'true'
+  # S3 Bucket for WAF logs
+  S3WafLogsBucketARN: !stack_output dev/s3.yaml::S3WafLogsBucketARN

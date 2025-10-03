@@ -19,6 +19,10 @@ Parameters:
     Type: 'String'
     Default: ""
 
+  S3WafLogsEventNotificationQueueArn:
+    Type: 'String'
+    Default: ""
+
 
 Conditions:
   PreventDelete:
@@ -65,6 +69,41 @@ Resources:
               - Event: s3:ObjectCreated:*
                 Queue: !Ref S3LogsEventNotificationQueueArn
           - {}
+
+  # S3 Bucket that stores WAF logs
+  # Bucket name prefix must be 'aws-waf-logs-'
+  S3WafLogsBucket:
+    Type: 'AWS::S3::Bucket'
+    DeletionPolicy: !If
+      - PreventDelete
+      - 'Retain'
+      - 'Delete'
+    Properties:
+      BucketName: !Sub "aws-waf-logs-${AWS::StackName}"
+      LifecycleConfiguration:
+        Rules:
+          - ExpirationInDays: !Ref S3LogsObjectLifeSpan
+            Status: 'Enabled'
+      AccessControl: 'Private'
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: ObjectWriter
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      NotificationConfiguration:
+        !If
+          - SetLogsEventNotifications
+          -
+            QueueConfigurations:
+              - Event: s3:ObjectCreated:*
+                Queue: !Ref S3LogsEventNotificationQueueArn
+          - {}
+
+
+
 
 
   # S3 Bucket that stores DMP documents and UI resources. It is not directly public, but is
@@ -164,6 +203,15 @@ Outputs:
     Value: !GetAtt S3LogBucket.Arn
     Export:
       Name: !Sub '${Env}-S3LogBucketArn'
+
+  S3WafLogBucketId:
+    Value: !Ref S3WafLogBucket
+  S3WafLogBucketUri:
+    Value: !Sub "s3://${S3WafLogBucket}"
+  S3WafLogBucketArn:
+    Value: !GetAtt S3WafLogBucket.Arn
+    Export:
+      Name: !Sub '${Env}-S3WafLogBucketArn'
 
   S3CloudFrontBucketId:
     Value: !Ref S3CloudFrontBucket
