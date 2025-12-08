@@ -46,8 +46,13 @@ Resources:
     Properties:
       LifecycleConfiguration:
         Rules:
-          - ExpirationInDays: !Ref LogBucketObjectLifeSpan
+          - Id: 'LogLifespan'
+            ExpirationInDays: !Ref LogBucketObjectLifeSpan
             Status: 'Enabled'
+          - Id: 'ICMU'
+            Status: 'Enabled'
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 5
       AccessControl: 'Private'
       OwnershipControls:
         Rules:
@@ -89,6 +94,12 @@ Resources:
         LogFilePrefix: 's3-access'
       VersioningConfiguration:
         Status: 'Enabled'
+      LifecycleConfiguration:
+        Rules:
+          - Id: 'ICMU'
+            Status: 'Enabled'
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 5
 
   # S3 Bucket for storing things that should not be publicly accessible like CodePipeline artifacts
   S3PrivateBucket:
@@ -107,6 +118,12 @@ Resources:
       LoggingConfiguration:
         DestinationBucketName: !Ref S3LogBucket
         LogFilePrefix: 's3-access'
+      LifecycleConfiguration:
+        Rules:
+          - Id: 'ICMU'
+            Status: 'Enabled'
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 5
 
   # S3 Bucket for transferring files between our AWS cloud environ and external systems
   S3FileExchangeBucket:
@@ -121,10 +138,14 @@ Resources:
       LifecycleConfiguration:
         Rules:
           # The DMPTool <--> COKI integration occurs once per week, so only need to retain files for 6 days
-          - Id: CokiRule
-            Prefix: coki
-            Status: Enabled
+          - Id: 'CokiRule'
+            Prefix: 'coki'
+            Status: 'Enabled'
             ExpirationInDays: 6
+          - Id: 'ICMU'
+            Status: 'Enabled'
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 5
       LoggingConfiguration:
         DestinationBucketName: !Ref S3LogBucket
         LogFilePrefix: 's3-access'
