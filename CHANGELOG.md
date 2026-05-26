@@ -7,6 +7,7 @@
 - S3 bucket for use when transferring files between our AWS cloud environ to/from COKI's Google cloud
 
 ### Updated
+- Update the Cloudfront distribution Lambda function to work with new landing page file layout
 - Updated JWT TTL for `ecs-backend`
 - Removed `JwtSecret`from `ecs-frontend`
 - Updated the `ecs-backend.yaml` Sceptre config and template to include the Elasticache Host and Port and also a bunch of new bcrypt, crypto, NODE_ENV and jwt ENV variables

@@ -79,24 +79,31 @@ Resources:
         //   See: https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/example-function-add-index.html
 
         function handler(event) {
-          var request = event.request;
+            var request = event.request;
+            var uri = request.uri;
 
-          // React is deployed to the `/dmps/` directory but will reference it's dependencies as if it was in the root
-          if (request.uri.includes('static/') && !request.uri.includes('dmps/')) {
-            var response = {
-              statusCode: 302,
-              statusDescription: 'Found',
-              headers: { "location": { "value": request.uri.replace('static/', 'dmps/static/') } }
-            };
-            return response;
+            // 1. If the request is for an actual file (contains a extension dot like .json, .png, .js, .css, .ico),
+            // let it pass straight through to S3 untouched.
+            var lastSegment = uri.split('/').pop();
+            if (lastSegment.indexOf('.') !== -1) {
+                return request;
+            }
 
-          } else if (request.uri.endsWith('/api-docs') || request.uri.endsWith('/api-docs/')) {
-            request.uri += request.uri.endsWith('/') ? 'index.html' : '/index.html';
+            // 2. API Docs handler (Kept from your original logic)
+            if (uri.endsWith('/api-docs') || uri.endsWith('/api-docs/')) {
+                request.uri += uri.endsWith('/') ? 'index.html' : '/index.html';
+                return request;
+            }
+
+            // 3. Single Page Application (SPA) Deep Link Routing
+            // If a user clicks a DOI link (e.g., /dmps/doi/123) or lands on the subfolder base (/dmps/),
+            // internally map them directly onto your main index.html file.
+            if (uri.startsWith('/dmps')) {
+                request.uri = '/dmps/index.html';
+                return request;
+            }
+
             return request;
-
-          } else {
-            return request;
-          }
         }
       FunctionConfig:
         Runtime: 'cloudfront-js-1.0'
