@@ -84,7 +84,8 @@ Resources:
 
             // 1. If the request is for an actual file (contains a extension dot like .json, .png, .js, .css, .ico),
             // let it pass straight through to S3 untouched.
-            if (uri.indexOf('.') !== -1) {
+            var lastSegment = uri.split('/').pop();
+            if (lastSegment.indexOf('.') !== -1) {
                 return request;
             }
 
